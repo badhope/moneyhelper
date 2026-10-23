@@ -27,17 +27,19 @@ from .base import (
 )
 
 # 列名关键词族（lower-case、去空格后匹配）
-_DATE_KEYS = {"date", "交易日期", "记账日期", "交易时间", "日期", "时间"}
-_AMOUNT_KEYS = {"amount", "金额", "交易金额", "发生额"}
-_INCOME_KEYS = {"收入", "income", "credit", "贷方"}
-_EXPENSE_KEYS = {"支出", "expense", "debit", "借方", "消费"}
-_CATEGORY_KEYS = {"category", "分类", "类别", "交易分类"}
-_ITEM_KEYS = {
+# 列名候选按优先级排列成元组（不是 set）：find() 按声明顺序匹配，
+# 保证同一文件在不同进程（PYTHONHASHSEED 不同）下列映射完全一致。
+_DATE_KEYS = ("date", "交易日期", "记账日期", "交易时间", "日期", "时间")
+_AMOUNT_KEYS = ("amount", "金额", "交易金额", "发生额")
+_INCOME_KEYS = ("收入", "income", "credit", "贷方")
+_EXPENSE_KEYS = ("支出", "expense", "debit", "借方", "消费")
+_CATEGORY_KEYS = ("category", "分类", "类别", "交易分类")
+_ITEM_KEYS = (
     "item", "notes", "商品", "备注", "摘要", "用途", "说明",
     "商户", "交易对方", "对方", "对方户名", "描述", "交易说明",
-}
-_ACCOUNT_KEYS = {"account", "卡号", "账户", "账号", "来源", "账户名"}
-_TYPE_KEYS = {"type", "收/支", "收支", "交易类型", "资金流向", "收入/支出", "收/付"}
+)
+_ACCOUNT_KEYS = ("account", "卡号", "账户", "账号", "来源", "账户名")
+_TYPE_KEYS = ("type", "收/支", "收支", "交易类型", "资金流向", "收入/支出", "收/付")
 
 # 收支方向关键词
 _INCOME_TYPE_VALS = {"收入", "收款", "收", "转入", "入账", "credit"}
@@ -54,7 +56,7 @@ def _build_column_map(columns: list[str]) -> dict[str, int]:
     norm = [_normalize(c) for c in columns]
     mapping: dict[str, int] = {}
 
-    def find(keys: set[str]) -> int:
+    def find(keys: tuple[str, ...]) -> int:
         for k in keys:
             nk = _normalize(k)
             for i, c in enumerate(norm):

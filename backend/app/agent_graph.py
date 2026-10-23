@@ -49,6 +49,7 @@ from . import (
     nlparse,
     quotes,
     service,
+    tool_schemas,
     tools,
 )
 from .logging_utils import get_logger
@@ -592,7 +593,21 @@ async def action(state: AgentState) -> dict[str, Any]:
                 }
                 return {"result": result}
             impl = tools.TOOL_IMPL.get(pending["tool_name"])
-            if impl is not None:
+            clean_args, verr = tool_schemas.validate_tool_args(pending["tool_name"], pending["args"])
+            if impl is not None and clean_args is None:
+                result = {
+                    "answer": f"操作未执行：{verr}",
+                    "level": "失败",
+                    "route": "action",
+                    "route_reason": "工具入参校验失败",
+                    "metrics": {},
+                    "flags": [],
+                    "llm": "tool",
+                    "tools": [],
+                }
+                return {"result": result}
+            if impl is not None and clean_args is not None:
+                pending = {**pending, "args": clean_args}
                 try:
                     ans = await impl(pending["args"])
                     result = {

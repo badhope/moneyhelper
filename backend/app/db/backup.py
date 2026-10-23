@@ -91,6 +91,20 @@ async def export_data() -> dict[str, Any]:
         "audit": await fetch_all(
             "SELECT * FROM audit_logs WHERE user_id=? ORDER BY id", (current_user_id(),)
         ),
+        # 附件 / 会话摘要 / 部门呈批件：漏掉会导致恢复后知识库、会话上下文、
+        # 呈批历史整体消失（三者均为租户表，user_id 由迁移保证存在）
+        "attachments": await fetch_all(
+            "SELECT * FROM attachments WHERE user_id=? ORDER BY id",
+            (current_user_id(),),
+        ),
+        "conversation_summary": await fetch_all(
+            "SELECT * FROM conversation_summary WHERE user_id=? ORDER BY thread_id",
+            (current_user_id(),),
+        ),
+        "dept_reports": await fetch_all(
+            "SELECT * FROM dept_reports WHERE user_id=? ORDER BY id",
+            (current_user_id(),),
+        ),
     }
 
 
@@ -147,6 +161,9 @@ async def _import_backup_locked(
             "watchlist",
             "provenance_log",
             "audit_logs",
+            "attachments",
+            "conversation_summary",
+            "dept_reports",
         ):
             # 只清当前租户：多租户下清全表会把别人的数据一起抹掉
             await conn.execute(f"DELETE FROM {t} WHERE user_id=?", (uid,))
@@ -238,6 +255,27 @@ async def _import_backup_locked(
             data.get("audit"),
             "INSERT INTO audit_logs(user_id,ts,action,method,path,status,actor,detail,duration_ms)"
             " VALUES(:user_id,:ts,:action,:method,:path,:status,:actor,:detail,:duration_ms)",
+        )
+        counts["attachments"] = await _restore_table(
+            conn,
+            "attachments",
+            data.get("attachments"),
+            "INSERT INTO attachments(user_id,id,filename,kind,size,content,indexed,created_at)"
+            " VALUES(:user_id,:id,:filename,:kind,:size,:content,:indexed,:created_at)",
+        )
+        counts["conversation_summary"] = await _restore_table(
+            conn,
+            "conversation_summary",
+            data.get("conversation_summary"),
+            "INSERT INTO conversation_summary(user_id,thread_id,summary,source,covered_to,updated_at)"
+            " VALUES(:user_id,:thread_id,:summary,:source,:covered_to,:updated_at)",
+        )
+        counts["dept_reports"] = await _restore_table(
+            conn,
+            "dept_reports",
+            data.get("dept_reports"),
+            "INSERT INTO dept_reports(user_id,id,report_id,question,dispatch,verdict,report,orders_json,conflicts_json,status,decision_note,decided_at,created_at)"
+            " VALUES(:user_id,:id,:report_id,:question,:dispatch,:verdict,:report,:orders_json,:conflicts_json,:status,:decision_note,:decided_at,:created_at)",
         )
 
         # 设置：整表覆盖，但 AI Key 永不恢复（明文 Key 不进备份/恢复链路）

@@ -108,22 +108,23 @@ def spawn_background(coro: Coroutine[Any, Any, None]) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
-async def api_auth(request: Request, call_next):
-    path = request.url.path
-    if not path.startswith("/api/") or path in _SKIP_AUTH_PATHS:
-        return await call_next(request)
+async def auth_gate(request: Request) -> JSONResponse | int:
+    """鉴权总闸：主 API（api_auth）与 MCP 子应用共用的同一套判定。
 
+    返回 JSONResponse 表示拒绝；返回 int 表示放行并给出租户 id。
+
+    - 共享口令模式：配置了 API_TOKEN 时，口令是进入实例的唯一凭据；
+    - 多用户模式：库中已有账号时，除共享口令外必须具备有效 JWT（fail-closed）。
+      此前只有主 API 有这条判定、MCP 侧没有——已注册用户的实例里，
+      /mcp 仍可无令牌调用卖出/备份等写工具，形成第二条裸奔的信任边界。
+
+    MCP 子应用的 mount 会绕过主 app 的 @app.middleware("http") 中间件链，
+    因此两边都必须显式走这个闸，避免"主站有防护、MCP 侧裸奔"。
+    """
     key = os.getenv("API_TOKEN", "").strip()
-    # 共享口令模式：配置了 API_TOKEN 时，口令是进入实例的唯一凭据
     if key and verify_api_token(request) is None:
         return JSONResponse({"error": "需要访问口令"}, status_code=401)
 
-    # 多用户模式：库中已有账号时，除共享口令外必须具备有效 JWT。
-    #
-    # 此前这里只校验 API_TOKEN（未设置就完全放行），而租户由 _resolve_tenant 从 JWT
-    # 解析、解析失败一律归默认租户 0。结果是：只要实例暴露在网络上（或反代忘了配口令），
-    # 任何人无令牌即可读写「默认租户」的全部账本——注册了用户也绕不过去。
-    # 现在改为 fail-closed：有账号就必须带令牌（或在 /api/auth/* 登录）。
     from .db.tenant import LOCAL_USER_ID
 
     tenant_id = _resolve_tenant(request)
@@ -137,6 +138,19 @@ async def api_auth(request: Request, call_next):
         return JSONResponse(
             {"error": "需要登录（该实例已启用账号体系）"}, status_code=401
         )
+    return tenant_id
+
+
+async def api_auth(request: Request, call_next):
+    path = request.url.path
+    if not path.startswith("/api/") or path in _SKIP_AUTH_PATHS:
+        return await call_next(request)
+
+    key = os.getenv("API_TOKEN", "").strip()
+    gate = await auth_gate(request)
+    if isinstance(gate, JSONResponse):
+        return gate
+    tenant_id = gate
 
     # 审计归属：把本请求解析到的操作者写进 ContextVar，后续 record_provenance
     # 不传 username 时自动归属该用户（此前各路由硬编码 "system"，审计链全失真）。

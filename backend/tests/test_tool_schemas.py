@@ -116,3 +116,52 @@ def test_morning_report_and_backup_expose_lang() -> None:
     """回归：MCP 侧有 lang 参数而 function calling 侧没有，现统一暴露。"""
     for name in ("trigger_morning_report", "backup_now"):
         assert "lang" in ts.input_schema(name)["properties"], name
+
+
+# ---------------------------------------------------------------------------
+# validate_tool_args：extra="forbid" 的执行期落地点（2.9.3）
+# ---------------------------------------------------------------------------
+
+
+def test_validate_rejects_extra_fields() -> None:
+    """多传字段必须被拦下，而不是被静默忽略后照常执行。"""
+    clean, err = ts.validate_tool_args(
+        "record_position", {"symbol": "600519", "shares": 100, "cost": 1700, "hack": 1}
+    )
+    assert clean is None
+    assert err is not None and "hack" in err
+
+
+def test_validate_rejects_wrong_type_and_non_dict() -> None:
+    """类型不符与非对象入参都要报可读错误。"""
+    clean, err = ts.validate_tool_args("record_position", {"shares": "很多"})
+    assert clean is None and err
+    clean, err = ts.validate_tool_args("get_market_view", ["not", "a", "dict"])
+    assert clean is None and err
+
+
+def test_validate_cleans_and_passes_valid_args() -> None:
+    """合法参数原样放行（返回普通 dict，供三个执行边界统一使用）。"""
+    clean, err = ts.validate_tool_args(
+        "record_position", {"symbol": "600519", "shares": 100, "cost": 1700}
+    )
+    assert err is None and clean is not None
+    # 模型默认值字段会被补全（下游 args.get(...) or 默认 的口径不变），关键校验：
+    # 传入的字段保真，且绝无模型之外的字段混入
+    assert {k: clean[k] for k in ("symbol", "shares", "cost")} == {
+        "symbol": "600519", "shares": 100, "cost": 1700,
+    }
+    model_fields = set(ts.TOOL_INPUT_MODELS["record_position"].model_fields)
+    assert set(clean) <= model_fields
+
+
+def test_validate_none_args_equivalent_to_empty() -> None:
+    """无参数工具传 None 等价于空对象（模型常把无参工具传成 null）。"""
+    clean, err = ts.validate_tool_args("get_market_view", None)
+    assert err is None and clean == {}
+
+
+def test_validate_unknown_tool_passes_through() -> None:
+    """未登记模型的工具（如 MCP 动态工具）放行原参数，与 schema 派生口径一致。"""
+    clean, err = ts.validate_tool_args("mcp__some_server__echo", {"x": 1})
+    assert err is None and clean == {"x": 1}

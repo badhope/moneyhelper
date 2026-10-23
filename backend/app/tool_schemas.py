@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 # ---------------------------------------------------------------------------
 # 公共基类
@@ -296,6 +296,32 @@ def input_schema(name: str) -> dict[str, Any]:
     if schema.get("required") == []:
         schema.pop("required")
     return schema
+
+
+def validate_tool_args(name: str, args: Any) -> tuple[dict[str, Any] | None, str | None]:
+    """执行前校验工具入参 —— 让 extra="forbid" 真正落地，而不是只写在 schema 里。
+
+    返回 (清洗后的参数, None) 或 (None, 错误文案)。三个执行边界
+    （agent 工具循环 / agent_graph action 节点 / confirm 直接执行）都必须
+    先过这一关再进 impl：模型多传字段、类型不符会被拦下，
+    错误文案可直接回填给模型 self-correct。未登记模型的工具放行原参数
+    （与 schema 派生口径一致：没模型 = 没约束）。
+    """
+    model = TOOL_INPUT_MODELS.get(name) or MCP_ONLY_INPUT_MODELS.get(name)
+    if model is None:
+        return (args if isinstance(args, dict) else {}), None
+    if args is None:
+        args = {}
+    if not isinstance(args, dict):
+        return None, f"参数必须是 JSON 对象，收到 {type(args).__name__}"
+    try:
+        cleaned = model.model_validate(args)
+    except ValidationError as exc:
+        first = exc.errors()[0]
+        loc = ".".join(str(p) for p in first.get("loc", ())) or "(root)"
+        msg = first.get("msg", "invalid")
+        return None, f"参数校验失败：{loc}: {msg}"
+    return dict(cleaned), None
 
 
 def function_schema(name: str, description: str) -> dict[str, Any]:

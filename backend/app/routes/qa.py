@@ -16,7 +16,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
-from .. import db, service
+from .. import db, service, tool_schemas
 from ..logging_utils import get_logger as _get_logger
 from ..middleware import spawn_background
 
@@ -529,6 +529,16 @@ async def confirm(payload: dict):
             return JSONResponse(
                 {"error": f"未知工具：{pending['tool_name']}"}, status_code=400
             )
+        clean_args, verr = tool_schemas.validate_tool_args(pending["tool_name"], pending["args"])
+        if clean_args is None:
+            log.warning(
+                "confirm: invalid args for %s token=%s: %s",
+                pending["tool_name"],
+                token[:12],
+                verr,
+            )
+            return JSONResponse({"error": f"参数校验失败，操作未执行：{verr}"}, status_code=400)
+        pending = {**pending, "args": clean_args}
         try:
             answer = await impl(pending["args"])
             log.info(

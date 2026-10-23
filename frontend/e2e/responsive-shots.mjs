@@ -42,13 +42,12 @@ for (const c of cases) {
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
 
-  // 打开数据面板（各尺寸都应有入口）
+  // 打开数据面板（各尺寸都应有入口）：主导航只暴露「问答/功能」两项，
+  // 需先进「功能」页，子 tab 才有「总览」按钮（主导航上没有总览）。
   try {
-    if (c.name === "phone") {
-      await page.getByRole("button", { name: "总览" }).first().click();
-    } else {
-      await page.getByRole("button", { name: /总览|数据/ }).first().click();
-    }
+    await page.getByRole("button", { name: "功能" }).first().click();
+    await page.waitForTimeout(400);
+    await page.getByRole("button", { name: "总览" }).first().click();
     await page.waitForTimeout(900);
     await page.screenshot({ path: `${OUT}/${c.name}-panel.png`, fullPage: false });
   } catch (e) {

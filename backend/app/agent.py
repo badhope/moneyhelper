@@ -32,6 +32,7 @@ from typing import Any
 
 from . import agent_config, db, llm, mcp_client, tools
 from .observability import timed
+from .tool_schemas import validate_tool_args
 
 # 写类工具已被确定性分支覆盖（记账/记忆/买卖/设置/备份/晨报都有前置 action/record/memory
 # 节点拦截），agent 模式只暴露读类 + 自选维护工具，防止模型在追问/分析语境里越权落库。
@@ -461,6 +462,15 @@ async def run_agent(
                     args = {}
             except json.JSONDecodeError:
                 args = {}
+            # 执行前校验入参（extra="forbid" 落地点）：非法参数不进 impl，
+            # 错误文案回填给模型，下一轮 self-correct。
+            clean_args, verr = validate_tool_args(name, args)
+            if clean_args is None:
+                messages.append(
+                    {"role": "tool", "tool_call_id": tc.id, "content": verr}
+                )
+                continue
+            args = clean_args
             tool_counts[name] = tool_counts.get(name, 0) + 1
             used_tools.append(name)
             # 同工具 + 同参数连续重复检测（在真正执行前判定，避免第三次无效调用）

@@ -1,8 +1,23 @@
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
+
+# xdist worker 级数据目录隔离（必须在导入 app 之前设置）：
+# agent_graph 的 checkpoint/pending 库路径在模块导入期由 db.data_dir() 解析，
+# 若多个 worker 共享 backend/data，Windows 上"最后关闭连接的进程会删 -wal/-shm"，
+# 其余 worker 随机抛 "attempt to write a readonly database"，且测试会污染真实数据目录。
+# 主库 DB_PATH 由 temp_db fixture 指向 tmp_path，不受此影响；这里只为 checkpoint/pending
+# 提供每 worker 独立目录（带 PID，避免同机并行多个 pytest 会话互踩）。
+os.environ.setdefault(
+    "XIAOMAN_DATA_DIR",
+    str(
+        Path(tempfile.gettempdir())
+        / f"xman-test-{os.environ.get('PYTEST_XDIST_WORKER') or 'single'}-{os.getpid()}"
+    ),
+)
 
 # 测试默认关闭限流，避免高频接口测例触发 429；限流本身由 test_rate_limit.py 显式测
 os.environ.setdefault("XIAOMAN_DISABLE_RATE_LIMIT", "1")
@@ -48,16 +63,24 @@ async def temp_db(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-async def _close_agent_checkpoints():
-    """每个测试结束释放 LangGraph 磁盘 checkpoint 连接。
+async def _close_agent_checkpoints(tmp_path, monkeypatch):
+    """每个测试独占 checkpoint/pending 文件，并在结束释放 LangGraph 磁盘连接。
 
     agent_graph 按 event loop 缓存 AsyncSqliteSaver 连接；pytest-asyncio 每个测试
     新建并关闭 loop，若连接不及时关闭，aiosqlite worker 线程会在 loop 关闭后残留，
     导致 pytest 进程退出挂住。teardown 时统一关闭以释放文件锁与线程。
+
+    除此之外还要把两个库路径指到本测试独占的 tmp 文件：checkpoint 库被上一个
+    测试的连接以 WAL 打开又关闭后，Windows 上「最后关闭者删 -wal/-shm」会让
+    下一个连接随机抛 "attempt to write a readonly database"（xdist 下更频繁，
+    曾 4 轮出现 2 轮）。每测试一个全新文件从根上消除跨测试的 WAL 生命周期竞争。
     """
+    from app import agent_graph
+
+    monkeypatch.setattr(agent_graph, "_CHECKPOINT_DB", tmp_path / "agent_checkpoints.db")
+    monkeypatch.setattr(agent_graph, "_PENDING_DB", tmp_path / "agent_pending.db")
     yield
     try:
-        from app import agent_graph
         await agent_graph.close_checkpoints()
     except Exception:
         pass

@@ -2,6 +2,24 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.9.3] - 2026-10-23（安全与数据完整性收口）
+
+- **MCP 侧补齐多用户 fail-closed 鉴权**：`/mcp`、`/mcp-sse` 的挂载守卫此前只校验共享口令
+  与 Host/Origin，已注册用户的实例里仍可无令牌调用工具。现把主 API 的鉴权总闸
+  （口令 + 有账号必须 JWT）抽取为 `middleware.auth_gate`，主 API 与 MCP 子应用共用同一套判定，
+  消除"主站有防护、MCP 侧裸奔"的第二条信任边界。
+- **工具入参校验真正落地**：`tool_schemas` 新增 `validate_tool_args`（`extra="forbid"` 此前
+  只停留在 schema 声明、从不执行），并在三个执行边界统一接线——agent 工具循环
+  （错误回填给模型 self-correct）、agent_graph action 节点（校验失败返回"失败"结果）、
+  confirm 直接执行（校验失败返回 400，杜绝以空参/多参误触写工具）。
+- **备份覆盖补齐**：备份/恢复此前漏掉附件、会话摘要、部门呈批件三张租户表，
+  恢复后知识库、会话上下文、呈批历史会整体消失；现一并纳入导出与恢复
+  （reflections / undo_records / pending_actions 为运维态数据，刻意不进备份）。
+- **CSV 列映射确定性**：`generic_csv` 列名候选从 set 改为按优先级排列的元组，
+  同一文件在不同进程（PYTHONHASHSEED 不同）下解析结果完全一致。
+- **前端清理**：删除零引用的 `ui/tabs.tsx`（65 行，被 pill-tabs 取代）；
+  `responsive-shots` 截图脚本改为先进「功能」页再点「总览」（主导航已无总览入口）。
+
 ## [2.9.2] - 2026-10-23（收尾：体检页去重 + 浏览器启动开关 + 清理）
 
 - 体检页：下方维度卡不再重复「建议」（上方「优先处理」已列出），只保留现状描述。

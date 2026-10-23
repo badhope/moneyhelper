@@ -784,14 +784,15 @@ def mount_to_app(app: Any, holder: dict[str, Any] | None = None) -> None:
     from starlette.responses import JSONResponse
 
     # /mcp 走 app.mount 会绕过主 app 的 @app.middleware("http") 中间件链，
-    # 所以这里复用主 app 的同一套判定（口令 + Host/Origin 白名单），
-    # 否则就会出现"主站有防护、MCP 侧裸奔"的第二条信任边界。
-    from .middleware import host_guard_check, token_ok
+    # 所以这里复用主 app 的同一套闸（口令 + 多用户 JWT fail-closed + Host/Origin
+    # 白名单），否则就会出现"主站有防护、MCP 侧裸奔"的第二条信任边界。
+    from .middleware import auth_gate, host_guard_check
 
     class _McpAuthGuard(BaseHTTPMiddleware):
         async def dispatch(self, request, call_next):
-            if not token_ok(request):
-                return JSONResponse({"error": "需要访问口令"}, status_code=401)
+            gate = await auth_gate(request)
+            if isinstance(gate, JSONResponse):
+                return gate
             denied = host_guard_check(request)
             if denied is not None:
                 return JSONResponse({"error": denied}, status_code=403)
