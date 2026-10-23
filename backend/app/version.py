@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 # 当前版本。发版脚本会改写这一行，格式必须保持 `__version__ = "x.y.z"`。
-__version__ = "2.9.1"
+__version__ = "2.9.2"
 
 # 上一版（用于"自上次发版以来的变更"提示；发版脚本自动维护）
 PREVIOUS_VERSION = "2.3.0"

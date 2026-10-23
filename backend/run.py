@@ -41,10 +41,18 @@ def _safe_console() -> None:
 
 
 def open_browser_later(delay: float = 1.5):
-    """延迟几秒后打开浏览器，等后端起来。"""
+    """延迟几秒后打开浏览器，等后端起来。
+
+    XIAOMAN_NO_BROWSER=1 时跳过：自动化验证/截图流程用 Playwright 自己的浏览器，
+    不应该在用户桌面弹出系统浏览器窗口。
+    """
+    if os.getenv("XIAOMAN_NO_BROWSER", "").strip() in ("1", "true", "yes"):
+        return
+
     def _open():
         time.sleep(delay)
-        webbrowser.open("http://127.0.0.1:8788")
+        webbrowser.open(f"http://127.0.0.1:{os.getenv('PORT', '8788')}")
+
     threading.Thread(target=_open, daemon=True).start()
 
 

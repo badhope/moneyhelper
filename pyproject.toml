@@ -18,7 +18,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xiaoman"
-version = "2.9.1"
+version = "2.9.2"
 description = "小满 —— 能自主干活的 AI 财务部门（本地优先、数字可复核、全 MCP 开放）"
 readme = "README.md"
 requires-python = ">=3.10"

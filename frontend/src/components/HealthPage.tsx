@@ -158,12 +158,6 @@ export function HealthPage() {
                 <span className={cn("ml-auto text-[11px]", STATUS_STYLE[st].text)}>{t(`hc.${st}`)}</span>
               </div>
               <p className="mt-2 text-[13px] leading-relaxed text-foreground/75">{d.detail}</p>
-              {d.suggestion && (
-                <p className="mt-2 rounded-lg bg-muted/60 px-2.5 py-1.5 text-[12px] leading-relaxed text-foreground/70">
-                  <span className="mr-1 font-medium text-foreground/80">{t("hc.suggestion")}</span>
-                  {d.suggestion}
-                </p>
-              )}
             </div>
           );
         })}
