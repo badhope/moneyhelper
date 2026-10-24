@@ -76,7 +76,11 @@ export function ChatView({
               {/* 上下文条：明确告诉用户助手此刻看的是哪份数据、多久之前。
                   没有它，"我的持仓怎么样" 回答里的数字缺少可信度锚点。 */}
               {!empty && (
-                <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 pb-2 text-[11px] text-muted-foreground">
+                // sticky 而不是普通行：上下文条是"这份回答基于哪份数据"的锚点，
+                // 长回答往下滚时它必须一直可见，否则锚点只存在于第一屏。
+                // top-0（不是负值）：负偏移会把条带推到滚动容器上沿之外，
+                // 被 48px 顶栏盖住 16px，滚动后只剩一条灰边。
+                <div className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 bg-background/95 px-4 pb-2 pt-2 text-[11px] text-muted-foreground backdrop-blur sm:-mx-6 sm:px-6">
                   <span className="inline-flex items-center gap-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     {tr("chat.ctxLocal")}

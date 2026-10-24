@@ -138,3 +138,64 @@ async def month_expense_by_category(month: str) -> dict[str, float]:
         (current_user_id(), f"{month}%"),
     )
     return {r["category"]: float(r["spent"] or 0) for r in rows}
+
+
+async def month_cashflow(month: str, essential_categories: list[str] | None = None) -> dict[str, Any]:
+    """当月现金流聚合（SQL GROUP BY，不把明细拉到 Python 侧再算）。
+
+    这是 M5.3「后端预聚合」的落点：账本超过十万行时，原先
+    `list_transactions()` + Python 过滤会把整库搬进内存，单次 /api/dashboard
+    要几百毫秒并且随行数线性增长。现在只返回几个聚合数字。
+
+    返回 income / expense / net / savings_rate / by_category（前 6 大）/ essential。
+    """
+    uid = current_user_id()
+    prefix = f"{month}%"
+    totals = await fetch_all(
+        "SELECT"
+        " SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) AS income,"
+        " SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END) AS expense"
+        " FROM transactions WHERE user_id=? AND date LIKE ?",
+        (uid, prefix),
+    )
+    row = totals[0] if totals else {}
+    income = float(row.get("income") or 0)
+    expense = float(row.get("expense") or 0)
+
+    cat_rows = await fetch_all(
+        "SELECT category, SUM(-amount) AS spent FROM transactions"
+        " WHERE user_id=? AND date LIKE ? AND amount < 0"
+        " GROUP BY category ORDER BY spent DESC LIMIT 6",
+        (uid, prefix),
+    )
+    by_category = [
+        {"category": str(r["category"]), "amount": round(float(r["spent"] or 0), 2)}
+        for r in cat_rows
+    ]
+
+    essential = 0.0
+    cats = [c.strip() for c in (essential_categories or []) if c.strip()]
+    if cats:
+        marks = ",".join("?" for _ in cats)
+        ess_rows = await fetch_all(
+            f"SELECT SUM(-amount) AS spent FROM transactions"
+            f" WHERE user_id=? AND date LIKE ? AND amount < 0 AND category IN ({marks})",
+            (uid, prefix, *cats),
+        )
+        essential = float((ess_rows[0] if ess_rows else {}).get("spent") or 0)
+
+    return {
+        "month": month,
+        "income": round(income, 2),
+        "expense": round(expense, 2),
+        "net": round(income - expense, 2),
+        "savings_rate": round((income - expense) / income * 100, 1) if income else 0.0,
+        "by_category": by_category,
+        "essential": round(essential, 2),
+    }
+
+
+async def count_transactions() -> int:
+    """当前租户流水总条数（分页展示用，避免为了显示总数而拉全表）。"""
+    rows = await fetch_all("SELECT COUNT(*) AS n FROM transactions WHERE user_id=?", (current_user_id(),))
+    return int((rows[0] if rows else {}).get("n") or 0)

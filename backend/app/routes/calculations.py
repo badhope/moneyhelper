@@ -6,7 +6,7 @@ LLM 不介入任何数字，仅负责解读。
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -15,13 +15,11 @@ from .. import db
 from ..auth import get_current_user
 from ..calculations import (
     calculate_goal_progress,
-    calculate_health_score,
     calculate_net_worth,
     calculate_simple_return,
     calculate_twr,
     calculate_xirr,
 )
-from ..calculations.health import HealthInputs
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -32,13 +30,27 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 
 @router.get("/api/calculations/net-worth")
 async def net_worth_endpoint() -> dict[str, Any]:
-    """当前净值 + 组成明细。"""
+    """当前净值 + 组成明细。
+
+    净值必须与总览用同一份价格：原来这里直接读 positions[].last（快照价），
+    而 /api/dashboard 用实时行情，同一屏出现「总资产 282,540」与「264,884」两个数。
+    现在先取实时价（失败自动退回快照），两处口径一致。
+    """
+    from .. import quotes
+
     positions = await db.list_positions()
     debts = await db.list_debts()
     subs = await db.list_subscriptions()
 
-    # db.list_positions 返回的持仓已含 last 字段（快照价）
-    snapshot = calculate_net_worth(positions, debts=debts, subscriptions=subs)
+    try:
+        live = await quotes.live_quotes(positions)
+    except Exception:  # noqa: BLE001 — 行情失败退回快照价，接口不能因此 500
+        live = {}
+    priced = [
+        {**p, "last": float(live.get(p["symbol"], p.get("last", 0)))}
+        for p in positions
+    ]
+    snapshot = calculate_net_worth(priced, debts=debts, subscriptions=subs)
 
     # 负债利率附加字段：前端负债明细展示用，键与 liability_breakdown 一致
     liability_rates = {
@@ -53,6 +65,7 @@ async def net_worth_endpoint() -> dict[str, Any]:
         "asset_breakdown": snapshot.asset_breakdown,
         "liability_breakdown": snapshot.liability_breakdown,
         "liability_rates": liability_rates,
+        "quote_source": quotes.last_source(),
     }
 
 
@@ -155,75 +168,49 @@ async def returns_endpoint(months: int = Query(default=6, ge=1, le=120)) -> dict
 
 @router.get("/api/calculations/health")
 async def health_endpoint() -> dict[str, Any]:
-    """财务健康评分（0-100 分 + 等级 + 五维明细）。"""
-    settings = await db.get_settings()
+    """财务健康评分（0-100 分 + 等级 + 五维明细）。
+
+    与 /api/health-check、体检页、呈批件共用 analysis.health_check 同一实现。
+    历史缺陷：这里曾用 calculations.calculate_health_score 的连续打分，
+    与 analysis 侧的定性折算各算一遍，同一份数据总览显示 51、体检页显示 50，
+    用户会以为其中一个是 bug。现在只保留一条口径。
+    """
+    from .. import analysis, quotes
+
+    dashboard = await analysis.collect_dashboard(lang="zh")
     positions = await db.list_positions()
+    settings = await db.get_settings()
     debts = await db.list_debts()
     subs = await db.list_subscriptions()
     txns = await db.list_transactions()
+    # 必须用实时行情，不能用 positions[].last 快照价：否则健康卡里的"总市值"
+    # 与同屏总资产差十几万（282,540 vs 264,884），看起来像算错了。
+    try:
+        live = await quotes.live_quotes(positions)
+    except Exception:  # noqa: BLE001 — 行情失败退回快照，健康分仍可给
+        live = {p["symbol"]: float(p.get("last", 0)) for p in positions}
+    market = analysis.market_view(positions, live)
+    ledger = analysis.ledger_view(txns, subs, debts, settings, positions, live)
+    flags = analysis.risk_checks(market, ledger, "zh")
+    report = analysis.health_check(market, ledger, flags, await db.list_goals(), "zh")
 
-    # 本月数据聚合
-    now = datetime.now()
-    month_prefix = now.strftime("%Y-%m")
-    monthly_txns = [t for t in txns if str(t.get("date", "")).startswith(month_prefix)]
-
-    income = sum(float(t.get("amount", 0)) for t in monthly_txns if float(t.get("amount", 0)) > 0)
-    expense = sum(
-        -float(t.get("amount", 0)) for t in monthly_txns if float(t.get("amount", 0)) < 0
-    )
-
-    monthly_income = float(settings.get("monthly_income", 0)) or income
-    monthly_debt = sum(float(d.get("monthly", 0)) for d in debts)
-    monthly_subs = sum(float(s.get("monthly", 0)) for s in subs)
-
-    # 现金 = 持仓中 kind=现金 的市值
-    cash = sum(
-        float(p.get("shares", 0)) * float(p.get("last", 0))
-        for p in positions
-        if p.get("kind") == "现金"
-    )
-
-    # 必要支出 = 债务月供 + 订阅月度 + 必要分类支出
-    essential_cats = [
-        c.strip()
-        for c in settings.get("essential_categories", "居住,餐饮,交通").split(",")
-        if c.strip()
-    ]
-    essential_txn = sum(
-        -float(t.get("amount", 0))
-        for t in monthly_txns
-        if float(t.get("amount", 0)) < 0 and t.get("category", "") in essential_cats
-    )
-    essential_total = monthly_debt + monthly_subs + essential_txn
-    if essential_total <= 0:
-        essential_total = expense or 1.0  # 避免除零
-
-    target_months = float(settings.get("emergency_target_months", 6))
-
-    # 含 market_value 字段的 positions（供健康评分用）
-    positions_with_mv = []
-    for p in positions:
-        positions_with_mv.append({
-            "name": p.get("name", p.get("symbol", "")),
-            "kind": p.get("kind", ""),
-            "market_value": float(p.get("shares", 0)) * float(p.get("last", 0)),
-        })
-
-    inputs = HealthInputs(
-        monthly_income=monthly_income,
-        monthly_expense=expense or (monthly_debt + monthly_subs),
-        monthly_debt_payment=monthly_debt,
-        cash_balance=cash,
-        essential_monthly_expense=essential_total,
-        emergency_target_months=target_months,
-        positions=positions_with_mv,
-    )
-
-    score = calculate_health_score(inputs)
+    dimensions = report.get("dimensions") or []
+    breakdown = {
+        d["key"]: {
+            "score": {"good": 20, "warn": 10, "bad": 0}.get(d.get("status"), 0),
+            "max": int(d.get("max") or 20),
+            "label": d.get("title", d["key"]),
+            "detail": d.get("detail", ""),
+        }
+        for d in dimensions
+    }
     return {
-        "score": score.score,
-        "grade": score.grade,
-        "breakdown": score.breakdown,
+        "score": report.get("score", 0),
+        "grade": report.get("grade", "-"),
+        "breakdown": breakdown,
+        "summary": report.get("summary", ""),
+        "dimensions": dimensions,
+        "source": dashboard.get("source", {}),
     }
 
 

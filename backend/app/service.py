@@ -274,6 +274,11 @@ async def _try_nl_add(
             for p in parsed_all
         ]
     )
+    # 对话路径写入后必须让仪表盘缓存失效：否则用户在同一页面问完"记一笔"
+    # 切到总览仍看到旧流水（缓存 10 秒，但这 10 秒足够让人以为没记上）。
+    from . import analysis as _analysis
+
+    _analysis.invalidate_dashboard_cache()
     if lang == "zh":
         lines = [
             f"{p['date']} {p['item']} {abs(p['amount']):,.2f} 元"

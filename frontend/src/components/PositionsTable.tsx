@@ -36,9 +36,13 @@ export function PositionsTable({
   const [klineSymbol, setKlineSymbol] = useState<string | null>(null);
 
   const computed = useMemo(() => {
-    const t = total ?? rows.reduce((s, r) => s + r.market_value, 0);
+    // 「占比」列 = 相对**总市值**（含现金），各项之和为 100%，与资产分布饼图一致。
+    // 集中度判定另有一套「相对可投资资产」的口径，在持仓页右侧面板单独展示；
+    // 两个口径各有用处，但不能混在同一列里——曾经现金也按非现金分母算，
+    // 导致这一列合计 126%，用户一眼就看出不对。
+    const totalMv = total ?? rows.reduce((s, r) => s + r.market_value, 0);
     return rows
-      .map((r) => ({ ...r, weight: t ? (r.market_value / t) * 100 : 0 }))
+      .map((r) => ({ ...r, weight: totalMv ? (r.market_value / totalMv) * 100 : 0 }))
       .sort((a, b) => (desc ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey]));
   }, [rows, total, sortKey, desc]);
 
@@ -131,7 +135,7 @@ export function PositionsTable({
                       <button
                         type="button"
                         className="rounded p-0.5 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
-                        onClick={() => void ops.onAppend(r, { shares: r.shares, cost: r.cost })}
+                        onClick={() => void ops.onAppend(r, { shares: r.shares, cost: r.cost_per_share ?? (r.shares > 0 ? r.cost / r.shares : 0) })}
                         aria-label={tr("pos.append", { name: r.name })}
                         title={tr("pos.append", { name: r.name })}
                       >
@@ -227,7 +231,7 @@ export function PositionsTable({
                   className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
                   onClick={(e) => {
                     e.stopPropagation();
-                    void ops.onAppend(r, { shares: r.shares, cost: r.cost });
+                    void ops.onAppend(r, { shares: r.shares, cost: r.cost_per_share ?? (r.shares > 0 ? r.cost / r.shares : 0) });
                   }}
                 >
                   <Plus className="w-3 h-3" /> {tr("pos.appendShort")}

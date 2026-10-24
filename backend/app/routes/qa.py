@@ -447,6 +447,13 @@ async def dept_report_decide(report_id: str, payload: dict) -> Any:
 # ---------------------------------------------------------------------------
 
 
+def _invalidate_after_write() -> None:
+    """确认执行的是写工具（记账/建仓/改设置），必须让仪表盘缓存立即过期。"""
+    from .. import analysis
+
+    analysis.invalidate_dashboard_cache()
+
+
 @router.post("/api/confirm")
 async def confirm(payload: dict):
     token = str((payload or {}).get("token") or "").strip()
@@ -500,6 +507,7 @@ async def confirm(payload: dict):
                 token[:12],
                 resumed["level"],
             )
+            _invalidate_after_write()
             return {
                 "ok": True,
                 "tool": pending["tool_name"],
@@ -552,6 +560,7 @@ async def confirm(payload: dict):
                 "confirm EXEC failed token=%s tool=%s", token[:12], pending["tool_name"]
             )
             answer = f"执行失败：{type(exc).__name__}: {exc}"
+        _invalidate_after_write()
         return {
             "ok": True,
             "tool": pending["tool_name"],

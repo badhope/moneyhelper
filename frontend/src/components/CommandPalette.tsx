@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Command } from "cmdk";
 import {
   BarChart3, CreditCard, Languages, LayoutDashboard, MessageCircle, MessageSquare, Moon,
-  Settings, SunMoon, Undo2, Wallet,
+  Settings, SunMoon, Target, Undo2, Wallet,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
@@ -141,6 +141,10 @@ export function CommandPalette({
                 <BarChart3 className="w-4 h-4" />
                 <span>{t("cmd.goMarket")}</span>
               </Command.Item>
+              <Command.Item onSelect={() => run(() => onNavigateFeature("strategy"))} className="cmd-item">
+                <Target className="w-4 h-4" />
+                <span>{t("cmd.goStrategy")}</span>
+              </Command.Item>
               <Command.Item onSelect={() => run(() => onNavigateFeature("ledger"))} className="cmd-item">
                 <CreditCard className="w-4 h-4" />
                 <span>{t("cmd.goLedger")}</span>
@@ -155,6 +159,10 @@ export function CommandPalette({
               <Command.Item onSelect={() => run(onNewSession)} className="cmd-item">
                 <PlusIcon />
                 <span>{t("cmd.newSession")}</span>
+              </Command.Item>
+              <Command.Item onSelect={() => run(() => onNavigateFeature("strategy"))} className="cmd-item">
+                <Target className="w-4 h-4" />
+                <span>{t("cmd.goStrategy")}</span>
               </Command.Item>
               <Command.Item onSelect={() => run(() => onNavigateFeature("ledger"))} className="cmd-item">
                 <PencilIcon />

@@ -3,6 +3,9 @@
 > A conversation-first personal finance assistant. One sentence to record an expense, check quotes, manage positions, run a health check, or get your morning report.
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
+![Release](https://img.shields.io/github/v/release/badhope/xiaoman)
+![CI](https://github.com/badhope/xiaoman/actions/workflows/ci.yml/badge.svg)
+![Docker](https://img.shields.io/badge/docker-compose-blue)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
@@ -12,9 +15,27 @@
 |---|---|
 | [README.zh.md](README.zh.md) | **README.md (current)** |
 
-Xiaoman is one of the 24 solar terms — the moment when grain is nearly, but not yet, full. Personal finance works the same way: save a little every day and let life fill up at its own pace.
+## 30-second start
+
+```bash
+docker compose up -d --build     # http://localhost:8787
+```
+
+```bash
+# Or run locally (Python 3.10+ / Node 18+): one command — venv + pip install + SPA build + serve on 8788
+scripts/dev.sh --prod
+```
+
+## Why Xiaoman
+
+- **Every number comes from a deterministic engine** — the model only classifies intent and writes prose, so it cannot invent an amount.
+- **Built for Chinese bills** — WeChat Pay, Alipay and bank CSV imports are native, not an afterthought.
+- **Conversation is the operation** — one sentence records an expense, opens a position, or gets a rebalancing plan.
+- **Your data stays on your machine** — local SQLite, with optional passphrase-protected encrypted backups.
 
 ## What it is
+
+Xiaoman is one of the 24 solar terms — the moment when grain is nearly, but not yet, full. Personal finance works the same way: save a little every day and let life fill up at its own pace.
 
 A finance assistant that runs on your own machine, with conversation as the core interaction:
 
@@ -28,7 +49,7 @@ A finance assistant that runs on your own machine, with conversation as the core
 | "remember I pay rent 5000 next month" | Stored in long-term memory, auto-referenced in answers |
 | "generate today's morning report" | Generated and archived |
 
-The other tabs (Overview / Holdings / Market / Ledger) are views of the conversation results, not duplicate form entries.
+The other tabs (Overview / Holdings / Strategy / Market / Ledger) are views of the conversation results, not duplicate form entries.
 
 ## Core features
 
@@ -37,6 +58,7 @@ The other tabs (Overview / Holdings / Market / Ledger) are views of the conversa
 - **Model-agnostic**: unified access via LiteLLM — DeepSeek / Doubao / Qwen / Claude / OpenAI / Gemini, with automatic failover. Fully usable without any model configured.
 - **Multi-agent orchestration**: a LangGraph graph (supervisor pipeline), plus a "finance department mode" that splits one request into tickets, runs departments in parallel, and summarizes for approval.
 - **MCP protocol**: all finance tools are exposed as a standard MCP Server via fastmcp — Claude Code / Cursor can query your local data directly.
+- **Investment strategy engine**: portfolio risk metrics (volatility / Sharpe / Sortino / max drawdown / Beta / VaR) against a benchmark, target-allocation rebalancing, valuation percentile, DCA plans and FIRE progress.
 - **Long-term memory**: preferences live in a local table and are recalled with BM25; memory never leaves the machine.
 - **3-level quote fallback**: Eastmoney → Sina → local snapshot, clearly labeled when offline.
 - **PWA**: installable on desktop and mobile.
@@ -49,8 +71,8 @@ Two surfaces, each with a clear job:
 - **Finance workspace** follows stock-broker conventions: a list on the left, detail for the selected
   symbol on the right.
 
-Navigation: a persistent session sidebar (chat) plus five top tabs
-(Overview / Holdings / Market / Ledger / Health). The main area switches pages; "Back to chat"
+Navigation: a persistent session sidebar (chat) plus six top tabs
+(Overview / Holdings / Strategy / Market / Ledger / Health). The main area switches pages; "Back to chat"
 returns to the conversation.
 
 | Width | Layout |
@@ -62,10 +84,17 @@ returns to the conversation.
 Highlights:
 - Holdings: summary strip → concentration warnings → table + P&L contribution chart, with
   concentration / sector / risk columns on the right.
+- Strategy: portfolio risk metrics and equity curve vs benchmark, rebalance checklist, valuation
+  percentile, DCA plans and FIRE progress.
 - Market: watchlist and holdings with 60-day sparklines, plus a detail panel (trend, period change,
   60-day high/low, full K-line).
 - Ledger: one-sentence entry plus a standard transaction table.
 - Health: score, five-dimension bars, a "fix first" list, and per-dimension advice.
+- Settings uses a left nav with three groups on desktop and a horizontal segmented bar on mobile
+  (Basics / AI & automation / Data & security).
+- Sidebar width is remembered (localStorage), double-click the divider to reset; panels trap and
+  restore focus, Esc closes.
+- Only chat code loads on first paint; charts / department board / inbox are lazy-loaded.
 
 Screenshots: `cd frontend && node scripts/ui-audit.mjs` (every page, into `out/ui-audit/`);
 README images: `node scripts/readme-shots.mjs` (writes `docs/screenshots/`).
@@ -96,18 +125,33 @@ README images: `node scripts/readme-shots.mjs` (writes `docs/screenshots/`).
 |---|---|
 | ![Mobile chat](docs/screenshots/12-mobile-chat.png) | ![Mobile finance](docs/screenshots/13-mobile-finance.png) |
 
+| Investment strategy: risk / rebalance / valuation / DCA / FIRE |
+|---|
+| ![Strategy](docs/screenshots/14-strategy.png) |
+
 More in [docs/screenshots/](docs/screenshots/).
 
 ## Quick start
 
 Requirements: Python 3.10+, Node.js 18+.
 
-**One-click (recommended)**
+**Fastest path (Docker)**
+
+```bash
+docker compose up -d --build   # single container, port 8787, volume xiaoman-data
+```
+
+**One-click (recommended for development)**
 
 ```bash
 scripts/dev.sh        # Windows (Git Bash) / macOS / Linux — backend 8788 + frontend 5198
-start.bat             # Windows
+scripts/dev.sh --prod # production mode: build once, serve on a single port
+start.bat             # Windows: creates the venv, installs deps, opens two windows
+start.bat --prod      # Windows production mode: one window, one port
 ```
+
+The scripts create the virtualenv, install dependencies and check port conflicts; they pick
+`Scripts/` or `bin/` automatically per platform.
 
 **Manual**
 
@@ -126,11 +170,7 @@ npm install && npm run dev    # http://127.0.0.1:5198
 cd frontend && npm run build  # then open http://127.0.0.1:8788
 ```
 
-**Docker**
-
-```bash
-docker compose up -d --build   # single container, port 8787, volume xiaoman-data
-```
+The database lives at `backend/data/wealth.db` by default (`XIAOMAN_DATA_DIR` / `XIAOMAN_DB_PATH` override it; empty values fall back to the default).
 
 A fresh database starts empty with chat-style onboarding; everything works without an AI key.
 
@@ -151,16 +191,23 @@ flowchart LR
     FE[React SPA] --> API[FastAPI REST + SSE + static hosting]
     API --> G[LangGraph orchestration, supervisor pipeline]
     API --> D[Finance department mode, parallel tickets]
-    G --> T[Tool layer, 17 deterministic tools]
+    G --> T[Tool layer, 27 deterministic tools]
     D --> T
     T --> K[Deterministic engine, single source of truth]
     T --> DB[(Local SQLite)]
     T --> Q[3-level quote fallback]
     G --> L[LiteLLM model access]
     G --> M[local BM25 memory]
+    API --> MCP[MCP Server /mcp · 36 tools]
 ```
 
 Principle: **the framework orchestrates; the engine computes**. The model only appears at classification and finalization; any failure degrades to the deterministic path. Full architecture with diagrams: [docs/architecture.md](docs/architecture.md).
+
+Key invariants:
+- Write tools are invisible to the model (removed at both schema and implementation layers); the model cannot edit the ledger.
+- Amounts, P&L and risk metrics are computed only by `analysis` / `calculations`.
+- Long-term memory is fully local (BM25); memory content never leaves the machine.
+- Confirmable write actions use atomic claiming (`claim_pending_action`), so a token executes exactly once.
 
 ## Repository layout
 
@@ -174,7 +221,8 @@ backend/app/
   agent_graph.py     LangGraph graph: supervisor + specialized nodes + routes
   department.py      Finance department mode: tickets → parallel → summary
   analysis.py        Deterministic engine: positions / cashflow / debt / risk
-  tools.py           Agent tool layer: 17 function-calling tools
+  calculations/      Portfolio risk / rebalance / valuation / DCA / FIRE models
+  tools.py           Agent tool layer: 27 function-calling tools
   quotes.py          Quotes: Eastmoney → Sina → snapshot fallback + cache
   nlparse.py         One-sentence bookkeeping: rule engine + AI fallback
   llm.py             LiteLLM unified model access
@@ -182,7 +230,7 @@ backend/app/
   mcp_server.py      MCP Server exposing finance tools
   backup.py          Local encrypted backup, passphrase never stored
 frontend/src/
-  App.tsx            5-tab layout (top bar on desktop / bottom bar on mobile)
+  App.tsx            Adaptive layout: resizable sidebar on desktop / bottom nav on mobile
   components/        ChatView / Dashboard / HoldingsView / MarketView ...
   lib/               api / store / i18n (zh+en) / charts / format
 docs/                Deploy / config / workflow / architecture / planning
@@ -208,11 +256,11 @@ docs/                Deploy / config / workflow / architecture / planning
 ## Tests
 
 ```bash
-# Backend: 696 tests (engine / quote fallback / agent loop / LangGraph / API / backup / MCP ...)
+# Backend: 906 tests (engine / strategy / quote fallback / agent loop / LangGraph / API / backup / MCP ...)
 cd backend && .venv/bin/python -m pytest tests -q
 cd backend && .venv/bin/python -m ruff check app tests
 
-# Frontend: tsc + build + 86 unit tests + 15 Playwright e2e specs
+# Frontend: tsc + build + 111 unit tests + 21 Playwright e2e specs
 cd frontend && npm run build
 cd frontend && npm run test:e2e
 ```

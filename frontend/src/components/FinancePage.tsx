@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { HeartPulse, LayoutGrid, NotebookPen, TrendingUp, Wallet } from "lucide-react";
+import { HeartPulse, LayoutGrid, NotebookPen, Target, TrendingUp, Wallet } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -18,12 +18,16 @@ const EntryView = lazy(() =>
 const HealthBody = lazy(() =>
   import("@/components/HealthPage").then((m) => ({ default: m.HealthPage })),
 );
+const StrategyBody = lazy(() =>
+  import("@/components/StrategyPage").then((m) => ({ default: m.StrategyPage })),
+);
 
-export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health";
+export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy";
 
 const TABS: { key: DataKind; labelKey: string; icon: typeof LayoutGrid }[] = [
   { key: "overview", labelKey: "nav.dashboard", icon: LayoutGrid },
   { key: "holdings", labelKey: "nav.holdings", icon: Wallet },
+  { key: "strategy", labelKey: "nav.strategy", icon: Target },
   { key: "market", labelKey: "nav.market", icon: TrendingUp },
   { key: "ledger", labelKey: "nav.ledger", icon: NotebookPen },
   { key: "health", labelKey: "hc.title", icon: HeartPulse },
@@ -85,6 +89,7 @@ export function FinancePage({
           >
             {kind === "overview" && <Dashboard />}
             {kind === "holdings" && <HoldingsView />}
+            {kind === "strategy" && <StrategyBody />}
             {kind === "market" && <MarketView />}
             {kind === "ledger" && <EntryView />}
             {kind === "health" && <HealthBody />}

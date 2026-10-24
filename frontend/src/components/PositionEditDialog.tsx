@@ -52,12 +52,17 @@ export function PositionEditDialog({
 
   useEffect(() => {
     if (open && position) {
+      // cost 是总成本（每股 × 股数），这个输入框要的是**每股**成本。
+      // 直接回填 position.cost 会把 168000 当成单价存回去，保存一次成本放大 100 倍。
+      const perShare =
+        position.cost_per_share ??
+        (position.shares > 0 ? position.cost / position.shares : 0);
       setF({
         name: position.name,
         kind: position.kind,
         industry: position.industry,
         shares: String(position.shares),
-        cost: String(position.cost),
+        cost: String(Number(perShare.toFixed(6))),
         last: String(position.last),
       });
       setErr("");

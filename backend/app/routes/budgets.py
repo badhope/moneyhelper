@@ -7,7 +7,7 @@ import re
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from .. import db
+from .. import analysis, db
 from ..provenance import record_provenance
 
 router = APIRouter()
@@ -33,6 +33,7 @@ async def get_budgets(month: str | None = None) -> dict:
         }
         for r in rows
     ]
+    analysis.invalidate_dashboard_cache()
     return {
         "month": m,
         "budgets": budgets,
@@ -73,6 +74,7 @@ async def put_budgets(payload: dict) -> dict:
         after=after,
         source="api",
     )
+    analysis.invalidate_dashboard_cache()
     return {"ok": True, "month": month, "count": len(clean)}
 
 
@@ -125,6 +127,7 @@ async def suggest_budgets() -> dict:
         return {"ok": False, "error": "生成结果不可用，请重试"}
     if total_v <= 0 or not cats:
         return {"ok": False, "error": "生成结果不可用，请重试"}
+    analysis.invalidate_dashboard_cache()
     return {
         "ok": True,
         "suggestion": {"total": total_v, "categories": cats},
@@ -183,6 +186,7 @@ async def suggest_rules() -> dict:
     # 夹到合理区间，防止模型给出离谱值直接写进设置
     em = min(max(em, 3), 12)
     sg = min(max(sg, 5), 50)
+    analysis.invalidate_dashboard_cache()
     return {
         "ok": True,
         "suggestion": {
@@ -226,4 +230,5 @@ async def suggest_report_focus() -> dict:
     focus = str(out.get("focus") or "").strip()[:160]
     if not focus:
         return {"ok": False, "error": "生成结果不可用，请重试"}
+    analysis.invalidate_dashboard_cache()
     return {"ok": True, "suggestion": {"focus": focus}}

@@ -270,6 +270,8 @@ _TENANT_TABLES = (
     "members",
     "provenance_log",
     "audit_logs",
+    "allocation_targets",
+    "dca_plans",
 )
 
 # 复合主键重建表：旧主键 + user_id = 新主键

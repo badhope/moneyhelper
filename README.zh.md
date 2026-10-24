@@ -3,6 +3,9 @@
 > 对话优先的个人理财助手。记一笔、问一句，记账、行情、持仓、体检、晨报都在对话里完成。
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
+![Release](https://img.shields.io/github/v/release/badhope/xiaoman)
+![CI](https://github.com/badhope/xiaoman/actions/workflows/ci.yml/badge.svg)
+![Docker](https://img.shields.io/badge/docker-compose-blue)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
@@ -12,9 +15,27 @@
 |---|---|
 | **README.zh.md（当前）** | [README.md](README.md) |
 
-小满（Xiaoman）是二十四节气之一，谷物渐满而未满。理财同理：每天攒一点，日子自有分寸地饱满起来。
+## 30 秒上手
+
+```bash
+docker compose up -d --build     # http://localhost:8787
+```
+
+```bash
+# 或本地跑（Python 3.10+ / Node 18+）：一条命令完成 venv + pip 安装 + 前端构建 + 8788 端口启动
+scripts/dev.sh --prod
+```
+
+## 为什么选小满
+
+- **数字全由确定性引擎算**：模型只负责识别意图与成文，编不出数字。
+- **中国账单原生**：微信支付、支付宝、银行 CSV 直接解析，不是后补的兼容层。
+- **对话即操作**：一句话记账、建仓、看调仓建议，不用翻表单。
+- **数据留在本机**：本地 SQLite，可选口令加密备份。
 
 ## 它是什么
+
+小满（Xiaoman）是二十四节气之一，谷物渐满而未满。理财同理：每天攒一点，日子自有分寸地饱满起来。
 
 一个跑在你自己机器上的理财助手，核心交互是对话：
 
@@ -28,7 +49,7 @@
 | 「记住下个月房租 5000」 | 存入长期记忆，回答时自动引用 |
 | 「生成今天的晨报」 | 生成并归档晨报 |
 
-其余页面（总览 / 持仓 / 行情 / 记账）都是对话结果的视图，不是重复的表单入口。
+其余页面（总览 / 持仓 / 投资策略 / 行情 / 记账）都是对话结果的视图，不是重复的表单入口。
 
 ## 核心特性
 
@@ -37,6 +58,7 @@
 - **模型随意换**：基于 LiteLLM 统一接入，DeepSeek / 豆包 / 通义千问 / Claude / OpenAI / Gemini 任选，自动故障转移。未配模型也能用，内置分析兜底。
 - **多 Agent 编排**：LangGraph 图编排（supervisor → 各专项节点），另有「财务部门模式」——一句话拆成工单，四部门并行取数，秘书汇总呈批。
 - **MCP 协议**：所有财务工具经 fastmcp 暴露为标准 MCP Server，Claude Code / Cursor 可直接接入你的本地财务数据。
+- **投资策略引擎**：组合风险指标（波动率 / 夏普 / 索提诺 / 最大回撤 / Beta / VaR）与基准对比、目标配置再平衡、估值分位、定投计划与 FIRE 进度。
 - **长记忆**：偏好与家庭背景存本地记忆表，用 BM25 检索注入回答；记忆内容不出本机。
 - **行情三级降级**：东方财富 → 新浪 → 本地快照，全挂时用快照价并明确标注「离线估值，非实时」。
 - **PWA 可安装**：桌面 / 移动端都能装成独立应用。
@@ -48,7 +70,7 @@
 - **对话**是主入口——记一笔、问一句都在这里；
 - **财务工作区**按股票/券商软件的方式组织：左侧列表扫一遍，右侧看单只详情。
 
-导航结构：左侧常驻会话栏（对话）↔ 顶部五个页签（总览 / 持仓 / 行情 / 记账 / 财务体检），
+导航结构：左侧常驻会话栏（对话）↔ 顶部六个页签（总览 / 持仓 / 投资策略 / 行情 / 记账 / 财务体检），
 主区整页切换，右上角「返回问答」。
 
 | 宽度 | 布局 |
@@ -59,10 +81,11 @@
 
 细节：
 - 持仓页：摘要条 → 集中度超限提示 → 左「明细表 + 盈亏贡献条形图」/ 右「集中度 + 行业 + 风险提示」
+- 投资策略页：组合风险指标与基准对比曲线、再平衡调仓清单、估值分位、定投计划、FIRE 进度
 - 行情页：「自选/持仓列表（含近 60 日迷你走势）」+「右侧详情（走势、区间涨跌、60 日高低、K 线）」
 - 记账页：一句话记账 + 标准流水表格（日期 / 条目 / 分类 / 金额 / 操作）
 - 体检页：评分 + 五维进度条 + 「优先处理」清单 + 维度明细与建议
-- 设置页在窄屏按「基础 / AI 与自动化 / 数据与安全」三组折叠
+- 设置页：桌面左侧三组导航（基础 / AI 与自动化 / 数据与安全），手机顶部横向分段条
 - 侧栏宽度记忆（localStorage），双击分隔条复位；面板有焦点陷阱与焦点归还，Esc 可关闭
 - 首屏只加载对话相关代码，图表/部门看板/收件箱按需懒加载
 
@@ -83,7 +106,7 @@ README 展示图：`node scripts/readme-shots.mjs`（写入 `docs/screenshots/`�
 |---|---|
 | ![行情](docs/screenshots/05-market.png) | ![记账](docs/screenshots/06-ledger.png) |
 
-| 财务体检：评分 + 优先处理 | 设置：13 个分区 |
+| 财务体检：评分 + 优先处理 | 设置：16 个分区 |
 |---|---|
 | ![体检](docs/screenshots/07-health.png) | ![设置](docs/screenshots/08-settings.png) |
 
@@ -95,13 +118,24 @@ README 展示图：`node scripts/readme-shots.mjs`（写入 `docs/screenshots/`�
 |---|---|
 | ![手机对话](docs/screenshots/12-mobile-chat.png) | ![手机财务](docs/screenshots/13-mobile-finance.png) |
 
+| 投资策略：风险 / 再平衡 / 估值 / 定投 / FIRE |
+|---|
+| ![投资策略](docs/screenshots/14-strategy.png) |
+
 更多截图见 [docs/screenshots/](docs/screenshots/)。
 
 ## 快速开始
 
 要求：Python 3.10+，Node.js 18+。
 
-**一键启动（推荐，Windows / macOS / Linux 通用）**
+**最快路径（Docker）**
+
+```bash
+# 对外提供服务时务必设置 API_TOKEN，否则只允许本机/内网来源
+API_TOKEN=your-token docker compose up -d --build   # 单容器，端口 8787，数据卷 xiaoman-data
+```
+
+**一键启动（开发推荐，Windows / macOS / Linux 通用）**
 
 ```bash
 scripts/dev.sh          # 开发模式：后端 8788 + 前端 5198（Git Bash / WSL / macOS / Linux）
@@ -132,14 +166,7 @@ npm install && npm run dev    # http://127.0.0.1:5198
 cd frontend && npm run build  # 然后打开 http://127.0.0.1:8788
 ```
 
-**Docker**
-
-```bash
-# 对外提供服务时务必设置 API_TOKEN，否则只允许本机/内网来源
-API_TOKEN=your-token docker compose up -d --build   # 单容器，端口 8787，数据卷 xiaoman-data
-```
-
-数据库默认落在 `backend/app/data/wealth.db`（`XIAOMAN_DB_PATH` 可覆盖，空值会被忽略并回落到默认路径）。
+数据库默认落在 `backend/data/wealth.db`（`XIAOMAN_DATA_DIR` / `XIAOMAN_DB_PATH` 可覆盖，空值会被忽略并回落到默认路径）。
 
 首次启动为空库，各页有对话式引导；AI 不配置也能完整使用。
 
@@ -160,14 +187,14 @@ flowchart LR
     FE[前端 React SPA] --> API[FastAPI REST + SSE + 静态托管]
     API --> G[LangGraph 编排]
     API --> D[财务部门模式 工单并行]
-    G --> T[工具层 22 个财务工具 + 2 个通用工具]
+    G --> T[工具层 27 个财务工具 + 2 个通用工具]
     D --> T
     T --> K[确定性内核 analysis 唯一数字来源]
     T --> DB[(SQLite 本地库)]
     T --> Q[行情三级降级]
     G --> L[LiteLLM 模型接入]
     G --> M[本地 BM25 长记忆，零外发]
-    API --> MCP[MCP Server /mcp · 31 工具]
+    API --> MCP[MCP Server /mcp · 36 工具]
 ```
 
 原则：**框架编排，内核算数**。模型只出现在分类与成文环节；模型不可用时自动降级到确定性路径，服务不中断、数字不出错。
@@ -192,7 +219,8 @@ backend/app/
   agent_graph.py     LangGraph 图：supervisor + 专项节点 + 条件路由
   department.py      财务部门模式：工单分解 → 并行取数 → 秘书汇总
   analysis.py        确定性内核：持仓 / 现金流 / 负债 / 集中度 / 风控
-  tools.py           Agent 工具层：22 个财务工具 + 2 个通用工具
+  calculations/      组合风险 / 再平衡 / 估值分位 / 定投 / FIRE 模型
+  tools.py           Agent 工具层：27 个财务工具 + 2 个通用工具
   quotes.py          行情：东财→新浪→快照 三级降级 + 统一缓存
   nlparse.py         一句话记账：规则引擎 + AI 兜底
   llm.py             LiteLLM 统一模型接入
@@ -202,8 +230,8 @@ backend/app/
   vault.py / auth.py / scheduler.py / observability.py …
 frontend/src/
   App.tsx            自适应布局：桌面可拖拽侧栏 / 手机底部导航
-  components/        ChatView / Dashboard / HoldingsView / MarketView /
-                     EntryView / SettingsView / AgentPanel …
+  components/        ChatView / Dashboard / HoldingsView / StrategyPage /
+                     MarketView / EntryView / SettingsView …
   lib/               api / store / i18n（中英）/ charts / format
 docs/                部署 / 配置 / 工作流 / 架构 / 规划文档（见下）
 ```
@@ -228,11 +256,11 @@ docs/                部署 / 配置 / 工作流 / 架构 / 规划文档（见�
 ## 测试
 
 ```bash
-# 后端：696 个测试（内核 / 行情降级 / Agent 循环 / LangGraph / API / 备份往返 / MCP …）
+# 后端：906 个测试（内核 / 策略 / 行情降级 / Agent 循环 / LangGraph / API / 备份往返 / MCP …）
 cd backend && .venv/bin/python -m pytest tests -q
 cd backend && .venv/bin/python -m ruff check app tests
 
-# 前端：tsc + 构建 + 109 个单测 + Playwright e2e
+# 前端：tsc + 构建 + 111 个单测 + 21 个 Playwright e2e
 cd frontend && npm run build
 cd frontend && npm run test:e2e
 ```

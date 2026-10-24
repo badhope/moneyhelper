@@ -1,6 +1,15 @@
-# xiaoman 总体规划（完整版 · 唯一主计划）
-> 2026-10-17 · 汇总 01-07 全部调研结论 + 用户 6 条新共识 · 本文档为唯一执行依据
-> 拓扑：主仓 GitHub/badhope，镜像 GitCode/Gitee/Morningstar/x33834（Actions 自动同步已上线）
+# xiaoman 总体规划（完整版 · 历史规划快照）
+
+> **历史快照声明**
+>
+> 本文档是 **2026-10-17** 的规划快照，用于保留当时的判断依据与拆分思路，**不是当前执行依据**。
+> 当前进度与「还剩什么」一律以 [PROGRESS.md](PROGRESS.md)（唯一进度真源）为准。
+> 第二节的模块拆分蓝图已在 M1 落地（`xiaoman/{core,server,cli,mcp}` 门面包 + `backend/app/` 分域），
+> 本文其他已完成项也不再回改，避免历史文档与现状互相矛盾。
+>
+> 现状拓扑（2026-10 更新）：本地 remote 为 **origin=GitCode badhope**、**gitee=Gitee badhope**、**gh-api=GitHub badhope**；
+> 另两个 GitHub 镜像仓（Morningstar202604/xiaoman、X33834/xiaoman）不入 remote，CI 只同步 tag（`release.yml` 的 mirror-tags）；
+> 需要时由 `scripts/push-all.sh` 按 URL 直推 main + tags（本地一键脚本共 5 个目标，GitHub 三仓走本机代理）。
 
 ## 〇、定位修正（响应共识 6）
 **弃用口号**："local-first 隐私"降级为部署选项之一，不再当核心卖点。
@@ -14,9 +23,10 @@
 6. **全 MCP 开放**：账本能力可被任何 AI 接管（生态位=标准制定者姿态）
 
 ## 一、仓库与 CI/CD（共识 1，已完成部分 ✅）
-- ✅ 主仓 origin=github/badhope；`.github/workflows/mirror-sync.yml` push 自动镜像 4 仓（secrets 已写入）
-- ✅ `scripts/push-all.sh` 本地一键五仓
-- ⚠️ x33834 令牌只读（拉✅/推❌401），需补 write 权限；期间该仓手动维护
+- ✅ 本地 remote：origin=GitCode/badhope、gitee=Gitee/badhope、gh-api=GitHub/badhope
+- ✅ `.github/workflows/mirror-sync.yml` 在 GitHub 主仓 push 后自动镜像 GitCode + Gitee
+- ✅ `scripts/push-all.sh` 本地一键推 main + tags 到 5 个远端（GitHub 三仓 + GitCode + Gitee）
+- ✅ GitHub 镜像仓 Morningstar202604/xiaoman、X33834/xiaoman 仅同步 tag（`release.yml` 的 mirror-tags job），不入 remote
 - 计划：semantic-release 版本管理（conventional commits 已具备）→ tag 自动发 Release 附带 EXE 产物；changelog 自动生成
 
 ## 二、模块化架构（共识 2，改造蓝图）
@@ -108,7 +118,7 @@ xiaoman/
 | 并行 agent 撞库 | 中 | 读写连接池隔离 + 工单分域互斥 |
 | LLM 成本失控（部门模式多 agent） | 中 | 分级模型路由（LiteLLM 已备）+ 部门可配平价模型 + token 预算上限 |
 | OpenAI/大厂正面竞争 | 高 | 不拼通用问答，拼中国账单解析+自主闭环+可复核（第六节定位） |
-| x33834 令牌不可用 | 低 | CI 失败不阻塞（fail-fast=false），补权限后自动恢复 |
+| 镜像仓推送失败 | 低 | `push-all.sh` 单仓失败只跳过该仓，其余继续；最后汇总并返回非零 |
 | 中老年用户不会部署 | 中 | 云端形态代管 + 桌面 EXE 一键装 + 首次运行向导 |
 | 巨石拆分期间双端不一致 | 中 | core 单一实现，壳只做 IO，禁止复制逻辑 |
 

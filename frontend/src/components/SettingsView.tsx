@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  BookOpen, Bot, Brain, BrainCog, FileText, GitCompareArrows, KeyRound, Plug, Users, Newspaper, PiggyBank, ScrollText, ShieldCheck, SlidersHorizontal, Wallet,
+  Award, BookOpen, Bot, Brain, BrainCog, FileText, GitCompareArrows, KeyRound, Plug, Users, Newspaper, PiggyBank, ScrollText, ShieldCheck, SlidersHorizontal, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboard } from "@/lib/store";
@@ -25,6 +25,7 @@ import { AgentSection } from "@/components/settings/AgentSection";
 import { PluginsSection } from "@/components/settings/PluginsSection";
 import { PromptSection } from "@/components/settings/PromptSection";
 import { KnowledgeSection } from "@/components/settings/KnowledgeSection";
+import { EvalSection } from "@/components/settings/EvalSection";
 
 const SECTIONS: { id: SectionId; labelKey: string; icon: typeof Wallet }[] = [
   { id: "prefs", labelKey: "settings.navPrefs", icon: SlidersHorizontal },
@@ -43,12 +44,14 @@ const SECTIONS: { id: SectionId; labelKey: string; icon: typeof Wallet }[] = [
   { id: "audit", labelKey: "settings.navAudit", icon: ShieldCheck },
   { id: "provenance", labelKey: "settings.navProvenance", icon: GitCompareArrows },
   { id: "family", labelKey: "settings.navFamily", icon: Users },
+  { id: "eval", labelKey: "settings.navEval", icon: Award },
 ];
 
 const SECTION_GROUPS: { key: string; ids: SectionId[] }[] = [
   { key: "settings.groupGeneral", ids: ["prefs", "rules", "budget", "family"] },
   { key: "settings.groupAi", ids: ["ai", "agent", "plugins", "prompt", "knowledge", "report", "memory"] },
   { key: "settings.groupData", ids: ["data", "token", "logs", "audit", "provenance"] },
+  { key: "settings.groupEval", ids: ["eval"] },
 ];
 
 export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
@@ -210,6 +213,8 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
         {active === "provenance" && <ProvenanceSection />}
 
         {active === "family" && <FamilySection />}
+
+        {active === "eval" && <EvalSection />}
 
         {dirty && (
           <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-3 py-2 backdrop-blur">

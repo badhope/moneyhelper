@@ -607,3 +607,38 @@ _ALL_CACHES: tuple[TTLCache[Any, Any], ...] = (
 async def invalidate_quotes_cache() -> None:
     for _c in _ALL_CACHES:
         _c.clear()
+
+
+# ---------------------------------------------------------------------------
+# 指数日线（基准对比用）：INDICES 里的 secid 直接复用，不走 _to_secid。
+# 与个股 K 线共用同一份缓存与 HTTP→HTTPS 回退逻辑。
+# ---------------------------------------------------------------------------
+
+
+async def index_kline(symbol: str, limit: int = 750) -> dict[str, Any] | None:
+    """基准指数日线。symbol 形如 sh000300（见 INDICES）。不可用返回 None。"""
+    meta = INDICES.get(symbol)
+    if not meta:
+        return None
+    secid = meta[0]
+    key = (f"idx:{secid}", "daily", max(1, min(limit, 1000)))
+    cached = _kline_cache.get(key)
+    if cached is not None:
+        return cached
+    try:
+        rows = await _fetch_kline(secid, KLT["daily"], key[2])
+    except Exception:  # noqa: BLE001 — 基准失败只影响对比指标，不影响主流程
+        return None
+    points = _parse_kline_rows(rows)
+    if not points:
+        return None
+    out: dict[str, Any] = {
+        "symbol": symbol,
+        "name": meta[1],
+        "period": "daily",
+        "points": points[-key[2] :],
+        "source": "eastmoney",
+        "fetched_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+    _kline_cache[key] = out
+    return out

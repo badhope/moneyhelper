@@ -117,16 +117,21 @@ export function HoldingsView({ onGoMarket }: { onGoMarket?: () => void } = {}) {
   const totalMV = positions.reduce((s, p) => s + p.market_value, 0) - cash;
   const totalPnl = positions.reduce((s, p) => s + p.pnl, 0);
   const todayTotal = dashboard.today_pnl.total;
-  const byAsset = [...dashboard.concentration.by_asset].sort((a, b) => b.pct - a.pct).slice(0, 3);
-  const byIndustry = [...dashboard.concentration.by_industry].sort((a, b) => b.pct - a.pct).slice(0, 4);
+  // 集中度面板用 investable_pct（相对非现金市值）：现金不该稀释股票权重
+  const byAsset = [...dashboard.concentration.by_asset]
+    .sort((a, b) => (b.investable_pct ?? b.pct) - (a.investable_pct ?? a.pct))
+    .slice(0, 3);
+  const byIndustry = [...dashboard.concentration.by_industry]
+    .sort((a, b) => (b.investable_pct ?? b.pct) - (a.investable_pct ?? a.pct))
+    .slice(0, 4);
 
   // 资产/行业集中度：找出超过阈值的项，用于"风险提示"条（股票软件常见的红黄标记）
   // 标的与行业分开列：两者是不同维度的超限，合并展示会出现同名项重复
   const breaches = [
-    ...dashboard.concentration.asset_breaches.map((b) => ({ label: b.name, pct: b.pct, kind: t("holdings.breachAsset") })),
-    ...dashboard.concentration.industry_breaches.map((b) => ({ label: b.industry, pct: b.pct, kind: t("holdings.breachIndustry") })),
+    ...dashboard.concentration.asset_breaches.map((b) => ({ label: b.name, pct: b.investable_pct ?? b.pct, kind: t("holdings.breachAsset") })),
+    ...dashboard.concentration.industry_breaches.map((b) => ({ label: b.industry, pct: b.investable_pct ?? b.pct, kind: t("holdings.breachIndustry") })),
   ];
-  const topWeight = byAsset[0]?.pct ?? 0;
+  const topWeight = byAsset[0]?.investable_pct ?? byAsset[0]?.pct ?? 0;
 
   return (
     <div className="space-y-3">
@@ -196,19 +201,20 @@ export function HoldingsView({ onGoMarket }: { onGoMarket?: () => void } = {}) {
             ) : (
               <ul className="space-y-2">
                 {byAsset.map((a) => {
-                  const over = a.pct > dashboard.concentration.threshold_pct;
+                  const weight = a.investable_pct ?? a.pct;
+                  const over = weight > dashboard.concentration.threshold_pct;
                   return (
                     <li key={a.name} className="text-[13px]">
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="min-w-0 truncate">{a.name}</span>
                         <span className={cn("shrink-0 tabular-nums", over ? "font-medium text-amber-600" : "text-muted-foreground")}>
-                          {a.pct}%
+                          {weight}%
                         </span>
                       </div>
                       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
                         <div
                           className={cn("h-full rounded-full", over ? "bg-amber-500" : "bg-primary")}
-                          style={{ width: `${Math.min(100, a.pct)}%` }}
+                          style={{ width: `${Math.min(100, weight)}%` }}
                         />
                       </div>
                     </li>
@@ -227,7 +233,7 @@ export function HoldingsView({ onGoMarket }: { onGoMarket?: () => void } = {}) {
                 {byIndustry.map((x) => (
                   <li key={x.industry} className="flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-foreground/80">{x.industry}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{x.pct}%</span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">{x.investable_pct ?? x.pct}%</span>
                   </li>
                 ))}
               </ul>

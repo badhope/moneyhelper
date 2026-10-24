@@ -208,6 +208,8 @@ async def get_provenances(
     entity_type: str | None = None,
     entity_id: str | None = None,
     limit: int = 50,
+    date_from: str = "",
+    date_to: str = "",
 ) -> list[dict[str, Any]]:
     """查询审计记录。
 
@@ -218,6 +220,8 @@ async def get_provenances(
         entity_type: 按实体类型过滤（可选）
         entity_id:   按实体 ID 过滤（可选）
         limit:       返回条数上限（默认 50）
+        date_from:   起始时间（ISO 前缀比较，含）
+        date_to:     截止时间（ISO 前缀比较，含）
 
     Returns:
         审计记录字典列表（最新在前）
@@ -233,13 +237,19 @@ async def get_provenances(
         entries = [e for e in entries if e.entity_type == entity_type]
     if entity_id:
         entries = [e for e in entries if e.entity_id == entity_id]
+    if date_from:
+        entries = [e for e in entries if e.timestamp >= date_from]
+    if date_to:
+        # 只给日期（YYYY-MM-DD）时按"当天结束"处理，避免用户以为能查到当天却查不到
+        upper = date_to if len(date_to) > 10 else date_to + "T23:59:59.999999+99:99"
+        entries = [e for e in entries if e.timestamp <= upper]
 
     # 内存中已有满足条件的记录，直接返回（包含尚未持久化的最新数据）
     if entries:
         return [e.to_dict() for e in entries[:limit]]
 
     # 内存中无命中：从 SQLite 查询历史
-    return await _query_sqlite(entity_type, entity_id, limit)
+    return await _query_sqlite(entity_type, entity_id, limit, date_from, date_to)
 
 
 async def get_provenance_by_id(entry_id: str) -> dict[str, Any] | None:
@@ -261,6 +271,8 @@ async def _query_sqlite(
     entity_type: str | None,
     entity_id: str | None,
     limit: int,
+    date_from: str = "",
+    date_to: str = "",
 ) -> list[dict[str, Any]]:
     """从 SQLite 查询审计记录。"""
     from . import db
@@ -274,6 +286,13 @@ async def _query_sqlite(
     if entity_id:
         conditions.append("entity_id = ?")
         params.append(entity_id)
+    if date_from:
+        conditions.append("timestamp >= ?")
+        params.append(date_from)
+    if date_to:
+        upper = date_to if len(date_to) > 10 else date_to + "T23:59:59.999999+99:99"
+        conditions.append("timestamp <= ?")
+        params.append(upper)
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     params.append(limit)

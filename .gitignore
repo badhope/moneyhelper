@@ -10,6 +10,7 @@ backend/__pycache__/
 **/__pycache__/
 frontend/node_modules/
 frontend/dist/
+frontend/coverage/
 # 密钥（模型端点凭据）
 backend/.env
 .env
@@ -20,6 +21,8 @@ backend/.env
 # app/data/ 是早期路径，历史上被误跟踪，现已移出版本库
 backend/data/
 backend/app/data/
+# 演示数据（本地生成，不入库）
+demo-data/
 # 运行日志
 backend/server*.log
 backend/logs/

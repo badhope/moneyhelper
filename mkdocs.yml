@@ -105,11 +105,11 @@ nav:
       - 总体规划: planning/08-总体规划-完整版.md
       - 差异化头脑风暴: planning/09-差异化头脑风暴.md
       - 同类项目研究: research/peer-projects.md
-  - 质量:
+  - 质量与审计（历史）:
       - 代码审查发现: REVIEW-FINDINGS.md
-      - 内部严格评审: REVIEW-内部严格评审.md
-      - 前端审计: AUDIT-frontend.md
-      - 企业级深度审计: AUDIT-enterprise-deep-20261007.md
+      - 内部严格评审（历史快照）: REVIEW-内部严格评审.md
+      - 前端审计（历史快照）: AUDIT-frontend.md
+      - 企业级深度审计（历史快照）: AUDIT-enterprise-deep-20261007.md
 
 # 严格构建：nav 里写错文件名会直接失败，避免文档站悄悄缺页。
 # 注意：strict 模式下**未列入 nav 的页面会告警并失败**，所以 docs/ 下每个

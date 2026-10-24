@@ -216,6 +216,39 @@ class GetProvenanceIn(_In):
 
 
 # ---------------------------------------------------------------------------
+# 投资策略（LLM 可调用：回答"我的组合风险大吗/该调仓吗/现在贵吗"）
+# ---------------------------------------------------------------------------
+
+
+class GetPortfolioRiskIn(_In):
+    """查组合风险：波动率、夏普、索提诺、最大回撤、Beta、与基准对比。"""
+
+    benchmark: str = Field(
+        "", description="基准指数代码 sh000300/sh000001/sz399001/sz399006，可省略（默认沪深300）"
+    )
+
+
+class GetRebalancePlanIn(_In):
+    """查再平衡建议：目标配置偏离度与买卖清单。"""
+
+    band_pct: float = Field(0, description="容忍带百分比，偏差在带内不动；可省略（默认 5）")
+
+
+class GetValuationIn(_In):
+    """查估值位置分位：当前价在近 N 个交易日区间中的位置（0=区间最低，100=最高）。"""
+
+    symbols: str = Field("", description="逗号分隔的标的代码，可省略（默认全部非现金持仓）")
+
+
+class GetDcaPlansIn(_In):
+    """查定投计划：每期金额、累计投入、成本线、当前盈亏。"""
+
+
+class GetFirePlanIn(_In):
+    """查 FIRE 进度：目标本金、储蓄率、预计达成年限。"""
+
+
+# ---------------------------------------------------------------------------
 # 工具名 → 入参模型
 # ---------------------------------------------------------------------------
 
@@ -236,6 +269,12 @@ TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     "get_quote": GetQuoteIn,
     "add_to_watchlist": AddToWatchlistIn,
     "remove_from_watchlist": RemoveFromWatchlistIn,
+    # 投资策略
+    "get_portfolio_risk": GetPortfolioRiskIn,
+    "get_rebalance_plan": GetRebalancePlanIn,
+    "get_valuation": GetValuationIn,
+    "get_dca_plans": GetDcaPlansIn,
+    "get_fire_plan": GetFirePlanIn,
     # 财务写入
     "record_transaction": RecordTransactionIn,
     "save_user_memory": SaveUserMemoryIn,

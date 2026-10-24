@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import datetime
 from typing import Any
 
@@ -20,6 +21,13 @@ CONCENTRATION_MAX_PCT = 40.0
 DTI_WARN_PCT = 40.0
 SAVINGS_RATE_WARN_PCT = 20.0
 HIGH_RATE_DEBT = 0.08
+
+# /api/dashboard 的短 TTL 缓存（M5.3）。
+# 为什么需要：仪表盘被前端 4 个组件 + 对话 + MCP 同时拉，原来每次都要
+# 读全表流水、算风控、打两次外部行情。10 秒内的重复请求应该复用同一份快照。
+# 为什么不长：行情会变，用户改完持仓立刻刷新必须看到新数字。
+_DASHBOARD_TTL_SECONDS = 10.0
+_dashboard_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
 def _month_prefix() -> str:
@@ -50,8 +58,11 @@ def market_view(
                 "industry": p["industry"],
                 "shares": p["shares"],
                 "last": round(last, 4),
-                "market_value": round(mv, 2),
+                # 注意：cost / market_value 都是**总额**（单价 × 股数），
+                # 前端若需要单价必须读 cost_per_share，不能直接把 cost 回填到"每股成本"输入框。
                 "cost": round(cost, 2),
+                "cost_per_share": round(float(p["cost"]), 6),
+                "market_value": round(mv, 2),
                 "pnl": round(mv - cost, 2),
                 "pnl_pct": round((mv - cost) / cost * 100, 2) if cost else 0.0,
             }
@@ -62,23 +73,35 @@ def market_view(
     non_cash_mv = sum(r["market_value"] for r in rows if r["kind"] != "现金")
     concentration_denom = non_cash_mv or total_mv
 
+    # 两个口径必须分开，否则会同时出两种错：
+    # - pct：相对**总市值**，各项之和 = 100%，供资产分布饼图与持仓表使用
+    # - investable_pct：相对**非现金市值**，用于集中度判定（现金不该稀释股票权重）
+    # 历史 bug：现金行也拿 non_cash_mv 当分母 → 所有 pct 之和 = 126%，
+    # 且现金显示 26.3%（真实应为 20.8%），前端同屏出现两个不同百分比。
     by_asset = []
     for r in rows:
-        if concentration_denom:
-            by_asset.append(
-                {
-                    "name": r["name"],
-                    "kind": r["kind"],
-                    "pct": round(r["market_value"] / concentration_denom * 100, 1),
-                }
-            )
+        by_asset.append(
+            {
+                "name": r["name"],
+                "kind": r["kind"],
+                "pct": round(r["market_value"] / total_mv * 100, 1) if total_mv else 0.0,
+                "investable_pct": round(r["market_value"] / concentration_denom * 100, 1)
+                if concentration_denom
+                else 0.0,
+                "market_value": r["market_value"],
+            }
+        )
     by_asset.sort(key=lambda x: -x["pct"])
 
     agg: dict[str, float] = {}
     for r in rows:
         agg[r["industry"]] = agg.get(r["industry"], 0.0) + r["market_value"]
     by_industry = [
-        {"industry": k, "pct": round(v / concentration_denom * 100, 1) if concentration_denom else 0.0}
+        {
+            "industry": k,
+            "pct": round(v / total_mv * 100, 1) if total_mv else 0.0,
+            "investable_pct": round(v / concentration_denom * 100, 1) if concentration_denom else 0.0,
+        }
         for k, v in sorted(agg.items(), key=lambda kv: -kv[1])
     ]
 
@@ -97,12 +120,12 @@ def market_view(
             "asset_breaches": [
                 a
                 for a in by_asset
-                if a["pct"] > CONCENTRATION_MAX_PCT and a["kind"] != "现金"
+                if a["investable_pct"] > CONCENTRATION_MAX_PCT and a["kind"] != "现金"
             ],
             "industry_breaches": [
                 i
                 for i in by_industry
-                if i["pct"] > CONCENTRATION_MAX_PCT and i["industry"] != "现金"
+                if i["investable_pct"] > CONCENTRATION_MAX_PCT and i["industry"] != "现金"
             ],
         },
     }
@@ -211,9 +234,9 @@ def risk_checks(
                     "level": "warn",
                     "code": "CONCENTRATION",
                     "text": (
-                        f"{b['name']} {b['pct']}% of portfolio — above the {conc.get('threshold_pct')}% single-position cap"
+                        f"{b['name']} {b.get('investable_pct') or b['pct']}% of investable assets — above the {conc.get('threshold_pct')}% single-position cap"
                         if en
-                        else f"{b['name']} 占比 {b['pct']}% 超过 {conc.get('threshold_pct')}% 单一持仓阈值"
+                        else f"{b['name']} 占比 {b.get('investable_pct') or b['pct']}% 超过 {conc.get('threshold_pct')}% 单一持仓阈值"
                     ),
                 }
             )
@@ -223,9 +246,9 @@ def risk_checks(
                     "level": "warn",
                     "code": "CONCENTRATION",
                     "text": (
-                        f"{b['industry']} industry {b['pct']}% — above the {conc.get('threshold_pct')}% cap"
+                        f"{b['industry']} industry {b.get('investable_pct') or b['pct']}% of investable assets — above the {conc.get('threshold_pct')}% cap"
                         if en
-                        else f"{b['industry']} 行业占比 {b['pct']}% 超过 {conc.get('threshold_pct')}% 阈值"
+                        else f"{b['industry']} 行业占比 {b.get('investable_pct') or b['pct']}% 超过 {conc.get('threshold_pct')}% 阈值"
                     ),
                 }
             )
@@ -377,7 +400,11 @@ def template_answer(
 
     if market:
         m = market
-        word = "up" if en else "浮盈"
+        # 方向必须按盈亏正负切换：亏损时写"浮盈 -12.58%"自相矛盾。
+        if en:
+            word = "up" if m["total_pnl"] >= 0 else "down"
+        else:
+            word = "浮盈" if m["total_pnl"] >= 0 else "浮亏"
         line = (
             f"Your portfolio value is ¥{m['total_market_value']:,.0f}, {word} "
             f"¥{abs(m['total_pnl']):,.0f} ({m['total_pnl_pct']}%)."
@@ -389,12 +416,12 @@ def template_answer(
         if conc["by_asset"]:
             top = conc["by_asset"][0]
             if en:
-                note = f"Largest holding {top['name']} is {top['pct']}% of the portfolio."
-                if top["pct"] > conc["threshold_pct"]:
+                note = f"Largest holding {top['name']} is {top.get('investable_pct') or top['pct']}% of investable assets."
+                if (top.get("investable_pct") or top["pct"]) > conc["threshold_pct"]:
                     note += f" That's above the {conc['threshold_pct']}% concentration cap."
             else:
-                note = f"最大单一持仓 {top['name']} 占 {top['pct']}%。"
-                if top["pct"] > conc["threshold_pct"]:
+                note = f"最大单一持仓 {top['name']} 占可投资资产的 {top.get('investable_pct') or top['pct']}%。"
+                if (top.get("investable_pct") or top["pct"]) > conc["threshold_pct"]:
                     note += f" 已超过 {conc['threshold_pct']}% 集中度阈值。"
             line += note
         parts.append(line)
@@ -463,8 +490,26 @@ def template_answer(
 # --------------------------------------------------------------------------
 
 
-async def collect_dashboard(lang: str = "zh") -> dict[str, Any]:
-    """仪表盘所需全部数据：持仓/账本/负债/风控/来源。lang 决定 flags 与来源标签语言。"""
+async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict[str, Any]:
+    """仪表盘所需全部数据：持仓/账本/负债/风控/来源。lang 决定 flags 与来源标签语言。
+
+    短 TTL 缓存（默认 10s）：同一租户 + 语言在窗口内复用同一份快照，
+    避免多个组件并发拉取时重复打行情、重复扫流水。写操作后调用方应
+    invalidate_dashboard_cache() 立即失效（见 routes/ledger.py 的写端点）。
+    """
+    # 缓存键必须带 DB 路径：同进程内切换数据库（测试用临时库、升级演练）
+    # 时不能命中另一个库的旧快照。
+    # 注意读 db._core.DB_PATH 而不是 db.DB_PATH：后者是 import 时的静态副本，
+    # 测试 monkeypatch 改的是 _core 里的值，读副本会导致缓存跨测试泄漏。
+    from .db import _core as db_core
+    from .db.tenant import current_user_id
+
+    key = f"{getattr(db_core, 'DB_PATH', '')}:{current_user_id()}:{lang}"
+    if use_cache:
+        hit = _dashboard_cache.get(key)
+        if hit and time.monotonic() - hit[0] < _DASHBOARD_TTL_SECONDS:
+            return hit[1]
+
     en = lang != "zh"
     positions = await db.list_positions()
     live = await quotes.live_quotes(positions)
@@ -480,16 +525,32 @@ async def collect_dashboard(lang: str = "zh") -> dict[str, Any]:
         quotes_label = ("Snapshot price (live source unavailable)" if en else "组合库快照价（实时源不可用，自动降级）")
 
     m = market_view(positions, live)
+    month = _month_prefix()
+    cats = [
+        c.strip()
+        for c in settings.get("essential_categories", "居住,餐饮,交通").split(",")
+        if c.strip()
+    ]
+    # M5.3：本月现金流走 SQL 聚合；流水明细只取最近 500 条 + 总数，
+    # 账本十万行时不必把整库搬进内存再序列化给浏览器。
+    cashflow = await db.month_cashflow(month, cats)
     txs = await db.list_transactions()
+    total_tx = await db.count_transactions()
     subs = await db.list_subscriptions()
     debts = await db.list_debts()
     led = ledger_view(txs, subs, debts, settings, positions, live)
+    # 用 SQL 聚合值覆盖 Python 全表扫描的结果，保证两条路径口径一致且更快
+    led["income"] = cashflow["income"]
+    led["expense"] = cashflow["expense"]
+    led["net"] = cashflow["net"]
+    led["savings_rate"] = cashflow["savings_rate"]
+    led["by_category"] = cashflow["by_category"]
     flags = risk_checks(m, led, lang)
     goals = goal_progress(await db.list_goals())
     # 三个外部行情请求并行：最坏路径由串行的 8s+4s+12s 压缩为取最大者
     indices, today_pnl = await asyncio.gather(quotes.indices_quotes(), quotes.portfolio_today_pnl(positions))
 
-    return {
+    out = {
         "positions": m["positions"],
         "goals": goals,
         "totals": {
@@ -524,7 +585,8 @@ async def collect_dashboard(lang: str = "zh") -> dict[str, Any]:
         "flags": flags,
         "indices": indices,
         "today_pnl": today_pnl,
-        "transactions": txs,
+        "transactions": txs[:500],
+        "transactions_total": total_tx,
         "source": {
             "portfolio": "Local portfolio (SQLite)" if en else "本地组合库（SQLite）",
             "ledger": "Local ledger (SQLite)" if en else "本地账本（SQLite）",
@@ -532,6 +594,14 @@ async def collect_dashboard(lang: str = "zh") -> dict[str, Any]:
             "seeded": settings.get("data_note", "") == "seed",
         },
     }
+    if use_cache:
+        _dashboard_cache[key] = (time.monotonic(), out)
+    return out
+
+
+def invalidate_dashboard_cache() -> None:
+    """清空仪表盘缓存。任何写操作（记账/持仓/设置）后调用，保证下次读取是新数据。"""
+    _dashboard_cache.clear()
 
 
 # ---------------------------------------------------------------------------

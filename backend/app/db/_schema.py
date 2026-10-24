@@ -366,4 +366,28 @@ CREATE TABLE IF NOT EXISTS member_loans (
 );
 CREATE INDEX IF NOT EXISTS idx_member_loans_from ON member_loans(from_member_id);
 CREATE INDEX IF NOT EXISTS idx_member_loans_to ON member_loans(to_member_id);
+-- 目标配置（再平衡）：每个标的的目标权重；symbol=CASH 表示现金目标
+CREATE TABLE IF NOT EXISTS allocation_targets (
+    user_id    INTEGER NOT NULL DEFAULT 0,
+    symbol     TEXT NOT NULL,
+    name       TEXT NOT NULL DEFAULT '',
+    target_pct REAL NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, symbol)
+);
+-- 定投计划：一句「每月 10 号定投 3000 中证500」落成可跟踪的计划
+CREATE TABLE IF NOT EXISTS dca_plans (
+    user_id     INTEGER NOT NULL DEFAULT 0,
+    id          TEXT NOT NULL,
+    symbol      TEXT NOT NULL,
+    name        TEXT NOT NULL DEFAULT '',
+    amount      REAL NOT NULL,
+    frequency   TEXT NOT NULL DEFAULT 'monthly',  -- monthly / weekly
+    day         INTEGER NOT NULL DEFAULT 1,        -- 月：几号；周：星期几(1-7)
+    start_date  TEXT NOT NULL DEFAULT '',
+    note        TEXT NOT NULL DEFAULT '',
+    active      INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, id)
+);
 """

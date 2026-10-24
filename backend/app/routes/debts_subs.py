@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from .. import db
+from .. import analysis, db
 from ..provenance import record_provenance
 
 router = APIRouter()
@@ -31,6 +31,7 @@ async def create_debt(payload: dict) -> dict:
         after=payload or {},
         source="api",
     )
+    analysis.invalidate_dashboard_cache()
     return out
 
 
@@ -47,6 +48,7 @@ async def remove_debt(name: str) -> dict:
         after=None,
         source="api",
     )
+    analysis.invalidate_dashboard_cache()
     return result
 
 
@@ -70,6 +72,7 @@ async def create_subscription(payload: dict) -> dict:
         after=payload or {},
         source="api",
     )
+    analysis.invalidate_dashboard_cache()
     return out
 
 
@@ -86,4 +89,5 @@ async def remove_subscription(name: str) -> dict:
         after=None,
         source="api",
     )
+    analysis.invalidate_dashboard_cache()
     return result

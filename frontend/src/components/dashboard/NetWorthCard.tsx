@@ -22,7 +22,9 @@ function NetWorthPie({ breakdown }: { breakdown: NetWorthBreakdown["asset_breakd
     return {
       tooltip: { trigger: "item", triggerOn: "click", renderMode: "richText", confine: true, formatter: `{b}\n¥{c}` },
       series: [{
-        type: "pie", radius: ["0%", "64%"], center: ["50%", "50%"],
+        // 必须留中心孔：卡上在圆心叠了「总资产 / 金额」两行文字，
+        // 实心饼会把它们压在扇区上（截图里"总资产"几乎看不清）。
+        type: "pie", radius: ["48%", "64%"], center: ["50%", "50%"],
         avoidLabelOverlap: true, itemStyle: { borderRadius: 4, borderColor: "transparent", borderWidth: 2 },
         label: { show: false }, emphasis: { label: { show: true, fontSize: 11, fontWeight: 600 } },
         data: items.map((d, i) => ({ name: d.label, value: d.value, itemStyle: { color: palette[i % 3] } })),

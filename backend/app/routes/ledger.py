@@ -38,6 +38,7 @@ async def create_position(payload: dict) -> dict:
     except Exception as exc:  # noqa: BLE001 — 坏输入回 400
         return JSONResponse({"error": str(exc)}, status_code=400)
     await invalidate_quotes_cache()
+    analysis.invalidate_dashboard_cache()
     return out
 
 
@@ -45,6 +46,7 @@ async def create_position(payload: dict) -> dict:
 async def remove_position(symbol: str) -> dict:
     out = await db.delete_position(symbol)
     await invalidate_quotes_cache()
+    analysis.invalidate_dashboard_cache()
     return out
 
 
@@ -55,6 +57,7 @@ async def update_position(symbol: str, payload: dict) -> dict:
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=400)
     await invalidate_quotes_cache()
+    analysis.invalidate_dashboard_cache()
     return out
 
 
@@ -68,6 +71,7 @@ async def merge_positions(payload: dict) -> dict:
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=400)
     await invalidate_quotes_cache()
+    analysis.invalidate_dashboard_cache()
     return out
 
 
@@ -154,6 +158,7 @@ async def merge_transactions(payload: dict) -> dict:
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=400)
     await invalidate_quotes_cache()
+    analysis.invalidate_dashboard_cache()
     return out
 
 
@@ -192,6 +197,7 @@ async def append_position(symbol: str, payload: dict) -> dict:
             symbol,
         )
         await invalidate_quotes_cache()
+        analysis.invalidate_dashboard_cache()
         return {**out, "appended": True, "new_shares": total}
 
 
@@ -230,6 +236,7 @@ async def nl_add(payload: dict) -> dict:
         tx = rows[0] if rows else {"id": ins["id"], **parsed}
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=400)
+    analysis.invalidate_dashboard_cache()
     return {"ok": True, "source": source, "transaction": tx}
 
 
@@ -511,4 +518,5 @@ async def reset_portfolio(request: Request) -> dict:
             return JSONResponse({"error": "需要登录"}, status_code=401)
     out = await db.reset_to_seed()
     await invalidate_quotes_cache()
+    analysis.invalidate_dashboard_cache()
     return out

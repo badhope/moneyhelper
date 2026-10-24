@@ -42,12 +42,14 @@ export function Section({
 /** 设置页「标签 + 控件」横排容器 */
 export function Row({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5">
+    // 窄屏改为上下堆叠：设置项右侧常是长下拉（供应商/模型），
+    // 强制 shrink-0 横排会在 390px 下把文字压成逐字竖排。
+    <div className="flex flex-col gap-1.5 py-1.5 @sm:flex-row @sm:items-center @sm:justify-between @sm:gap-3">
       <div className="min-w-0">
         <div className="text-sm">{label}</div>
         {hint ? <div className="text-xs text-muted-foreground mt-0.5">{hint}</div> : null}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="min-w-0 @sm:shrink-0">{children}</div>
     </div>
   );
 }

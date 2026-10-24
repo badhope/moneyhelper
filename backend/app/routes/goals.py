@@ -31,6 +31,7 @@ async def create_goal(payload: dict) -> dict:
         after=payload or {},
         source="api",
     )
+    analysis.invalidate_dashboard_cache()
     return out
 
 
@@ -52,6 +53,7 @@ async def update_goal(name: str, payload: dict) -> dict:
         after=after,
         source="api",
     )
+    analysis.invalidate_dashboard_cache()
     return out
 
 
@@ -68,4 +70,5 @@ async def remove_goal(name: str) -> dict:
         after=None,
         source="api",
     )
+    analysis.invalidate_dashboard_cache()
     return result

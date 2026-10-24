@@ -29,6 +29,8 @@ interface Breach {
   name?: string;
   industry?: string;
   pct: number;
+  /** 相对可投资资产（非现金）的占比；集中度判定与展示用它 */
+  investable_pct?: number;
 }
 
 export interface FinanceCardData {
@@ -113,7 +115,10 @@ export function HoldingsCard({
           <span className="min-w-0">
             {breaches.slice(0, 2).map((b, i) => (
               <span key={i} className="mr-2">
-                {b.name ?? b.industry} <b className="tabular-nums">{b.pct}%</b>
+                {/* 集中度必须用 investable_pct（相对可投资资产），
+                    用 pct（相对总市值）会与正文里的 63.6% 打架 */}
+                {b.name ?? b.industry}{" "}
+                <b className="tabular-nums">{b.investable_pct ?? b.pct}%</b>
               </span>
             ))}
             <span className="text-muted-foreground">{t("block.overThreshold", { n: threshold })}</span>

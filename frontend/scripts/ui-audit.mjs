@@ -22,6 +22,12 @@ const shot = async (page, name) => page.screenshot({ path: `${ROOT}/${name}.png`
 
 const browser = await chromium.launch();
 
+// 截图前清空会话：重复运行会在侧栏堆出一列同名会话，噪点会盖住真实问题
+const sessions = await (await fetch(`${BASE}/api/sessions`)).json();
+for (const s of sessions.sessions ?? []) {
+  await fetch(`${BASE}/api/sessions/${s.id}`, { method: "DELETE" });
+}
+
 async function newPage(opts) {
   const ctx = await browser.newContext({ locale: "zh-CN", ...opts });
   const page = await ctx.newPage();
@@ -53,9 +59,9 @@ const tab = (page, label) => page.locator("[role=tab]", { hasText: label }).firs
   await page.getByRole("button", { name: "总览" }).first().click();
   await page.waitForTimeout(2000);
   await shot(page, "desktop/03-finance-overview");
-  for (const t of ["持仓", "行情", "记账", "财务体检"]) {
+  for (const t of ["持仓", "投资策略", "行情", "记账", "财务体检"]) {
     await tab(page, t).click();
-    await page.waitForTimeout(2600);
+    await page.waitForTimeout(t === "投资策略" ? 15000 : t === "行情" ? 14000 : 2600);
     await shot(page, `desktop/04-finance-${t}`);
   }
 
@@ -87,7 +93,7 @@ const tab = (page, label) => page.locator("[role=tab]", { hasText: label }).firs
   // 设置各分区
   await page.getByRole("button", { name: "设置" }).first().click();
   await page.waitForTimeout(1000);
-  const sections = ["偏好", "账本规则", "预算", "AI 回答", "Agent 与技能", "每日晨报", "长期记忆", "数据与状态", "访问口令", "日志", "审计日志", "溯源链", "家庭账本"];
+  const sections = ["偏好", "账本规则", "预算", "AI 回答", "Agent 与技能", "插件（MCP）", "系统提示词", "知识库", "每日晨报", "长期记忆", "数据与状态", "访问口令", "日志", "审计日志", "溯源链", "家庭账本", "模型评测"];
   for (const s of sections) {
     await page.getByText(s, { exact: true }).first().click();
     await page.waitForTimeout(600);
@@ -132,18 +138,18 @@ const tab = (page, label) => page.locator("[role=tab]", { hasText: label }).firs
   await page.locator("nav[aria-label='主导航'] button").nth(1).click();
   await page.waitForTimeout(1800);
   await shot(page, "phone/03-finance-overview");
-  for (const t of ["持仓", "行情", "记账", "财务体检"]) {
+  for (const t of ["持仓", "投资策略", "行情", "记账", "财务体检"]) {
     await tab(page, t).click();
-    await page.waitForTimeout(3800);
+    await page.waitForTimeout(t === "投资策略" ? 15000 : t === "行情" ? 14000 : 3800);
     await shot(page, `phone/04-finance-${t}`);
   }
 
   await page.locator("nav[aria-label='主导航'] button").last().click();
   await page.waitForTimeout(1000);
   await shot(page, "phone/05-settings");
-  for (const g of ["AI 与自动化", "数据与安全"]) {
+  for (const g of ["AI 回答", "溯源链", "模型评测"]) {
     await page.getByText(g, { exact: true }).first().click();
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(1000);
     await shot(page, `phone/06-settings-${g}`);
   }
   await ctx.close();

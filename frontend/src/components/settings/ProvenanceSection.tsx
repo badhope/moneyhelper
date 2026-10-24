@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { GitCompareArrows, RefreshCw } from "lucide-react";
+import { Download, GitCompareArrows, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { listProvenance, type ProvenanceItem } from "@/lib/api";
+import { getToken } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { fmtDate } from "@/lib/format";
 import { Section, inputCls, labelCls } from "./shared";
@@ -66,6 +67,18 @@ export function ProvenanceSection() {
     }
   };
 
+  /** 导出审计底稿：后端返回附件下载，这里用带 token 的 URL 直接触发浏览器保存。
+   *  不能走 fetch + blob：HTML 里引用了打印按钮，独立文件打开体验更好。 */
+  const exportReport = () => {
+    const qs = new URLSearchParams();
+    if (entityType) qs.set("entity_type", entityType);
+    if (entityId.trim()) qs.set("entity_id", entityId.trim());
+    const token = getToken();
+    if (token) qs.set("token", token);
+    const url = `/api/audit-report${qs.toString() ? `?${qs.toString()}` : ""}`;
+    window.open(url, "_blank", "noopener");
+  };
+
   return (
     <Section
       title={t("settings.navProvenance")}
@@ -100,6 +113,10 @@ export function ProvenanceSection() {
         <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
           <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
           {t("settings.refresh")}
+        </Button>
+        <Button size="sm" variant="outline" onClick={exportReport}>
+          <Download className="w-3.5 h-3.5 mr-1.5" />
+          {t("settings.exportAudit")}
         </Button>
       </div>
 

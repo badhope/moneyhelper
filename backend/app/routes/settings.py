@@ -7,7 +7,7 @@ import re
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from .. import db, llm, scheduler, vault
+from .. import analysis, db, llm, scheduler, vault
 from ..quotes import invalidate_quotes_cache
 
 
@@ -186,6 +186,8 @@ async def put_settings(payload: dict) -> dict:
 
     for k, v in applied.items():
         await db.set_setting(k, v)
+    # 设置会进入仪表盘（月度收入/必要支出分类/字号等），必须让缓存立即失效
+    analysis.invalidate_dashboard_cache()
     # AI 配置变化后使 llm 重新读取
     if any(
         k in applied for k in ("ai_enabled", "ai_base_url", "ai_api_key", "ai_model")

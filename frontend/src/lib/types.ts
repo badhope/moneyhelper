@@ -8,7 +8,10 @@ export interface Position {
   shares: number;
   last: number;
   market_value: number;
+  /** 总成本 = 每股成本 × 股数（后端 market_view 口径）。编辑单价请用 cost_per_share。 */
   cost: number;
+  /** 每股成本。老后端可能没有该字段，前端需回退到 cost / shares。 */
+  cost_per_share?: number;
   pnl: number;
   pnl_pct: number;
 }
@@ -107,12 +110,13 @@ export interface DashboardData {
   indices: IndexQuote[];
   concentration: {
     threshold_pct: number;
-    by_asset: { name: string; kind: string; pct: number }[];
-    by_industry: { industry: string; pct: number }[];
+    /** pct 相对总市值（饼图/占比列）；investable_pct 相对非现金市值（集中度判定） */
+    by_asset: { name: string; kind: string; pct: number; investable_pct?: number }[];
+    by_industry: { industry: string; pct: number; investable_pct?: number }[];
     /** 超过单一持仓阈值的标的（后端已算好） */
-    asset_breaches: { name: string; pct: number }[];
+    asset_breaches: { name: string; pct: number; investable_pct?: number }[];
     /** 超过行业集中度阈值的行业 */
-    industry_breaches: { industry: string; pct: number }[];
+    industry_breaches: { industry: string; pct: number; investable_pct?: number }[];
   };
   cashflow: {
     month: string;

@@ -13,7 +13,9 @@ export function Segmented<T extends string>({
   size?: "sm" | "md";
 }) {
   return (
-    <div className="inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-muted p-0.5">
+    // 允许换行：7 个供应商按钮在 390px 下总宽 394px，不外溢就只能换行。
+    // shrink-0 会把容器钉死在内容宽度，导致右端按钮被裁掉、无法点选。
+    <div className="flex max-w-full flex-wrap items-center gap-0.5 rounded-lg bg-muted p-0.5">
       {options.map((o) => (
         <button
           key={o.value}

@@ -22,7 +22,7 @@ export function StatCell({
   return (
     <div className="min-w-0 px-3 py-2 first:pl-0 sm:px-4">
       <div className={cn("text-xs", emphasis ? "text-foreground/80 font-medium" : "text-muted-foreground")}>{label}</div>
-      <div className={cn("mt-1 tabular-nums num-in leading-tight", color, emphasis ? "text-2xl font-bold" : "text-xl font-bold")}>{value}</div>
+      <div className={cn("mt-1 whitespace-nowrap tabular-nums num-in leading-tight", color, emphasis ? "text-2xl font-bold" : "text-lg font-bold sm:text-xl")}>{value}</div>
       {sub ? <div className="mt-1 text-xs text-muted-foreground/80 leading-snug">{sub}</div> : null}
     </div>
   );

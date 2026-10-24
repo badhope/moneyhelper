@@ -29,6 +29,7 @@ from .routes import (
     budgets_router,
     calculations_router,
     debts_subs_router,
+    evaluation_router,
     family_router,
     goals_router,
     import_router,
@@ -38,6 +39,7 @@ from .routes import (
     provenance_router,
     qa_router,
     settings_router,
+    strategy_router,
     system_router,
 )
 from .version import __version__
@@ -196,6 +198,8 @@ app.include_router(goals_router)
 app.include_router(debts_subs_router)
 app.include_router(market_router)
 app.include_router(calculations_router)
+app.include_router(strategy_router)
+app.include_router(evaluation_router)
 app.include_router(import_router)
 app.include_router(provenance_router)
 app.include_router(members_router)
