@@ -44,10 +44,15 @@
 - 官方 Agent Skills 精选（PDF / Word / Excel / skill-creator / mcp-builder 等）
 - 科研类技能（论文写作、审稿、文献综述、引用管理、EDA、科研绘图、学术 Office）
 - 科研/财务/工程角色，科研规则与提示词，科研 Hook
-- MCP 预设（fetch / filesystem / memory / sequentialthinking / time / git / deepwiki / gitmcp）
+- MCP 预设（fetch / filesystem / memory / sequentialthinking / time / git / deepwiki / gitmcp / arxiv / zotero / paper-search）
   只写配置、默认停用（stdio 依赖 npx/uvx，离线启用会拖慢问答）
 
 `seeded=true` 之后不再执行，所以用户删掉的条目重启不会复活。
+
+远程 HTTP MCP（deepwiki / gitmcp）默认启用；stdio MCP（fetch / filesystem / memory /
+sequentialthinking / time / git / arxiv / zotero / paper-search）默认停用——它们依赖
+`npx`/`uvx`，缺失时每轮问答都要等一次启动失败。设置页提供「全部启用 / 全部停用」，
+并会把发现失败的服务器标红（失败后 30 分钟内不重试，避免拖慢首 token）。
 
 ## 内置优势工具（自研，不对外）
 
@@ -116,3 +121,11 @@ moneyhelper studio ai --kind skills --prompt "每周日检查定投"
 | 权限 | 插件市场 | 内置工具 |
 |---|---|---|
 | ![权限](screenshots/73-studio-permissions.png) | ![市场](screenshots/74-studio-market.png) | ![内置工具](screenshots/75-studio-internal-tools.png) |
+
+| 技能表单（含定时动作） | 角色表单（工具白名单/温度） | 市场筛选科研 MCP | 深色模式 |
+|---|---|---|---|
+| ![技能表单](screenshots/76-studio-skill-form.png) | ![角色表单](screenshots/77-studio-role-form.png) | ![科研 MCP](screenshots/78-studio-market-research-mcp.png) | ![深色](screenshots/79-studio-roles-dark.png) |
+
+| 约束 | Hook | 导入格式示例 | 移动端权限 |
+|---|---|---|---|
+| ![约束](screenshots/80-studio-rules.png) | ![Hook](screenshots/81-studio-hooks.png) | ![格式](screenshots/82-studio-import-spec.png) | ![移动端](screenshots/83-studio-mobile-permissions.png) |

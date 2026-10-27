@@ -286,6 +286,16 @@ async def run_agent(    question: str,
         raise AgentUnavailable("未接入模型")
 
     client = llm._get_client(cfg, timeout=60.0)  # noqa: SLF001 — LiteLLM 后端
+    # 主角色温度：设置页「角色」里的 temperature 之前只存不用，模型永远 0.2。
+    role_temperature = 0.2
+    try:
+        from .studio import store as studio_store
+
+        role = (await studio_store.primary_role()).get("role") or {}
+        role_temperature = float(role.get("temperature", 0.2))
+        role_temperature = max(0.0, min(1.5, role_temperature))
+    except Exception:  # noqa: BLE001 — 角色配置异常时回退默认温度
+        role_temperature = 0.2
     # Agent 行为可配置化：工具轮次上限与失败反思重试由设置中心控制（默认与历史一致）。
     _s = await db.get_settings()
     turn_cap = max(1, min(int((_s.get("agent_tool_turns") or MAX_TURNS) or MAX_TURNS), 30))
@@ -398,9 +408,19 @@ async def run_agent(    question: str,
                 ]
                 if wanted:
                     tool_schemas = tool_schemas + wanted
+
+                    def _make_internal_runner(tool_name: str):
+                        async def _run(args: dict[str, Any]) -> str:
+                            return studio_tools.run_internal_tool(tool_name, args) or ""
+
+                        return _run
+
+                    # 执行层统一 await impl(args)：内置工具是同步纯函数，必须包一层协程，
+                    # 否则 await 一个 str 会抛 TypeError，8 个内置工具全部不可用。
                     internal_impl = {
-                        name: (lambda args, _n=name: studio_tools.run_internal_tool(_n, args) or "")
+                        name: _make_internal_runner(name)
                         for name in enabled_internal
+                        if name in studio_tools.INTERNAL_TOOL_SPECS
                     }
         except Exception:  # noqa: BLE001 — 内置工具装配失败不影响主工具面
             internal_impl = {}
@@ -411,6 +431,19 @@ async def run_agent(    question: str,
                 t for t in tool_schemas if t["function"]["name"] not in disabled_tools
             ]
             tool_map = {k: v for k, v in ALLOWED_IMPL.items() if k not in disabled_tools}
+        # 主角色工具白名单：设置页「角色 → 工具白名单」填了具体工具名时只暴露这些。
+        # 之前该字段只存不用，等于给了用户一个无效开关。
+        try:
+            from .studio import store as studio_store
+
+            role = (await studio_store.primary_role()).get("role") or {}
+            allowed = role.get("tools")
+            if isinstance(allowed, list) and allowed:
+                allow = {str(x) for x in allowed}
+                tool_schemas = [t for t in tool_schemas if t["function"]["name"] in allow]
+                tool_map = {k: v for k, v in tool_map.items() if k in allow}
+        except Exception:  # noqa: BLE001 — 角色配置异常时保留完整工具面
+            pass
     # P2 MCP：把已配置 MCP 服务器提供的工具动态合并进工具列表（仅财务分支，通用分支不接外部工具）
     mcp_schemas: list[dict[str, Any]] = []
     if tools_list is None:
@@ -433,7 +466,7 @@ async def run_agent(    question: str,
                     messages=messages,
                     tools=tool_schemas,
                     tool_choice="auto",
-                    temperature=0.2,
+                    temperature=role_temperature,
                     # 单轮输出上限：防止模型陷入超长生成把请求拖到超时
                     max_tokens=2048,
                     # 429/5xx 由 LiteLLM 自动重试（与流式路径一致）

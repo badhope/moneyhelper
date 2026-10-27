@@ -50,13 +50,9 @@ async def run_check() -> dict[str, Any]:
     """执行一轮检查，返回发现项（空数组 = 健康）。"""
     findings: list[dict[str, str]] = []
     try:
-        settings = await db.get_settings()
+        await db.get_settings()
     except Exception as exc:  # noqa: BLE001 — 数据库异常本身就是最高优先级发现
         findings.append({"level": "error", "code": "db_unavailable", "message": f"设置读取失败：{exc}"})
-        settings = {}
-    for key in ("ai_base_url", "ai_model"):
-        if settings.get(key) == "":
-            pass
     cfg = await store.get_config()
     prompts = cfg.get("prompts") or {}
     if not any(p.get("enabled", True) for p in prompts.values() if isinstance(p, dict)):

@@ -138,10 +138,6 @@ async def studio_format_spec() -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _apply_entries(entries: list[dict[str, Any]]) -> dict[str, Any]:
-    return entries
-
-
 @router.post("/api/studio/import")
 async def studio_import(
     file: UploadFile | None = File(None),

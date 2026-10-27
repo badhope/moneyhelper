@@ -69,6 +69,9 @@ async def export_data() -> dict[str, Any]:
             (current_user_id(),),
         ),
         "settings": settings,
+        # MCP 服务器清单（含 stdio 命令与启停状态）存在 data/mcp.json，不在 settings 表里；
+        # 不单独导出的话，恢复后 Studio 市场装的 MCP 与用户自建服务器全部消失。
+        "mcp_servers": _export_mcp_servers(),
         "sessions": await list_sessions(),
         "runs": runs,
         # 家庭/协作数据：漏掉这些表会导致恢复后"成员消失、流水失去归属"
@@ -106,6 +109,22 @@ async def export_data() -> dict[str, Any]:
             (current_user_id(),),
         ),
     }
+
+
+def _export_mcp_servers() -> list[dict[str, Any]]:
+    """导出 MCP 配置（URL 里的凭据打码：备份可能被分享）。"""
+    try:
+        from .. import mcp_client
+
+        out = []
+        for s in mcp_client.raw_servers():
+            entry = dict(s)
+            if entry.get("url"):
+                entry["url"] = mcp_client.redact_url(str(entry["url"]))
+            out.append(entry)
+        return out
+    except Exception:  # noqa: BLE001 — MCP 配置读取失败不应让备份整体失败
+        return []
 
 
 async def monthly_trend(months: int = 6) -> list[dict[str, Any]]:
@@ -279,6 +298,23 @@ async def _import_backup_locked(
         )
 
         # 设置：整表覆盖，但 AI Key 永不恢复（明文 Key 不进备份/恢复链路）
+        # MCP 服务器：配置在 data/mcp.json，恢复时写回（打码过的地址仍可用；
+        # 需要凭据的服务器由用户在设置页重新填写）
+        mcp_servers = data.get("mcp_servers")
+        if isinstance(mcp_servers, list):
+            try:
+                from .. import mcp_client
+
+                clean = [
+                    {k: v for k, v in s.items() if k in ("name", "url", "command", "args", "env", "enabled")}
+                    for s in mcp_servers
+                    if isinstance(s, dict)
+                ]
+                mcp_client.save_servers(clean)
+                counts["mcp_servers"] = len(clean)
+            except Exception:  # noqa: BLE001 — MCP 恢复失败不阻断其余数据
+                counts["mcp_servers"] = 0
+
         settings = data.get("settings") or {}
         if isinstance(settings, dict):
             await conn.execute("DELETE FROM settings WHERE user_id=?", (uid,))

@@ -42,6 +42,15 @@ async def update_agent_config(payload: dict) -> dict:
 
     new_cfg = payload.get("config", payload)
     clean, warnings = agent_config.clean_config(new_cfg)
+    # 审批阈值下限：核心安全项不能被配置层绕过（与 approval.threshold() 的钳制同口径）
+    defaults = clean.setdefault("defaults", {})
+    try:
+        raw_threshold = float(defaults.get("approval_threshold", 5000))
+    except (TypeError, ValueError):
+        raw_threshold = 5000.0
+    if raw_threshold < 100:
+        defaults["approval_threshold"] = 100
+        warnings.append("大额审批阈值不能低于 100 元（核心安全项），已按 100 元保存")
     await agent_config.update_config(clean)
     try:
         await sched_mod.sync_skill_jobs()
@@ -103,7 +112,10 @@ async def list_mcp_servers() -> dict:
     """
     from .. import mcp_client
 
-    return {"servers": mcp_client.list_servers()}
+    return {
+        "servers": mcp_client.list_servers(),
+        "discovery_failures": mcp_client.failure_status(),
+    }
 
 
 @router.put("/api/mcp/servers")
@@ -147,6 +159,24 @@ async def test_mcp_server(payload: dict) -> dict:
     except Exception as exc:  # noqa: BLE001 — 测试失败是预期结果，透出原因
         return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=400)
     return {"ok": True, "tools": tools}
+
+
+@router.post("/api/mcp/servers/bulk-toggle")
+async def bulk_toggle_mcp(payload: dict) -> dict:
+    """批量启用/停用（「一键启用全部」/「全部停用」）。"""
+    from .. import mcp_client
+
+    enabled = bool((payload or {}).get("enabled", True))
+    servers = mcp_client.raw_servers()
+    if not servers:
+        return {"ok": True, "servers": []}
+    for s in servers:
+        s["enabled"] = enabled
+    try:
+        cleaned = mcp_client.save_servers(servers)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return {"ok": True, "servers": mcp_client.list_servers(), "count": len(cleaned)}
 
 
 @router.post("/api/mcp/servers/{name}/toggle")

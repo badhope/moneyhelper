@@ -20,7 +20,6 @@ type SectionId =
   | "ai"
   | "roles"
   | "skills"
-  | "agent"
   | "plugins"
   | "market"
   | "prompt"

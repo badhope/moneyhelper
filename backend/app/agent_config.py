@@ -28,6 +28,38 @@ def _load_default() -> dict[str, Any]:
     return json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
 
 
+def mark_removed(cfg: dict[str, Any], bucket: str, asset_id: str) -> None:
+    """在**当前租户的配置对象**上记墓碑（不能放进程级全局：多租户会串）。
+
+    bucket 用 agent_config 自己的键名（agents / skills），与 Studio 的 roles 区分。
+    """
+    removed = cfg.setdefault("removed", {})
+    ids = removed.setdefault(bucket, [])
+    if asset_id not in ids:
+        ids.append(asset_id)
+
+
+def unmark_removed(cfg: dict[str, Any], bucket: str, asset_id: str) -> None:
+    removed = cfg.setdefault("removed", {})
+    ids = removed.setdefault(bucket, [])
+    if asset_id in ids:
+        ids.remove(asset_id)
+
+
+def _apply_removed(cfg: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """按 cfg["removed"] 删掉对应内置项（墓碑随配置落库，跨重启、按租户生效）。"""
+    changed = False
+    for bucket, ids in (cfg.get("removed") or {}).items():
+        target = cfg.get(bucket)
+        if not isinstance(target, dict):
+            continue
+        for aid in list(ids or []):
+            if aid in target:
+                target.pop(aid)
+                changed = True
+    return cfg, changed
+
+
 def _merge_defaults(cfg: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     """把默认包里的角色/技能补进已有配置（不覆盖用户改过的同名项）。
 
@@ -38,12 +70,15 @@ def _merge_defaults(cfg: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     if not default:
         return cfg, False
     changed = False
+    removed = cfg.setdefault("removed", {})
     for bucket_name in ("agents", "skills"):
         bucket = cfg.setdefault(bucket_name, {})
+        gone = set(removed.get(bucket_name) or [])
         for aid, asset in (default.get(bucket_name) or {}).items():
-            if aid not in bucket:
-                bucket[aid] = json.loads(json.dumps(asset, ensure_ascii=False))
-                changed = True
+            if aid in bucket or aid in gone:
+                continue
+            bucket[aid] = json.loads(json.dumps(asset, ensure_ascii=False))
+            changed = True
     defaults = cfg.setdefault("defaults", {})
     for k, v in (default.get("defaults") or {}).items():
         if k not in defaults:
@@ -78,7 +113,7 @@ async def init_default_config() -> None:
 
 
 async def get_config() -> dict[str, Any]:
-    """读当前 agent 配置（数据库里的；缺失的内置项按默认包补齐）。"""
+    """读当前 agent 配置（数据库里的；缺失的内置项按默认包补齐，删除过的跳过）。"""
     raw = (await db.get_settings()).get(_SETTINGS_KEY)
     cfg: dict[str, Any] = {}
     if raw:
@@ -87,11 +122,12 @@ async def get_config() -> dict[str, Any]:
         except Exception:
             cfg = {}
     merged, _ = _merge_defaults(cfg)
+    merged, _ = _apply_removed(merged)
     return merged
 
 
 async def update_config(new_config: dict[str, Any]) -> None:
-    """保存用户修改后的配置。"""
+    """保存用户修改后的配置（墓碑随配置一起落库）。"""
     await db.set_setting(_SETTINGS_KEY, json.dumps(new_config, ensure_ascii=False))
     log.info("agent.config.updated")
 

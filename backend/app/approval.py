@@ -26,17 +26,22 @@ from __future__ import annotations
 from typing import Any
 
 DEFAULT_THRESHOLD = 5000.0
+# 阈值下限：Studio「核心项锁定」承诺的落地。低于此值等于关掉写操作保护，
+# 因此无论配置怎么写（含把 approval_threshold 改成 0/负数）都按 100 元执行。
+MIN_THRESHOLD = 100.0
 
 
 async def threshold() -> float:
-    """当前大额审批阈值（元）。读配置失败返回默认值。"""
+    """当前大额审批阈值（元）。读配置失败返回默认值；永不低于 MIN_THRESHOLD。"""
     try:
         from . import agent_config
 
         cfg = await agent_config.get_config()
         raw = (cfg.get("defaults") or {}).get("approval_threshold", DEFAULT_THRESHOLD)
         value = float(raw)
-        return value if value > 0 else DEFAULT_THRESHOLD
+        if value <= 0:
+            return DEFAULT_THRESHOLD
+        return max(value, MIN_THRESHOLD)
     except Exception:  # noqa: BLE001 — 审批不能因配置异常而失效
         return DEFAULT_THRESHOLD
 

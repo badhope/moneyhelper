@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Award, BookOpen, Bot, Brain, BrainCog, FileText, GitCompareArrows, KeyRound, Lock, Package, Plug, Shield, Users, Newspaper, PiggyBank, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UserCog, Wallet, Wand2,
+  Award, BookOpen, Brain, BrainCog, FileText, GitCompareArrows, KeyRound, Lock, Package, Plug, Shield, Users, Newspaper, PiggyBank, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UserCog, Wallet, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboard } from "@/lib/store";
@@ -21,7 +21,6 @@ import { AuditSection } from "@/components/settings/AuditSection";
 import { ProvenanceSection } from "@/components/settings/ProvenanceSection";
 import { FamilySection } from "@/components/settings/FamilySection";
 import { Button } from "@/components/ui/button";
-import { AgentSection } from "@/components/settings/AgentSection";
 import { PluginsSection } from "@/components/settings/PluginsSection";
 import { PromptSection } from "@/components/settings/PromptSection";
 import { KnowledgeSection } from "@/components/settings/KnowledgeSection";
@@ -39,7 +38,7 @@ const SECTIONS: { id: SectionId; labelKey: string; icon: typeof Wallet }[] = [
   { id: "ai", labelKey: "settings.navAi", icon: Brain },
   { id: "roles", labelKey: "settings.navRoles", icon: UserCog },
   { id: "skills", labelKey: "settings.navSkills", icon: Sparkles },
-  { id: "agent", labelKey: "settings.navAgent", icon: Bot },
+
   { id: "plugins", labelKey: "settings.navPlugins", icon: Plug },
   { id: "market", labelKey: "settings.navMarket", icon: Package },
   { id: "prompt", labelKey: "settings.navPrompt", icon: FileText },
@@ -61,9 +60,10 @@ const SECTIONS: { id: SectionId; labelKey: string; icon: typeof Wallet }[] = [
 
 const SECTION_GROUPS: { key: string; ids: SectionId[] }[] = [
   { key: "settings.groupGeneral", ids: ["prefs", "rules", "budget", "family"] },
+  { key: "settings.groupAi", ids: ["ai", "knowledge", "report", "memory"] },
   {
-    key: "settings.groupAi",
-    ids: ["ai", "roles", "skills", "agent", "plugins", "market", "prompt", "constraints", "hooks", "permissions", "internalTools", "knowledge", "report", "memory"],
+    key: "settings.groupStudio",
+    ids: ["roles", "skills", "prompt", "constraints", "hooks", "plugins", "market", "internalTools", "permissions"],
   },
   { key: "settings.groupData", ids: ["data", "token", "logs", "audit", "provenance"] },
   { key: "settings.groupEval", ids: ["eval"] },
@@ -226,8 +226,6 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
           />
         )}
 
-        {active === "agent" && <AgentSection />}
-
         {active === "plugins" && <PluginsSection />}
 
         {active === "market" && <MarketplaceSection />}
@@ -235,7 +233,11 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
         {active === "prompt" && (
           <div className="space-y-3">
             <PromptSection />
-            <AssetManager kind="prompts" titleKey="settings.navPrompt" descKey="studio.promptsDesc" />
+            <AssetManager
+              kind="prompts"
+              titleKey="studio.promptsTitle"
+              descKey="studio.promptsDesc"
+            />
           </div>
         )}
 

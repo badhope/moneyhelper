@@ -41,7 +41,7 @@ export function PromptSection() {
 
   return (
     <Section
-      title={t("settings.navPrompt")}
+      title={t("prompt.baseTitle")}
       icon={<FileText className="w-4 h-4 text-muted-foreground" />}
       desc={t("prompt.desc")}
     >

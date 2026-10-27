@@ -163,7 +163,7 @@ async def _ai_local(args: Any) -> int:
             "skills": "技能",
         }[args.kind]
         text = f"添加{label} {text}"
-    result = await commands.handle_question(text)
+    result = await commands.handle_question(text, channel="cli")
     if result is None:
         _die("无法识别为配置指令，请用「添加技能 名称：描述」格式")
     _out(result, args.json, str(result.get("answer") or result.get("error") or ""))

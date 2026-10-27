@@ -86,12 +86,13 @@ async def install_market(item_id: str) -> dict[str, Any]:
         if not server.get("url") and not server.get("command"):
             raise ValueError("该 MCP 条目缺少 server 配置")
         raw = mcp_client.raw_servers()
+        default_on = bool(server.get("url"))
         for entry in raw:
             if entry.get("name") == server.get("name"):
-                entry.update({**server, "enabled": False})
+                entry.update({**server, "enabled": default_on})
                 break
         else:
-            raw.append({**server, "enabled": False})
+            raw.append({**server, "enabled": default_on})
         mcp_client.save_servers(raw)
         await _record_install(item_id)
         return {
@@ -99,7 +100,11 @@ async def install_market(item_id: str) -> dict[str, Any]:
             "kind": "mcp",
             "installed": server.get("name"),
             "market_id": item_id,
-            "note": "MCP 已写入配置但默认停用（避免离线环境反复超时）；请在「插件（MCP）」中启用。",
+            "note": (
+                "MCP 已写入配置并启用（远程 HTTP）。"
+                if default_on
+                else "MCP 已写入配置但默认停用（stdio 依赖 npx/uvx）；请在「插件（MCP）」中启用。"
+            ),
         }
     asset = dict(item.get("asset") or {})
     if not asset:
@@ -199,8 +204,11 @@ async def seed_default_bundle() -> dict[str, Any]:
             if not server.get("name"):
                 continue
             raw = mcp_client.raw_servers()
+            # 远程 HTTP MCP 默认启用（无本地运行时依赖）；stdio 需要 npx/uvx，
+            # 缺失时每轮问答都要等一次启动失败，所以默认停用、由用户显式打开。
+            default_on = bool(server.get("url"))
             if not any(e.get("name") == server.get("name") for e in raw):
-                raw.append({**server, "enabled": False})
+                raw.append({**server, "enabled": default_on})
                 try:
                     mcp_client.save_servers(raw)
                     mcp_names.append(str(server["name"]))
@@ -209,7 +217,7 @@ async def seed_default_bundle() -> dict[str, Any]:
             installed[item["id"]] = {
                 "kind": "mcp",
                 "installed_at": store.now_iso(),
-                "enabled": False,
+                "enabled": default_on,
             }
             continue
         if item["id"] in installed:
@@ -217,7 +225,8 @@ async def seed_default_bundle() -> dict[str, Any]:
         try:
             asset = dict(item.get("asset") or {})
             asset.setdefault("enabled", True)
-            asset.setdefault("builtin", True)
+            # 市场条目不算「内置资产」：可自由删除（内置只指代码里随包分发的默认项）
+            asset.setdefault("builtin", False)
             await store.upsert_asset(item["kind"], item["id"], asset)
             installed[item["id"]] = {
                 "kind": item["kind"],

@@ -25,6 +25,7 @@ call_mcp_tool 时新开会话 → call_tool。会话由 SDK 的 async context �
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from collections.abc import AsyncIterator
@@ -48,6 +49,11 @@ _DISCOVER_TTL_S = 30.0
 # 缓存键包含配置路径 + 服务器列表指纹：换配置/换测试临时文件时自动失效，
 # 不能只用 TTL（测试里连续切换 mcp.json 会读到上一个用例的结果）。
 _discover_cache: tuple[float, str, list[dict[str, Any]]] | None = None
+# 失败退避：某台服务器刚刚失败过，30 分钟内不再重试（否则每轮问答都要等超时）。
+# 值形如 {server_name: (monotonic_ts, error)}。启用/停用/保存配置会清空。
+_discovery_failures: dict[str, tuple[float, str]] = {}
+_FAILURE_TTL_S = 1800.0
+_DISCOVER_CONCURRENCY = 4
 
 MCP_CFG = Path(__file__).resolve().parent.parent / "data" / "mcp.json"
 TIMEOUT = 15.0
@@ -145,6 +151,7 @@ def save_servers(servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
         json.dumps({"servers": cleaned}, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     _discover_cache = None
+    _discovery_failures.clear()
     return cleaned
 
 
@@ -273,17 +280,38 @@ async def refresh(force: bool = False) -> list[dict[str, Any]]:
         ts, cached_key, cached = _discover_cache
         if cached_key == key and now - ts < _DISCOVER_TTL_S:
             return cached
-    out: list[dict[str, Any]] = []
-    for server in config:
-        try:
-            for t in await _discover(server):
-                schema = _make_schema(t)
-                if schema:
-                    out.append(schema)
-        except Exception as exc:  # noqa: BLE001 — 单台失败不影响其它
-            _log.warning("mcp discover %s failed: %s", server.get("name"), exc)
+    # 并发发现：串行时一台离线服务器的 15s 超时会叠加成 N×15s，直接拖垮首 token。
+    sem = asyncio.Semaphore(_DISCOVER_CONCURRENCY)
+    results: list[list[dict[str, Any]]] = []
+
+    async def _one(server: dict[str, Any]) -> list[dict[str, Any]]:
+        name = str(server.get("name") or "")
+        failed_at = _discovery_failures.get(name)
+        if failed_at and now - failed_at[0] < _FAILURE_TTL_S and not force:
+            return []
+        async with sem:
+            try:
+                schemas = [
+                    sc
+                    for sc in (_make_schema(t) for t in await _discover(server))
+                    if sc
+                ]
+                _discovery_failures.pop(name, None)
+                return schemas
+            except Exception as exc:  # noqa: BLE001 — 单台失败不影响其它
+                _discovery_failures[name] = (time.monotonic(), f"{type(exc).__name__}: {exc}")
+                _log.warning("mcp discover %s failed: %s", name, exc)
+                return []
+
+    results = await asyncio.gather(*[_one(s) for s in config]) if config else []
+    out: list[dict[str, Any]] = [sc for group in results for sc in group]
     _discover_cache = (now, key, out)
     return out
+
+
+def failure_status() -> dict[str, str]:
+    """最近失败过的服务器（设置页展示「为什么没有工具」）。"""
+    return {name: err for name, (_ts, err) in _discovery_failures.items()}
 
 
 async def call_mcp_tool(server_name: str, tool_name: str, args: dict[str, Any]) -> str:

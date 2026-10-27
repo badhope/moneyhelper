@@ -80,3 +80,39 @@ def test_save_clears_discover_cache(cfg, monkeypatch) -> None:
 def test_broken_config_returns_empty(cfg) -> None:
     cfg.write_text("{not json", encoding="utf-8")
     assert mcp_client.list_servers() == []
+
+
+def test_enabled_flag_roundtrip(cfg) -> None:
+    """启停标记要持久化，且停用项不出现在 _load_config（不参与发现）。"""
+    mcp_client.save_servers(
+        [
+            {"name": "on", "url": "https://a.example/mcp", "enabled": True},
+            {"name": "off", "url": "https://b.example/mcp", "enabled": False},
+        ]
+    )
+    active = mcp_client._load_config()
+    assert [s["name"] for s in active] == ["on"]
+    listed = mcp_client.list_servers()
+    assert {s["name"]: s["enabled"] for s in listed} == {"on": True, "off": False}
+
+
+def test_stdio_entry_saved_and_loaded(cfg) -> None:
+    mcp_client.save_servers(
+        [{"name": "local", "command": "npx", "args": ["-y", "pkg"], "enabled": True}]
+    )
+    entry = mcp_client._load_config()[0]
+    assert entry["command"] == "npx" and entry["args"] == ["-y", "pkg"]
+
+
+def test_stdio_requires_command(cfg) -> None:
+    """既没有 url 也没有 command 的条目被跳过，不会写出坏配置。"""
+    cleaned = mcp_client.save_servers([{"name": "broken"}])
+    assert cleaned == []
+
+
+def test_set_server_enabled(cfg) -> None:
+    mcp_client.save_servers([{"name": "a", "url": "https://a.example/mcp", "enabled": True}])
+    mcp_client.set_server_enabled("a", False)
+    assert mcp_client.list_servers()[0]["enabled"] is False
+    with pytest.raises(ValueError, match="不存在"):
+        mcp_client.set_server_enabled("nope", True)

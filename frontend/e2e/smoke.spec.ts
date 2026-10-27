@@ -93,7 +93,7 @@ test.describe("应用启动 & 冒烟", () => {
     await expectAi("账本规则", /生成建议/);
     await expectAi("每日晨报", /生成建议/);
     await expectAi("长期记忆", /生成建议/);
-    await expectAi("Agent 与技能", /^AI 生成$/);
+    await expectAi("技能（Skill）", /AI 一键生成/);
   });
 
   test("技能定时动作：配置时间/星期并立即触发（结果回显）", async ({ page, request }) => {
@@ -114,20 +114,20 @@ test.describe("应用启动 & 冒烟", () => {
     try {
       await page.goto("/");
       await page.getByRole("button", { name: "设置" }).first().click();
-      await page.getByText("Agent 与技能", { exact: true }).first().click();
+      await page.getByText("技能（Skill）", { exact: true }).first().click();
 
       // 动作徽标显示 周几 + 时间；「立即触发」按钮（aria-label 带技能名）可用
-      const runBtn = page.getByRole("button", { name: "立即触发 E2E 周报提醒" });
+      const runBtn = page.getByRole("button", { name: "立即执行 E2E 周报提醒" });
       await expect(runBtn).toBeVisible({ timeout: 10_000 });
-      await expect(page.getByText("周日 20:00").first()).toBeVisible();
+      await expect(page.getByText(/周日 20:00/).first()).toBeVisible();
       await runBtn.click();
 
       // 触发结果如实回显（走真实问答管线：确定性兜底即可产生回答）
-      await expect(page.getByText("最近一次触发结果")).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText(/^已触发/).first()).toBeVisible({ timeout: 30_000 });
 
       // 触发记录：归档线程可查（含刚触发的一条；标题 + 问题可见）
-      await page.getByRole("button", { name: "查看 E2E 周报提醒 的触发记录" }).click();
-      await expect(page.getByText(/触发记录（含定时/)).toBeVisible({ timeout: 10_000 });
+      await page.getByRole("button", { name: "触发记录 E2E 周报提醒" }).click();
+      await expect(page.getByText("触发记录（含定时与手动）").first()).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText("帮我看看这个月的支出").first()).toBeVisible({ timeout: 10_000 });
     } finally {
       // 清理：删除测试技能并保存

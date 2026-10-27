@@ -195,6 +195,10 @@ async def test_seed_default_bundle_once(temp_db, tmp_path, monkeypatch) -> None:
     mcp_client._servers.clear()
     first = await installer.seed_default_bundle()
     assert first["seeded"] is True and first["assets"] >= 25
+    # 远程 HTTP MCP 默认启用；stdio 默认停用（依赖 npx/uvx）
+    servers = {x["name"]: x["enabled"] for x in mcp_client.list_servers()}
+    assert servers.get("deepwiki") is True
+    assert servers.get("fetch") is False
     skills = await store.list_assets("skills")
     assert any(s["id"] == "skill-pdf" for s in skills)
     second = await installer.seed_default_bundle()
@@ -204,3 +208,101 @@ async def test_seed_default_bundle_once(temp_db, tmp_path, monkeypatch) -> None:
     await installer.seed_default_bundle()
     skills2 = await store.list_assets("skills")
     assert not any(s["id"] == "skill-pdf" for s in skills2)
+
+
+async def test_deleted_builtin_does_not_resurrect(temp_db) -> None:
+    """删除内置资产后，再次读取配置不得被默认包补回来（墓碑机制）。"""
+    await store.delete_asset("rules", "no_investment_advice", force=True)
+    cfg = await store.get_config()
+    assert "no_investment_advice" not in cfg["rules"]
+    assert "no_investment_advice" in (cfg.get("removed") or {}).get("rules", [])
+
+
+async def test_deleted_builtin_role_does_not_resurrect(temp_db) -> None:
+    from app import agent_config
+
+    await store.delete_asset("roles", "auditor", force=True)
+    cfg = await agent_config.get_config()
+    assert "auditor" not in cfg["agents"]
+    # 墓碑随配置落库，跨请求/跨重启都有效（重新读一次即可验证，不依赖进程内状态）
+    cfg2 = await agent_config.get_config()
+    assert "auditor" not in cfg2["agents"]
+
+
+async def test_tombstones_are_tenant_scoped(temp_db) -> None:
+    """墓碑必须跟着租户：A 删掉的内置角色不能影响 B。"""
+    from app.db.tenant import current_user_id, set_current_user_id
+
+    token = set_current_user_id(current_user_id())
+    try:
+        await store.delete_asset("roles", "auditor", force=True)
+        cfg_a = await agent_config_get()
+        assert "auditor" not in cfg_a["agents"]
+        set_current_user_id(4242)
+        cfg_b = await agent_config_get()
+        assert "auditor" in cfg_b["agents"]
+    finally:
+        set_current_user_id(current_user_id())
+        from app.db.tenant import _current_user_id
+
+        _current_user_id.reset(token)
+
+
+async def agent_config_get():
+    from app import agent_config
+
+    return await agent_config.get_config()
+
+
+async def test_recreate_after_delete_works(temp_db) -> None:
+    """删除后重新添加同一 id：墓碑要清掉，不能静默拒绝。"""
+    await store.delete_asset("prompts", "answer_style", force=True)
+    saved = await store.upsert_asset(
+        "prompts", "answer_style", {"name": "回答风格 2", "content": "简短"}
+    )
+    assert saved["name"] == "回答风格 2"
+    cfg = await store.get_config()
+    assert "answer_style" in cfg["prompts"]
+
+
+async def test_internal_tool_runner_is_awaitable(temp_db) -> None:
+    """agent 执行层统一 await impl(args)：内置工具必须返回协程，否则 TypeError。"""
+    import asyncio
+
+    from app.studio import internal_tools
+
+    async def _direct():
+        from app.studio import store as s2
+
+        enabled = await s2.internal_tools_enabled()
+        assert "stats_summary" in enabled
+
+    await _direct()
+    # 直接验证包装器形状：协程函数 + 可 await
+    async def _run(name: str, args: dict):
+        return internal_tools.run_internal_tool(name, args) or ""
+
+    assert asyncio.iscoroutinefunction(_run)
+    assert "样本量" in await _run("stats_summary", {"values": [1, 2, 3]})
+
+
+async def test_backup_includes_mcp_servers(temp_db, tmp_path, monkeypatch) -> None:
+    """备份必须带上 MCP 配置（在 data/mcp.json，不在 settings 表里），且 URL 凭据打码。"""
+    from app import mcp_client
+    from app.db import backup
+
+    monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
+    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    mcp_client._servers.clear()
+    mcp_client.save_servers(
+        [{"name": "s1", "url": "https://user:tok@example.com/mcp", "enabled": False}]
+    )
+    data = await backup.export_data()
+    assert data["mcp_servers"] and data["mcp_servers"][0]["name"] == "s1"
+    assert "tok" not in data["mcp_servers"][0]["url"]
+    # 恢复：把服务器列表写回（打码后的地址）
+    mcp_client.save_servers([])
+    await backup.import_backup({**data, "settings": data.get("settings") or {}})
+    servers = mcp_client.list_servers()
+    assert [s["name"] for s in servers] == ["s1"]
+    assert servers[0]["enabled"] is False

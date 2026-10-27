@@ -105,7 +105,8 @@ async def test_import_markdown_as_kind(client) -> None:
     assert data["ok"] and data["saved"][0]["name"] == "grant-writing"
 
 
-async def test_market_install_and_mcp_disabled_by_default(client, tmp_path, monkeypatch) -> None:
+async def test_market_install_mcp_defaults(client, tmp_path, monkeypatch) -> None:
+    """远程 HTTP MCP 装好即启用；stdio MCP 装好默认停用（依赖 npx/uvx）。"""
     from app import mcp_client
 
     monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
@@ -114,11 +115,15 @@ async def test_market_install_and_mcp_disabled_by_default(client, tmp_path, monk
     r = await client.post("/api/studio/market/install", json={"id": "mcp-deepwiki"})
     assert r.json()["ok"] is True
     servers = (await client.get("/api/mcp/servers")).json()["servers"]
-    assert servers and servers[0]["enabled"] is False
-    r2 = await client.post(
-        f"/api/mcp/servers/{servers[0]['name']}/toggle", json={"enabled": True}
-    )
+    assert servers and servers[0]["enabled"] is True
+
+    r2 = await client.post("/api/studio/market/install", json={"id": "mcp-fetch"})
     assert r2.json()["ok"] is True
+    servers2 = {s["name"]: s for s in (await client.get("/api/mcp/servers")).json()["servers"]}
+    assert servers2["fetch"]["enabled"] is False
+
+    r3 = await client.post("/api/mcp/servers/fetch/toggle", json={"enabled": True})
+    assert r3.json()["ok"] is True
 
 
 async def test_studio_prompt_reaches_agent_system(temp_db, monkeypatch) -> None:
@@ -234,3 +239,127 @@ async def test_chat_command_with_schedule_persists_action(client) -> None:
     created = next(a for a in skills.values() if a["name"] == "周报助手")
     assert created["action"]["time"] == "17:30"
     assert created["action"]["weekdays"] == [4]
+
+
+async def test_agent_config_rejects_below_floor_threshold(client) -> None:
+    """保存 agent 配置时低于下限要钳制并给出 warning（不是静默通过）。"""
+    cfg = (await client.get("/api/agent-config")).json()["config"]
+    cfg.setdefault("defaults", {})["approval_threshold"] = 1
+    r = await client.post("/api/agent-config", json={"config": cfg})
+    data = r.json()
+    assert data["ok"] is True
+    assert any("审批阈值" in w for w in data.get("warnings", []))
+    cfg2 = (await client.get("/api/agent-config")).json()["config"]
+    assert cfg2["defaults"]["approval_threshold"] == 100
+
+
+async def test_primary_role_tool_allowlist_filters_tools(temp_db, monkeypatch) -> None:
+    """角色「工具白名单」必须真正裁剪工具面（之前只存不用）。"""
+    from app import agent, agent_config
+
+    cfg = await agent_config.get_config()
+    cfg["agents"]["supervisor"]["tools"] = ["get_market_view"]
+    await agent_config.update_config(cfg)
+    await store.set_primary_role("supervisor")
+
+    captured: dict = {}
+
+    async def _fake_stream(client, cfg_, messages, tools, emit):
+        captured["tools"] = [t["function"]["name"] for t in tools]
+        return "ok"
+
+    class _Msg:
+        content = ""
+        tool_calls = None
+
+    class _Choice:
+        message = _Msg()
+
+    class _Resp:
+        def __init__(self):
+            self.choices = [_Choice()]
+
+    class _Completions:
+        async def create(self, **kwargs):
+            return _Resp()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        chat = _Chat()
+
+    async def _cfg():
+        return {"model": "m", "litellm_model": "m", "base": "", "key": ""}
+
+    monkeypatch.setattr(agent.llm, "_config", _cfg)
+    monkeypatch.setattr(agent.llm, "_get_client", lambda c, timeout=60.0: _Client())
+    monkeypatch.setattr(agent, "_stream_final_answer", _fake_stream)
+    await agent.run_agent("测试", lambda ev: _noop())
+    assert captured["tools"] == ["get_market_view"]
+
+
+async def test_role_temperature_applied(temp_db, monkeypatch) -> None:
+    """角色温度必须进入模型调用参数（之前写死 0.2）。"""
+    from app import agent, agent_config
+
+    captured: dict = {}
+
+    class _Completions:
+        async def create(self, **kwargs):
+            captured["temperature"] = kwargs.get("temperature")
+
+            class _M:
+                content = ""
+                tool_calls = None
+
+            class _C:
+                message = _M()
+
+            class _R:
+                def __init__(self):
+                    self.choices = [_C()]
+
+            return _R()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        chat = _Chat()
+
+    async def _cfg():
+        return {"model": "m", "litellm_model": "m", "base": "", "key": ""}
+
+    monkeypatch.setattr(agent.llm, "_config", _cfg)
+    monkeypatch.setattr(agent.llm, "_get_client", lambda c, timeout=60.0: _Client())
+    monkeypatch.setattr(agent, "_stream_final_answer", lambda *a, **k: _answer("ok"))
+
+    cfg = await agent_config.get_config()
+    cfg["agents"]["supervisor"]["temperature"] = 0.75
+    await agent_config.update_config(cfg)
+    await store.set_primary_role("supervisor")
+    await agent.run_agent("测试", lambda ev: _noop())
+    assert captured["temperature"] == 0.75
+
+
+async def _answer(text: str):
+    return text
+
+
+async def test_cli_channel_permission_separate_from_chat(client) -> None:
+    """CLI 与对话的权限开关独立：只关对话时 CLI 仍可写。"""
+    await client.put(
+        "/api/studio/permissions",
+        json={"mode": "open", "allow_chat_admin": False, "allow_cli_admin": True},
+    )
+    chat = (await client.post("/api/studio/chat-command", json={"text": "添加技能 a：b"})).json()
+    assert chat["ok"] is False and chat.get("disabled") is True
+    from app.studio import commands
+
+    cli = await commands.handle_question("添加技能 cli_only：只给 CLI 用", channel="cli")
+    assert cli and cli["ok"] is True
+    await client.put(
+        "/api/studio/permissions",
+        json={"mode": "open", "allow_chat_admin": True, "allow_cli_admin": True},
+    )

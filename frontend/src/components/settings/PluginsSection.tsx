@@ -39,9 +39,14 @@ export function PluginsSection() {
 
   const list = useQuery({
     queryKey: ["/api/mcp/servers"],
-    queryFn: () => api<{ servers: McpServer[] }>("/api/mcp/servers").then((r) => r.servers ?? []),
+    queryFn: () =>
+      api<{ servers: McpServer[]; discovery_failures?: Record<string, string> }>(
+        "/api/mcp/servers",
+      ),
   });
-  const servers = list.data ?? [];
+  const servers = list.data?.servers ?? [];
+  const failures = list.data?.discovery_failures ?? {};
+  const enabledCount = servers.filter((s) => s.enabled !== false).length;
 
   const save = async (next: McpServer[]) => {
     setSaving(true);
@@ -120,6 +125,22 @@ export function PluginsSection() {
 
   const toggle = async (s: McpServer) => {
     await save(servers.map((x) => (x.name === s.name ? { ...x, enabled: !s.enabled } : x)));
+  };
+
+  const bulkToggle = async (enabled: boolean) => {
+    setSaving(true);
+    try {
+      await api("/api/mcp/servers/bulk-toggle", {
+        method: "POST",
+        body: JSON.stringify({ enabled }),
+      });
+      await qc.invalidateQueries({ queryKey: ["/api/mcp/servers"] });
+      toast(enabled ? t("plugins.bulkOn") : t("plugins.bulkOff"), "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -205,6 +226,32 @@ export function PluginsSection() {
           <span className="text-[11px] text-muted-foreground">{t("plugins.hint")}</span>
         </div>
 
+        {servers.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 px-2.5 py-1.5">
+            <span className="text-[11px] text-muted-foreground">
+              {t("plugins.enabledCount", { n: enabledCount, total: servers.length })}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-[11px]"
+              disabled={saving}
+              onClick={() => void bulkToggle(true)}
+            >
+              {t("plugins.bulkEnable")}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[11px]"
+              disabled={saving}
+              onClick={() => void bulkToggle(false)}
+            >
+              {t("plugins.bulkDisable")}
+            </Button>
+          </div>
+        )}
+
         {list.isPending ? (
           <p className="py-4 text-center text-xs text-muted-foreground">{t("plugins.loading")}</p>
         ) : servers.length === 0 ? (
@@ -230,6 +277,14 @@ export function PluginsSection() {
                       {s.enabled === false && (
                         <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-600">
                           {t("plugins.disabled")}
+                        </span>
+                      )}
+                      {failures[s.name] && (
+                        <span
+                          className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-600"
+                          title={failures[s.name]}
+                        >
+                          {t("plugins.failed")}
                         </span>
                       )}
                     </div>

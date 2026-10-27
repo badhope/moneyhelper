@@ -184,3 +184,24 @@ async def test_mcp_position_refuses_without_context(temp_db):
     out = await fn("600519", 100, 1600, 0, "贵州茅台", "股票", "白酒", "", None)
     assert "已取消" in out
     assert len(await db.list_positions()) == before
+
+
+async def test_threshold_floor_is_enforced(temp_db) -> None:
+    """阈值下限：配置改成 0/负数/1 元都不能关掉写操作保护（Studio 核心锁定项的落地）。"""
+    from app import agent_config
+
+    for bad in (0, -1, 1, 99):
+        cfg = await agent_config.get_config()
+        cfg.setdefault("defaults", {})["approval_threshold"] = bad
+        await agent_config.update_config(cfg)
+        # 0/负数视为非法 → 回落默认 5000；1/99 钳到下限 100。两者都不得低于下限。
+        assert await approval.threshold() >= approval.MIN_THRESHOLD
+
+
+async def test_threshold_above_floor_preserved(temp_db) -> None:
+    from app import agent_config
+
+    cfg = await agent_config.get_config()
+    cfg.setdefault("defaults", {})["approval_threshold"] = 8000
+    await agent_config.update_config(cfg)
+    assert await approval.threshold() == 8000

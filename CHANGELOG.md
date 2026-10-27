@@ -13,8 +13,9 @@
   首次启动即启用；用户可关闭/删除，重启不会复活（`marketplace.seeded` 只执行一次）
 - **四条添加通道**（每个分区都有）：对话内说一句、拖拽/上传（SKILL.md、md、json/yaml、zip）、
   模板手写、AI 一键生成（生成后二次校验，未接入模型时明确报错）
-- **插件市场**：内置 38 个开源条目（Anthropic Skills 精选、学术论文/审稿/文献综述/引用管理/
-  EDA/科研绘图、科研与工程角色、Cursor 规则、官方 MCP 参考实现 + DeepWiki/GitMCP），
+- **插件市场**：内置 42 个开源条目（Anthropic Skills 精选、学术论文/审稿/文献综述/引用管理/
+  EDA/科研绘图、科研与工程角色、Cursor 规则、官方 MCP 参考实现 + DeepWiki/GitMCP
+  + 科研 MCP（arXiv / Zotero / Paper Search）），
   一键安装；支持粘贴 GitHub/任意 URL 安装单个文件；MCP 安装只写配置、默认停用
 - **权限模型**：全面放开 / 标准 / 严格三档；核心项（审批阈值下限、密钥、访问口令、
   内置工具可见性、破坏性操作确认）在任何模式都锁定，`/api/studio/core-guard` 给出拒绝理由
@@ -26,7 +27,31 @@
   与设置页共用同一存储与校验（远程模式走同一 HTTP API）
 - **MCP 增强**：支持 stdio 传输（command + args）、逐台启用/停用；市场安装的 MCP 默认停用
 
-### 修复
+### 修复（第二轮深度审计，均为真实缺陷）
+
+- **内置科研工具全部不可用**：agent 执行层统一 `await impl(args)`，而 8 个内置工具是同步纯函数，
+  `await` 一个 str 会抛 `TypeError: object str can't be used in 'await' expression`；
+  改为包一层协程（`_make_internal_runner`），并加端到端测试（模型调用 → 工具结果含「样本量」）
+- **删除的内置项会复活**：默认包补齐只看「缺不缺」，用户删掉的内置提示词/约束/Hook/角色/技能
+  下次读配置又回来。改为按租户持久化墓碑（`removed` 字段），并补「删除后重建同 id」测试
+- **审批阈值下限只是文案**：`core-guard` 声称下限 100 元，但改 `defaults.approval_threshold`
+  仍能设成 0；`approval.threshold()` 现在钳制到 ≥100，保存配置时低于下限会被钳制并回报 warning
+- **角色「工具白名单 / 温度」只存不用**：模型永远 0.2 温度、永远拿到全量工具；
+  现在白名单真正裁剪工具面，温度进入模型调用参数
+- **MCP 发现串行且无失败记忆**：一台离线服务器 15s 超时会串成 N×15s；改为并发 4 路 +
+  失败退避 30 分钟 + 失败原因回传设置页（红灯 badge）
+- **备份漏 MCP 配置**：`data/mcp.json` 不在 settings 表里，恢复后市场装的 MCP 全丢；
+  export/import 增加 `mcp_servers`（URL 凭据打码）
+- **CLI 与对话权限耦合**：CLI 走 chat 开关，关掉对话管理后 CLI 也被禁；改为独立通道判定
+- **市场条目被标成「内置」**：导致删除时走 force 分支、语义混乱；市场安装不再标记 builtin
+- **远程 MCP 默认停用不符合「默认配置好」**：远程 HTTP（deepwiki/gitmcp）改为默认启用，
+  stdio 仍默认停用（依赖 npx/uvx），并加「全部启用/全部停用」
+- **设置导航**：新旧两套「Agent 与技能」重复，旧页面（AgentSection/ai-generate）已删除；
+  导航重组为「基础设置 / AI 与自动化 / AGENT 能力 / 数据与安全 / 评测」五组
+- 死代码：`routes/studio.py::_apply_entries`、`market._SKILLS_MP`、`watchdog` 空分支、
+  `default_studio.permissions.max_tool_turns`、32 个旧 Agent 页孤儿 i18n 键
+
+### 修复（第一轮）
 
 - 设置页新增分区原先会挤在一屏：改为左侧分组导航 + 移动端横向滚动条，14 个入口可达
 - 默认角色/技能升级后老库看不到新内置项：启动时按「只补缺失、不覆盖用户改动」合并

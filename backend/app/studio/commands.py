@@ -291,12 +291,20 @@ async def execute(intent: dict[str, Any], lang: str = "zh") -> dict[str, Any]:
     }
 
 
-async def handle_question(question: str, lang: str = "zh") -> dict[str, Any] | None:
-    """对话入口：命中配置意图且权限允许时执行；否则返回 None 走正常问答。"""
+async def handle_question(
+    question: str, lang: str = "zh", channel: str = "chat"
+) -> dict[str, Any] | None:
+    """配置指令入口：命中意图且权限允许时执行；否则返回 None 走正常问答。
+
+    channel="cli" 时按 CLI 权限判定（两个开关独立，避免 CLI 被 chat 开关误伤）。
+    """
     intent = parse_intent(question)
     if intent is None:
         return None
-    if not await store.chat_admin_allowed():
+    allowed = (
+        await store.cli_admin_allowed() if channel == "cli" else await store.chat_admin_allowed()
+    )
+    if not allowed:
         return {
             "ok": False,
             "disabled": True,

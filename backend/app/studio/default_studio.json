@@ -4,8 +4,7 @@
     "mode": "open",
     "allow_chat_admin": true,
     "allow_cli_admin": true,
-    "allow_remote_install": true,
-    "max_tool_turns": 30
+    "allow_remote_install": true
   },
   "prompts": {
     "core_identity": {

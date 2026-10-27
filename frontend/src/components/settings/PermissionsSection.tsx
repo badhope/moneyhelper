@@ -23,11 +23,11 @@ const MODES = [
 ] as const;
 
 const LOCKED_KEYS = [
-  "approval_threshold",
-  "ai_api_key",
-  "api_token",
-  "internal_tools_visibility",
-  "destructive_confirm",
+  { key: "approval_threshold", labelKey: "studio.lockApproval" },
+  { key: "ai_api_key", labelKey: "studio.lockApiKey" },
+  { key: "api_token", labelKey: "studio.lockApiToken" },
+  { key: "internal_tools_visibility", labelKey: "studio.lockInternal" },
+  { key: "destructive_confirm", labelKey: "studio.lockDestructive" },
 ];
 
 /**
@@ -140,15 +140,17 @@ export function PermissionsSection() {
             {t("studio.coreLockedDesc")}
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {LOCKED_KEYS.map((key) => (
+            {LOCKED_KEYS.map((item) => (
               <Button
-                key={key}
+                key={item.key}
                 size="sm"
                 variant="outline"
-                className="h-7 px-2 font-mono text-[10.5px]"
-                onClick={() => void explainLocked(key)}
+                className="h-7 px-2 text-[10.5px]"
+                title={item.key}
+                onClick={() => void explainLocked(item.key)}
               >
-                {key}
+                <Lock className="h-3 w-3" />
+                {t(item.labelKey)}
               </Button>
             ))}
           </div>

@@ -88,12 +88,17 @@ def _merge_defaults(cfg: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     if perms.get("mode") not in PERMISSION_MODES:
         perms["mode"] = "open"
         changed = True
+    removed = out.setdefault("removed", {})
+    for kind in ("prompts", "rules", "hooks", "roles", "skills"):
+        removed.setdefault(kind, [])
     for kind in ("prompts", "rules", "hooks"):
         bucket = out.setdefault(kind, {})
+        gone = set(removed.get(kind) or [])
         for aid, asset in (default.get(kind) or {}).items():
-            if aid not in bucket:
-                bucket[aid] = copy.deepcopy(asset)
-                changed = True
+            if aid in bucket or aid in gone:
+                continue
+            bucket[aid] = copy.deepcopy(asset)
+            changed = True
     tools = out.setdefault("internal_tools", {"enabled": True, "tools": {}})
     if "enabled" not in tools:
         tools["enabled"] = True
@@ -296,6 +301,7 @@ async def _sync_skill_schedule() -> None:
 
 async def upsert_asset(kind: str, asset_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     asset = normalize_asset(kind, asset_id, payload)
+    await _clear_tombstone(kind, asset_id)
     if kind in ("roles", "skills"):
         from .. import agent_config
 
@@ -305,6 +311,7 @@ async def upsert_asset(kind: str, asset_id: str, payload: dict[str, Any]) -> dic
             bucket[asset_id] = {**bucket[asset_id], **asset}
         else:
             bucket[asset_id] = asset
+        agent_config.unmark_removed(cfg, "agents" if kind == "roles" else "skills", asset_id)
         await agent_config.update_config(cfg)
         if kind == "skills":
             await _sync_skill_schedule()
@@ -314,6 +321,27 @@ async def upsert_asset(kind: str, asset_id: str, payload: dict[str, Any]) -> dic
     bucket[asset_id] = asset
     await _write(cfg)
     return {"id": asset_id, **asset}
+
+
+def _add_tombstone(cfg: dict[str, Any], kind: str, asset_id: str) -> None:
+    """在内存配置里记一条删除墓碑（调用方负责一次性写回）。
+
+    必须与删除动作在同一次写回里完成：`_read()` 会补齐默认包，先写删除再读一次
+    记墓碑会让刚删的内置项在中间那次读取里复活。
+    """
+    removed = cfg.setdefault("removed", {})
+    ids = removed.setdefault(kind, [])
+    if asset_id not in ids:
+        ids.append(asset_id)
+
+
+async def _clear_tombstone(kind: str, asset_id: str) -> None:
+    cfg = await _read()
+    removed = cfg.setdefault("removed", {})
+    ids = removed.setdefault(kind, [])
+    if asset_id in ids:
+        ids.remove(asset_id)
+        await _write(cfg)
 
 
 async def delete_asset(kind: str, asset_id: str, *, force: bool = False) -> bool:
@@ -327,7 +355,12 @@ async def delete_asset(kind: str, asset_id: str, *, force: bool = False) -> bool
         if bucket[asset_id].get("builtin") and not force:
             raise ValueError("内置角色/技能不可删除；可关闭或使用 force=true 强制删除")
         bucket.pop(asset_id, None)
+        # 同时在 agent_config 记录墓碑：它的 _merge_defaults 也会补齐内置项
+        agent_config.mark_removed(cfg, "agents" if kind == "roles" else "skills", asset_id)
         await agent_config.update_config(cfg)
+        scfg = await _read()
+        _add_tombstone(scfg, kind, asset_id)
+        await _write(scfg)
         if kind == "skills":
             await _sync_skill_schedule()
         return True
@@ -338,6 +371,7 @@ async def delete_asset(kind: str, asset_id: str, *, force: bool = False) -> bool
     if bucket[asset_id].get("builtin") and not force:
         raise ValueError("内置资产不可删除；可关闭或使用 force=true 强制删除")
     bucket.pop(asset_id, None)
+    _add_tombstone(cfg, kind, asset_id)
     await _write(cfg)
     return True
 
@@ -351,6 +385,7 @@ async def set_enabled(kind: str, asset_id: str, enabled: bool) -> dict[str, Any]
         if asset_id not in bucket:
             return None
         bucket[asset_id]["enabled"] = bool(enabled)
+        agent_config.unmark_removed(cfg, "agents" if kind == "roles" else "skills", asset_id)
         await agent_config.update_config(cfg)
         if kind == "skills":
             await _sync_skill_schedule()

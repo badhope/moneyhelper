@@ -43,6 +43,20 @@ export interface FieldSpec {
   rows?: number;
 }
 
+const WEEKDAY_ZH = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+const WEEKDAY_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** 定时动作的可读摘要：周一、周三 20:00 / 每天 20:00（跟随界面语言）。 */
+function fmtSchedule(
+  action: { time?: string; weekdays?: number[] },
+  lang: "zh" | "en",
+  everyDay: string,
+): string {
+  const names = lang === "zh" ? WEEKDAY_ZH : WEEKDAY_EN;
+  const days = (action.weekdays ?? []).map((d) => names[d]).filter(Boolean);
+  return `${days.length ? days.join(lang === "zh" ? "、" : ", ") : everyDay} ${action.time ?? ""}`.trim();
+}
+
 const SCHEMAS: Record<Kind, FieldSpec[]> = {
   prompts: [
     { key: "name", labelKey: "studio.fieldName", type: "text" },
@@ -107,6 +121,7 @@ const SCHEMAS: Record<Kind, FieldSpec[]> = {
     { key: "name", labelKey: "studio.fieldName", type: "text" },
     { key: "description", labelKey: "studio.fieldDesc", type: "text" },
     { key: "instructions", labelKey: "studio.fieldInstructions", type: "textarea", rows: 6 },
+    { key: "tools", labelKey: "studio.fieldTools", type: "text" },
     { key: "temperature", labelKey: "studio.fieldTemperature", type: "number" },
   ],
   skills: [
@@ -133,7 +148,7 @@ export function AssetManager({
   descKey: string;
   hintKey?: string;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { toast } = useToast();
   const qc = useQueryClient();
   const fields = SCHEMAS[kind];
@@ -151,14 +166,39 @@ export function AssetManager({
   const [aiSuggestion, setAiSuggestion] = useState<Asset | null>(null);
   const [importErrors, setImportErrors] = useState<{ file: string; error: string }[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [showSpec, setShowSpec] = useState(false);
+  const [spec, setSpec] = useState<{
+    skill_md: { example: string };
+    json_bundle: { shape: string };
+    zip: string;
+  } | null>(null);
   const [fileEl, setFileEl] = useState<HTMLInputElement | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<{ id: string; answer: string } | null>(null);
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
+  const [history, setHistory] = useState<{ id: number; question: string; created_at: string }[] | null>(
+    null,
+  );
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const refresh = useCallback(
     () => qc.invalidateQueries({ queryKey: ["/api/studio", kind] }),
     [qc, kind],
   );
+
+  const loadSpec = async () => {
+    if (spec) {
+      setShowSpec((v) => !v);
+      return;
+    }
+    setShowSpec(true);
+    try {
+      const r = await api<{ spec: typeof spec }>("/api/studio/format-spec");
+      setSpec(r.spec);
+    } catch {
+      setSpec(null);
+    }
+  };
 
   const startCreate = async () => {
     try {
@@ -211,12 +251,37 @@ export function AssetManager({
       );
       if (!r.ok) throw new Error(r.error || t("studio.runFail"));
       setLastRun({ id: a.id, answer: String(r.answer ?? "") });
+      if (historyFor === a.id) await loadHistory(a.id);
       toast(t("studio.runOk"), "ok");
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "error");
     } finally {
       setRunning(null);
     }
+  };
+
+  const loadHistory = async (id: string) => {
+    try {
+      const r = await api<{ runs: { id: number; question: string; created_at: string }[] }>(
+        `/api/history?thread_id=${encodeURIComponent(`skill:${id}`)}&limit=10`,
+      );
+      setHistory(r.runs ?? []);
+      setHistoryError(null);
+    } catch (e) {
+      setHistory([]);
+      setHistoryError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const toggleHistory = async (id: string) => {
+    if (historyFor === id) {
+      setHistoryFor(null);
+      return;
+    }
+    setHistoryFor(id);
+    setHistory(null);
+    setHistoryError(null);
+    await loadHistory(id);
   };
 
   const save = async () => {
@@ -227,7 +292,21 @@ export function AssetManager({
       delete body.action_time;
       delete body.action_weekdays;
       if (kind === "prompts" || kind === "hooks") body.priority = Number(draft.priority) || 50;
-      if (kind === "roles") body.temperature = Number(draft.temperature) || 0.2;
+      if (kind === "roles") {
+        // 温度允许 0（确定性输出）；`Number(x) || 0.2` 会把 0 误判成空值
+        const temp = Number(draft.temperature);
+        body.temperature = Number.isFinite(temp) ? temp : 0.2;
+        // tools 允许 "all" 或逗号分隔工具名；空值 = all（不锁工具面）
+        const rawTools = (draft.tools ?? "").trim();
+        if (!rawTools || rawTools === "all") {
+          body.tools = "all";
+        } else {
+          body.tools = rawTools
+            .split(/[,，\s]+/)
+            .map((x) => x.trim())
+            .filter(Boolean);
+        }
+      }
       if (kind === "skills") body.action = skillAction();
       const path = editing ? `/api/studio/${kind}/${encodeURIComponent(editing)}` : `/api/studio/${kind}`;
       const r = await api<{ ok: boolean; error?: string }>(path, {
@@ -396,7 +475,32 @@ export function AssetManager({
                 }}
               />
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">{t("studio.formatHint")}</p>
+            <button
+              type="button"
+              className="mt-2 text-[11px] text-primary/80 underline-offset-2 hover:underline"
+              onClick={() => void loadSpec()}
+            >
+              {showSpec ? t("studio.hideFormat") : t("studio.showFormat")}
+            </button>
+            <p className="mt-1 text-[11px] text-muted-foreground">{t("studio.formatHint")}</p>
+            {showSpec && (
+              <div className="mt-2 space-y-1.5 rounded-md border border-border bg-muted/30 p-2 text-left">
+                {spec === null ? (
+                  <div className="text-[11px] text-muted-foreground">{t("studio.loading")}</div>
+                ) : (
+                  <>
+                    <div className="text-[11px] font-medium">SKILL.md</div>
+                    <pre className="overflow-x-auto rounded bg-background/70 p-1.5 text-[10px] leading-relaxed">
+{spec.skill_md.example}
+                    </pre>
+                    <div className="text-[11px] text-muted-foreground">
+                      {spec.json_bundle.shape}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">{spec.zip}</div>
+                  </>
+                )}
+              </div>
+            )}
             {importErrors.length > 0 && (
               <ul className="mt-2 space-y-1 text-left">
                 {importErrors.map((e, i) => (
@@ -563,25 +667,40 @@ export function AssetManager({
                     {kind === "skills" &&
                       (a as unknown as { action?: { time?: string; weekdays?: number[] } }).action && (
                         <div className="mt-0.5 text-[10.5px] text-sky-600 dark:text-sky-400">
-                          {t("studio.scheduled", {
-                            time: String(
-                              (a as unknown as { action?: { time?: string } }).action?.time ?? "",
-                            ),
-                            days:
-                              (
-                                (a as unknown as { action?: { weekdays?: number[] } }).action
-                                  ?.weekdays ?? []
-                              ).join(",") || t("studio.everyDay"),
-                          })}
+                          {t("studio.scheduledPrefix")}{" "}
+                          {fmtSchedule(
+                            (a as unknown as { action?: { time?: string; weekdays?: number[] } })
+                              .action ?? {},
+                            lang,
+                            t("studio.everyDay"),
+                          )}
                         </div>
                       )}
-                    {(a.match || a.content) && (
-                      <div className="mt-1 line-clamp-2 whitespace-pre-wrap font-mono text-[10.5px] text-muted-foreground/80">
-                        {a.match || a.content || a.instructions}
-                      </div>
-                    )}
+                    {(() => {
+                      // 正文与说明经常是同一句（对话创建的技能就是如此），
+                      // 原样再渲染一遍等于同一行字出现两次。
+                      const preview = a.match || a.content || a.instructions || "";
+                      const desc = (a.description || "").trim();
+                      if (!preview || preview.trim() === desc) return null;
+                      return (
+                        <div className="mt-1 line-clamp-2 whitespace-pre-wrap font-mono text-[10.5px] text-muted-foreground/80">
+                          {preview}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
+                    {kind === "skills" && (a as unknown as { action?: unknown }).action ? (
+                      <button
+                        type="button"
+                        aria-label={`${t("studio.historyLabel")} ${a.name}`}
+                        aria-expanded={historyFor === a.id}
+                        className="rounded px-1.5 py-0.5 text-[10.5px] text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                        onClick={() => void toggleHistory(a.id)}
+                      >
+                        {historyFor === a.id ? t("studio.historyHide") : t("studio.history")}
+                      </button>
+                    ) : null}
                     {kind === "skills" && (a as unknown as { action?: unknown }).action ? (
                       <button
                         type="button"
@@ -619,6 +738,27 @@ export function AssetManager({
                 {lastRun?.id === a.id && lastRun.answer && (
                   <div className="mt-1.5 whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-2 text-[11px]">
                     {lastRun.answer.slice(0, 400)}
+                  </div>
+                )}
+                {historyFor === a.id && (
+                  <div className="mt-1.5 rounded-md border border-border bg-muted/30 p-2 text-[11px]">
+                    <div className="text-[10.5px] text-muted-foreground">{t("studio.historyTitle")}</div>
+                    {history === null ? (
+                      <div className="mt-1 text-muted-foreground">{t("studio.loading")}</div>
+                    ) : historyError ? (
+                      <div className="mt-1 text-red-600">{t("studio.historyError", { e: historyError })}</div>
+                    ) : history.length === 0 ? (
+                      <div className="mt-1 text-muted-foreground">{t("studio.historyEmpty")}</div>
+                    ) : (
+                      <ul className="mt-1 space-y-1">
+                        {history.map((r) => (
+                          <li key={r.id} className="rounded border border-border bg-card px-2 py-1">
+                            <div className="text-[10px] text-muted-foreground">{r.created_at}</div>
+                            <div className="line-clamp-2 text-foreground/90">{r.question}</div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
               </li>
