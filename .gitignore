@@ -28,6 +28,7 @@ backend/server*.log
 backend/logs/
 # 临时/后台任务产物
 .temp/
+.tmp/
 backend/.temp/
 # 覆盖率产物
 .coverage
