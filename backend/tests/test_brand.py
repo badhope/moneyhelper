@@ -43,7 +43,7 @@ _OLD_CJK = "\u5c0f\u6ee1"
 LEGACY = re.compile(rf"{_OLD_LATIN}|{_OLD_LATIN.capitalize()}|{_OLD_LATIN.upper()}|{_OLD_CJK}")
 
 
-# 兼容层必须保留旧变量名才能读取旧部署环境；除这两个文件外一律零残留。
+# 以下文件必须保留旧变量名（兼容读取 / 升级说明 / 门禁自身），除此以外零残留。
 COMPAT_ALLOWLIST = {
     Path("backend/app/compat_env.py"),
     Path("backend/tests/test_compat_env.py"),
@@ -51,6 +51,7 @@ COMPAT_ALLOWLIST = {
     Path("backend/tests/test_auth_proxy.py"),
     # 升级说明必须写出旧变量名，否则用户不知道该改什么
     Path("docs/CONFIG.md"),
+    Path("docs/CONFIG.en.md"),
     Path("CHANGELOG.md"),
 }
 

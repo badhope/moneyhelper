@@ -18,6 +18,7 @@ Moneyhelper 分两层配置：**环境变量**（启动前，`backend/.env`，�
 | `MONEYHELPER_DB_PATH` | 空 | 数据库文件路径，优先级高于 `MONEYHELPER_DATA_DIR`；空值忽略 |
 | `MONEYHELPER_DISABLE_RATE_LIMIT` | 空 | `1` 关闭限流（默认 200 次/分钟/IP）；仅测试与本地调试使用 |
 | `MONEYHELPER_SLOW_MS` | `5000` | 慢操作告警阈值（毫秒），超过即写 WARNING 日志 |
+| `MONEYHELPER_TRUST_PROXY` | 空 | `1` = 部署在可信反代后，登录限流按 `X-Forwarded-For` 取真实客户端 IP。直连暴露端口时不要开（该头可伪造） |
 
 > 兼容性：旧前缀 `XIAOMAN_*` 仍可读（`MONEYHELPER_*` 优先），便于从旧版本平滑升级；新部署请直接用新前缀。
 | `JWT_SECRET` | 随机生成 | 多用户登录令牌签名密钥。**不设置时每次启动随机生成，重启后所有登录失效**；生产务必显式配置 |

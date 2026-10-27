@@ -10,6 +10,7 @@
   旧前缀 `XIAOMAN_*` 由 `backend/app/compat_env.py` 兼容读取（新名优先），旧部署升级不会切到空库
 - 仓库内所有对外品牌文案（README / docs / 页面标题 / PWA manifest / 双语 i18n）同步更名
 - Logo 重绘为「M 折线 + 增长箭头」钱币标，重出 icon.svg / 192 / 512 / apple-touch-icon / app.ico
+- 品牌 slogan 改为「算清每一笔，攒稳每一步」并在登录页展示；页面 theme-color / manifest 主色对齐品牌绿 `#0f8a73`
 - 新增 `tests/test_brand.py`：旧品牌零残留成为可执行约束（兼容层与升级说明白名单除外）
 
 ### 修复
@@ -27,7 +28,8 @@
   v4.0–v4.2 三个提交直接推到了 GitCode，未经 GitHub CI（最后一次 CI 停在 d9837c2），因此一直没被发现
 - 五端一度不同步：GitCode 有 v4.0–v4.2，GitHub 三仓与 Gitee 停在 d9837c2；本次已全部对齐
 - 限流配额差一：`len(bucket) >= max` 让「200 次/分钟」实际只放行 199 次，与响应头 `X-RateLimit-Limit: 200` 矛盾
-- 登录防爆破只按 `X-Forwarded-For` 取 IP，未校验来源，可伪造头绕过 IP 维度限流（用户名维度仍在）
+- 登录防爆破只按 `X-Forwarded-For` 取 IP，未校验来源，可伪造头绕过 IP 维度限流；
+  改为默认不信任该头，仅 `MONEYHELPER_TRUST_PROXY=1`（可信反代部署）时采信，CONFIG/DEPLOY 中英文四份文档同步说明
 
 ## [4.2.0] - 2026-10-27（团队模拟盘：多成员炒股看板，事件溯源内核）
 

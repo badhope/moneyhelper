@@ -14,6 +14,9 @@ All optional; the app runs fully without them (deterministic templates back ever
 | `API_TOKEN` | empty | Access token. Empty = no auth (localhost/LAN only); set → every `/api/*` requires Bearer/`?token=`, frontend shows a passcode dialog |
 | `ALLOWED_HOSTS` | empty | Extra hosts allowed when no token is set (comma-separated). Localhost only by default |
 | `CORS_ALLOW_ALL` | empty | Debug: allow the frontend dev origin (`1`). Not needed for same-origin production |
+| `MONEYHELPER_TRUST_PROXY` | empty | `1` = behind a trusted reverse proxy; login throttling reads the real client IP from `X-Forwarded-For`. Leave unset when the port is directly exposed (the header is spoofable) |
+
+> Compatibility: the legacy `XIAOMAN_*` prefix is still read (`MONEYHELPER_*` wins) so existing deployments upgrade without switching to an empty ledger; new deployments should use the new prefix.
 
 > Note: AI settings in the app (Settings page → `ai_base_url` / `ai_api_key` / `ai_model` / `ai_enabled`) take priority over env vars once saved; they survive restarts.
 

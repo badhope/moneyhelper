@@ -76,6 +76,7 @@ export function LoginView({ onAuthed }: { onAuthed: () => void }) {
             <BrandLogo size={42} />
           </div>
           <h1 className="text-xl font-semibold text-foreground">{BRAND.name}</h1>
+          <p className="mt-1 text-xs text-muted-foreground/80">{BRAND.slogan}</p>
           <p className="mt-1.5 text-sm text-muted-foreground text-balance">
             {mode === "login" ? t("auth.loginSubtitle") : t("auth.registerSubtitle")}
           </p>
