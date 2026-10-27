@@ -2,6 +2,29 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### 变更：品牌更名 Moneyhelper
+
+- 项目名、包名、CLI 命令、Docker 服务/数据卷、PyInstaller 产物、环境变量前缀统一为 Moneyhelper；
+  旧前缀 `XIAOMAN_*` 由 `backend/app/compat_env.py` 兼容读取（新名优先），旧部署升级不会切到空库
+- 仓库内所有对外品牌文案（README / docs / 页面标题 / PWA manifest / 双语 i18n）同步更名
+- Logo 重绘为「M 折线 + 增长箭头」钱币标，重出 icon.svg / 192 / 512 / apple-touch-icon / app.ico
+- 新增 `tests/test_brand.py`：旧品牌零残留成为可执行约束（兼容层与升级说明白名单除外）
+
+### 修复
+
+- `paper_trade` / `paper_overview` agent 工具因缺少 `validate_trade` / `fee_for` / `estimate` /
+  `ranking` / `team_summary` 导入，调用即 `NameError`；补测试覆盖开户→下单→总览全链路
+- `calculations` 门面中 `paper.build_equity_curve` 被 `portfolio_risk` 同名函数覆盖，
+  两种签名互相踩；paper 版改名 `build_snapshot_curve` 显式导出
+- `docs/ARCHITECTURE.md` 与 `docs/architecture.md` 仅大小写不同，Windows 克隆后互相覆盖且
+  mkdocs `--strict` 失败；详版重命名为 `docs/ARCHITECTURE-detail.md`
+- `docs/promo.html` 引用了 6 张不存在的截图；改为实际存在的文件
+- README 的页签数量（八个 → 九个，漏列模拟盘）与代码不一致
+- `frontend/package-lock.json` 版本号停留在 3.0.0，与 `package.json`/`version.py` 漂移
+- 后端 ruff 在 main 上 38 项报错（未用导入、同名重定义、未定义名等），CI 红灯
+
 ## [4.2.0] - 2026-10-27（团队模拟盘：多成员炒股看板，事件溯源内核）
 
 > 延续 4.0/4.1 原则：**所有数字由代码重放算出，不是模型编的**。这次把「人」引进来——

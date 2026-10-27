@@ -22,7 +22,7 @@ docker compose up -d --build     # http://localhost:8787
 ```
 
 ```bash
-# 或本地跑（Python 3.10+ / Node 18+）：一条命令完成 venv + pip 安装 + 前端构建 + 8788 端口启动
+# 或本地跑（Python 3.10+ / Node 20.19+）：一条命令完成 venv + pip 安装 + 前端构建 + 8788 端口启动
 scripts/dev.sh --prod
 ```
 
@@ -147,7 +147,7 @@ README 展示图：`node scripts/readme-shots.mjs`（写入 `docs/screenshots/`�
 
 ## 快速开始
 
-要求：Python 3.10+，Node.js 18+。
+要求：Python 3.10+，Node.js 20.19+。
 
 **最快路径（Docker）**
 

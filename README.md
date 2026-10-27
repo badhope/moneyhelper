@@ -22,7 +22,7 @@ docker compose up -d --build     # http://localhost:8787
 ```
 
 ```bash
-# Or run locally (Python 3.10+ / Node 18+): one command — venv + pip install + SPA build + serve on 8788
+# Or run locally (Python 3.10+ / Node 20.19+): one command — venv + pip install + SPA build + serve on 8788
 scripts/dev.sh --prod
 ```
 
@@ -162,7 +162,7 @@ More in [docs/screenshots/](docs/screenshots/).
 
 ## Quick start
 
-Requirements: Python 3.10+, Node.js 18+.
+Requirements: Python 3.10+, Node.js 20.19+.
 
 **Fastest path (Docker)**
 
