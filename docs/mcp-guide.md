@@ -1,13 +1,13 @@
-# 把小满接进你的 AI（MCP）
+# 把 Moneyhelper 接进你的 AI（MCP）
 
-小满内置 MCP Server，Claude Code / Cursor / Cline / 任何 MCP 客户端都能直接读写你的账本。
+Moneyhelper 内置 MCP Server，Claude Code / Cursor / Cline / 任何 MCP 客户端都能直接读写你的账本。
 数字全部来自本地确定性计算，模型只负责决定"调哪个工具"。
 
 ## 两种接入形态
 
 | 形态 | 何时用 | 地址 |
 |---|---|---|
-| Streamable HTTP（推荐） | 小满服务已在运行（Docker / `xiaoman serve`） | `http://<host>:8788/mcp` |
+| Streamable HTTP（推荐） | Moneyhelper 服务已在运行（Docker / `moneyhelper serve`） | `http://<host>:8788/mcp` |
 | stdio | 由 IDE 直接拉起子进程，不需要常驻服务 | `python -m app.mcp_server stdio` |
 
 > 传输层从 2.1.0 起默认 Streamable HTTP（MCP 规范 2025-03 起推荐）。
@@ -19,19 +19,19 @@
 Streamable HTTP（服务已在运行）：
 
 ```bash
-claude mcp add --transport http xiaoman http://127.0.0.1:8788/mcp
+claude mcp add --transport http moneyhelper http://127.0.0.1:8788/mcp
 ```
 
 stdio（无需常驻服务，由 Claude Code 拉起）：
 
 ```bash
-claude mcp add xiaoman -- python -m app.mcp_server stdio
+claude mcp add moneyhelper -- python -m app.mcp_server stdio
 ```
 
 设了 `API_TOKEN` 时需带口令：
 
 ```bash
-claude mcp add --transport http xiaoman \
+claude mcp add --transport http moneyhelper \
   http://127.0.0.1:8788/mcp --header "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -42,7 +42,7 @@ claude mcp add --transport http xiaoman \
 ```json
 {
   "mcpServers": {
-    "xiaoman": {
+    "moneyhelper": {
       "url": "http://127.0.0.1:8788/mcp",
       "headers": { "Authorization": "Bearer <你的 API_TOKEN>" }
     }
@@ -80,7 +80,7 @@ claude mcp add --transport http xiaoman \
 
 ## 安全说明
 
-`/mcp` 与 `/mcp-sse` 都经过与小满主应用同一套鉴权：设了 `API_TOKEN` 时
+`/mcp` 与 `/mcp-sse` 都经过与 Moneyhelper 主应用同一套鉴权：设了 `API_TOKEN` 时
 必须带 `Authorization: Bearer <token>` 或 `?token=`。**不要在没有口令的情况下
 把端口暴露到公网**——MCP 暴露的是全量财务工具，包括卖出持仓与备份导出。
 
@@ -119,11 +119,11 @@ MCP 规范里的 Tasks 适合承载"跑很久、要轮询进度"的操作（如�
 
 ## AG-UI 协议接入（M2.4）
 
-小满的问答流同时支持两种事件协议：
+Moneyhelper 的问答流同时支持两种事件协议：
 
 | 端点 | 事件形态 | 消费者 |
 |---|---|---|
-| `POST /api/ask` | 内部契约（`start` / `step` / `agent_step` / `text` / `final`） | 小满自己的前端 |
+| `POST /api/ask` | 内部契约（`start` / `step` / `agent_step` / `text` / `final`） | Moneyhelper 自己的前端 |
 | `POST /api/ask/agui` | AG-UI 标准（`RUN_STARTED` / `TEXT_MESSAGE_*` / `TOOL_CALL_*` / `RUN_FINISHED`） | 任何 AG-UI 客户端（CopilotKit 等） |
 
 两个端点共用同一套业务逻辑（同一个 runner），差别只在事件形态。映射是流式的，

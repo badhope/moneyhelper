@@ -49,7 +49,7 @@
 | 项 | 结果 |
 |---|---|
 | 体检页 | 维度卡不再重复「建议」，只保留现状描述 |
-| 启动开关 | `run.py` 支持 `XIAOMAN_NO_BROWSER=1`，端口改读 `PORT` |
+| 启动开关 | `run.py` 支持 `MONEYHELPER_NO_BROWSER=1`，端口改读 `PORT` |
 | 清理 | 关闭开发/演示进程，移除临时截图与演示库 |
 
 ## 2026-10-23 · 2.9.1 对话内富回答块 + 上下文条
@@ -101,7 +101,7 @@
 
 | 项 | 结果 |
 |---|---|
-| Docker 数据丢失 | 库/备份/checkpoint 统一到 `XIAOMAN_DATA_DIR`（默认 `backend/data`），与卷一致；实测容器重建后数据保留 |
+| Docker 数据丢失 | 库/备份/checkpoint 统一到 `MONEYHELPER_DATA_DIR`（默认 `backend/data`），与卷一致；实测容器重建后数据保留 |
 | 旧数据迁移 | 首次启动自动把旧 `backend/app/data` 搬到新位置（连带 -wal/-shm），升级不丢账本 |
 | 镜像验证 | 实机构建 + 运行：健康检查 healthy、首页 200、MCP 200、非 root(1000) 运行 |
 
@@ -157,7 +157,7 @@
 
 | 项 | 产出 |
 |---|---|
-| M1.1 包骨架 | `xiaoman/{core,server,cli,mcp}` 分层门面 + CLI（add/ls/report/balance/ask/serve） |
+| M1.1 包骨架 | `moneyhelper/{core,server,cli,mcp}` 分层门面 + CLI（add/ls/report/balance/ask/serve） |
 | M1.2 db 拆分 | `app/db/` 14 个域模块 + `_schema.py`；`_core.py` 793→471 行 |
 | M1.3 连接池 | 1 写连接 + 3 读连接（WAL 只读）；`get_write_lock()` 串行化写事务 |
 | M1.4 main.py 拆薄 | 1827→222 行；`system.py` 再拆 9 个域模块；70 端点零差异 |

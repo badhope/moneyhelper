@@ -172,7 +172,7 @@ def _bash() -> str:
     它不指向真实 bash，运行会失败。这里逐个探测候选并验证能执行命令。
     """
     candidates = [
-        os.environ.get("XIAOMAN_BASH", ""),
+        os.environ.get("MONEYHELPER_BASH", ""),
         r"C:\Program Files\Git\usr\bin\bash.exe" if os.name == "nt" else "",
         r"C:\Program Files\Git\bin\bash.exe" if os.name == "nt" else "",
         "/usr/bin/bash",

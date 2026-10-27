@@ -2,24 +2,24 @@
 requires = ["setuptools>=66", "wheel"]
 build-backend = "setuptools.build_meta"
 
-# 小满后端打包说明（M1.1）
+# Moneyhelper 后端打包说明（M1.1）
 #
 # 分层目标（渐进式，物理目录暂不搬动）：
-#   xiaoman.core    —— 确定性内核：账本/分析/行情/解析/加密/导入
-#   xiaoman.server  —— HTTP 壳：FastAPI 应用、路由、中间件
-#   xiaoman.cli     —— 命令行入口
-#   xiaoman.mcp     —— MCP Server（模块名避开顶层 "mcp"，那是官方 SDK）
+#   moneyhelper.core    —— 确定性内核：账本/分析/行情/解析/加密/导入
+#   moneyhelper.server  —— HTTP 壳：FastAPI 应用、路由、中间件
+#   moneyhelper.cli     —— 命令行入口
+#   moneyhelper.mcp     —— MCP Server（模块名避开顶层 "mcp"，那是官方 SDK）
 #
 # 为什么不在这一步就把 backend/app/ 物理拆成四个目录：
 # 60+ 个模块之间是双向引用，一次性搬动会产生上千行 import 改动，且无法在
 # 单次提交里审阅。本包先用 re-export 建立可用的分层门面，让新代码只依赖
-# xiaoman.core / xiaoman.server 的稳定接口；旧路径 backend.app.* 保持可用，
+# moneyhelper.core / moneyhelper.server 的稳定接口；旧路径 backend.app.* 保持可用，
 # 后续按域逐步迁移（计划中约定的 3 个月兼容期）。
 
 [project]
-name = "xiaoman"
-version = "3.0.0"
-description = "小满 —— 能自主干活的 AI 财务部门（本地优先、数字可复核、全 MCP 开放）"
+name = "moneyhelper"
+version = "4.2.0"
+description = "Moneyhelper —— 本地优先的垂直财务智能体工作台（数字可复核、投研/财报/策略全流程、MCP 开放）"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -73,16 +73,16 @@ dev = [
 
 [project.scripts]
 # 命令行入口（M4.1 的最小可用形态：记账/查询/提问/起服务）
-xiaoman = "xiaoman.cli:main"
+moneyhelper = "moneyhelper.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/badhope/xiaoman"
-Documentation = "https://github.com/badhope/xiaoman/tree/main/docs"
+Homepage = "https://github.com/badhope/moneyhelper"
+Documentation = "https://github.com/badhope/moneyhelper/tree/main/docs"
 
 [tool.setuptools]
-# 两套包目录：实现包 app.* 在 backend/ 下，门面包 xiaoman.* 在仓库根。
+# 两套包目录：实现包 app.* 在 backend/ 下，门面包 moneyhelper.* 在仓库根。
 # 门面只是 re-export，缺了 app 装完就跑不起来（实测 ModuleNotFoundError: app）。
-package-dir = { "" = "backend", "xiaoman" = "xiaoman" }
+package-dir = { "" = "backend", "moneyhelper" = "moneyhelper" }
 packages = [
   "app",
   "app.agents",
@@ -93,11 +93,11 @@ packages = [
   "app.db",
   "app.import_parsers",
   "app.routes",
-  "xiaoman",
-  "xiaoman.core",
-  "xiaoman.server",
-  "xiaoman.cli",
-  "xiaoman.mcp",
+  "moneyhelper",
+  "moneyhelper.core",
+  "moneyhelper.server",
+  "moneyhelper.cli",
+  "moneyhelper.mcp",
 ]
 
 [tool.setuptools.package-data]

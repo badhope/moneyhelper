@@ -125,17 +125,17 @@ async def test_mcp_resolve(mcp_up) -> None:
     assert mcp_client.resolve_mcp_tool("not_a_tool") is None
 
 # ---------------------------------------------------------------------------
-# 自环验证（M2.2）：小满自己的 MCP Server 走 Streamable HTTP 能被官方 SDK 调通
+# 自环验证（M2.2）：Moneyhelper 自己的 MCP Server 走 Streamable HTTP 能被官方 SDK 调通
 # ---------------------------------------------------------------------------
 
 
 
 
 @pytest.fixture
-async def xiaoman_mcp_up(tmp_path, monkeypatch):
+async def moneyhelper_mcp_up(tmp_path, monkeypatch):
     """起一个只挂 MCP 的真实 ASGI 服务，指到临时库，供自环调用。
 
-    与上面的 mcp_up 不同：这里跑的是**小满自己的** mcp_server，验证的是
+    与上面的 mcp_up 不同：这里跑的是**Moneyhelper 自己的** mcp_server，验证的是
     "我们暴露出去的工具"本身可用，而不是客户端解析逻辑。
     """
     import uvicorn
@@ -185,8 +185,8 @@ async def xiaoman_mcp_up(tmp_path, monkeypatch):
         mcp_client._servers.clear()
 
 
-async def test_self_mcp_end_to_end(xiaoman_mcp_up, temp_db) -> None:
-    """小满自己的 MCP Server 走 Streamable HTTP 的完整验收（M2.2）。
+async def test_self_mcp_end_to_end(moneyhelper_mcp_up, temp_db) -> None:
+    """Moneyhelper 自己的 MCP Server 走 Streamable HTTP 的完整验收（M2.2）。
 
     三件事一次做完，合并成一个测试是刻意为之：
     FastMCP 的 server 实例是模块级单例，其内部锁/事件在第一次启动时绑定到
@@ -232,7 +232,7 @@ async def test_self_mcp_end_to_end(xiaoman_mcp_up, temp_db) -> None:
     }
     async with httpx.AsyncClient(timeout=10, follow_redirects=False) as c:
         r = await c.post(
-            f"http://127.0.0.1:{xiaoman_mcp_up}/mcp",
+            f"http://127.0.0.1:{moneyhelper_mcp_up}/mcp",
             json=payload,
             headers={"Accept": "application/json, text/event-stream"},
         )

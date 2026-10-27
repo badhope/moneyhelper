@@ -1,7 +1,7 @@
 """本地加密备份：口令派生密钥 + Fernet 对称加密（cryptography）。
 
 备份包 JSON 结构（加密态）：
-    {"version": "xiaoman-backup-v1", "encrypted": true, "kdf": "pbkdf2-sha256",
+    {"version": "moneyhelper-backup-v1", "encrypted": true, "kdf": "pbkdf2-sha256",
      "iters": 200000, "salt": "<b64>", "payload": "<b64 Fernet token>"}
 
 口令只用于派生密钥，绝不落盘、不随备份包保存。忘记口令即无法恢复——
@@ -26,7 +26,7 @@ _ITERS = 600_000
 # 解密时允许的迭代数范围：下限防过弱派生，上限防恶意构造超大迭代数拖垮解密（DoS）
 _ITERS_MIN = 100_000
 _ITERS_MAX = 2_000_000
-_VERSION = "xiaoman-backup-v1"
+_VERSION = "moneyhelper-backup-v1"
 
 
 def _derive(passphrase: str, salt: bytes, iterations: int = _ITERS) -> bytes:

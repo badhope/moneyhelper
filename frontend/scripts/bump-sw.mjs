@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const swPath = new URL("../public/sw.js", import.meta.url);
 const src = readFileSync(swPath, "utf8");
 
-const CACHE_RE = /const CACHE = "xiaoman-pwa-[^"]*";/;
+const CACHE_RE = /const CACHE = "moneyhelper-pwa-[^"]*";/;
 if (!CACHE_RE.test(src)) {
   console.error("[bump-sw] 未找到 CACHE 常量，跳过（请检查 public/sw.js）");
   process.exit(0);
@@ -19,7 +19,7 @@ if (!CACHE_RE.test(src)) {
 
 // 用去掉版本行后的内容算哈希：内容不变 → 版本不变 → 不必重新发布 SW
 const body = src.replace(CACHE_RE, "");
-const stamp = `xiaoman-pwa-${createHash("sha256").update(body).digest("hex").slice(0, 12)}`;
+const stamp = `moneyhelper-pwa-${createHash("sha256").update(body).digest("hex").slice(0, 12)}`;
 const out = src.replace(CACHE_RE, `const CACHE = "${stamp}";`);
 
 if (out === src) {

@@ -1,6 +1,6 @@
 # 配置说明（环境变量 + 应用设置项）
 
-小满分两层配置：**环境变量**（启动前，`backend/.env`，复制自 `.env.example`）与**应用设置**（运行时，设置页，落库到 SQLite `settings` 表，立即生效）。
+Moneyhelper 分两层配置：**环境变量**（启动前，`backend/.env`，复制自 `.env.example`）与**应用设置**（运行时，设置页，落库到 SQLite `settings` 表，立即生效）。
 
 ## 1. 环境变量（backend/.env）
 
@@ -14,10 +14,12 @@
 | `API_TOKEN` | 空 | 访问口令。空 = 不鉴权（仅限本机/内网）；设置后 `/api/*` 需 Bearer/`?token=`，前端弹口令框 |
 | `ALLOWED_HOSTS` | 空 | 未设口令时额外放行的 Host（逗号分隔）。默认只放行本机 |
 | `MCP_ENABLE` | `1` | 是否挂载 MCP Server。`/mcp` 提供 Streamable HTTP，`/mcp-sse/sse` 兼容旧客户端；鉴权与来源校验与主应用一致 |
-| `XIAOMAN_DATA_DIR` | `backend/data` | 运行期数据目录（数据库 / 备份 / LangGraph checkpoint）。Docker 镜像内置为 `/app/backend/data`，与数据卷一致 |
-| `XIAOMAN_DB_PATH` | 空 | 数据库文件路径，优先级高于 `XIAOMAN_DATA_DIR`；空值忽略 |
-| `XIAOMAN_DISABLE_RATE_LIMIT` | 空 | `1` 关闭限流（默认 200 次/分钟/IP）；仅测试与本地调试使用 |
-| `XIAOMAN_SLOW_MS` | `5000` | 慢操作告警阈值（毫秒），超过即写 WARNING 日志 |
+| `MONEYHELPER_DATA_DIR` | `backend/data` | 运行期数据目录（数据库 / 备份 / LangGraph checkpoint）。Docker 镜像内置为 `/app/backend/data`，与数据卷一致 |
+| `MONEYHELPER_DB_PATH` | 空 | 数据库文件路径，优先级高于 `MONEYHELPER_DATA_DIR`；空值忽略 |
+| `MONEYHELPER_DISABLE_RATE_LIMIT` | 空 | `1` 关闭限流（默认 200 次/分钟/IP）；仅测试与本地调试使用 |
+| `MONEYHELPER_SLOW_MS` | `5000` | 慢操作告警阈值（毫秒），超过即写 WARNING 日志 |
+
+> 兼容性：旧前缀 `XIAOMAN_*` 仍可读（`MONEYHELPER_*` 优先），便于从旧版本平滑升级；新部署请直接用新前缀。
 | `JWT_SECRET` | 随机生成 | 多用户登录令牌签名密钥。**不设置时每次启动随机生成，重启后所有登录失效**；生产务必显式配置 |
 | `JWT_EXPIRE_HOURS` | `168` | 登录令牌有效期（小时） |
 | `CORS_ALLOW_ALL` | 空 | 调试用：仅放行前端开发源（`1` 开启）。生产同域托管无需改动 |

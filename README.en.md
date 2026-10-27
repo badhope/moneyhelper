@@ -1,4 +1,4 @@
-# 小满 README 索引
+# Moneyhelper README 索引
 
 - **简体中文（主版本）：[README.zh.md](README.zh.md)**
 - **English: [README.md](README.md)**

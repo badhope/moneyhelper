@@ -1,6 +1,6 @@
 # Development Guide (training)
 
-> For developers touching the Xiaoman repo for the first time. After this guide you should be able to: **run it → understand the architecture → change code (add a tool / setting / route) → write tests → ship a release**.
+> For developers touching the Moneyhelper repo for the first time. After this guide you should be able to: **run it → understand the architecture → change code (add a tool / setting / route) → write tests → ship a release**.
 
 ## 0. Run it in 10 minutes
 
@@ -114,9 +114,9 @@ cd frontend && npm run build                                   # tsc + vite
 git add -A && git commit -m "feat: xxx"
 git tag v1.0.0 && git push origin main --tags
 # 4) Multi-platform release (example)
-git push https://<user>:<token>@gitcode.com/<org>/xiaoman.git main --tags
-git push https://<user>:<token>@gitee.com/<org>/xiaoman.git main --tags
-git push https://<user>:<token>@github.com/<org>/xiaoman.git main --tags
+git push https://<user>:<token>@gitcode.com/<org>/moneyhelper.git main --tags
+git push https://<user>:<token>@gitee.com/<org>/moneyhelper.git main --tags
+git push https://<user>:<token>@github.com/<org>/moneyhelper.git main --tags
 ```
 
 ## 8. Design constraints (code-review checklist)

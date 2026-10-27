@@ -6,7 +6,7 @@
  * 故保留自实现——实例 init 一次、option 变化只 setOption、卸载 dispose。
  */
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { EChartsCoreOption, EChartsType } from "echarts/core";
 import { useTheme } from "./theme";
 
@@ -29,11 +29,13 @@ function loadEcharts(): Promise<EChartsModule> {
         import("echarts/lib/chart/radar"),
         import("echarts/lib/chart/treemap"),
         import("echarts/lib/chart/graph"),
+        import("echarts/lib/chart/candlestick"),
         import("echarts/lib/component/grid"),
         import("echarts/lib/component/legend"),
         import("echarts/lib/component/tooltip"),
         import("echarts/lib/component/radar"),
         import("echarts/lib/component/markLine"),
+        import("echarts/lib/component/dataZoom"),
       ]);
       core.use([CanvasRenderer]);
       echartsModule = core;
@@ -55,9 +57,12 @@ export function useEChart(
   ref: RefObject<HTMLDivElement | null>,
   option: EChartsCoreOption | null,
   deps: unknown[],
+  onReady?: (chart: EChartsType) => void,
 ): void {
   const optionRef = useRef<EChartsCoreOption | null>(null);
   optionRef.current = option;
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     if (!ref.current) return;
@@ -73,6 +78,8 @@ export function useEChart(
         // echarts 异步加载期间 option 可能已经就绪，补一次避免首帧空白
         const latest = optionRef.current;
         if (latest) chart.setOption(latest, { notMerge: true });
+        // 给调用方暴露实例（如缩放重置等交互），存在重复回调：覆盖式缓存最新
+        onReadyRef.current?.(chart);
         // 容器初始尺寸可能为 0（在隐藏面板 / 懒加载 tab / flex 尚未布局时挂载）。
         // 此时 init 出来的实例宽高是 0，后续 resize() 不会重算坐标系，表现为「图表一片空白」。
         // 记录上次尺寸，仅在 0 → 非 0 或尺寸实际变化时先 resize 再重放 option。
@@ -151,4 +158,28 @@ export function usePalette(): string[] {
 /** 通用文本色（随明暗） */
 export function axisLabelColor(resolved: "light" | "dark"): string {
   return resolved === "dark" ? "#9fb0c9" : "#64748b";
+}
+
+/** 金融涨跌色：跟随全局颜色方案（A股红涨绿跌默认，可切 us 绿涨红跌）。
+ *
+ * 返回 { up, down }，通过解析 --color-up / --color-down CSS 变量获得；
+ * 并用 MutationObserver 监听 data-scheme / class / data-theme 变化触发重算，
+ * 保证 K 线蜡烛、成交量等金融图表在切换颜色方案时即时换色。
+ */
+export function useCandleColors(): { up: string; down: string } {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const mo = new MutationObserver(() => setTick((v) => v + 1));
+    mo.observe(root, { attributes: true, attributeFilter: ["data-scheme", "class", "data-theme"] });
+    return () => mo.disconnect();
+  }, []);
+
+  // tick 参与读取：每次颜色方案变化都重新解析
+  void tick;
+  const style = getComputedStyle(document.documentElement);
+  const up = style.getPropertyValue("--color-up").trim() || "#dc2626";
+  const down = style.getPropertyValue("--color-down").trim() || "#059669";
+  return { up, down };
 }

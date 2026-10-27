@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 小满发版脚本：从 conventional commits 推导下一版版本号并完成发版准备。
+# Moneyhelper 发版脚本：从 conventional commits 推导下一版版本号并完成发版准备。
 #
 # 用法：
 #   ./scripts/release.sh --dry-run     # 只看会做什么，不改文件

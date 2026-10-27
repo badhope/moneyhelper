@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 全仓库静态检查：与 CI 完全同一套命令，避免"本地过了 CI 挂"。
-# CI 查 app/tests 与 xiaoman 两处；本地只跑一处就会漏（历史上漏过一次）。
+# CI 查 app/tests 与 moneyhelper 两处；本地只跑一处就会漏（历史上漏过一次）。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,5 +22,5 @@ cd "$ROOT/backend"
 ok "ruff: backend/app + tests"
 
 cd "$ROOT"
-"$PY" -m ruff check xiaoman || fail "ruff: xiaoman 分层包"
-ok "ruff: xiaoman 分层包"
+"$PY" -m ruff check moneyhelper || fail "ruff: moneyhelper 分层包"
+ok "ruff: moneyhelper 分层包"

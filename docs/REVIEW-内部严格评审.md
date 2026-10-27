@@ -1,4 +1,4 @@
-# 小满（Xiaoman）内部严格技术评审报告
+# Moneyhelper（Moneyhelper）内部严格技术评审报告
 
 > **历史快照，不代表当前状态**
 >
@@ -73,7 +73,7 @@
 
 ### 3.1 需要验证的一项风险
 
-备份包结构写明 `{"version": "xiaoman-backup-v1", "encrypted": true, ...}`。`backup.py` 里 `decrypt_export` 对 `encrypted=false` 的包直接 `return payload`，即**允许导入未加密明文备份**——如果用户复制粘贴他人导出的明文包，系统不会拒绝。在安全性要求更高的场景中，应要求"导入入口可对明文包发出强提示"或至少可配置拒绝。
+备份包结构写明 `{"version": "moneyhelper-backup-v1", "encrypted": true, ...}`。`backup.py` 里 `decrypt_export` 对 `encrypted=false` 的包直接 `return payload`，即**允许导入未加密明文备份**——如果用户复制粘贴他人导出的明文包，系统不会拒绝。在安全性要求更高的场景中，应要求"导入入口可对明文包发出强提示"或至少可配置拒绝。
 
 ---
 
@@ -169,7 +169,7 @@
 
 ## 八、总结
 
-小满是一个**工程完成度很高的个人理财 AI Agent 项目**："本地优先 + 确定性内核 + Agent 仅做分类成文"的核心设计非常扎实；PBKDF2 600k + 双层白名单 + RBAC 审计 + 密钥扫描让安全底线高过 95% 同类开源产品；DOC 与测试文化成熟（269 用例、双语自述、CHANGELOG）。
+Moneyhelper 是一个**工程完成度很高的个人理财 AI Agent 项目**："本地优先 + 确定性内核 + Agent 仅做分类成文"的核心设计非常扎实；PBKDF2 600k + 双层白名单 + RBAC 审计 + 密钥扫描让安全底线高过 95% 同类开源产品；DOC 与测试文化成熟（269 用例、双语自述、CHANGELOG）。
 
 主要扣分点是**CI 实际处于假绿状态**（ruff 9 项 + 前端 typescript 未装上），以及 `asyncio.create_task` 引用丢失这个会在特定时序静默失效的真实 bug。这两项是本次评审最需要立即处理的。
 

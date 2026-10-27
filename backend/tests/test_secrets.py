@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -38,7 +39,18 @@ MAX_BYTES = 1_000_000
 
 
 def _iter_text_files():
-    for path in REPO.rglob("*"):
+    """只枚举 git 已追踪的文本文件（语义=「进入代码树的内容」，且避开 node_modules 等海量目录）。
+
+    用 git ls-files 而非 rglob 全树遍历：SKIP_DIRS 里的目录本就 gitignore，
+    全树遍历在 node_modules/dist 存在时会超时，且会把本不该进树的文件也扫一遍。
+    """
+    out = subprocess.run(["git", "ls-files", "-z"], capture_output=True, text=True, cwd=REPO)
+    if out.returncode != 0:
+        return  # 非 git 环境（CI 快照等）：跳过，避免误伤
+    for name in out.stdout.split("\0"):
+        if not name:
+            continue
+        path = REPO / name
         if not path.is_file():
             continue
         if any(part in SKIP_DIRS for part in path.parts):

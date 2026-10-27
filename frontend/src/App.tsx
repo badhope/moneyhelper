@@ -33,7 +33,7 @@ const DepartmentPanel = lazy(() =>
   import("@/components/DepartmentPanel").then((m) => ({ default: m.DepartmentPanel })),
 );
 
-export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy";
+export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper";
 
 export default function App() {
   const { t } = useI18n();
@@ -188,7 +188,7 @@ export default function App() {
       setSettingsOpen(true);
       return;
     }
-    const valid: DataKind[] = ["overview", "holdings", "market", "ledger", "health", "strategy"];
+    const valid: DataKind[] = ["overview", "holdings", "market", "ledger", "health", "strategy", "research", "statements", "paper"];
     const k = (valid as string[]).includes(kind) ? (kind as DataKind) : "overview";
     setView(k);
   }, []);

@@ -23,7 +23,7 @@ from . import db
 EASTMONEY_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get"
 SINA_URL = "https://hq.sinajs.cn/list="
 
-_UA = "Mozilla/5.0 (xiaoman)"
+_UA = "Mozilla/5.0 (moneyhelper)"
 _SINA_HEADERS = {
     "Referer": "https://finance.sina.com.cn",
     "User-Agent": _UA,
@@ -83,7 +83,7 @@ async def _eastmoney_quotes(symbols: list[str]) -> dict[str, float]:
         "secids": ",".join(secids),
         "ut": "fa5fd1943c7b386f172d6893dbfba10b",
     }
-    headers = {"User-Agent": "Mozilla/5.0 (xiaoman)"}
+    headers = {"User-Agent": "Mozilla/5.0 (moneyhelper)"}
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
             resp = await client.get(EASTMONEY_URL, params=params, headers=headers)
@@ -275,7 +275,7 @@ async def indices_quotes() -> list[dict[str, Any]]:
         "secids": ",".join(secid for secid, _ in INDICES.values()),
         "ut": "fa5fd1943c7b386f172d6893dbfba10b",
     }
-    headers = {"User-Agent": "Mozilla/5.0 (xiaoman)"}
+    headers = {"User-Agent": "Mozilla/5.0 (moneyhelper)"}
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
             resp = await client.get(EASTMONEY_URL, params=params, headers=headers)
@@ -347,7 +347,7 @@ async def portfolio_today_pnl(positions: list[dict[str, Any]]) -> dict[str, Any]
             "secids": ",".join(secids),
             "ut": "fa5fd1943c7b386f172d6893dbfba10b",
         }
-        headers = {"User-Agent": "Mozilla/5.0 (xiaoman)"}
+        headers = {"User-Agent": "Mozilla/5.0 (moneyhelper)"}
         try:
             async with httpx.AsyncClient(timeout=4.0) as client:
                 resp = await client.get(EASTMONEY_URL, params=params, headers=headers)
@@ -543,7 +543,7 @@ async def _fetch_kline(secid: str, klt: int, limit: int) -> list[str]:
         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
         "ut": "fa5fd1943c7b386f172d6893dbfba10b",
     }
-    headers = {"User-Agent": "Mozilla/5.0 (xiaoman)"}
+    headers = {"User-Agent": "Mozilla/5.0 (moneyhelper)"}
     last_exc: Exception | None = None
     for url in (KLINE_URL, KLINE_URL_HTTP):
         try:

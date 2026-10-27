@@ -12,28 +12,28 @@ jobs:
   gitcode:
     # 只在主仓执行：镜像目标固定为 gitcode/gitee 的 badhope 仓库，
     # 其余镜像/派生仓库没有对应 Secrets，跑起来只会红。
-    if: github.repository == 'badhope/xiaoman'
+    if: github.repository == 'badhope/moneyhelper'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - name: push to gitcode (with retry)
         run: |
-          git remote add mirror "https://oauth2:${{ secrets.GITCODE_TOKEN }}@gitcode.com/badhope/xiaoman.git"
+          git remote add mirror "https://oauth2:${{ secrets.GITCODE_TOKEN }}@gitcode.com/badhope/moneyhelper.git"
           for i in 1 2 3; do
             git push mirror main --force && git push mirror --tags --force && exit 0
             echo "retry $i/3 after 20s..."; sleep 20
           done
           exit 1
   gitee:
-    if: github.repository == 'badhope/xiaoman'
+    if: github.repository == 'badhope/moneyhelper'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - name: push to gitee (with retry)
         run: |
-          git remote add mirror "https://oauth2:${{ secrets.GITEE_TOKEN }}@gitee.com/badhope/xiaoman.git"
+          git remote add mirror "https://oauth2:${{ secrets.GITEE_TOKEN }}@gitee.com/badhope/moneyhelper.git"
           for i in 1 2 3; do
             git push mirror main --force && git push mirror --tags --force && exit 0
             echo "retry $i/3 after 20s..."; sleep 20

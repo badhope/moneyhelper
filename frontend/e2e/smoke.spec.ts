@@ -8,8 +8,8 @@ import { test, expect } from "@playwright/test";
 test.describe("应用启动 & 冒烟", () => {
   test("首屏加载品牌 + 对话输入框", async ({ page }) => {
     await page.goto("/");
-    // 品牌：侧栏 logo 按钮（小满 + 标语）
-    await expect(page.getByText("小满").first()).toBeVisible();
+    // 品牌：侧栏 logo 按钮（Moneyhelper + 标语）
+    await expect(page.getByText("Moneyhelper").first()).toBeVisible();
     await expect(page.getByText("记一笔，问一句").first()).toBeVisible();
     // 对话是默认入口：输入框可见
     await expect(page.getByPlaceholder(/问点什么/)).toBeVisible();

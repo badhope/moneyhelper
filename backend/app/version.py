@@ -1,7 +1,7 @@
 """版本号单一真源。
 
 改造前三处版本号各自漂移：`backend/app/__init__.py` 是 1.0.0、
-`frontend/package.json` 是 1.4.0、`pyproject.toml` 与 `xiaoman/__init__.py` 是 2.1.0。
+`frontend/package.json` 是 1.4.0、`pyproject.toml` 与 `moneyhelper/__init__.py` 是 2.1.0。
 用户看到的版本取决于问哪个文件——发版说明与实际代码对不上。
 
 现在：
@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 # 当前版本。发版脚本会改写这一行，格式必须保持 `__version__ = "x.y.z"`。
-__version__ = "3.0.0"
+__version__ = "4.2.0"
 
 # 上一版（用于"自上次发版以来的变更"提示；发版脚本自动维护）
-PREVIOUS_VERSION = "2.9.3"
+PREVIOUS_VERSION = "4.1.0"

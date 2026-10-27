@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import shutil
 import uuid
 from datetime import datetime
@@ -19,6 +18,7 @@ from typing import Any
 
 import aiosqlite
 
+from ..compat_env import getenv
 from ..logging_utils import get_logger
 from ._schema import (
     DEFAULT_SETTINGS,
@@ -42,13 +42,13 @@ def data_dir() -> Path:
     """运行期数据目录（数据库 / 备份 / checkpoint）。
 
     默认 `backend/data`（与 Dockerfile 的 VOLUME 一致），可用
-    `XIAOMAN_DATA_DIR` 覆盖。
+    `MONEYHELPER_DATA_DIR` 覆盖。
 
     历史坑：默认值原先是 `backend/app/data`，而 Docker 卷挂的是
     `backend/data` —— 容器内账本写在卷外，重建即丢。统一到一处后，
     本地与容器看到的是同一个目录语义。
     """
-    raw = (os.getenv("XIAOMAN_DATA_DIR") or "").strip()
+    raw = getenv("MONEYHELPER_DATA_DIR").strip()
     if raw:
         path = Path(raw).expanduser()
         if not path.is_absolute():
@@ -60,12 +60,12 @@ def data_dir() -> Path:
 
 
 def _resolve_db_path() -> Path:
-    """解析数据库路径：XIAOMAN_DB_PATH 优先，空串视为未设置。
+    """解析数据库路径：MONEYHELPER_DB_PATH 优先，空串视为未设置。
 
     空串直接交给 Path("") 会退化成当前目录，导致建库失败或写错位置，
     因此这里显式过滤空值，并展开 ~ 与相对路径。
     """
-    raw = (os.getenv("XIAOMAN_DB_PATH") or "").strip()
+    raw = getenv("MONEYHELPER_DB_PATH").strip()
     if not raw:
         return data_dir() / "wealth.db"
     path = Path(raw).expanduser()
@@ -81,12 +81,12 @@ _LEGACY_DB = Path(__file__).resolve().parent.parent / "data" / "wealth.db"
 
 
 def _migrate_legacy_db(target: Path) -> None:
-    """若新位置还没有库、但旧位置有，且没有显式指定 XIAOMAN_DB_PATH，则搬移。
+    """若新位置还没有库、但旧位置有，且没有显式指定 MONEYHELPER_DB_PATH，则搬移。
 
     WAL 模式下副本必须连带 -wal/-shm 一起搬，否则已提交但未 checkpoint
     的事务会丢。
     """
-    if os.getenv("XIAOMAN_DB_PATH", "").strip():
+    if getenv("MONEYHELPER_DB_PATH").strip():
         return  # 用户显式指定了路径，不猜
     if target.exists() or not _LEGACY_DB.exists():
         return
@@ -272,6 +272,10 @@ _TENANT_TABLES = (
     "audit_logs",
     "allocation_targets",
     "dca_plans",
+    "financial_statements",
+    "paper_accounts",
+    "paper_trades",
+    "paper_snapshots",
 )
 
 # 复合主键重建表：旧主键 + user_id = 新主键

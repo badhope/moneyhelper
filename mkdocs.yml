@@ -1,4 +1,4 @@
-# 小满文档站（mkdocs-material）
+# Moneyhelper 文档站（mkdocs-material）
 #
 # 本地预览：
 #   pip install -r docs/requirements.txt
@@ -6,11 +6,11 @@
 # 构建静态站：
 #   mkdocs build --strict   # 严格模式：任何坏链/缺文件即失败
 
-site_name: Xiaoman 小满
+site_name: Moneyhelper
 site_description: 能自主干活的 AI 财务部门 — 本地优先、数字可复核、全 MCP 开放
-site_url: https://badhope.github.io/xiaoman/
-repo_url: https://github.com/badhope/xiaoman
-repo_name: badhope/xiaoman
+site_url: https://badhope.github.io/moneyhelper/
+repo_url: https://github.com/badhope/moneyhelper
+repo_name: badhope/moneyhelper
 
 theme:
   name: material
@@ -80,7 +80,7 @@ nav:
       - Config (EN): CONFIG.en.md
   - 架构:
       - 架构总览: architecture.md
-      - 架构说明（详版）: ARCHITECTURE.md
+      - 架构说明（详版）: ARCHITECTURE-detail.md
       - 技术栈盘点: ARCHITECTURE-v2.md
       - 架构决策记录: adr/index.md
       - 模块清单: module-map.md

@@ -40,7 +40,7 @@ function MetricBar({
 /** 回答尾部摘要：等级 + 关键数字 + 风险提示（全部来自后端 final 事件，口径唯一）。
  *
  * compact=true 用于「已有富回答块」的场景：此时指标与风险已在块里展示，
- * 这里只保留「小满的理解」（意图识别），避免同一组数字重复三遍。
+ * 这里只保留「Moneyhelper 的理解」（意图识别），避免同一组数字重复三遍。
  */
 export function SummaryBlock({ meta, compact = false }: { meta: AnswerMeta; compact?: boolean }) {
   const { t } = useI18n();
@@ -77,7 +77,7 @@ export function SummaryBlock({ meta, compact = false }: { meta: AnswerMeta; comp
 
   return (
     <div className="mt-4">
-      {/* 意图识别显性化：小满把这句话读成什么（差异化「懂钱」的特征，前端直接亮给用户看） */}
+      {/* 意图识别显性化：Moneyhelper 把这句话读成什么（差异化「懂钱」的特征，前端直接亮给用户看） */}
       {meta.route && meta.route_reason && meta.route !== "general" && meta.route !== "nl_add" && (
         <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-[11px] text-primary">
           <Sparkles className="w-3 h-3 shrink-0" />

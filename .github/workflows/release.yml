@@ -88,5 +88,5 @@ jobs:
             git push "https://x-access-token:${token}@github.com/${repo}.git" \
               "${GITHUB_REF_NAME}" 2>&1 | tail -2 || echo "同步 $repo 失败（不阻断主流程）"
           }
-          push_tag "X33834/xiaoman" "$GH_X33834"
-          push_tag "Morningstar202604/xiaoman" "$GH_MORNINGSTAR"
+          push_tag "X33834/moneyhelper" "$GH_X33834"
+          push_tag "Morningstar202604/moneyhelper" "$GH_MORNINGSTAR"

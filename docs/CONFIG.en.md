@@ -1,6 +1,6 @@
 # Configuration Reference (env vars + app settings)
 
-Xiaoman has two layers of configuration: **environment variables** (before startup, `backend/.env`, copied from `.env.example`) and **app settings** (at runtime, Settings page, persisted to the SQLite `settings` table, applied immediately).
+Moneyhelper has two layers of configuration: **environment variables** (before startup, `backend/.env`, copied from `.env.example`) and **app settings** (at runtime, Settings page, persisted to the SQLite `settings` table, applied immediately).
 
 ## 1. Environment variables (backend/.env)
 

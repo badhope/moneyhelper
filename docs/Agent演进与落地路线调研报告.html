@@ -66,7 +66,7 @@
 
 <section class="title">
   <h1>AI Agent 演进与落地路线调研报告</h1>
-  <p>2024–2026 大模型智能体：问题清单 · 关键论文 · 大厂方案 · 小满落地路线图</p>
+  <p>2024–2026 大模型智能体：问题清单 · 关键论文 · 大厂方案 · Moneyhelper 落地路线图</p>
   <div class="meta">调研时间：2026-10 · 聚焦记忆 / 上下文压缩 / 多轮任务 / 编码与长程能力 / 模型选型</div>
 </section>
 
@@ -79,7 +79,7 @@
 
 <h1 class="heading" data-level="1">一、执行摘要</h1>
 <p class="paragraph">2024 年被称为大模型的“奇迹之年”，2025 年则被业界公认为 AI Agent 的“工程落地元年”，到 2026 年，Agent 已从“被动问答”转向“主动干活”，并开始接管企业级长周期任务与代码生产<a class="cite" href="#source-9">[9]</a>。然而，行业在规模化落地中反复踩中同一个核心痛点——<b>连续性</b>：上一轮谈过什么、偏好和边界是否继承、任务推进到哪一步能否复盘。多轮对话超长、跨周任务、工具调用链越长，模型越容易“失忆”、指令遵循退化、推理成本指数上升<a class="cite" href="#source-1">[1]</a>。</p>
-<p class="paragraph">本报告系统梳理 2024–2026 年 Agent 的演进时间线与高频问题（按阶段归类），罗列业界关键论文与处理方案，汇总 OpenAI、Anthropic、Google、字节/DeepSeek、腾讯等大厂实践，并给出面向小满（对话优先个人理财智能体）的<strong>模型选型建议</strong>与<strong>分层落地路线图</strong>，重点补齐记忆、上下文压缩、长程任务与安全治理能力。</p>
+<p class="paragraph">本报告系统梳理 2024–2026 年 Agent 的演进时间线与高频问题（按阶段归类），罗列业界关键论文与处理方案，汇总 OpenAI、Anthropic、Google、字节/DeepSeek、腾讯等大厂实践，并给出面向 Moneyhelper（对话优先个人理财智能体）的<strong>模型选型建议</strong>与<strong>分层落地路线图</strong>，重点补齐记忆、上下文压缩、长程任务与安全治理能力。</p>
 
 <h1 class="heading" data-level="1">二、Agent 演进时间线（2024–2026）与阶段性问题</h1>
 <p class="paragraph">按时间轴梳理关键节点与每阶段暴露的问题，问题类型用标签标注（<span class="tag">上下文</span><span class="tag">记忆</span><span class="tag">规划</span><span class="tag">工具</span><span class="tag">成本</span><span class="tag">安全</span>）。</p>
@@ -93,7 +93,7 @@
   <li><b>2026 · 长上下文标配与反思</span><span>百万 Token 窗口成标配，但“长上下文即万能”迷思被打破；<strong>结构化记忆工程</strong>、分层存储、语义索引、主动遗忘成为主流；多 Agent 产品化（OpenAI DevDay 2026 Dots）；金融 Agent 密集落地（Anthropic 金融模板、Google Gemini 金融版、腾讯 WorkBuddy 金融版）<a class="cite" href="#source-9">[9]</a></span><p>问题：<span class="tag">上下文</span> 注意力稀释/大海捞针失效、<span class="tag">记忆</span> 高保真召回、<span class="tag">安全</span> 金融级准入/审计/熔断。</p></li>
 </ol>
 
-<aside class="callout" data-variant="warning">结论：业界已从“无限堆 Token”转向“上下文工程 + 结构化记忆”，关键是让 Agent 记住、找准、忘得掉——这正是小满需要补的核心能力。</aside>
+<aside class="callout" data-variant="warning">结论：业界已从“无限堆 Token”转向“上下文工程 + 结构化记忆”，关键是让 Agent 记住、找准、忘得掉——这正是 Moneyhelper 需要补的核心能力。</aside>
 
 <h1 class="heading" data-level="1">三、关键论文与解决方案</h1>
 <p class="paragraph">按“问题域 → 代表工作 → 处理思路”归纳（覆盖记忆、上下文、规划、工具、评测）。</p>
@@ -129,9 +129,9 @@
   <li><b>Agent 安全合规</b>：金融等高信任行业对 Agent 做准入、权限、审计与熔断的工业级标准。<a class="cite" href="#source-9">[9]</a></li>
 </ul>
 
-<h1 class="heading" data-level="1">六、小满现状 vs 业界已应用（未应用盘点）</h1>
-<table class="table" data-caption="小满已具备 vs 业界已应用但小满尚未覆盖">
-  <thead><tr><th style="width:30%">能力</th><th style="width:36%">业界主流做法</th><th style="width:34%">小满现状</th></tr></thead>
+<h1 class="heading" data-level="1">六、Moneyhelper 现状 vs 业界已应用（未应用盘点）</h1>
+<table class="table" data-caption="Moneyhelper 已具备 vs 业界已应用但 Moneyhelper 尚未覆盖">
+  <thead><tr><th style="width:30%">能力</th><th style="width:36%">业界主流做法</th><th style="width:34%">Moneyhelper 现状</th></tr></thead>
   <tbody>
     <tr><td>多轮上下文</td><td>上下文工程 write/select/compress/isolate；会话摘要压缩</td><td>✅ 每请求独立携带；❌ 无跨会话记忆、无长会话摘要压缩</td></tr>
     <tr><td>长期记忆</td><td>分层记忆 + 语义索引 + 主动遗忘</td><td>❌ 有“长期记忆”入口，但仅关键词、无向量语义检索、无遗忘</td></tr>
@@ -144,15 +144,15 @@
 </table>
 
 <h1 class="heading" data-level="1">七、模型选型建议（兼顾长期能力与编码）</h1>
-<p class="paragraph">小满是金融数据分析 + 对话 Agent，需要<b>可靠工具调用、数学/数据分析、长上下文、成本可控</b>。综合业界对比，推荐优先级：</p>
+<p class="paragraph">Moneyhelper 是金融数据分析 + 对话 Agent，需要<b>可靠工具调用、数学/数据分析、长上下文、成本可控</b>。综合业界对比，推荐优先级：</p>
 <ul class="list">
-  <li><b>主用 DeepSeek（推荐）</b>：开源、数学/代码强、1M 上下文、推理成本可控，适配国产环境<a class="cite" href="#source-6">[6]</a>。适合小满做报表/分析/编码辅助。</li>
+  <li><b>主用 DeepSeek（推荐）</b>：开源、数学/代码强、1M 上下文、推理成本可控，适配国产环境<a class="cite" href="#source-6">[6]</a>。适合 Moneyhelper 做报表/分析/编码辅助。</li>
   <li><b>备选通义千问（qwen-plus）</b>：国产稳定、长文本好，接口兼容。</li>
   <li><b>进阶 Claude / Gemini / GPT</b>：若预算充足且偏重复杂编码，可用官方或中转 API；但成本较高。</li>
 </ul>
-<aside class="callout" data-variant="tip">落地：小满在设置页已支持 OpenAI 兼容端点，用户填 key + base + model 即可切换；输入区也加了“模型快捷切换”下拉。给用户配好 DeepSeek key 即点亮。</aside>
+<aside class="callout" data-variant="tip">落地：Moneyhelper 在设置页已支持 OpenAI 兼容端点，用户填 key + base + model 即可切换；输入区也加了“模型快捷切换”下拉。给用户配好 DeepSeek key 即点亮。</aside>
 
-<h1 class="heading" data-level="1">八、小满落地路线图</h1>
+<h1 class="heading" data-level="1">八、Moneyhelper 落地路线图</h1>
 <h2 class="heading" data-level="2">P0 · 地基（立刻做）</h2>
 <p class="paragraph">① 模型点亮（用户填 key）+ ② 长会话摘要压缩（compress 策略）：当会话历史超过阈值，用 LLM 把旧轮次折叠成摘要，保持上下文健康、控制成本、防失忆。</p>
 <h2 class="heading" data-level="2">P1 · 记忆分层（近期）</h2>
@@ -169,7 +169,7 @@
   </tbody>
 </table>
 
-<aside class="callout" data-variant="warning">关键判断：小满当前最大缺口不在“再聪明一点”，而在<b>“记得住、接得上、忘得掉”</b>。优先补 P0（摘要压缩）与 P1（分层记忆），把长程任务做稳，再谈多 Agent 与 MCP 扩展。</aside>
+<aside class="callout" data-variant="warning">关键判断：Moneyhelper 当前最大缺口不在“再聪明一点”，而在<b>“记得住、接得上、忘得掉”</b>。优先补 P0（摘要压缩）与 P1（分层记忆），把长程任务做稳，再谈多 Agent 与 MCP 扩展。</aside>
 
 <div class="source-list">
   <h1 class="heading">主要数据来源</h1>
@@ -191,7 +191,7 @@
 
 <section class="title end_page">
   <h1>让 Agent 记得住 · 接得上 · 忘得掉</h1>
-  <p>面向小满（本地智能理财 Agent）的演进路线：先地基（摘要压缩）→ 集团（分层记忆+反思）→ 扩展（MCP/多 Agent/审计）。</p>
+  <p>面向 Moneyhelper（本地智能理财 Agent）的演进路线：先地基（摘要压缩）→ 集团（分层记忆+反思）→ 扩展（MCP/多 Agent/审计）。</p>
 </section>
 
 </div>

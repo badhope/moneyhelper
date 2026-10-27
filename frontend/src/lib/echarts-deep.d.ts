@@ -9,5 +9,7 @@ declare module "echarts/lib/component/tooltip";
 declare module "echarts/lib/chart/radar";
 declare module "echarts/lib/chart/treemap";
 declare module "echarts/lib/chart/graph";
+declare module "echarts/lib/chart/candlestick";
 declare module "echarts/lib/component/radar";
 declare module "echarts/lib/component/markLine";
+declare module "echarts/lib/component/dataZoom";

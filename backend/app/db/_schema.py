@@ -390,4 +390,49 @@ CREATE TABLE IF NOT EXISTS dca_plans (
     created_at  TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (user_id, id)
 );
+-- 财报分析（v4.0）：上传/粘贴的三表 JSON 落库，可随时重新分析
+CREATE TABLE IF NOT EXISTS financial_statements (
+    user_id    INTEGER NOT NULL DEFAULT 0,
+    id         TEXT NOT NULL,
+    company    TEXT NOT NULL,
+    currency   TEXT NOT NULL DEFAULT 'CNY',
+    payload    TEXT NOT NULL,        -- 标准化三表 JSON（分析输入）
+    report     TEXT NOT NULL DEFAULT '',  -- 最近一次报告文本快照
+    created_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, id)
+);
+-- 团队模拟盘（v4.2）：事件溯源式账户。账户=开户参数（初始资金），
+-- 持仓/现金/成本全部由 paper_trades 重放得出；paper_snapshots 仅作净值曲线存档。
+CREATE TABLE IF NOT EXISTS paper_accounts (
+    user_id      TEXT NOT NULL,
+    account_id   TEXT NOT NULL,
+    name         TEXT NOT NULL DEFAULT '',
+    initial_cash REAL NOT NULL DEFAULT 100000,
+    created_at   TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, account_id)
+);
+CREATE TABLE IF NOT EXISTS paper_trades (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    date       TEXT NOT NULL,        -- ISO 时间（Asia/Shanghai）
+    symbol     TEXT NOT NULL,
+    name       TEXT NOT NULL DEFAULT '',
+    side       TEXT NOT NULL,        -- buy / sell
+    price      REAL NOT NULL,
+    shares     REAL NOT NULL,
+    fee        REAL NOT NULL DEFAULT 0,
+    amount     REAL NOT NULL         -- 成交额（不含费）
+);
+CREATE INDEX IF NOT EXISTS idx_paper_trades_account ON paper_trades(user_id, account_id);
+CREATE TABLE IF NOT EXISTS paper_snapshots (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      TEXT NOT NULL,
+    account_id   TEXT NOT NULL,
+    date         TEXT NOT NULL,      -- YYYY-MM-DD
+    equity       REAL NOT NULL,
+    cash         REAL NOT NULL,
+    market_value REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_paper_snapshots_account ON paper_snapshots(user_id, account_id, date);
 """

@@ -46,10 +46,10 @@ async def test_metrics_exposed(client) -> None:
     r = await client.get("/api/metrics")
     assert r.status_code == 200
     text = r.text
-    assert "xiaoman_requests_total" in text
-    assert "xiaoman_errors_total" in text
-    assert "xiaoman_uptime_seconds" in text
-    assert text.startswith("# TYPE xiaoman_")
+    assert "moneyhelper_requests_total" in text
+    assert "moneyhelper_errors_total" in text
+    assert "moneyhelper_uptime_seconds" in text
+    assert text.startswith("# TYPE moneyhelper_")
 
 
 async def test_dashboard_shape(client) -> None:

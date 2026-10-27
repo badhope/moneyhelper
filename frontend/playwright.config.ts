@@ -47,10 +47,10 @@ export default defineConfig({
       stderr: "pipe",
       env: {
         // 必须绝对路径：e2e-backend.sh 会先 cd 到 backend/，相对路径会解析成 backend/backend/data/e2e.db
-        XIAOMAN_DB_PATH: resolve(__dirname, "../backend/data/e2e.db"),
+        MONEYHELPER_DB_PATH: resolve(__dirname, "../backend/data/e2e.db"),
         // 关限流：整轮 e2e 从同一 IP 在 1 分钟内发出 200+ 请求，会撞上默认 200/分钟的上限，
         // 表现为每轮随机某个用例失败（视用例执行顺序而定），极易误判为功能回归。
-        XIAOMAN_DISABLE_RATE_LIMIT: "1",
+        MONEYHELPER_DISABLE_RATE_LIMIT: "1",
       },
     },
     {

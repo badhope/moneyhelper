@@ -3,7 +3,7 @@
  *
  * 用法：
  *   node scripts/ui-audit.mjs                       # 默认 http://127.0.0.1:8799
- *   XIAOMAN_URL=http://127.0.0.1:8788 node scripts/ui-audit.mjs
+ *   MONEYHELPER_URL=http://127.0.0.1:8788 node scripts/ui-audit.mjs
  *
  * 产物：../out/ui-audit/<桌面|手机>/*.png（不参与 CI）
  * 覆盖：对话空态/回答、财务五页、设置各分区、记账各面板、持仓编辑/K线、
@@ -13,7 +13,7 @@ import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
-const BASE = process.env.XIAOMAN_URL || "http://127.0.0.1:8799";
+const BASE = process.env.MONEYHELPER_URL || "http://127.0.0.1:8799";
 const ROOT = resolve(process.cwd(), "../out/ui-audit");
 mkdirSync(ROOT, { recursive: true });
 

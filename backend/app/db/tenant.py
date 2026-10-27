@@ -18,7 +18,7 @@ from contextvars import ContextVar
 # 默认租户：未启用多用户（或系统内部任务，如定时晨报）时使用
 LOCAL_USER_ID = 0
 
-_current_user_id: ContextVar[int] = ContextVar("xiaoman_user_id", default=LOCAL_USER_ID)
+_current_user_id: ContextVar[int] = ContextVar("moneyhelper_user_id", default=LOCAL_USER_ID)
 
 
 def current_user_id() -> int:

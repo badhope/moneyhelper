@@ -25,10 +25,10 @@ jobs:
       - name: 静态检查（ruff）
         run: |
           cd backend && python -m ruff check app tests
-          cd .. && python -m ruff check xiaoman
+          cd .. && python -m ruff check moneyhelper
       - name: 单元测试（pytest）
         env:
-          XIAOMAN_DISABLE_RATE_LIMIT: "1"
+          MONEYHELPER_DISABLE_RATE_LIMIT: "1"
           VAULT_PASSPHRASE: "ci-test-passphrase-12345678"
         run: cd backend && python -m pytest
 

@@ -6,7 +6,7 @@ import { chromium, devices } from "playwright";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
-const BASE = process.env.XIAOMAN_URL || "http://127.0.0.1:8788";
+const BASE = process.env.MONEYHELPER_URL || "http://127.0.0.1:8788";
 const OUT = resolve(process.cwd(), "../out/shots");
 mkdirSync(OUT, { recursive: true });
 

@@ -1,4 +1,4 @@
-# xiaoman 详细实施计划（步骤版 · 可直接照做）
+# moneyhelper 详细实施计划（步骤版 · 可直接照做）
 > 2026-10-17 · 上游文档：08 总规划 / 09 头脑风暴 · 本文把所有"概念"展开成"步骤"
 > 约定：每步都有【改动点】【做法】【验证】；做完一步提交一次（conventional commit）
 
@@ -123,13 +123,13 @@ class WorkOrder(BaseModel):
 ### M6.1 审计底稿导出（3 天）
 - provenance 数据 → 模板渲染 → PDF（reportlab/weasyprint）；回答页一键下载
 ### M6.2 挑战赛+错误台账（零开发启动）
-- README 挂"挑战小满"入口；GitHub Issue 模板"数字挑战"；每周《错误台账》post（公开复盘+修复 commit 链接）
+- README 挂"挑战 Moneyhelper"入口；GitHub Issue 模板"数字挑战"；每周《错误台账》post（公开复盘+修复 commit 链接）
 ### M6.3 模型招聘 eval（1 周）
 - evaluate.py 扩展："会计上岗考题"50 题（记账/对账/风控判断）+ 自动评分 →《上岗考核报告》页（模型对比排行）
 ### M6.4 家庭议会（1 周）
 - 大额阈值触发多人审批链（成员角色+票权）；通知（站内/PWA push）
 ### M6.5 文档站内容填充 + 教程三连
-- "把小满接进 Claude Code/Cursor/Cline"三篇（真实截图）；MCP Registry 上架流程走一遍
+- "把 Moneyhelper 接进 Claude Code/Cursor/Cline"三篇（真实截图）；MCP Registry 上架流程走一遍
 ### M6.6 可复核性标准草案
 - provenance spec v0.1（数据模型/校验规则/展示要求）→ 开源仓库+讨论区；先自证再邀请
 

@@ -112,7 +112,7 @@
 │   ├── pytest.ini
 │   ├── requirements.txt
 │   ├── run.py
-│   └── xiaoman.spec
+│   └── moneyhelper.spec
 ├── doc-fetch-resources
 │   └── FOK9dsYqOogD1PxjOOMco3o06cg
 │       ├── html5_1.html
@@ -120,21 +120,21 @@
 │       └── html5_3.html
 ├── docs
 │   ├── demo
-│   │   ├── xiaoman-01-home.png
-│   │   ├── xiaoman-02-ai-dialogue.png
-│   │   ├── xiaoman-03-audit.png
-│   │   ├── xiaoman-04-ai-settings.png
-│   │   ├── xiaoman-05-memory-lessons.png
-│   │   ├── xiaoman-06-overview.png
-│   │   ├── xiaoman-07-healthcheck.png
-│   │   ├── xiaoman-08-skill-schedule.png
-│   │   ├── xiaoman-09-scheduled-inbox.png
-│   │   ├── xiaoman-10-ai-suggest.png
-│   │   ├── xiaoman-ai-demo-20261004.mp4
-│   │   ├── xiaoman-demo-20261004.mp4
-│   │   ├── xiaoman-demo.gif
-│   │   ├── xiaoman-demo.mp4
-│   │   └── xiaoman-features-20261004.mp4
+│   │   ├── moneyhelper-01-home.png
+│   │   ├── moneyhelper-02-ai-dialogue.png
+│   │   ├── moneyhelper-03-audit.png
+│   │   ├── moneyhelper-04-ai-settings.png
+│   │   ├── moneyhelper-05-memory-lessons.png
+│   │   ├── moneyhelper-06-overview.png
+│   │   ├── moneyhelper-07-healthcheck.png
+│   │   ├── moneyhelper-08-skill-schedule.png
+│   │   ├── moneyhelper-09-scheduled-inbox.png
+│   │   ├── moneyhelper-10-ai-suggest.png
+│   │   ├── moneyhelper-ai-demo-20261004.mp4
+│   │   ├── moneyhelper-demo-20261004.mp4
+│   │   ├── moneyhelper-demo.gif
+│   │   ├── moneyhelper-demo.mp4
+│   │   └── moneyhelper-features-20261004.mp4
 │   ├── research
 │   │   └── peer-projects.md
 │   ├── screenshots
@@ -165,7 +165,7 @@
 │   ├── WORKFLOW.en.md
 │   ├── WORKFLOW.md
 │   ├── promo.html
-│   └── 小满验收与交付报告.html
+│   └── Moneyhelper 验收与交付报告.html
 ├── frontend
 │   ├── e2e
 │   │   ├── chat.spec.ts

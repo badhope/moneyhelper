@@ -189,7 +189,7 @@ async def run_migration(db_path: Path) -> dict[str, int]:
     """在子进程里用当前代码打开旧库（避免污染本进程的模块状态）。"""
     code = f"""
 import asyncio, os, json
-os.environ["XIAOMAN_DB_PATH"] = r"{db_path}"
+os.environ["MONEYHELPER_DB_PATH"] = r"{db_path}"
 from app import db
 async def main():
     await db.init_db()
@@ -208,7 +208,7 @@ asyncio.run(main())
 import os as _os
 _os._exit(0)
 """
-    env = {**os.environ, "XIAOMAN_DB_PATH": str(db_path)}
+    env = {**os.environ, "MONEYHELPER_DB_PATH": str(db_path)}
     proc = subprocess.run(
         [sys.executable, "-c", code],
         cwd=str(BACKEND), capture_output=True, text=True,
@@ -227,7 +227,7 @@ def await_second_start(db_path: Path, baseline: dict[str, int]) -> dict[str, int
 
     code = f"""
 import asyncio, os, json
-os.environ["XIAOMAN_DB_PATH"] = r"{db_path}"
+os.environ["MONEYHELPER_DB_PATH"] = r"{db_path}"
 from app import db
 async def main():
     await db.init_db()
@@ -239,7 +239,7 @@ async def main():
 asyncio.run(main())
 os._exit(0)
 """
-    env = {**os.environ, "XIAOMAN_DB_PATH": str(db_path)}
+    env = {**os.environ, "MONEYHELPER_DB_PATH": str(db_path)}
     proc = subprocess.run(
         [sys.executable, "-c", code], cwd=str(BACKEND),
         capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -292,7 +292,7 @@ def main() -> int:
             failures += 0 if ok else 1
 
         # --- 场景 3：旧路径自动搬迁 ---
-        print("[3] 旧路径 backend/app/data 自动搬到 XIAOMAN_DATA_DIR")
+        print("[3] 旧路径 backend/app/data 自动搬到 MONEYHELPER_DATA_DIR")
         old_dir = BACKEND / "app" / "data"
         old_db = old_dir / "wealth.db"
         backup = None
@@ -301,8 +301,8 @@ def main() -> int:
             shutil.copy2(old_db, backup)
         build_legacy_db(old_db)
         target_dir = tmp / "newdata"
-        env = {**os.environ, "XIAOMAN_DATA_DIR": str(target_dir)}
-        env.pop("XIAOMAN_DB_PATH", None)
+        env = {**os.environ, "MONEYHELPER_DATA_DIR": str(target_dir)}
+        env.pop("MONEYHELPER_DB_PATH", None)
         code = (
             "import asyncio, os\nfrom app import db\n"
             "async def m():\n    await db.init_db()\n"

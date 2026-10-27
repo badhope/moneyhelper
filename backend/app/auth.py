@@ -39,7 +39,7 @@ security = HTTPBearer(auto_error=False)
 
 def check_jwt_secret() -> None:
     """寿命入口调用：未配置明确 secret 则 abort（拒绝启动）。"""
-    if not _JWT_SECRET or _JWT_SECRET.startswith("xiaoman-dev-secret"):
+    if not _JWT_SECRET or _JWT_SECRET.startswith("moneyhelper-dev-secret"):
         # 生成一次性随机 secret，强制开发者在部署前显式配置
         import secrets as _secrets
 
@@ -77,7 +77,7 @@ def _ensure_secret() -> str:
     jwt.encode 会抛 "HMAC key must not be empty"（专家评审发现的注册 500）。
     """
     global _JWT_SECRET
-    if not _JWT_SECRET or _JWT_SECRET.startswith("xiaoman-dev-secret"):
+    if not _JWT_SECRET or _JWT_SECRET.startswith("moneyhelper-dev-secret"):
         check_jwt_secret()
     return _JWT_SECRET
 

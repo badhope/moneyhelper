@@ -1,7 +1,7 @@
 {
-  "name": "xiaoman-frontend",
+  "name": "moneyhelper-frontend",
   "private": true,
-  "version": "3.0.0",
+  "version": "4.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

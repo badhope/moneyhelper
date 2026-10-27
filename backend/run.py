@@ -1,6 +1,6 @@
-"""小满 EXE 入口：双击启动后端 + 自动打开浏览器。
+"""Moneyhelper EXE 入口：双击启动后端 + 自动打开浏览器。
 
-打包后用户双击 xiaoman.exe：
+打包后用户双击 moneyhelper.exe：
 1. 启动 FastAPI 后端（127.0.0.1:8788）
 2. 自动打开默认浏览器
 3. 控制台窗口显示日志，关掉窗口就停服务
@@ -13,17 +13,18 @@ import time
 import webbrowser
 from pathlib import Path
 
-# 数据目录：打包后统一放用户目录，避免写在程序（临时解压）目录里导致重启丢数据
-_DATA_DIR = Path(os.getenv("XIAOMAN_DATA_DIR") or (Path.home() / ".xiaoman"))
-_DATA_DIR.mkdir(parents=True, exist_ok=True)
-os.environ.setdefault("XIAOMAN_DATA_DIR", str(_DATA_DIR))
-
 # 确保 app 目录在 path 里（源码运行时需要；打包后已在 sys.path）
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).parent))
 
 import uvicorn  # noqa: E402
+from app.compat_env import getenv  # noqa: E402
 from app.main import app  # noqa: E402
+
+# 数据目录：打包后统一放用户目录，避免写在程序（临时解压）目录里导致重启丢数据
+_DATA_DIR = Path(getenv("MONEYHELPER_DATA_DIR") or str(Path.home() / ".moneyhelper"))
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MONEYHELPER_DATA_DIR", str(_DATA_DIR))
 
 
 def _safe_console() -> None:
@@ -43,10 +44,10 @@ def _safe_console() -> None:
 def open_browser_later(delay: float = 1.5):
     """延迟几秒后打开浏览器，等后端起来。
 
-    XIAOMAN_NO_BROWSER=1 时跳过：自动化验证/截图流程用 Playwright 自己的浏览器，
+    MONEYHELPER_NO_BROWSER=1 时跳过：自动化验证/截图流程用 Playwright 自己的浏览器，
     不应该在用户桌面弹出系统浏览器窗口。
     """
-    if os.getenv("XIAOMAN_NO_BROWSER", "").strip() in ("1", "true", "yes"):
+    if getenv("MONEYHELPER_NO_BROWSER").strip() in ("1", "true", "yes"):
         return
 
     def _open():
@@ -62,7 +63,7 @@ def main():
 
     _safe_console()
     print("=" * 50)
-    print("  小满 — 对话优先的个人理财 Agent")
+    print("  Moneyhelper — 对话优先的个人理财 Agent")
     print("=" * 50)
     print(f"  地址：http://{host}:{port}")
     print(f"  数据目录：{_DATA_DIR}")

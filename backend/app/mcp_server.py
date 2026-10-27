@@ -1,7 +1,7 @@
-"""MCP Server：把小满所有工具暴露为标准 MCP 协议。
+"""MCP Server：把 Moneyhelper 所有工具暴露为标准 MCP 协议。
 
 通过 fastmcp 把 tools.py 里的工具包装成 MCP 工具，让任何支持 MCP Client 的 AI IDE
-（Claude Code / Cursor / Windsurf / Cline 等）都能直接调用小满的工具集：
+（Claude Code / Cursor / Windsurf / Cline 等）都能直接调用 Moneyhelper 的工具集：
 - 持仓分析、账本查询、风控、预算、目标、K线 等财务工具
 - search_symbol / get_quote / add_to_watchlist 等行情工具
 - get_now / web_search 等通用工具
@@ -10,7 +10,7 @@
 1. 嵌入 FastAPI（默认）：mount 到 /mcp 路径，与主应用同进程
 2. 独立进程：python -m app.mcp_server（stdio transport，供 Claude Desktop 接入）
 
-MCP 协议接入后，Claude Code / Cursor 等 IDE 可以直接对小满数据库执行财务分析。
+MCP 协议接入后，Claude Code / Cursor 等 IDE 可以直接对 Moneyhelper 数据库执行财务分析。
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ log = get_logger(__name__)
 # MCP Server：fastmcp 版本与 FastAPI 版本可能冲突，import 失败就降级 no-op
 try:
     from fastmcp import Context, FastMCP
-    mcp = FastMCP("xiaoman-finance")
+    mcp = FastMCP("moneyhelper-finance")
     MCP_AVAILABLE = True
 except Exception as e:  # pragma: no cover
     log.warning("mcp.fastmcp_unavailable: %s — MCP server disabled", e)
@@ -344,6 +344,78 @@ async def web_search(q: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# 投研 / 财报工具（v4.0：确定性技术面 + 回测 + 三表分析）
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def research_analyze(symbol: str, period: str = "daily", limit: int = 180) -> str:
+    """股票技术面研报：MA/MACD/RSI/BOLL/KDJ 指标快照 + 规则信号 + 多空倾向 + 文字结论。symbol 为 6 位代码，period 可选 daily/weekly/monthly。"""
+    return await xtools.tool_research_analyze(
+        {"symbol": symbol, "period": period, "limit": limit}
+    )
+
+
+@mcp.tool()
+async def research_backtest(
+    symbol: str,
+    strategy: str = "ma_cross",
+    fast: int = 5,
+    slow: int = 20,
+    invest_amount: float = 1000.0,
+    freq_days: int = 5,
+) -> str:
+    """策略历史回测：ma_cross（双均线）或 dca（定投），输出收益/年化/最大回撤/夏普/胜率/盈亏比。symbol 为 6 位代码。"""
+    return await xtools.tool_research_backtest(
+        {
+            "symbol": symbol,
+            "strategy": strategy,
+            "fast": fast,
+            "slow": slow,
+            "invest_amount": invest_amount,
+            "freq_days": freq_days,
+        }
+    )
+
+
+@mcp.tool()
+async def statements_analyze(payload: dict) -> str:
+    """财报分析：输入标准化三表 JSON（{company, currency, periods:[{period, balance_sheet, income_statement, cashflow_statement}]}），输出 20+ 指标、杜邦拆解、异常预警与文字报告。"""
+    return await xtools.tool_statements_analyze({"payload": payload})
+
+
+@mcp.tool()
+async def research_forecast(symbol: str, period: str = "daily", days: int = 20) -> str:
+    """价格统计预测：线性趋势 + 年化波动率 + 蒙特卡洛 GBM 分位区间（固定种子可复现）。symbol 为 6 位代码，days 为预测根数。"""
+    return await xtools.tool_research_forecast({"symbol": symbol, "period": period, "days": days})
+
+
+# ---------------------------------------------------------------------------
+# 团队模拟盘工具（v4.2：事件溯源式虚拟账户）
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def paper_open(name: str = "模拟账户", initial_cash: float = 100000.0) -> str:
+    """团队模拟盘开户：为成员创建虚拟账户（独立初始资金，最小 1000）。"""
+    return await xtools.tool_paper_open({"name": name, "initial_cash": initial_cash})
+
+
+@mcp.tool()
+async def paper_trade(account_id: str, symbol: str, side: str, price: float, shares: float) -> str:
+    """团队模拟盘下单：买入/卖出虚拟持仓（A股整手、含佣金与印花税）。side 为 buy/sell。"""
+    return await xtools.tool_paper_trade(
+        {"account_id": account_id, "symbol": symbol, "side": side, "price": price, "shares": shares}
+    )
+
+
+@mcp.tool()
+async def paper_overview() -> str:
+    """团队模拟盘总览：账户收益率排行、团队汇总、持仓摘要。"""
+    return await xtools.tool_paper_overview({})
+
+
+# ---------------------------------------------------------------------------
 # 写操作（需谨慎）：晨报 / 备份
 # ---------------------------------------------------------------------------
 
@@ -365,7 +437,7 @@ async def backup_now(lang: str = "zh") -> str:
 # ---------------------------------------------------------------------------
 
 
-@mcp.resource("xiaoman://scheduled-outputs")
+@mcp.resource("moneyhelper://scheduled-outputs")
 async def scheduled_outputs_resource() -> str:
     """最近的定时产出（晨报 + 技能触发），供 MCP 客户端主动拉取。
 
@@ -393,7 +465,7 @@ async def scheduled_outputs_resource() -> str:
     )
 
 
-@mcp.resource("xiaoman://scheduler-status")
+@mcp.resource("moneyhelper://scheduler-status")
 async def scheduler_status_resource() -> str:
     """定时任务状态（晨报开关、下次运行时间、上次错误）。"""
     from . import scheduler
@@ -401,11 +473,11 @@ async def scheduler_status_resource() -> str:
     return json.dumps(scheduler.status(), ensure_ascii=False, indent=1)
 
 
-@mcp.resource("xiaoman://system-prompt")
+@mcp.resource("moneyhelper://system-prompt")
 def system_prompt_resource() -> str:
-    """小满系统提示词：描述工具集和 Agent 行为规则。"""
+    """Moneyhelper 系统提示词：描述工具集和 Agent 行为规则。"""
     return (
-        "你是小满(xiaoman)财务 Agent，通过 MCP 工具访问用户的本地财务数据。\n"
+        "你是 Moneyhelper(moneyhelper)财务 Agent，通过 MCP 工具访问用户的本地财务数据。\n"
         "规则：\n"
         "1. 需要数字时必须调用工具获取，绝不编造\n"
         "2. 先给一句话结论，再列关键数字，最后风险项\n"

@@ -12,8 +12,8 @@
 
 用法（与原入口等价）：
 
-    from xiaoman.server import app
-    uvicorn xiaoman.server:app --port 8788
+    from moneyhelper.server import app
+    uvicorn moneyhelper.server:app --port 8788
 
 旧的 `uvicorn app.main:app` 继续可用，二者是同一个对象。
 """

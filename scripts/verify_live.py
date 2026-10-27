@@ -4,12 +4,12 @@
     $env:LLM_BASE_URL="https://your-endpoint/v1"
     $env:LLM_API_KEY="sk-..."
     $env:LLM_MODEL="your-model"
-    $env:XIAOMAN_DB_PATH="$PWD/../out/verify.db"
+    $env:MONEYHELPER_DB_PATH="$PWD/../out/verify.db"
     .venv\\Scripts\\python scripts/verify_live.py
 
 用法（bash）：
     LLM_BASE_URL=... LLM_API_KEY=... LLM_MODEL=... \
-      XIAOMAN_DB_PATH="$PWD/../out/verify.db" .venv/bin/python scripts/verify_live.py
+      MONEYHELPER_DB_PATH="$PWD/../out/verify.db" .venv/bin/python scripts/verify_live.py
 
 验收内容：
 1. 模型连通（llm_available）

@@ -1,25 +1,25 @@
-# 小满 · Docker Compose 部署（服务名 xiaoman）
+# Moneyhelper · Docker Compose 部署（服务名 moneyhelper）
 # 用法：docker compose up -d --build   →  http://<服务器IP>:8787
 #
 # 环境变量（全部可选，写在同目录 .env 或 shell 环境里）：
 #   API_TOKEN      访问口令。**对外提供服务时必须设置**，否则只允许本机/内网来源
 #   ALLOWED_HOSTS  Host 白名单（逗号分隔），反代/自定义域名时填写
 #   LLM_BASE_URL / LLM_API_KEY / LLM_MODEL   AI 模型（也可在应用设置页里填）
-#   XIAOMAN_DISABLE_RATE_LIMIT=1   关闭 API 限流（默认 200 次/分钟/IP）
+#   MONEYHELPER_DISABLE_RATE_LIMIT=1   关闭 API 限流（默认 200 次/分钟/IP）
 #
 # 数据持久化：/app/backend/data 挂到命名卷，容器重建不丢账本与备份。
-# 不设置 XIAOMAN_DB_PATH：应用默认就写这里；传空串反而会让路径解析退化。
+# 不设置 MONEYHELPER_DB_PATH：应用默认就写这里；传空串反而会让路径解析退化。
 services:
-  xiaoman:
+  moneyhelper:
     build: .
-    container_name: xiaoman
+    container_name: moneyhelper
     restart: unless-stopped
     ports:
       - "8787:8787"
     environment:
       TZ: Asia/Shanghai
       # 数据目录（库/备份/checkpoint）统一到卷内；Dockerfile 里也有默认值
-      XIAOMAN_DATA_DIR: /app/backend/data
+      MONEYHELPER_DATA_DIR: /app/backend/data
       # 用 map + ${VAR:-default} 而不是列表：空串会让 os.getenv 返回空字符串，
       # 被当成"已设置"从而覆盖应用默认值（历史上导致数据库路径退化）。
       API_TOKEN: ${API_TOKEN:-}
@@ -28,8 +28,8 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
     volumes:
-      - xiaoman-data:/app/backend/data
-      - xiaoman-logs:/app/backend/logs
+      - moneyhelper-data:/app/backend/data
+      - moneyhelper-logs:/app/backend/logs
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8787/api/health',timeout=3)"]
       interval: 30s
@@ -38,5 +38,5 @@ services:
       retries: 3
 
 volumes:
-  xiaoman-data:
-  xiaoman-logs:
+  moneyhelper-data:
+  moneyhelper-logs:

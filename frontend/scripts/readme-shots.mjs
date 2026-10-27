@@ -2,14 +2,14 @@
  * README 展示图：在干净实例上拍一组 1400×860 的界面截图（2x DPR，文字清晰）。
  *
  * 用法：
- *   XIAOMAN_URL=http://127.0.0.1:8799 node scripts/readme-shots.mjs
+ *   MONEYHELPER_URL=http://127.0.0.1:8799 node scripts/readme-shots.mjs
  * 产物：docs/screenshots/*.png（随仓库提交，README 直接引用）
  */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
-const BASE = process.env.XIAOMAN_URL || "http://127.0.0.1:8799";
+const BASE = process.env.MONEYHELPER_URL || "http://127.0.0.1:8799";
 const OUT = resolve(process.cwd(), "../docs/screenshots");
 mkdirSync(OUT, { recursive: true });
 

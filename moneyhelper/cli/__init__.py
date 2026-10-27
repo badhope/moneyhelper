@@ -1,4 +1,4 @@
-"""小满命令行入口（M4.1 最小可用形态）。
+"""Moneyhelper 命令行入口（M4.1 最小可用形态）。
 
 设计要点：**直调 core，零网络**。同一条命令在本地和远程两种形态下都能用——
 本态直接操作本地库（不需要起服务），远程形态走 HTTP API（`--url/--token`）。
@@ -6,13 +6,13 @@
 
 用法：
 
-    xiaoman add "午饭 35 元"            # 一句话记账（规则解析，不花 token）
-    xiaoman ls                          # 最近流水
-    xiaoman ls --month 2026-09          # 指定月份
-    xiaoman report                      # 现金流/收支概览
-    xiaoman balance                     # 账户总览（持仓 + 净资产）
-    xiaoman ask "这个月花多了吗"        # 走问答管线（离线确定性模板）
-    xiaoman serve --port 8788           # 起本地服务
+    moneyhelper add "午饭 35 元"            # 一句话记账（规则解析，不花 token）
+    moneyhelper ls                          # 最近流水
+    moneyhelper ls --month 2026-09          # 指定月份
+    moneyhelper report                      # 现金流/收支概览
+    moneyhelper balance                     # 账户总览（持仓 + 净资产）
+    moneyhelper ask "这个月花多了吗"        # 走问答管线（离线确定性模板）
+    moneyhelper serve --port 8788           # 起本地服务
 
 全局参数：
 
@@ -55,13 +55,13 @@ def _out(payload: Any, as_json: bool, text: str) -> None:
 
 
 def _prepare_db(db_path: str | None) -> None:
-    """把 XIAOMAN_DB_PATH 指到目标库，然后初始化连接。
+    """把 MONEYHELPER_DB_PATH 指到目标库，然后初始化连接。
 
     必须在任何 app.* 导入之前设置：app.db._core 在导入时就读这个环境变量。
     """
     if db_path:
         resolved = Path(db_path).expanduser().resolve()
-        os.environ["XIAOMAN_DB_PATH"] = str(resolved)
+        os.environ["MONEYHELPER_DB_PATH"] = str(resolved)
 
 
 async def _remote(method: str, url: str, token: str, path: str, body: dict | None) -> Any:
@@ -239,8 +239,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="xiaoman",
-        description="小满 —— 一句话记账、问一句、看报告。默认直连本地库（零网络）。",
+        prog="moneyhelper",
+        description="Moneyhelper —— 一句话记账、问一句、看报告。默认直连本地库（零网络）。",
     )
     p.add_argument("--db", help="数据库文件路径（默认 backend/data/wealth.db）")
     p.add_argument("--json", action="store_true", help="输出 JSON，便于管道处理")

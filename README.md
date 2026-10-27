@@ -1,10 +1,10 @@
-# Xiaoman
+# Moneyhelper
 
 > A conversation-first personal finance assistant. One sentence to record an expense, check quotes, manage positions, run a health check, or get your morning report.
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Release](https://img.shields.io/github/v/release/badhope/xiaoman)
-![CI](https://github.com/badhope/xiaoman/actions/workflows/ci.yml/badge.svg)
+![Release](https://img.shields.io/github/v/release/badhope/moneyhelper)
+![CI](https://github.com/badhope/moneyhelper/actions/workflows/ci.yml/badge.svg)
 ![Docker](https://img.shields.io/badge/docker-compose-blue)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)
@@ -26,7 +26,7 @@ docker compose up -d --build     # http://localhost:8787
 scripts/dev.sh --prod
 ```
 
-## Why Xiaoman
+## Why Moneyhelper
 
 - **Every number comes from a deterministic engine** — the model only classifies intent and writes prose, so it cannot invent an amount.
 - **Built for Chinese bills** — WeChat Pay, Alipay and bank CSV imports are native, not an afterthought.
@@ -35,29 +35,49 @@ scripts/dev.sh --prod
 
 ## What it is
 
-Xiaoman is one of the 24 solar terms — the moment when grain is nearly, but not yet, full. Personal finance works the same way: save a little every day and let life fill up at its own pace.
+Moneyhelper is **not "a generic chat model + a bookkeeping plugin"** — it is a local-first **vertical finance intelligence workbench**:
+a general-model base focused end-to-end on personal / retail / small-business finance decisions — bookkeeping,
+position risk control, stock research, corporate statement analysis, strategy backtesting and team paper-trading, every conclusion
+visualized and traceable.
 
-A finance assistant that runs on your own machine, with conversation as the core interaction:
+Moneyhelper is the helper for your money: a local-first workbench that turns every entry into a decision you can check,
+so saving and investing stay deliberate instead of hopeful.
 
-| You say | Xiaoman does |
+### What makes it different from a generic assistant
+
+| Dimension | Generic LLM assistant | Moneyhelper finance workbench |
+|---|---|---|
+| Core logic | Text-first; fluency beats accuracy | **Computation-first**: the model narrates, deterministic code computes |
+| Financial accuracy | Relies on memorized knowledge; formulas/tax/ratios hallucinate | Metric definitions live in docstrings; insufficient data returns `null` with a reason — never a plausible fake number |
+| Capability boundary | Can chat about anything, finance stays "encyclopedia-level" | Finance only, but runs the whole loop: bookkeeping → position risk → research → statements → backtest |
+| Interaction | Mostly plain-text chat | Chat + visual workbench: ask once, get charts, tables and conclusions |
+| Privacy | Raw data goes to the model provider | Local-first: sensitive data stays in local SQLite, only sanitized structured data leaves the machine |
+| Workflow | Single-turn Q&A, no persistent state | Persistent finance workspace: assets, positions, statements, backtests survive across sessions |
+
+| You say | Moneyhelper does |
 |---|---|
 | "coffee 28, taxi 32" | Records two entries in one sentence |
 | "salary 1w credited" | Records income 10000 (supports 万/w/k and Chinese numerals) |
 | "check CATL, add to watchlist if good" | Quote → add to watchlist → visible on Market |
 | "buy 100 shares of 600519" | Opens a position at the current price (asks for cost when quotes are unavailable) |
 | "sell half of 600519" | Half-position sell, never an accidental full liquidation |
-| "remember I pay rent 5000 next month" | Stored in long-term memory, auto-referenced in answers |
-| "generate today's morning report" | Generated and archived |
+| "analyze the technicals of 600519" | Research tab: K-line + MA/MACD/RSI/BOLL/KDJ + signal stream + bias |
+| "how does a MA cross-over strategy do on 600519" | Research tab: backtest with return/drawdown/Sharpe/win rate + equity curve |
+| "here are two years of statements" | Statements tab: 20+ metrics, DuPont, trend charts, radar, anomaly alerts |
+| "open paper accounts for the team, who performs best" | Paper Trading tab: open account → trade (lot/fee checks) → NAV curve + team ranking bars |
 
-The other tabs (Overview / Holdings / Strategy / Market / Ledger) are views of the conversation results, not duplicate form entries.
+The other tabs (Overview / Holdings / **Research** / **Statements** / **Paper Trading** / Strategy / Market / Ledger / Health)
+are views of the conversation results, not duplicate form entries.
 
 ## Core features
 
 - **100% local data**: everything lives in a local SQLite database. Optional passphrase-protected encrypted backups (PBKDF2 + Fernet); the passphrase is never stored.
-- **Never fabricates numbers**: amounts, P&L and risk metrics are computed by a deterministic engine; the model only classifies and writes prose. At runtime the model only sees read-only tools.
-- **Model-agnostic**: unified access via LiteLLM — DeepSeek / Doubao / Qwen / Claude / OpenAI / Gemini, with automatic failover. Fully usable without any model configured.
+- **Never fabricates numbers**: amounts, P&L, risk metrics, technical indicators, backtest results and statement ratios are all computed by deterministic engines; the model only classifies and writes prose. At runtime the model only sees read-only tools.
+- **Domestic models first**: unified access via LiteLLM, defaulting to DeepSeek / Doubao / Qwen / Kimi — zero friction on Chinese platforms. Fully usable without any model configured.
 - **Multi-agent orchestration**: a LangGraph graph (supervisor pipeline), plus a "finance department mode" that splits one request into tickets, runs departments in parallel, and summarizes for approval.
-- **MCP protocol**: all finance tools are exposed as a standard MCP Server via fastmcp — Claude Code / Cursor can query your local data directly.
+- **MCP protocol**: all finance tools are exposed as a standard MCP Server via fastmcp — Cursor / Claude Code can query your local data directly.
+- **Stock research engine**: technical indicators (MA/MACD/RSI/BOLL/KDJ) + rule-based signal synthesis + bull/bear bias; **statistical forecasting** (linear trend + Monte-Carlo GBM percentile band, fixed reproducible seed); MA-cross and DCA strategy backtests (return, annualized, drawdown, Sharpe, win rate, profit factor, equity curve, trade details).
+- **Statement analysis engine**: paste three-statement JSON → 20+ metrics (profitability / solvency / efficiency / growth / cash-flow quality) + DuPont decomposition + YoY trends + three-cashflow structure + rule-based anomaly alerts (goodwill, receivables, inventory, cash quality…) + a templated report.
 - **Investment strategy engine**: portfolio risk metrics (volatility / Sharpe / Sortino / max drawdown / Beta / VaR) against a benchmark, target-allocation rebalancing, valuation percentile, DCA plans and FIRE progress.
 - **Long-term memory**: preferences live in a local table and are recalled with BM25; memory never leaves the machine.
 - **3-level quote fallback**: Eastmoney → Sina → local snapshot, clearly labeled when offline.
@@ -68,12 +88,12 @@ The other tabs (Overview / Holdings / Strategy / Market / Ledger) are views of t
 Two surfaces, each with a clear job:
 
 - **Chat** is the entry point — record an expense, ask a question.
-- **Finance workspace** follows stock-broker conventions: a list on the left, detail for the selected
-  symbol on the right.
+- **Finance workbench** follows stock-broker conventions: nine tabs, each a decision dashboard of
+  "metric strip + chart + detail table".
 
-Navigation: a persistent session sidebar (chat) plus six top tabs
-(Overview / Holdings / Strategy / Market / Ledger / Health). The main area switches pages; "Back to chat"
-returns to the conversation.
+Navigation: a persistent session sidebar (chat) plus nine top tabs
+(Overview / Holdings / **Research** / **Statements** / **Paper Trading** / Strategy / Market / Ledger / Health).
+The main area switches pages; "Back to chat" returns to the conversation.
 
 | Width | Layout |
 |---|---|
@@ -84,6 +104,15 @@ returns to the conversation.
 Highlights:
 - Holdings: summary strip → concentration warnings → table + P&L contribution chart, with
   concentration / sector / risk columns on the right.
+- **Research**: quote strip → technical metric cards (MA alignment / RSI / MACD / BOLL / KDJ) →
+  zoomable candlestick chart (A-share red-up/green-down, MA + BOLL overlay toggle, daily/weekly/monthly) →
+  signal stream → **statistical forecast panel** (trend line + Monte-Carlo 5%-95% band) →
+  strategy backtest (MA-cross / DCA switch, tunable params, metric strip + equity curve + trade log).
+- **Paper Trading**: team virtual accounts with event-sourced positions — open account, trade (A-share lots, commission + stamp tax), per-account NAV curves, holdings donut, and team ranking bars
+- **Statements**: three-statement JSON input (with sample) → four metric-card groups →
+  revenue & net profit / margin / solvency / cash-flow trend charts → three-cashflow stacked chart +
+  DuPont bar chart → five-dimension financial radar → multi-period comparison table →
+  anomaly alert stream → templated report → local save & re-analyze.
 - Strategy: portfolio risk metrics and equity curve vs benchmark, rebalance checklist, valuation
   percentile, DCA plans and FIRE progress.
 - Market: watchlist and holdings with 60-day sparklines, plus a detail panel (trend, period change,
@@ -94,7 +123,7 @@ Highlights:
   (Basics / AI & automation / Data & security).
 - Sidebar width is remembered (localStorage), double-click the divider to reset; panels trap and
   restore focus, Esc closes.
-- Only chat code loads on first paint; charts / department board / inbox are lazy-loaded.
+- Only chat code loads on first paint; charts / research / statements / department board / inbox are lazy-loaded.
 
 Screenshots: `cd frontend && node scripts/ui-audit.mjs` (every page, into `out/ui-audit/`);
 README images: `node scripts/readme-shots.mjs` (writes `docs/screenshots/`).
@@ -138,7 +167,7 @@ Requirements: Python 3.10+, Node.js 18+.
 **Fastest path (Docker)**
 
 ```bash
-docker compose up -d --build   # single container, port 8787, volume xiaoman-data
+docker compose up -d --build   # single container, port 8787, volume moneyhelper-data
 ```
 
 **One-click (recommended for development)**
@@ -170,7 +199,7 @@ npm install && npm run dev    # http://127.0.0.1:5198
 cd frontend && npm run build  # then open http://127.0.0.1:8788
 ```
 
-The database lives at `backend/data/wealth.db` by default (`XIAOMAN_DATA_DIR` / `XIAOMAN_DB_PATH` override it; empty values fall back to the default).
+The database lives at `backend/data/wealth.db` by default (`MONEYHELPER_DATA_DIR` / `MONEYHELPER_DB_PATH` override it; empty values fall back to the default).
 
 A fresh database starts empty with chat-style onboarding; everything works without an AI key.
 
@@ -245,7 +274,7 @@ docs/                Deploy / config / workflow / architecture / planning
 | [Configuration](docs/CONFIG.en.md) | Env vars + settings + AI endpoint cheat-sheet ([中文](docs/CONFIG.md)) |
 | [Workflows](docs/WORKFLOW.en.md) | Every conversation pattern ([中文](docs/WORKFLOW.md)) |
 | [Architecture](docs/architecture.md) | Mermaid diagrams + department mode + data reliability |
-| [CLI](docs/cli.md) | `xiaoman add / ls / report / balance / ask` — offline-first, same commands in local or remote mode |
+| [CLI](docs/cli.md) | `moneyhelper add / ls / report / balance / ask` — offline-first, same commands in local or remote mode |
 | [Module map](docs/module-map.md) | Every backend module: size, structure, responsibility |
 | [Development guide](docs/DEVELOPMENT.en.md) | Code map + add-tool/setting tutorials + release flow ([中文](docs/DEVELOPMENT.md)) |
 | [Progress](docs/PROGRESS.md) | What is done, what is left, in one page |
@@ -265,7 +294,7 @@ cd frontend && npm run build
 cd frontend && npm run test:e2e
 ```
 
-CI covers backend ruff (app + xiaoman package) + pytest, frontend tsc + vitest + build,
+CI covers backend ruff (app + moneyhelper package) + pytest, frontend tsc + vitest + build,
 plus a hygiene job: no files over 1MB, and `mkdocs build --strict` must pass.
 
 ## Data & privacy

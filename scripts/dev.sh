@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 小满 · 一键开发启动（后端 8788 + 前端 dev 5198，Ctrl-C 一起退出）。
+# Moneyhelper · 一键开发启动（后端 8788 + 前端 dev 5198，Ctrl-C 一起退出）。
 #
 # 跨平台：macOS / Linux / Windows（Git Bash、MSYS2、WSL 均可用）。
 #   - venv 解释器自动探测：Unix 是 .venv/bin/python，Windows 是 .venv/Scripts/python.exe

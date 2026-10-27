@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse, Response
 
 from . import db
 from .auth import verify_api_token
+from .compat_env import getenv
 from .logging_utils import get_logger as _get_logger
 
 log = _get_logger(__name__)
@@ -37,7 +38,7 @@ _SKIP_AUTH_PATHS = {
 # ---------------------------------------------------------------------------
 # 限流：in-memory 滑动窗口，按 IP 计数；单进程部署；多进程需换 Redis。
 # ---------------------------------------------------------------------------
-_RATE_LIMIT_ENABLED = not os.getenv("XIAOMAN_DISABLE_RATE_LIMIT")
+_RATE_LIMIT_ENABLED = not getenv("MONEYHELPER_DISABLE_RATE_LIMIT")
 _RATE_LIMIT_MAX = 200  # 单 IP 每分钟上限
 _RATE_LIMIT_WINDOW = 60.0  # 窗口大小（秒）
 _rate_buckets: dict[str, list[float]] = {}
@@ -368,30 +369,30 @@ async def metrics_counter(request: Request, call_next):
 def metrics_body() -> Response:
     """渲染 Prometheus 文本格式（/api/metrics 用）。"""
     lines = [
-        "# TYPE xiaoman_requests_total counter",
-        f"xiaoman_requests_total {METRICS['requests']}",
-        "# TYPE xiaoman_errors_total counter",
-        f"xiaoman_errors_total {METRICS['errors']}",
-        "# TYPE xiaoman_auth_401_total counter",
-        f"xiaoman_auth_401_total {METRICS['auth_401']}",
-        "# TYPE xiaoman_messages_total counter",
-        f"xiaoman_messages_total {METRICS['messages']}",
-        "# TYPE xiaoman_uptime_seconds gauge",
-        f"xiaoman_uptime_seconds {time.monotonic() - _START_TS:.1f}",
+        "# TYPE moneyhelper_requests_total counter",
+        f"moneyhelper_requests_total {METRICS['requests']}",
+        "# TYPE moneyhelper_errors_total counter",
+        f"moneyhelper_errors_total {METRICS['errors']}",
+        "# TYPE moneyhelper_auth_401_total counter",
+        f"moneyhelper_auth_401_total {METRICS['auth_401']}",
+        "# TYPE moneyhelper_messages_total counter",
+        f"moneyhelper_messages_total {METRICS['messages']}",
+        "# TYPE moneyhelper_uptime_seconds gauge",
+        f"moneyhelper_uptime_seconds {time.monotonic() - _START_TS:.1f}",
     ]
     # 关键路径耗时（LLM / 工具 / 图节点）：只输出有采样的 label，避免刷空序列
     from .observability import snapshot as _snapshot
 
     stats = _snapshot()
     if stats:
-        lines.append("# TYPE xiaoman_op_average_ms gauge")
-        lines.append("# TYPE xiaoman_op_max_ms gauge")
-        lines.append("# TYPE xiaoman_op_total counter")
+        lines.append("# TYPE moneyhelper_op_average_ms gauge")
+        lines.append("# TYPE moneyhelper_op_max_ms gauge")
+        lines.append("# TYPE moneyhelper_op_total counter")
         for label, row in sorted(stats.items()):
             safe = label.replace('"', "")
-            lines.append(f'xiaoman_op_average_ms{{op="{safe}"}} {row["avg_ms"]}')
-            lines.append(f'xiaoman_op_max_ms{{op="{safe}"}} {row["max_ms"]}')
-            lines.append(f'xiaoman_op_total{{op="{safe}"}} {row["count"]}')
+            lines.append(f'moneyhelper_op_average_ms{{op="{safe}"}} {row["avg_ms"]}')
+            lines.append(f'moneyhelper_op_max_ms{{op="{safe}"}} {row["max_ms"]}')
+            lines.append(f'moneyhelper_op_total{{op="{safe}"}} {row["count"]}')
     lines.append("")
     return Response(
         content="\n".join(lines),

@@ -348,7 +348,7 @@ def route_question(question: str, lang: str = "zh") -> tuple[str, str]:
     命中收支词 → ledger，都命中 → both，都不命中 → general。
 
     宁缺毋滥：不确定是否问财务时一律 general，绝不做「猜测式财务综合分析」。
-    reason 为推理轨迹展示文本（route_reason），前端「小满的理解」直接亮给用户看，
+    reason 为推理轨迹展示文本（route_reason），前端「Moneyhelper 的理解」直接亮给用户看，
     因此用用户能听懂的理财心智语言，而非「命中关键词」的技术说明（差异化「懂钱」）。
     按 lang 本地化。
     """

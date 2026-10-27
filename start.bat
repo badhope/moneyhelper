@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
-title 小满 · 一键启动
+title Moneyhelper · 一键启动
 cd /d "%~dp0"
 
 rem 生产模式：start.bat --prod  → 构建前端后由后端单端口伺服，只开一个窗口
@@ -9,7 +9,7 @@ set MODE=dev
 if /i "%~1"=="--prod" set MODE=prod
 
 echo ============================================
-echo    小满 Xiaoman  ·  一键启动（%MODE%）
+echo    Moneyhelper  ·  一键启动（%MODE%）
 echo    后端  http://127.0.0.1:8788
 if "%MODE%"=="dev" echo    前端  http://127.0.0.1:5198
 echo ============================================
@@ -72,12 +72,12 @@ if not exist "frontend\node_modules" (
 if /i "%MODE%"=="prod" goto :prod
 
 echo 正在启动后端（8788）...
-start "小满后端-8788" cmd /k ""%VPY%" -m uvicorn app.main:app --host 127.0.0.1 --port 8788 --app-dir backend"
+start "Moneyhelper 后端-8788" cmd /k ""%VPY%" -m uvicorn app.main:app --host 127.0.0.1 --port 8788 --app-dir backend"
 
 timeout /t 3 /nobreak >nul
 
 echo 正在启动前端（5198）...
-start "小满前端-5198" cmd /k "cd /d ""%~dp0frontend"" && npm run dev"
+start "Moneyhelper 前端-5198" cmd /k "cd /d ""%~dp0frontend"" && npm run dev"
 
 timeout /t 6 /nobreak >nul
 
@@ -104,7 +104,7 @@ if errorlevel 1 (
 )
 popd
 echo 正在启动单端口服务（8788，前端由后端托管）...
-start "小满-8788" cmd /k ""%VPY%" -m uvicorn app.main:app --host 127.0.0.1 --port 8788 --app-dir backend"
+start "Moneyhelper-8788" cmd /k ""%VPY%" -m uvicorn app.main:app --host 127.0.0.1 --port 8788 --app-dir backend"
 timeout /t 3 /nobreak >nul
 start "" http://127.0.0.1:8788/
 echo 已启动（生产模式）：http://127.0.0.1:8788

@@ -1,4 +1,4 @@
-# 小满架构图
+# Moneyhelper 架构图
 
 > 本页用 Mermaid 绘制，GitHub 原生渲染。配套：[ROADMAP-v3](ROADMAP-v3.md) / [详细计划](PLAN-DETAILED.md)
 

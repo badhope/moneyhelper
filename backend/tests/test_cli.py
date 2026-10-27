@@ -1,4 +1,4 @@
-"""CLI 测试：分层门面是否真的可用（xiaoman.core / server / cli）。
+"""CLI 测试：分层门面是否真的可用（moneyhelper.core / server / cli）。
 
 这一层的价值在于"换成 CLI 调用，core 逻辑还成立"。所以测试重点不是解析细节，
 而是：入口能跑通、直连本地库、离线不发网络请求。
@@ -16,12 +16,12 @@ def cli_db(temp_db, monkeypatch):
     """CLI 需要一个真实的库；temp_db 已把 DB_PATH 指到临时文件并建好表。"""
     from app import db
 
-    monkeypatch.setenv("XIAOMAN_DB_PATH", str(db.DB_PATH))
+    monkeypatch.setenv("MONEYHELPER_DB_PATH", str(db.DB_PATH))
     return db
 
 
 def _run(argv: list[str]) -> int:
-    from xiaoman.cli import main
+    from moneyhelper.cli import main
 
     return main(argv)
 
@@ -98,10 +98,10 @@ def test_snapshot_only_context_blocks_network(monkeypatch):
 
 
 def test_server_facade_exposes_same_app():
-    """xiaoman.server.app 与 app.main.app 必须是同一个对象（不是两份实例）。"""
+    """moneyhelper.server.app 与 app.main.app 必须是同一个对象（不是两份实例）。"""
     from app.main import app as legacy
 
-    from xiaoman.server import app as facade
+    from moneyhelper.server import app as facade
 
     assert facade is legacy
 
@@ -109,8 +109,8 @@ def test_server_facade_exposes_same_app():
 def test_facade_importable_from_any_cwd(tmp_path, monkeypatch):
     """门面层必须在任意工作目录下可用（安装成命令后 cwd 不是仓库）。
 
-    xiaoman 包通过 re-export 暴露 app.* 的实现，所以导入前必须能定位 backend/。
-    此前只在仓库内可导入：`pip install -e .` 后在 /tmp 下执行 xiaoman CLI 会
+    moneyhelper 包通过 re-export 暴露 app.* 的实现，所以导入前必须能定位 backend/。
+    此前只在仓库内可导入：`pip install -e .` 后在 /tmp 下执行 moneyhelper CLI 会
     直接 ModuleNotFoundError: No module named 'app'。
     """
     import subprocess
@@ -118,7 +118,7 @@ def test_facade_importable_from_any_cwd(tmp_path, monkeypatch):
     from pathlib import Path
 
     repo = Path(__file__).resolve().parents[2]
-    code = "import xiaoman, xiaoman.core, xiaoman.server; print(xiaoman.__version__)"
+    code = "import moneyhelper, moneyhelper.core, moneyhelper.server; print(moneyhelper.__version__)"
     out = subprocess.run(
         [sys.executable, "-c", code],
         cwd=str(tmp_path),

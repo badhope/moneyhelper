@@ -3,7 +3,7 @@
 ## 为什么做映射而不是换协议
 
 内部事件契约（`start` / `step` / `agent_step` / `text` / `thinking` / `final`）
-是两年迭代出来的、贴合小满业务语义的形态：`step` 带 `phase`、`agent_step` 带
+是两年迭代出来的、贴合 Moneyhelper 业务语义的形态：`step` 带 `phase`、`agent_step` 带
 工具摘要、`final` 带风控 `flags` 与可撤销 `actions`。直接换成 AG-UI 会把业务
 语义压扁成通用协议，前端要重新实现一遍卡片渲染逻辑。
 

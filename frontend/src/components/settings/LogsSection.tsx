@@ -7,7 +7,7 @@ import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import { Section } from "./shared";
 
-/** 日志查看：读取后端 xiaoman.log 最近 N 行，支持刷新与清空 */
+/** 日志查看：读取后端 moneyhelper.log 最近 N 行，支持刷新与清空 */
 export function LogsSection() {
   const { t } = useI18n();
   const [lines, setLines] = useState<string[]>([]);

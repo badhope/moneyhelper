@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { HeartPulse, LayoutGrid, NotebookPen, Target, TrendingUp, Wallet } from "lucide-react";
+import { CandlestickChart, FileText, HeartPulse, LayoutGrid, NotebookPen, Target, TrendingUp, Users, Wallet } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -21,12 +21,24 @@ const HealthBody = lazy(() =>
 const StrategyBody = lazy(() =>
   import("@/components/StrategyPage").then((m) => ({ default: m.StrategyPage })),
 );
+const ResearchBody = lazy(() =>
+  import("@/components/ResearchPage").then((m) => ({ default: m.ResearchPage })),
+);
+const StatementsBody = lazy(() =>
+  import("@/components/StatementsPage").then((m) => ({ default: m.StatementsPage })),
+);
+const PaperBody = lazy(() =>
+  import("@/components/PaperTradingPage").then((m) => ({ default: m.PaperTradingPage })),
+);
 
-export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy";
+export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper";
 
 const TABS: { key: DataKind; labelKey: string; icon: typeof LayoutGrid }[] = [
   { key: "overview", labelKey: "nav.dashboard", icon: LayoutGrid },
   { key: "holdings", labelKey: "nav.holdings", icon: Wallet },
+  { key: "research", labelKey: "nav.research", icon: CandlestickChart },
+  { key: "statements", labelKey: "nav.statements", icon: FileText },
+  { key: "paper", labelKey: "nav.paper", icon: Users },
   { key: "strategy", labelKey: "nav.strategy", icon: Target },
   { key: "market", labelKey: "nav.market", icon: TrendingUp },
   { key: "ledger", labelKey: "nav.ledger", icon: NotebookPen },
@@ -89,6 +101,9 @@ export function FinancePage({
           >
             {kind === "overview" && <Dashboard />}
             {kind === "holdings" && <HoldingsView />}
+            {kind === "research" && <ResearchBody />}
+            {kind === "statements" && <StatementsBody />}
+            {kind === "paper" && <PaperBody />}
             {kind === "strategy" && <StrategyBody />}
             {kind === "market" && <MarketView />}
             {kind === "ledger" && <EntryView />}

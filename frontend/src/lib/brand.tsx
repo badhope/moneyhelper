@@ -1,12 +1,12 @@
-/** 品牌系统：小满 —— 名称 / 标语 / Logo / 品牌色预设。 */
+/** 品牌系统：Moneyhelper —— 名称 / 标语 / Logo / 品牌色预设。 */
 
 export const BRAND = {
-  name: "小满",
-  /** 品牌 slogan：二十四节气「小满」，谷物渐满未满——理财同理，慢慢存，富足自有分寸地到来 */
-  slogan: "慢慢存，小满即富",
+  name: "Moneyhelper",
+  /** 品牌 slogan：算清每一笔，攒稳每一步——理财先把账算明白，积累才有意义 */
+  slogan: "算清每一笔，攒稳每一步",
   /** 副标用动作对，不用"你的XX管家"这类换行业也通顺的口号 */
   tagline: "记一笔，问一句",
-  en: "Xiaoman",
+  en: "Moneyhelper",
 };
 
 /** 默认主题主色（对应 index.css 的墨绿 --primary）——主题色选择器「默认」档的展示色 */
@@ -133,10 +133,11 @@ export const BRAND_PRESETS: BrandPreset[] = [
 ];
 
 /**
- * 品牌 Logo：外圆古钱币 + 方孔 + 上升趋势线（钱生钱）。
+ * 品牌 Logo：钱币圆底 + 「M」折线 + 右上的增长箭头。
  * 纯 SVG，随品牌色变化；size 为边长。
  */
 export function BrandLogo({ size = 28, className }: { size?: number; className?: string }) {
+  const gold = "hsl(var(--brand-gold, 43 78% 46%))";
   return (
     <svg
       width={size}
@@ -146,25 +147,24 @@ export function BrandLogo({ size = 28, className }: { size?: number; className?:
       className={className}
       aria-label={`${BRAND.name} Logo`}
     >
-      {/* 麦粒渐满：圆底麦粒 + 上扬的「慢慢攒」弧线 */}
       <circle cx="24" cy="24" r="21" fill="hsl(var(--primary) / 0.12)" />
       <circle cx="24" cy="24" r="21" stroke="hsl(var(--primary))" strokeWidth="2.6" />
-      {/* 麦粒（居中，饱满一颗） */}
-      <ellipse cx="24" cy="25" rx="5.6" ry="8.4" fill="hsl(var(--brand-gold, 43 78% 46%))" transform="rotate(-22 24 25)" />
-      {/* 麦芒 */}
+      {/* M 形折线：起点竖线 + 双峰，象征「Money」与逐笔累计 */}
       <path
-        d="M24 16.6 L24 10.6 M21.2 18.6 L17.6 14.4 M26.8 18.6 L30.4 14.4"
-        stroke="hsl(var(--brand-gold, 43 78% 46%))"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      {/* 上扬积累弧线 */}
-      <path
-        d="M10.5 34 C15 28.5 20 27.5 24.5 29.5"
+        d="M12 34 V18 L23 29 L33 19"
         stroke="hsl(var(--primary))"
-        strokeWidth="2.4"
+        strokeWidth="3.2"
         strokeLinecap="round"
-        fill="none"
+        strokeLinejoin="round"
+      />
+      {/* 增长箭头 */}
+      <path d="M33 19 L38.6 13" stroke={gold} strokeWidth="3.2" strokeLinecap="round" />
+      <path
+        d="M34.2 12.6 L39.8 12 L39.2 17.6"
+        stroke={gold}
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

@@ -4,6 +4,7 @@
 被 routes/main/tools 使用，故一并在门面重导出。
 """
 
+from . import paper, statements  # noqa: F401 — 子模块属性访问（db.paper/db.statements）
 from ._core import (
     _ACTIVE_KEY,
     DB_PATH,
@@ -147,6 +148,16 @@ from .memory import (
     stale_memory_count,
     touch_memory,
 )
+from .paper import (
+    add_trade,
+    delete_account,
+    get_account,
+    get_trades,
+    list_accounts,
+    list_snapshots,
+    open_account,
+    save_snapshot,
+)
 from .portfolio import (
     add_position,
     add_watchlist,
@@ -211,6 +222,7 @@ __all__ = [
     "add_position",
     "add_reflection",
     "add_subscription",
+    "add_trade",
     "add_transaction",
     "add_transactions_batch",
     "add_watchlist",
@@ -229,6 +241,7 @@ __all__ = [
     "create_pending_action",
     "create_session",
     "data_dir",
+    "delete_account",
     "delete_attachment",
     "delete_dca_plan",
     "delete_debt",
@@ -253,14 +266,17 @@ __all__ = [
     "fetch_all",
     "fetch_one",
     "forget_memory",
+    "get_account",
     "get_active_member",
     "get_attachment",
     "get_conversation_summary",
     "get_pending_action",
     "get_settings",
+    "get_trades",
     "import_backup",
     "init_db",
     "is_system_thread",
+    "list_accounts",
     "list_allocation_targets",
     "list_attachments",
     "list_audit_logs",
@@ -277,6 +293,7 @@ __all__ = [
     "list_runs",
     "list_scheduled_runs",
     "list_sessions",
+    "list_snapshots",
     "list_subscriptions",
     "list_transactions",
     "list_undo_records",
@@ -298,12 +315,14 @@ __all__ = [
     "month_expense_by_category",
     "monthly_trend",
     "move_runs",
+    "open_account",
     "rename_session",
     "replace_allocation_targets",
     "reset_to_seed",
     "resolve_reflection",
     "save_budgets",
     "save_run",
+    "save_snapshot",
     "search_runs",
     "session_thread_id",
     "set_active_member",

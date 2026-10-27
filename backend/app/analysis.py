@@ -310,7 +310,7 @@ def risk_checks(
 def next_step_advice(flags: list[dict[str, str]], has_data: bool = True, lang: str = "zh") -> str:
     """基于确定性风控告警，给一句「下一步可以做什么」的主动引导（差异化「主动理财 Agent」）。
 
-    厂商 Agent 大多是「回答完就停」；小满识别出风险后会结合 code 主动给一句可执行的
+    厂商 Agent 大多是「回答完就停」；Moneyhelper 识别出风险后会结合 code 主动给一句可执行的
     动作建议（记账/储蓄/目标/加自选），不编数字、不给买卖指令。纯确定性、按 code 匹配。
     无风险或空库时返回空串（不硬塞引导，避免噪音）。
     """

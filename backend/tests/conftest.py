@@ -12,7 +12,7 @@ import pytest
 # 主库 DB_PATH 由 temp_db fixture 指向 tmp_path，不受此影响；这里只为 checkpoint/pending
 # 提供每 worker 独立目录（带 PID，避免同机并行多个 pytest 会话互踩）。
 os.environ.setdefault(
-    "XIAOMAN_DATA_DIR",
+    "MONEYHELPER_DATA_DIR",
     str(
         Path(tempfile.gettempdir())
         / f"xman-test-{os.environ.get('PYTEST_XDIST_WORKER') or 'single'}-{os.getpid()}"
@@ -20,7 +20,7 @@ os.environ.setdefault(
 )
 
 # 测试默认关闭限流，避免高频接口测例触发 429；限流本身由 test_rate_limit.py 显式测
-os.environ.setdefault("XIAOMAN_DISABLE_RATE_LIMIT", "1")
+os.environ.setdefault("MONEYHELPER_DISABLE_RATE_LIMIT", "1")
 os.environ.setdefault("VAULT_PASSPHRASE", "test-passphrase-for-unit-tests-12345")
 # 固定 JWT 密钥：否则 auth 模块每次导入生成随机 secret，
 # 同一测试里签发与校验可能跨模块实例而不一致（多租户 HTTP 测试会 401）。
@@ -36,7 +36,7 @@ _BACKEND = Path(__file__).resolve().parents[1]
 if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
-# 分层门面包 xiaoman.* 在仓库根目录（与 backend/ 平级），测试从 backend/ 运行
+# 分层门面包 moneyhelper.* 在仓库根目录（与 backend/ 平级），测试从 backend/ 运行
 _REPO_ROOT = _BACKEND.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))

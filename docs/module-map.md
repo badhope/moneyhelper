@@ -30,7 +30,7 @@
 
 | 模块 | 行数 | 函数 | 类 | 职责 |
 |---|---:|---:|---:|---|
-| `__init__.py` | 23 | 0 | 0 | 小满 · 个人理财多智能体后端。 |
+| `__init__.py` | 23 | 0 | 0 | Moneyhelper · 个人理财多智能体后端。 |
 | `agent.py` | 461 | 6 | 1 | Agent 编排层：LLM function calling 多轮工具循环（真正的垂直 agent）。 |
 | `agent_config.py` | 221 | 11 | 0 | Agent 配置系统：角色 / skills / 工具开关。 |
 | `agent_graph.py` | 1285 | 30 | 1 | LangGraph 多智能体编排图 —— 主执行路径（service.run_question 的图化替代）。 |
@@ -76,10 +76,10 @@
 | `import_parsers/generic_csv.py` | 220 | 8 | 1 | 通用 CSV 交易解析器：自动识别列名（中英文）、收支方向、编码。 |
 | `import_parsers/wechat.py` | 182 | 5 | 1 | 微信支付账单 CSV 解析器。 |
 | `llm.py` | 602 | 19 | 3 | LiteLLM 统一模型接入——替掉自研 openai SDK 直连 + 手写路由 + 手动重试。 |
-| `logging_utils.py` | 118 | 6 | 1 | 统一日志：RotatingFileHandler 落 backend/logs/xiaoman.log，控制台输出。 |
+| `logging_utils.py` | 118 | 6 | 1 | 统一日志：RotatingFileHandler 落 backend/logs/moneyhelper.log，控制台输出。 |
 | `main.py` | 278 | 8 | 0 | FastAPI 入口（薄装配层，M1.4 拆分后）：中间件注册 + 路由装配 + lifespan + 静态托管。 |
 | `mcp_client.py` | 161 | 8 | 0 | MCP 客户端：基于官方 `mcp` SDK（StreamableHTTP 传输），不自研协议实现。 |
-| `mcp_server.py` | 760 | 53 | 4 | MCP Server：把小满所有工具暴露为标准 MCP 协议。 |
+| `mcp_server.py` | 760 | 53 | 4 | MCP Server：把 Moneyhelper 所有工具暴露为标准 MCP 协议。 |
 | `mem.py` | 149 | 8 | 0 | 长记忆层 —— 接 mem0（2026 年 local-first 首选）。 |
 | `middleware.py` | 330 | 14 | 0 | 全局中间件栈：异常兜底 / 限流 / 鉴权 / Host 防护 / 安全响应头 / 观测计数 / 审计。 |
 | `nlparse.py` | 323 | 8 | 0 | 自然语言记账解析：规则引擎优先（本地秒回），AI 兜底（歧义/未知分类）。 |

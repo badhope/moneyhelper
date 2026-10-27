@@ -1,4 +1,4 @@
-# 小满(xiaoman) 深度代码审计报告 · 企业级视角
+# Moneyhelper(moneyhelper) 深度代码审计报告 · 企业级视角
 
 > **历史快照，不代表当前状态**
 >
@@ -48,7 +48,7 @@ Tombstone 问题：passphrase 丢了 = DEK 不可恢复 = 所有加密的 ai_api
 **位置**: `backend/app/auth.py` L26
 
 ```python
-_JWT_SECRET = os.getenv("JWT_SECRET", os.getenv("API_SECRET", "xiaoman-dev-secret-change-me"))
+_JWT_SECRET = os.getenv("JWT_SECRET", os.getenv("API_SECRET", "moneyhelper-dev-secret-change-me"))
 ```
 
 如果 JWT_SECRET 和 API_SECRET 都没设，默认值硬编码在源码里。攻击者拿到仓库代码就拿到了 JWT secret → 任意伪造 admin 身份的 token。

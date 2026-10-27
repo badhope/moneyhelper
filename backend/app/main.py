@@ -36,9 +36,12 @@ from .routes import (
     ledger_router,
     market_router,
     members_router,
+    paper_router,
     provenance_router,
     qa_router,
+    research_router,
     settings_router,
+    statements_router,
     strategy_router,
     system_router,
 )
@@ -54,7 +57,7 @@ def _frontend_dist() -> Path:
     """前端静态目录。
 
     - 源码运行：仓库根的 frontend/dist
-    - PyInstaller 单文件：解压目录下的 static/（见 xiaoman.spec 的 datas）
+    - PyInstaller 单文件：解压目录下的 static/（见 moneyhelper.spec 的 datas）
     """
     import sys
 
@@ -86,7 +89,7 @@ async def _maybe_create_admin() -> None:
 
 @asynccontextmanager
 async def lifespan(app_ref: FastAPI):
-    log.info("xiaoman backend starting up")
+    log.info("moneyhelper backend starting up")
     await db.init_db()
     # vault 初始化：从环境变量取主口令（可选；未设则 ai_api_key 将拒绝加密存储）
     vault_pass = os.getenv("VAULT_PASSPHRASE", "").strip()
@@ -110,14 +113,14 @@ async def lifespan(app_ref: FastAPI):
     await agent_config.init_default_config()
     log.info("database initialised, scheduler started")
     yield
-    log.info("xiaoman backend shutting down")
+    log.info("moneyhelper backend shutting down")
     await scheduler.stop()
     await llm.aclose()
     vault.reset_cache()
     await db.close_db()
     # Langfuse flush：把缓存的 trace 刷出去
     observability.flush()
-    log.info("xiaoman backend shutdown complete")
+    log.info("moneyhelper backend shutdown complete")
     # 关闭 agent HITL 进程内注册表持有的磁盘连接（同步 sqlite3，需在 loop 关闭前清理）
     from .agent_graph import close_checkpoints
 
@@ -147,7 +150,7 @@ _mcp_state: dict[str, object] = {"built": None}
 
 @asynccontextmanager
 async def _combined_lifespan(app_ref: FastAPI):
-    """小满自身 lifespan + MCP 子应用 lifespan。
+    """Moneyhelper 自身 lifespan + MCP 子应用 lifespan。
 
     子应用的 lifespan 由 Starlette 在 mount 时**不会**自动转发，必须在这里
     显式嵌套进入，否则 MCP 的 session manager 永远不会启动。
@@ -175,7 +178,7 @@ async def _combined_lifespan(app_ref: FastAPI):
         yield
 
 
-app = FastAPI(title="小满 API", version=__version__, lifespan=_combined_lifespan)
+app = FastAPI(title="Moneyhelper API", version=__version__, lifespan=_combined_lifespan)
 
 
 @app.exception_handler(Exception)
@@ -201,12 +204,15 @@ app.include_router(calculations_router)
 app.include_router(strategy_router)
 app.include_router(evaluation_router)
 app.include_router(import_router)
+app.include_router(paper_router)
 app.include_router(provenance_router)
 app.include_router(members_router)
 app.include_router(family_router)
 app.include_router(qa_router)
 app.include_router(ledger_router)
 app.include_router(system_router)
+app.include_router(research_router)
+app.include_router(statements_router)
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +244,7 @@ async def department_run(payload: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# MCP Server：小满财务工具 → MCP 协议（Claude Code / Cursor / 任何 MCP Client 接入）
+# MCP Server：Moneyhelper 财务工具 → MCP 协议（Claude Code / Cursor / 任何 MCP Client 接入）
 # ---------------------------------------------------------------------------
 
 if _mcp_enabled:

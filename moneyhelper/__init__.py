@@ -1,11 +1,11 @@
-"""小满 —— 能自主干活的 AI 财务部门。
+"""Moneyhelper —— 能自主干活的 AI 财务部门。
 
 本包是分层门面（M1.1），把后端拆成四个语义清晰的层：
 
-    xiaoman.core    确定性内核：账本 / 分析 / 行情 / 解析 / 加密 / 导入
-    xiaoman.server  HTTP 壳：FastAPI 应用、路由、中间件
-    xiaoman.cli     命令行入口
-    xiaoman.mcp     MCP Server（模块名避开顶层 "mcp"，那是官方 SDK）
+    moneyhelper.core    确定性内核：账本 / 分析 / 行情 / 解析 / 加密 / 导入
+    moneyhelper.server  HTTP 壳：FastAPI 应用、路由、中间件
+    moneyhelper.cli     命令行入口
+    moneyhelper.mcp     MCP Server（模块名避开顶层 "mcp"，那是官方 SDK）
 
 设计约束（后续所有改动都应遵守）：
 
@@ -13,7 +13,7 @@
    这样 CLI、MCP、部门模式、脚本都能直接复用同一套内核。
 2. **server 依赖 core，core 不依赖 server**。反向引用一律视为设计缺陷。
 3. **旧路径保持可用**。`backend.app.*` 与本包并存，迁移期不做破坏性改名；
-   `xiaoman.core` 等通过 re-export 暴露既有实现，不复制代码。
+   `moneyhelper.core` 等通过 re-export 暴露既有实现，不复制代码。
 
 当前阶段：门面已建立并可用，实现仍在 `app/` 下（见各子包 docstring 的映射表）。
 """
@@ -31,10 +31,10 @@ def _ensure_app_importable() -> None:
     源码运行（仓库内）时它就在 `backend/` 下；用 `pip install .` 安装后
     `backend/` 可能不在 sys.path 中，这里按两种布局依次探测：
 
-    - 源码布局：<repo>/xiaoman/__init__.py  → <repo>/backend
-    - 安装布局：<site-packages>/xiaoman/__init__.py → 无 backend，需用户设 PYTHONPATH
+    - 源码布局：<repo>/moneyhelper/__init__.py  → <repo>/backend
+    - 安装布局：<site-packages>/moneyhelper/__init__.py → 无 backend，需用户设 PYTHONPATH
 
-    探测失败不抛错：只影响 core/server 门面，`xiaoman.cli --help` 之类应仍可用。
+    探测失败不抛错：只影响 core/server 门面，`moneyhelper.cli --help` 之类应仍可用。
     """
     if "app" in sys.modules:
         return

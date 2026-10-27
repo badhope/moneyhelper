@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 小满 · 一键部署（本地或服务器）
+# Moneyhelper · 一键部署（本地或服务器）
 #
 # 用法：
 #   ./deploy/one-click.sh              # Docker 部署（推荐，含前端构建）
@@ -87,14 +87,14 @@ if [ "$MODE" = "docker" ]; then
     if curl -fsS "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
       say "服务已就绪：http://127.0.0.1:${PORT}"
       echo
-      echo "  查看日志：docker compose logs -f xiaoman"
+      echo "  查看日志：docker compose logs -f moneyhelper"
       echo "  停止服务：docker compose down"
-      echo "  数据卷：  docker volume inspect xiaoman_xiaoman-data"
+      echo "  数据卷：  docker volume inspect moneyhelper_moneyhelper-data"
       exit 0
     fi
     sleep 2
   done
-  die "等待 120 秒后 /api/health 仍不可用。查看：docker compose logs --tail=100 xiaoman"
+  die "等待 120 秒后 /api/health 仍不可用。查看：docker compose logs --tail=100 moneyhelper"
 fi
 
 # ---------------------------------------------------------------------------

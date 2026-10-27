@@ -46,7 +46,7 @@ def _diff_rows(before: dict | None, after: dict | None) -> list[tuple[str, str, 
 def render_audit_report(
     entries: list[dict[str, Any]],
     *,
-    title: str = "小满 · 审计底稿",
+    title: str = "Moneyhelper · 审计底稿",
     entity_type: str = "",
     entity_id: str = "",
     date_from: str = "",
@@ -155,6 +155,6 @@ def render_audit_report(
   </div>
   {summary}
   {''.join(rows_html) if rows_html else "<p class='muted'>该范围内没有任何审计记录。</p>"}
-  <footer>本底稿由小满自动生成。每条记录对应一次金额相关操作，before/after 为操作前后快照；未变化的字段已省略。</footer>
+  <footer>本底稿由 Moneyhelper 自动生成。每条记录对应一次金额相关操作，before/after 为操作前后快照；未变化的字段已省略。</footer>
 </body>
 </html>"""

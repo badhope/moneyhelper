@@ -51,7 +51,7 @@ async def audit_report(
     entity_id: str = Query(default=""),
     date_from: str = Query(default=""),
     date_to: str = Query(default=""),
-    title: str = Query(default="小满 · 审计底稿", max_length=80),
+    title: str = Query(default="Moneyhelper · 审计底稿", max_length=80),
     generated_by: str = Query(default="", max_length=40),
 ) -> Response:
     """导出 HTML 审计底稿。
@@ -75,7 +75,7 @@ async def audit_report(
         date_to=date_to,
         generated_by=generated_by,
     )
-    filename = f"xiaoman-audit-{date_from or 'all'}-{date_to or 'now'}.html"
+    filename = f"moneyhelper-audit-{date_from or 'all'}-{date_to or 'now'}.html"
     return Response(
         content=body,
         media_type="text/html; charset=utf-8",

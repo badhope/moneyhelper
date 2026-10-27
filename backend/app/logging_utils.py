@@ -1,4 +1,4 @@
-"""统一日志：RotatingFileHandler 落 backend/logs/xiaoman.log，控制台输出。
+"""统一日志：RotatingFileHandler 落 backend/logs/moneyhelper.log，控制台输出。
 
 用法：
     from .logging_utils import get_logger
@@ -16,7 +16,7 @@ import logging.handlers
 from pathlib import Path
 
 _LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
-_LOG_FILE = _LOG_DIR / "xiaoman.log"
+_LOG_FILE = _LOG_DIR / "moneyhelper.log"
 _ROTATE_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 _ROTATE_BACKUP_COUNT = 3
 _FMT = "%(asctime)s  %(levelname)-7s  %(name)s  %(message)s"
@@ -89,9 +89,9 @@ def _configure_root() -> None:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """模块级 logger，统一前缀 xiaoman.<module>。"""
+    """模块级 logger，统一前缀 moneyhelper.<module>。"""
     _configure_root()
-    logger_name = name if name.startswith("xiaoman") else f"xiaoman.{name}"
+    logger_name = name if name.startswith("moneyhelper") else f"moneyhelper.{name}"
     return logging.getLogger(logger_name)
 
 

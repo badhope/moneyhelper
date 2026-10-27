@@ -1,5 +1,5 @@
 """in-memory 滑动窗口限流的行为测：直接测 _rate_limit_check 纯函数（模块内 helper），
-不依赖 HTTP 层，避免 conftest 全局禁用（XIAOMAN_DISABLE_RATE_LIMIT=1）让限流行为失效。
+不依赖 HTTP 层，避免 conftest 全局禁用（MONEYHELPER_DISABLE_RATE_LIMIT=1）让限流行为失效。
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from app.middleware import _rate_limit_check
 
 @pytest.fixture(autouse=True)
 def _enable_and_fresh_bucket(monkeypatch):
-    """conftest 为跑全量已置 XIAOMAN_DISABLE_RATE_LIMIT=1 把本模块也关掉了。
+    """conftest 为跑全量已置 MONEYHELPER_DISABLE_RATE_LIMIT=1 把本模块也关掉了。
     限流行为测上需要强制开 + 清空 _rate_buckets，保证单测独立可复现。"""
     from app import middleware as mw
 

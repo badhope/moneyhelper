@@ -1,4 +1,4 @@
-"""小满 · 个人理财多智能体后端。"""
+"""Moneyhelper · 个人理财多智能体后端。"""
 
 import os
 import warnings as _warnings

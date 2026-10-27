@@ -1,15 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller 打包配置：小满单文件可执行程序。
+"""PyInstaller 打包配置：Moneyhelper 单文件可执行程序。
 
 用法（在 backend/ 下）：
     ..\\frontend> npm run build        # 先构建前端
     cd ..\\backend
     .venv\\Scripts\\python -m pip install pyinstaller
-    .venv\\Scripts\\pyinstaller xiaoman.spec
+    .venv\\Scripts\\pyinstaller moneyhelper.spec
 
-产物：dist/xiaoman(.exe) —— 双击启动后端并自动打开浏览器。
+产物：dist/moneyhelper(.exe) —— 双击启动后端并自动打开浏览器。
 
-数据目录：默认 ~/.xiaoman（见 run.py），删掉可执行文件不影响数据。
+数据目录：默认 ~/.moneyhelper（见 run.py），删掉可执行文件不影响数据。
 """
 
 import re
@@ -37,7 +37,7 @@ _VERSION_INFO.write_text(
     f"""VSVersionInfo(
   ffi=FixedFileInfo(filevers=({_v[0]}, {_v[1]}, {_v[2]}, {_v[3]}), prodvers=({_v[0]}, {_v[1]}, {_v[2]}, {_v[3]}), mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
   kids=[
-    StringFileInfo([StringTable('080404b0', [StringStruct('CompanyName', 'Xiaoman Contributors'), StringStruct('FileDescription', 'Xiaoman - local-first personal finance agent'), StringStruct('FileVersion', '{APP_VERSION}'), StringStruct('InternalName', 'xiaoman'), StringStruct('OriginalFilename', 'xiaoman.exe'), StringStruct('ProductName', 'Xiaoman'), StringStruct('ProductVersion', '{APP_VERSION}')])]),
+    StringFileInfo([StringTable('080404b0', [StringStruct('CompanyName', 'Moneyhelper Contributors'), StringStruct('FileDescription', 'Moneyhelper - local-first personal finance agent'), StringStruct('FileVersion', '{APP_VERSION}'), StringStruct('InternalName', 'moneyhelper'), StringStruct('OriginalFilename', 'moneyhelper.exe'), StringStruct('ProductName', 'Moneyhelper'), StringStruct('ProductVersion', '{APP_VERSION}')])]),
     VarFileInfo([VarStruct('Translation', [2052, 1200])])
   ]
 )
@@ -145,7 +145,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="xiaoman",
+    name="moneyhelper",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

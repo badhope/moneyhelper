@@ -3,12 +3,8 @@
 - **启动脚本自动适配**：`scripts/dev.sh`、`scripts/lint.sh`、`scripts/e2e-backend.sh`、`deploy/one-click.sh` 会探测 `backend/.venv/Scripts/python.exe`（Windows）或 `backend/.venv/bin/python`（Unix），并按 `python3 → python → py` 回退。
 - **Windows 双击启动**：`start.bat` 自动创建 venv、安装依赖、开两个控制台窗口；`start.bat --prod` 构建前端后单端口运行。
 - **换行符**：`.gitattributes` 固定 `.bat/.cmd/.ps1` 为 CRLF、`.sh` 为 LF。用 Windows 编辑器改脚本时不要顺手改成 CRLF，否则 Linux 侧会报 `bad interpreter`。
-- **文件名大小写**：仓库同时存在 `docs/ARCHITECTURE.md` 与 `docs/architecture.md`。Windows 默认大小写不敏感，克隆后只会落一个文件并显示"已修改"。如需完整还原，对 `docs/` 启用目录级大小写敏感：
-  ```powershell
-  fsutil file setCaseSensitiveInfo docs enable
-  ```
-  然后用 `git checkout -- docs/` 重新检出。
-- **路径**：数据库与备份路径全部经 `Path` 处理，支持 Windows 盘符、UNC 与 Linux 绝对路径；`XIAOMAN_DB_PATH` 为相对路径时按启动目录解析。
+- **文件名大小写**：仓库内不再存在仅大小写不同的同名文件（`ARCHITECTURE-detail.md` / `architecture.md`），Windows 克隆不会出现"已修改"假象。
+- **路径**：数据库与备份路径全部经 `Path` 处理，支持 Windows 盘符、UNC 与 Linux 绝对路径；`MONEYHELPER_DB_PATH` 为相对路径时按启动目录解析。
 
 # 部署配置指南
 
@@ -38,7 +34,7 @@ cd frontend && npm run build                  # 生产模式：构建后由后�
 docker compose up -d --build     # http://<服务器IP>:8787
 ```
 
-- 服务名 `xiaoman`，同端口 8787；数据卷 `xiaoman-data` 挂载 `/app/backend/data`（SQLite + 备份包持久化）。
+- 服务名 `moneyhelper`，同端口 8787；数据卷 `moneyhelper-data` 挂载 `/app/backend/data`（SQLite + 备份包持久化）。
 - 环境变量经 `docker-compose.yml` 透传：`API_TOKEN` / `ALLOWED_HOSTS` / `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`，也可全部留空、启动后在应用内设置页配置 AI。
 - 健康检查：`/api/health`，30s 间隔，失败自动重启（`restart: unless-stopped`）。
 

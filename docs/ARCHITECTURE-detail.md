@@ -1,4 +1,4 @@
-# 小满 Xiaoman — 系统架构文档
+# Moneyhelper — 系统架构文档
 
 ## 一句话定位
 

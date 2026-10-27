@@ -27,20 +27,20 @@ jobs:
         include:
           - os: windows-latest
             name: Windows x64
-            artifact: xiaoman-windows-x64
-            binary: xiaoman.exe
-            # Release 上的文件名：三平台必须不同，否则 Linux/macOS 都叫 xiaoman 会互相覆盖
-            asset: xiaoman-windows-x64.exe
+            artifact: moneyhelper-windows-x64
+            binary: moneyhelper.exe
+            # Release 上的文件名：三平台必须不同，否则 Linux/macOS 都叫 moneyhelper 会互相覆盖
+            asset: moneyhelper-windows-x64.exe
           - os: macos-latest
             name: macOS arm64
-            artifact: xiaoman-macos-arm64
-            binary: xiaoman
-            asset: xiaoman-macos-arm64
+            artifact: moneyhelper-macos-arm64
+            binary: moneyhelper
+            asset: moneyhelper-macos-arm64
           - os: ubuntu-latest
             name: Linux x64
-            artifact: xiaoman-linux-x64
-            binary: xiaoman
-            asset: xiaoman-linux-x64
+            artifact: moneyhelper-linux-x64
+            binary: moneyhelper
+            asset: moneyhelper-linux-x64
     steps:
       - uses: actions/checkout@v4
 
@@ -70,7 +70,7 @@ jobs:
 
       - name: 打包单文件
         working-directory: backend
-        run: pyinstaller xiaoman.spec --noconfirm --distpath dist --workpath build
+        run: pyinstaller moneyhelper.spec --noconfirm --distpath dist --workpath build
 
       - name: 冒烟测试（产物能启动并响应健康检查）
         shell: bash
@@ -85,7 +85,7 @@ jobs:
             sleep 2
           done
           # Windows 上 $PID 是 bash 包装进程，PyInstaller 单文件启动的真实进程是子进程，
-          # 只 kill $PID 会让 xiaoman.exe 继续占用文件，后续重命名/上传必然失败。
+          # 只 kill $PID 会让 moneyhelper.exe 继续占用文件，后续重命名/上传必然失败。
           kill $PID 2>/dev/null || true
           if command -v taskkill >/dev/null 2>&1; then
             taskkill //F //IM "${{ matrix.binary }}" >/dev/null 2>&1 || true

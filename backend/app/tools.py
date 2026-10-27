@@ -21,6 +21,17 @@ from typing import Any
 import httpx
 
 from . import analysis, backup, db, nlparse, scheduler, tool_schemas
+from .calculations import (
+    backtest_text,
+    estimate,
+    fee_for,
+    ranking,
+    run_backtest,
+    team_summary,
+    technical_analysis,
+    trend_text,
+    validate_trade,
+)
 from .db._core import data_dir
 from .logging_utils import get_logger
 from .provenance import record_provenance
@@ -31,7 +42,7 @@ _action_log = get_logger("tools.action")
 
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
 
-# 备份包与数据库同目录（默认 backend/data，Docker 卷 xiaoman-data），
+# 备份包与数据库同目录（默认 backend/data，Docker 卷 moneyhelper-data），
 # 容器重建不丢；路径本身不落库。
 BACKUP_DIR = data_dir() / "backups"
 
@@ -238,6 +249,275 @@ async def tool_get_kline(args: dict[str, Any]) -> str:
     ]
     return json.dumps(
         {"symbol": symbol, "period": period, "source": data["source"], "points": points},
+        ensure_ascii=False,
+    )
+
+
+async def tool_research_analyze(args: dict[str, Any]) -> str:
+    """技术面研报：MA/MACD/RSI/BOLL/KDJ 指标快照 + 信号 + 多空倾向 + 文字结论。
+
+    参数：symbol（6 位代码），period（daily/weekly/monthly），limit（取数根数，默认 180）。
+    """
+    symbol = str(args.get("symbol") or "").strip()
+    if not symbol:
+        return "缺少 symbol 参数"
+    period = str(args.get("period") or "daily").strip()
+    try:
+        limit = max(60, min(int(args.get("limit") or 180), 500))
+    except (TypeError, ValueError):
+        limit = 180
+    data = await fetch_kline(symbol, period, limit)
+    if not data:
+        return f"无法获取 {symbol} 的行情（可能不是 A 股/ETF 代码，或行情源不可用）"
+    ta = technical_analysis(data["points"])
+    if ta is None:
+        return f"{symbol} 历史数据不足 20 根，无法给出技术分析"
+    return json.dumps(
+        {
+            "symbol": symbol,
+            "period": period,
+            "point_count": ta["point_count"],
+            "last": ta["last"],
+            "bias": ta["bias"],
+            "signals": ta["signals"][-8:],
+            "conclusion": trend_text(ta, "zh"),
+            "disclaimer": "技术面分析仅基于历史行情统计，不构成投资建议。",
+        },
+        ensure_ascii=False,
+    )
+
+
+async def tool_research_backtest(args: dict[str, Any]) -> str:
+    """策略回测：双均线（ma_cross）或定投（dca），输出收益/回撤/夏普/胜率/资金曲线要点。
+
+    参数：symbol（6 位代码），strategy（ma_cross/dca），fast/slow（均线周期）、
+    invest_amount/freq_days（定投金额与间隔）。
+    """
+    symbol = str(args.get("symbol") or "").strip()
+    if not symbol:
+        return "缺少 symbol 参数"
+    strategy = str(args.get("strategy") or "ma_cross").strip()
+    if strategy not in ("ma_cross", "dca"):
+        return "strategy 仅支持 ma_cross / dca"
+    try:
+        fast = max(2, min(int(args.get("fast") or 5), 60))
+        slow = max(5, min(int(args.get("slow") or 20), 120))
+        invest_amount = max(1.0, float(args.get("invest_amount") or 1000.0))
+        freq_days = max(1, min(int(args.get("freq_days") or 5), 60))
+    except (TypeError, ValueError):
+        return "回测参数非法"
+    data = await fetch_kline(symbol, "daily", 750)
+    if not data:
+        return f"无法获取 {symbol} 的行情（可能不是 A 股/ETF 代码，或行情源不可用）"
+    points = data["points"]
+    closes = [float(p["close"]) for p in points if p.get("close") is not None]
+    dates = [p.get("date", "") for p in points]
+    if len(closes) < 60:
+        return f"{symbol} 历史数据不足 60 根，无法回测"
+    result = (
+        run_backtest(closes, dates, "ma_cross", fast=fast, slow=slow)
+        if strategy == "ma_cross"
+        else run_backtest(closes, dates, "dca", invest_amount=invest_amount, freq_days=freq_days)
+    )
+    if result is None:
+        return f"{symbol} 历史数据不足，无法回测"
+    return json.dumps(
+        {
+            "symbol": symbol,
+            "strategy": strategy,
+            "result": {
+                k: v
+                for k, v in result.items()
+                if k not in ("curve", "trades")  # 资金曲线太大，不进模型上下文
+            },
+            "conclusion": backtest_text(result, "zh"),
+            "disclaimer": "回测结果仅基于历史行情统计，不代表未来收益，不构成投资建议。",
+        },
+        ensure_ascii=False,
+    )
+
+
+async def tool_statements_analyze(args: dict[str, Any]) -> str:
+    """财报分析：输入标准化三表 JSON，输出 20+ 财务指标、杜邦拆解、异常预警与文字报告。
+
+    参数：payload = {company, currency, periods:[{period, balance_sheet, income_statement,
+    cashflow_statement}]}。字段缺失的指标会标注「数据不足」，不会编造数值。
+    """
+    payload = args.get("payload")
+    if not isinstance(payload, dict):
+        return "payload 必须是 JSON 对象"
+    from .calculations import analyze_statements
+
+    result = analyze_statements(payload)
+    if result is None:
+        return "财报数据无效：需要 periods 数组，且至少一期包含 balance_sheet / income_statement / cashflow_statement"
+    return json.dumps(
+        {
+            "company": result["company"],
+            "period_count": result["period_count"],
+            "latest": result["latest"],
+            "trends": {k: v for k, v in result["trends"].items() if k != "periods"},
+            "dupont": result["dupont"],
+            "alerts": result["alerts"],
+            "report": result["report_text"],
+            "disclaimer": "本报告为报表口径还原与规则引擎输出，不构成投资建议。",
+        },
+        ensure_ascii=False,
+    )
+
+
+async def tool_research_forecast(args: dict[str, Any]) -> str:
+    """统计预测：对某只 A 股/ETF 输出未来 N 期线性趋势、波动率与蒙特卡洛分位区间。
+
+    参数：symbol（6 位代码），period（daily/weekly/monthly），days（预测根数 1-60）。
+    输出为历史统计情景推演（固定随机种子可复现），不构成投资建议。
+    """
+    symbol = str(args.get("symbol") or "").strip()
+    if not symbol:
+        return "缺少 symbol 参数"
+    period = str(args.get("period") or "daily").strip()
+    if period not in ("daily", "weekly", "monthly"):
+        return "period 仅支持 daily / weekly / monthly"
+    try:
+        days = max(1, min(int(args.get("days") or 20), 60))
+    except (TypeError, ValueError):
+        days = 20
+    data = await fetch_kline(symbol, period, 750)
+    if not data:
+        return f"无法获取 {symbol} 的行情（可能不是 A 股/ETF 代码，或行情源不可用）"
+    closes = [float(p["close"]) for p in data["points"] if p.get("close") is not None]
+    dates = [p.get("date", "") for p in data["points"]]
+    if len(closes) < 30:
+        return f"{symbol} 历史数据不足 30 根，无法给出统计预测"
+    from .calculations import forecast, forecast_text
+
+    result = forecast(closes, dates=dates, horizon=days)
+    if result is None:
+        return f"{symbol} 历史数据不足，无法给出统计预测"
+    return json.dumps(
+        {
+            "symbol": symbol,
+            "period": period,
+            "horizon": result["horizon"],
+            "last_close": result["last_close"],
+            "bias": result["bias"],
+            "slope_pct": result["slope_pct"],
+            "vol_annual_pct": result["vol_annual_pct"],
+            "mean_reversion_pct": result["mean_reversion_pct"],
+            "band": {
+                "median": result["median"][-days:],
+                "p5": result["p5"][-days:],
+                "p95": result["p95"][-days:],
+            },
+            "conclusion": forecast_text(result, "zh"),
+            "disclaimer": "预测为统计情景推演，不构成投资建议。",
+        },
+        ensure_ascii=False,
+    )
+
+
+async def tool_paper_open(args: dict[str, Any]) -> str:
+    """团队模拟盘开户：为成员创建虚拟账户（独立初始资金）。"""
+    try:
+        acc = await db.open_account(
+            str(args.get("name") or "模拟账户"),
+            float(args.get("initial_cash") or 100000),
+        )
+    except ValueError as e:
+        return f"开户失败：{e}"
+    return json.dumps(
+        {
+            "ok": True,
+            "account_id": acc["account_id"],
+            "name": acc["name"],
+            "initial_cash": acc["initial_cash"],
+            "hint": "用 paper_trade 开始交易（买入需 100 股整手）",
+        },
+        ensure_ascii=False,
+    )
+
+
+async def tool_paper_trade(args: dict[str, Any]) -> str:
+    """团队模拟盘下单：买入/卖出，自动扣费、更新净值与排行。"""
+    account_id = str(args.get("account_id") or "").strip()
+    if not account_id:
+        return "缺少 account_id 参数"
+    acc = await db.get_account(account_id)
+    if not acc:
+        return f"账户 {account_id} 不存在（可用 paper_overview 查看账户列表）"
+    symbol = str(args.get("symbol") or "").strip().upper()
+    if not symbol.isdigit() or len(symbol) != 6:
+        return "symbol 必须是 6 位 A 股代码"
+    side = str(args.get("side") or "").strip()
+    try:
+        price = float(args.get("price") or 0)
+        shares = float(args.get("shares") or 0)
+    except (TypeError, ValueError):
+        return "price/shares 非法"
+    trades = await db.get_trades(account_id)
+    err = validate_trade(acc["initial_cash"], trades, side, symbol, price, shares)
+    if err:
+        return f"下单被拒：{err}"
+    amount = price * shares
+    fee = fee_for(side, amount)
+    await db.add_trade(
+        account_id,
+        {"symbol": symbol, "name": "", "side": side, "price": price, "shares": shares, "fee": fee},
+    )
+    est = estimate(acc["initial_cash"], await db.get_trades(account_id))
+    await db.save_snapshot(account_id, est["equity"], est["cash"], est["market_value"])
+    return json.dumps(
+        {
+            "ok": True,
+            "account_id": account_id,
+            "symbol": symbol,
+            "side": side,
+            "price": price,
+            "shares": shares,
+            "fee": fee,
+            "equity": est["equity"],
+            "cash": est["cash"],
+            "return_pct": est["return_pct"],
+            "holdings": est["holdings"][:8],
+            "disclaimer": "模拟盘数据不构成投资建议。",
+        },
+        ensure_ascii=False,
+    )
+
+
+async def tool_paper_overview(_args: dict[str, Any]) -> str:
+    """团队模拟盘总览：账户排行（收益率）、团队汇总、各账户持仓摘要。"""
+    accounts = await db.list_accounts()
+    if not accounts:
+        return json.dumps(
+            {"empty": True, "hint": "还没有模拟账户，可用 paper_open 开户"},
+            ensure_ascii=False,
+        )
+    enriched = []
+    for acc in accounts:
+        trades = await db.get_trades(acc["account_id"])
+        est = estimate(acc["initial_cash"], trades)
+        enriched.append(
+            {
+                "account_id": acc["account_id"],
+                "name": acc["name"],
+                "initial_cash": acc["initial_cash"],
+                "trade_count": len(trades),
+                "equity": est["equity"],
+                "return_pct": est["return_pct"],
+                "total_pnl": est["total_pnl"],
+                "position_count": est["position_count"],
+                "top_holdings": [h["symbol"] for h in est["holdings"][:3]],
+            }
+        )
+    ranked = ranking(enriched)
+    return json.dumps(
+        {
+            "ranking": ranked,
+            "summary": team_summary(ranked),
+            "valuation_source": "last_trade",
+            "disclaimer": "模拟盘数据不构成投资建议。",
+        },
         ensure_ascii=False,
     )
 
@@ -484,7 +764,7 @@ async def tool_get_fire_plan(_args: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 _SEARCH_URL = "https://searchapi.eastmoney.com/api/suggest/get"
-_SEARCH_HEADERS = {"User-Agent": "Mozilla/5.0 (xiaoman)", "Referer": "https://quote.eastmoney.com/"}
+_SEARCH_HEADERS = {"User-Agent": "Mozilla/5.0 (moneyhelper)", "Referer": "https://quote.eastmoney.com/"}
 
 
 async def tool_search_symbol(args: dict[str, Any]) -> str:
@@ -647,7 +927,7 @@ async def tool_backup_now(_args: dict[str, Any], lang: str = "zh") -> dict[str, 
     payload = backup.encrypt_export(data, passphrase)
     import datetime as _dt
 
-    path = BACKUP_DIR / f"xiaoman-backup-{_dt.datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+    path = BACKUP_DIR / f"moneyhelper-backup-{_dt.datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
     if lang != "zh":
@@ -845,6 +1125,20 @@ FINANCE_TOOL_NAMES: tuple[tuple[str, str], ...] = (
      "查定投计划与回测：每期金额、累计投入、持仓份额、成本线、当前盈亏、下一期扣款日。适合回答「我的定投赚了吗」「下次什么时候扣」。"),
     ("get_fire_plan",
      "计算 FIRE 进度：目标本金（年支出/提取率）、当前完成度、储蓄率、按复利估算的达成年限。适合回答「我什么时候能财务自由」「还要存多少」。"),
+    ("research_analyze",
+     "技术面研报：对某只 A 股/ETF 计算 MA/MACD/RSI/BOLL/KDJ 指标，输出多空倾向与规则信号。适合回答「帮我分析一下 XX 的技术面」「XX 现在该不该看」「XX 趋势如何」。"),
+    ("research_backtest",
+     "策略回测：对某只 A 股/ETF 跑双均线或定投策略的历史回测（收益/回撤/夏普/胜率）。适合回答「双均线策略在 XX 上表现如何」「定投 XX 划不划算」。"),
+    ("statements_analyze",
+     "财报分析：输入标准化三表 JSON，输出 20+ 财务指标、杜邦拆解、同比趋势与异常预警。适合用户提供公司财务数据时做深度分析。"),
+    ("research_forecast",
+     "统计预测：对某只 A 股/ETF 输出未来 N 期线性趋势、年化波动率与蒙特卡洛分位区间（固定种子可复现）。适合回答「XX 未来走势区间大概多少」「预测一下 XX 的价格带」。输出为统计情景推演，不是保证价位。"),
+    ("paper_open",
+     "团队模拟盘开户：为成员创建虚拟账户（独立初始资金）。适合「给小组开个模拟账户」「团队炒股开户」。"),
+    ("paper_trade",
+     "团队模拟盘下单：买入/卖出虚拟持仓（A股整手、含佣金与印花税），自动更新净值与团队排行。适合「模拟买入 600519 100 股」「帮我模拟卖出」。"),
+    ("paper_overview",
+     "团队模拟盘总览：账户收益率排行、团队汇总、各账户持仓摘要。适合「团队炒股战绩如何」「模拟盘谁跑得好」。"),
 )
 
 TOOLS: list[dict[str, Any]] = [
@@ -880,6 +1174,13 @@ TOOL_IMPL: dict[str, Any] = {
     "get_valuation": tool_get_valuation,
     "get_dca_plans": tool_get_dca_plans,
     "get_fire_plan": tool_get_fire_plan,
+    "research_analyze": tool_research_analyze,
+    "research_backtest": tool_research_backtest,
+    "statements_analyze": tool_statements_analyze,
+    "research_forecast": tool_research_forecast,
+    "paper_open": tool_paper_open,
+    "paper_trade": tool_paper_trade,
+    "paper_overview": tool_paper_overview,
 }
 
 # 工具返回体量上限：超过即截断（防止把整库明细喂给模型）

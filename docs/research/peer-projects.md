@@ -1,7 +1,7 @@
 # 个人理财 AI Agent 竞品调研报告
 
 > 调研日期: 2026-09-07
-> 研究目标: 对标 Xiaoman 项目 (LangGraph + FastAPI + React 19 + SQLite)，分析同赛道开源项目的技术方案、功能覆盖与差异化
+> 研究目标: 对标 Moneyhelper 项目 (LangGraph + FastAPI + React 19 + SQLite)，分析同赛道开源项目的技术方案、功能覆盖与差异化
 
 ---
 
@@ -50,7 +50,7 @@
 4. **7 个数据源带 failover**: FMP, Finnhub, yfinance, SEC EDGAR, Adanos, NewsAggregator, FX
 5. **设计哲学**: "Numbers are code-calculated. Narratives are LLM-assisted. Every output is provenance-tracked."
 
-**对 Xiaoman 的启示**: 该项目的"LLM 解读 + 代码计算职责分离"架构值得 Xiaoman 在财务分析模块借鉴。FinRobot 不做个人记账，专注买方研究流程，与 Xiaoman 的个人-中小商户定位形成互补。
+**对 Moneyhelper 的启示**: 该项目的"LLM 解读 + 代码计算职责分离"架构值得 Moneyhelper 在财务分析模块借鉴。FinRobot 不做个人记账，专注买方研究流程，与 Moneyhelper 的个人-中小商户定位形成互补。
 
 ---
 
@@ -81,7 +81,7 @@
 - 预算 + 关键比率(债务/收入、runway 等)
 - 投资追踪 + 退休规划
 
-**对 Xiaoman 的启示**: Maybe 走的是传统 SaaS 路线——AI 只是 Sidebar，不是核心 Agent 架构。Xiaoman 的 LangGraph Agent 编排在"智能化"维度明显更强，但 Maybe 在"金融产品完整性"(净值追踪、退休规划、家庭共享)上成熟度更高，值得功能对标。
+**对 Moneyhelper 的启示**: Maybe 走的是传统 SaaS 路线——AI 只是 Sidebar，不是核心 Agent 架构。Moneyhelper 的 LangGraph Agent 编排在"智能化"维度明显更强，但 Maybe 在"金融产品完整性"(净值追踪、退休规划、家庭共享)上成熟度更高，值得功能对标。
 
 ---
 
@@ -102,7 +102,7 @@
 - MIT 许可证
 - 极强工程化: CLAUDE.md/AGENTS.md/完整测试套件
 
-**对 Xiaoman 的启示**: 这是目前"AI × 个人记账"结合最务实的项目之一——不做花哨的 Agent 编排，而是用 LLM/OCR 能力解决"冷启动输入"这个最大痛点。Xiaoman 可以借鉴 SMS 解析作为导入手段之一，同时以 LangGraph Agent 提供 Hisabi 不具备的对话式记账能力。
+**对 Moneyhelper 的启示**: 这是目前"AI × 个人记账"结合最务实的项目之一——不做花哨的 Agent 编排，而是用 LLM/OCR 能力解决"冷启动输入"这个最大痛点。Moneyhelper 可以借鉴 SMS 解析作为导入手段之一，同时以 LangGraph Agent 提供 Hisabi 不具备的对话式记账能力。
 
 ---
 
@@ -128,13 +128,13 @@
 - 实时跨设备同步
 - 20+ 主题色 + 5 中性调色板 + 可调圆角
 
-**对 Xiaoman 的启示**: FinApp 展现了独立开发者能达到的最高工程化水准——组件化、E2E 测试、离线优先、PWA 全齐。但其不含 AI Agent(只有账号体系 + 记账 + 同步)。Xiaoman 的差异化在于用 Agent 驱动交互 + 风控/洞察，而 FinApp 在工程化上是参考标杆。另外 FinApp 使用 Supabase 而非 SQLite，更适合多设备同步场景。
+**对 Moneyhelper 的启示**: FinApp 展现了独立开发者能达到的最高工程化水准——组件化、E2E 测试、离线优先、PWA 全齐。但其不含 AI Agent(只有账号体系 + 记账 + 同步)。Moneyhelper 的差异化在于用 Agent 驱动交互 + 风控/洞察，而 FinApp 在工程化上是参考标杆。另外 FinApp 使用 Supabase 而非 SQLite，更适合多设备同步场景。
 
 ---
 
 ## 三、功能矩阵对比
 
-| 功能维度 | Xiaoman | Maybe | Firefly III | Actual | FinRobot | Hisabi | FinApp | Ghostfolio | Fincept |
+| 功能维度 | Moneyhelper | Maybe | Firefly III | Actual | FinRobot | Hisabi | FinApp | Ghostfolio | Fincept |
 |----------|---------|-------|-------------|--------|----------|--------|--------|------------|---------|
 | **基础记账** | Agent 对话 | 手动+规则 | 手动+规则 | 手动+规则 | ✗ | SMS+手动 | 手动 | ✗ | ✗ |
 | **AI 对话交互** | LangGPT 编排 | Sidebar Chat | ✗ | 第三方实现 | 多Agent端到端 | ✗ | ✗ | ✗ | 37个专业Agent |
@@ -164,7 +164,7 @@
 - 架构: 传统 CRUD 应用 + LLM API 直连调用
 - 优点: 改动小、上线快
 - 缺点: Agent 能力受限，无法真正"操作"数据
-- Xiaoman 差异: Xiaoman 是 Agent-native 而非 CRUD+Chat 附加
+- Moneyhelper 差异: Moneyhelper 是 Agent-native 而非 CRUD+Chat 附加
 
 ### 范式 2: 多 Agent 专业编排式
 - 代表: FinRobot
@@ -172,7 +172,7 @@
 - 架构: Lead Agent → Pipeline Agents + Debate Agents
 - 优点: 真正的 Agentic 能力，适合复杂推理任务
 - 缺点: 系统复杂度高、LLM 调用成本大
-- Xiaoman 差异: Xiaoman 也可采用类似模式，记账/分析/预算各司其职
+- Moneyhelper 差异: Moneyhelper 也可采用类似模式，记账/分析/预算各司其职
 
 ### 范式 3: MCP 协议网关式
 - 代表: Money Manager MCP, 金融数据 MCP 服务, Fincept Terminal
@@ -180,7 +180,7 @@
 - 架构: 数据层 → MCP Server → 外部 Agent (Claude/Codex/自定义)
 - 优点: 零前端成本，复用大厂 Agent 生态
 - 缺点: 用户体验完全取决于外部 Agent
-- Xiaoman 差异: Xiaoman 应考虑提供 MCP Server 接口被其他 Agent 调用
+- Moneyhelper 差异: Moneyhelper 应考虑提供 MCP Server 接口被其他 Agent 调用
 
 ### 范式 4: 纯前端 + 本地存储极简式
 - 代表: Actual Budget, Paisa, FinApp(部分)
@@ -188,7 +188,7 @@
 - 架构: Electron/PWA + 本地文件/SQLite + 可选同步
 - 优点: 隐私最强、离线可用、零部署
 - 缺点: 跨设备同步需自行搭建
-- Xiaoman 差异: Xiaoman 有 FastAPI 后端，适合多用户/多设备
+- Moneyhelper 差异: Moneyhelper 有 FastAPI 后端，适合多用户/多设备
 
 ### 范式 5: LLM + 确定性计算职责分离式
 - 代表: FinRobot
@@ -196,15 +196,15 @@
 - 架构: Compute Engine (纯代码) → LLM Narrator → Provenance Tracker
 - 优点: 金融计算零幻觉、结果可审计可追溯
 - 缺点: 工程门槛高
-- Xiaoman 差异: Xiaoman 在记账/报表/风控等场景应严格遵循此范式
+- Moneyhelper 差异: Moneyhelper 在记账/报表/风控等场景应严格遵循此范式
 
 ---
 
-## 五、与 Xiaoman 的差异点分析
+## 五、与 Moneyhelper 的差异点分析
 
 ### 5.1 定位差异
 
-| 维度 | Xiaoman | 竞品主流定位 |
+| 维度 | Moneyhelper | 竞品主流定位 |
 |------|---------|-------------|
 | **目标用户** | 个人+中小商户混合 | 纯个人(FinApp/Actual) / 纯机构(FinRobot) |
 | **交互范式** | Agent 对话驱动 | 传统 CRUD + Sidebar Chat |
@@ -213,24 +213,24 @@
 
 ### 5.2 Xaioman 的相对优势
 
-1. **Agent-native 架构**: Xiaoman 从第一天就用 LangGraph 编排 Agent，不是事后补 Sidebar
+1. **Agent-native 架构**: Moneyhelper 从第一天就用 LangGraph 编排 Agent，不是事后补 Sidebar
 2. **技术栈极度现代化**: React 19 + FastAPI + LangGraph 是当时市面上最前沿的组合
 3. **LangGraph 独特编排能力**: Human-in-the-loop、Checkpoint、Durable Execution 天然适合需要用户确认的记账场景
 4. **LangSmith 原生调试**: 解决了"Agent 做了什么为什么这么做"的审计需求
 
-### 5.3 Xiaoman 的相对劣势/空缺
+### 5.3 Moneyhelper 的相对劣势/空缺
 
-1. **金融产品完整性不足**: 竞品在净值追踪、退休规划、规则引擎上积累多年，Xiaoman 从零开始
-2. **缺乏银行连接/数据导入**: Hisabi 的 SMS 解析、FinRobots 的数据源都是 Xiaoman 缺失的
-3. **可视化与报告**: Recharts(竞品普遍用)、Chart.js、AntV-S2 等图表库生态 Xiaoman 尚未充分利用
-4. **离线/移动端**: FinApp 的 PWA + PowerSync 方案、Actual 的本地优先，Xiaoman 尚未规划
+1. **金融产品完整性不足**: 竞品在净值追踪、退休规划、规则引擎上积累多年，Moneyhelper 从零开始
+2. **缺乏银行连接/数据导入**: Hisabi 的 SMS 解析、FinRobots 的数据源都是 Moneyhelper 缺失的
+3. **可视化与报告**: Recharts(竞品普遍用)、Chart.js、AntV-S2 等图表库生态 Moneyhelper 尚未充分利用
+4. **离线/移动端**: FinApp 的 PWA + PowerSync 方案、Actual 的本地优先，Moneyhelper 尚未规划
 5. **确定性计算与 LLM 职责分离**: FinRobot 的"代码算数 + LLM 叙述"范式的缺失会导致财务风控模块可信度打折扣
-6. **MCP 集成**: Money Manager MCP 项目证明了个人记账 MCP 协议的市场需求，Xiaoman 缺失此接口
-7. **测试覆盖**: FinApp 有 Vitest + Playwright E2E，Hisabi 有 PHPUnit + Jest，Xiaoman 的测试体系需对标
+6. **MCP 集成**: Money Manager MCP 项目证明了个人记账 MCP 协议的市场需求，Moneyhelper 缺失此接口
+7. **测试覆盖**: FinApp 有 Vitest + Playwright E2E，Hisabi 有 PHPUnit + Jest，Moneyhelper 的测试体系需对标
 
 ### 5.4 竞品中值得直接采用的成熟方案
 
-| 方案 | 来源 | 对 Xiaoman 的价值 |
+| 方案 | 来源 | 对 Moneyhelper 的价值 |
 |------|------|-------------------|
 | SMS 解析自动记账 | Hisabi | 冷启动输入痛点解法 |
 | LLM 解释 + 代码计算职责分离 | FinRobot | 防止风控/报表模块幻觉 |
@@ -252,12 +252,12 @@
 4. **MCP 是必争之地**: 至少 12 个 MCP 金融/个人理财相关服务在 2025 年注册，说明 Agent ↔ 数据层的标准协议已成共识
 5. **SMS/自动导入是所有项目的输入瓶颈**: 无论技术栈多先进，第一步永远是"如何让交易数据进入系统"，SMS/OCR/开放银行 API 是最务实解法
 
-### 对 Xiaoman 的建议
+### 对 Moneyhelper 的建议
 
-1. **坚持 Agent-native 定位不动摇**: 这是最大的差异化。竞品全是 CRUD+AI 附加，Xiaoman 是唯一从交互范式上做 Agent-first 的
+1. **坚持 Agent-native 定位不动摇**: 这是最大的差异化。竞品全是 CRUD+AI 附加，Moneyhelper 是唯一从交互范式上做 Agent-first 的
 2. **补强金融产品深度**: 对标 Maybe 的净值追踪、Firefly III 的规则引擎、FinApp 的 PWA 同步，这些是用户选择记账软件时的硬指标
 3. **建立"代码算风控 + LLM 出解读"范式**: 风控/合规/报表模块绝对不能纯 LLM，必须有确定性兜底
-4. **做 MCP Server 双模**: 既做独立 Web 产品，也发布 MCP Server 让 Claude/Codex 用户直接调用 Xiaoman 的服务
+4. **做 MCP Server 双模**: 既做独立 Web 产品，也发布 MCP Server 让 Claude/Codex 用户直接调用 Moneyhelper 的服务
 5. **优先补齐数据导入**: 微信/支付宝导出解析、银行卡 SMS 解析、发票 OCR，解决冷启动问题
 6. **参考 Hisabi + FinApp 的 UI 工程化**: Radix UI/shadcn/ui + Tailwind + 组件目录结构，确保前端不低于竞品水准
 
@@ -277,4 +277,4 @@
 
 ---
 
-> **结论**: 在个人理财 AI Agent 开源赛道中，Xiaoman 处于一个有利的差异化位置——竞品要么没有 AI Agent(Actual/Firefly/FinApp)，要么只是 Sidebar Chat(Maybe/Fincept)，真正的 Agentic 金融应用(FinRobot)只做机构市场不做个人/中小商户。Xiaoman 需要补齐的是金融产品深度、数据导入和 UI 工程化，而非重新思考 Agent 架构方向。
+> **结论**: 在个人理财 AI Agent 开源赛道中，Moneyhelper 处于一个有利的差异化位置——竞品要么没有 AI Agent(Actual/Firefly/FinApp)，要么只是 Sidebar Chat(Maybe/Fincept)，真正的 Agentic 金融应用(FinRobot)只做机构市场不做个人/中小商户。Moneyhelper 需要补齐的是金融产品深度、数据导入和 UI 工程化，而非重新思考 Agent 架构方向。

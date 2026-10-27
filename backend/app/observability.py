@@ -13,18 +13,18 @@
 
 from __future__ import annotations
 
-import os
 import time
 from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+from .compat_env import getenv
 from .logging_utils import get_logger
 
 log = get_logger(__name__)
 
-_SLOW_MS = int(os.getenv("XIAOMAN_SLOW_MS", "5000"))
+_SLOW_MS = int(getenv("MONEYHELPER_SLOW_MS", "5000"))
 
 # label -> [count, total_ms, max_ms, error_count]
 _stats: dict[str, list[float]] = defaultdict(lambda: [0, 0.0, 0.0, 0])

@@ -1,14 +1,14 @@
-# xiaoman 总体规划（完整版 · 历史规划快照）
+# moneyhelper 总体规划（完整版 · 历史规划快照）
 
 > **历史快照声明**
 >
 > 本文档是 **2026-10-17** 的规划快照，用于保留当时的判断依据与拆分思路，**不是当前执行依据**。
 > 当前进度与「还剩什么」一律以 [PROGRESS.md](PROGRESS.md)（唯一进度真源）为准。
-> 第二节的模块拆分蓝图已在 M1 落地（`xiaoman/{core,server,cli,mcp}` 门面包 + `backend/app/` 分域），
+> 第二节的模块拆分蓝图已在 M1 落地（`moneyhelper/{core,server,cli,mcp}` 门面包 + `backend/app/` 分域），
 > 本文其他已完成项也不再回改，避免历史文档与现状互相矛盾。
 >
 > 现状拓扑（2026-10 更新）：本地 remote 为 **origin=GitCode badhope**、**gitee=Gitee badhope**、**gh-api=GitHub badhope**；
-> 另两个 GitHub 镜像仓（Morningstar202604/xiaoman、X33834/xiaoman）不入 remote，CI 只同步 tag（`release.yml` 的 mirror-tags）；
+> 另两个 GitHub 镜像仓（Morningstar202604/moneyhelper、X33834/moneyhelper）不入 remote，CI 只同步 tag（`release.yml` 的 mirror-tags）；
 > 需要时由 `scripts/push-all.sh` 按 URL 直推 main + tags（本地一键脚本共 5 个目标，GitHub 三仓走本机代理）。
 
 ## 〇、定位修正（响应共识 6）
@@ -26,12 +26,12 @@
 - ✅ 本地 remote：origin=GitCode/badhope、gitee=Gitee/badhope、gh-api=GitHub/badhope
 - ✅ `.github/workflows/mirror-sync.yml` 在 GitHub 主仓 push 后自动镜像 GitCode + Gitee
 - ✅ `scripts/push-all.sh` 本地一键推 main + tags 到 5 个远端（GitHub 三仓 + GitCode + Gitee）
-- ✅ GitHub 镜像仓 Morningstar202604/xiaoman、X33834/xiaoman 仅同步 tag（`release.yml` 的 mirror-tags job），不入 remote
+- ✅ GitHub 镜像仓 Morningstar202604/moneyhelper、X33834/moneyhelper 仅同步 tag（`release.yml` 的 mirror-tags job），不入 remote
 - 计划：semantic-release 版本管理（conventional commits 已具备）→ tag 自动发 Release 附带 EXE 产物；changelog 自动生成
 
 ## 二、模块化架构（共识 2，改造蓝图）
 ```
-xiaoman/
+moneyhelper/
 ├── core/            # 纯 Python 核心包（无 FastAPI 依赖，可被任何壳复用）
 │   ├── ledger/      # 记账/事务/undo（拆自 db.py，按域分文件）
 │   ├── finance/     # calculations/* 确定性计算引擎（现成，原样归位）

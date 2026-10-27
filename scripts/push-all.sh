@@ -3,7 +3,7 @@
 #
 # 拓扑（2026-10 现状）：
 #   - 本地 remote：origin(GitCode) / gitee / gh-api(GitHub badhope)
-#   - GitHub 另两个镜像仓（Morningstar202604/xiaoman、X33834/xiaoman）不入 remote，按 URL 直推
+#   - GitHub 另两个镜像仓（Morningstar202604/moneyhelper、X33834/moneyhelper）不入 remote，按 URL 直推
 #   - GitHub 推送走本机代理 127.0.0.1:18888；代理不可达时明确报错并跳过该仓，不影响其他仓
 #
 # 凭据：从 ~/.zcode/secrets/accounts_cli.py env 读取，不写死在脚本里，也不打印。
@@ -64,7 +64,7 @@ if [ -n "$ONLY" ]; then
 fi
 
 # ---- 凭据：只注入当前 shell 环境，不回显 ----------------------------------
-ACCOUNTS_CLI="${XIAOMAN_ACCOUNTS_CLI:-$HOME/.zcode/secrets/accounts_cli.py}"
+ACCOUNTS_CLI="${MONEYHELPER_ACCOUNTS_CLI:-$HOME/.zcode/secrets/accounts_cli.py}"
 PY=""
 for cand in python3 python py; do
   if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
@@ -85,11 +85,11 @@ fi
 build_url() {
   local name="$1" token="$2"
   case "$name" in
-    gitcode)     printf 'https://oauth2:%s@gitcode.com/badhope/xiaoman.git' "$token" ;;
-    gitee)       printf 'https://oauth2:%s@gitee.com/badhope/xiaoman.git' "$token" ;;
-    gh-api)      printf 'https://badhope:%s@github.com/badhope/xiaoman.git' "$token" ;;
-    morningstar) printf 'https://x-access-token:%s@github.com/Morningstar202604/xiaoman.git' "$token" ;;
-    x33834)      printf 'https://x33834:%s@github.com/X33834/xiaoman.git' "$token" ;;
+    gitcode)     printf 'https://oauth2:%s@gitcode.com/badhope/moneyhelper.git' "$token" ;;
+    gitee)       printf 'https://oauth2:%s@gitee.com/badhope/moneyhelper.git' "$token" ;;
+    gh-api)      printf 'https://badhope:%s@github.com/badhope/moneyhelper.git' "$token" ;;
+    morningstar) printf 'https://x-access-token:%s@github.com/Morningstar202604/moneyhelper.git' "$token" ;;
+    x33834)      printf 'https://x33834:%s@github.com/X33834/moneyhelper.git' "$token" ;;
   esac
 }
 

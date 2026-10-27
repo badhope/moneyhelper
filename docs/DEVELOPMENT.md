@@ -1,16 +1,16 @@
 # 开发指南（培训用）
 
-> 目标读者：第一次接触小满仓库的开发者/实习生。读完本指南，你应该能：**跑起来 → 看懂架构 → 改代码（加工具/加设置/加路由）→ 写测试 → 发版本**。
+> 目标读者：第一次接触 Moneyhelper 仓库的开发者/实习生。读完本指南，你应该能：**跑起来 → 看懂架构 → 改代码（加工具/加设置/加路由）→ 写测试 → 发版本**。
 
 ## 提交前检查
 
 ```bash
-./scripts/lint.sh                      # ruff（app/tests + xiaoman 两处，与 CI 一致）
+./scripts/lint.sh                      # ruff（app/tests + moneyhelper 两处，与 CI 一致）
 cd backend && .venv/bin/python -m pytest tests -q
 cd frontend && npx tsc --noEmit && npx vitest run
 ```
 
-`scripts/lint.sh` 存在的意义：CI 查两处（`backend/app`+`tests` 与根目录 `xiaoman/`），
+`scripts/lint.sh` 存在的意义：CI 查两处（`backend/app`+`tests` 与根目录 `moneyhelper/`），
 本地只跑一处会漏。历史上漏过一次，CI 才报出来。
 
 ## 0. 一次跑通（10 分钟）
@@ -125,9 +125,9 @@ cd frontend && npm run build                                   # tsc + vite
 git add -A && git commit -m "feat: xxx"
 git tag v1.0.0 && git push origin main --tags
 # 4) 多平台发布（示例）
-git push https://<user>:<token>@gitcode.com/<org>/xiaoman.git main --tags
-git push https://<user>:<token>@gitee.com/<org>/xiaoman.git main --tags
-git push https://<user>:<token>@github.com/<org>/xiaoman.git main --tags
+git push https://<user>:<token>@gitcode.com/<org>/moneyhelper.git main --tags
+git push https://<user>:<token>@gitee.com/<org>/moneyhelper.git main --tags
+git push https://<user>:<token>@github.com/<org>/moneyhelper.git main --tags
 ```
 
 ## 8. 设计约束速查（评审代码时对照）

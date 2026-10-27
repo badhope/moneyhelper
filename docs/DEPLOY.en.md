@@ -26,7 +26,7 @@ One-click: `scripts/dev.sh` at the repo root (backend 8788 + frontend dev 5198, 
 docker compose up -d --build     # http://<server-ip>:8787
 ```
 
-- Service name `xiaoman`, port 8787; volume `xiaoman-data` mounts `/app/backend/data` (SQLite + backups persist across restarts).
+- Service name `moneyhelper`, port 8787; volume `moneyhelper-data` mounts `/app/backend/data` (SQLite + backups persist across restarts).
 - Env passthrough via `docker-compose.yml`: `API_TOKEN` / `ALLOWED_HOSTS` / `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`. All optional — you can also configure AI inside the app after startup.
 - Health check: `/api/health` every 30s; auto-restart on failure (`restart: unless-stopped`).
 

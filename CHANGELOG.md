@@ -2,6 +2,126 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.2.0] - 2026-10-27（团队模拟盘：多成员炒股看板，事件溯源内核）
+
+> 延续 4.0/4.1 原则：**所有数字由代码重放算出，不是模型编的**。这次把「人」引进来——
+> 多成员虚拟账户、下单成交、持仓估值、团队排行、净值曲线，一套券商终端式看板。
+
+### 新增：团队模拟盘引擎（`app/calculations/paper.py`）
+
+**事件溯源设计**：账户只存开户参数（初始资金），持仓/现金/成本全部从交易记录**重放**得出——
+无状态漂移、可审计、可单测。删除/回滚一笔交易即回到对应时点。
+
+| 能力 | 内容 |
+|---|---|
+| 整手成交 | 买入按 100 股整数倍（`round_lots`），卖出可零股 |
+| A股费用口径 | 佣金双边 0.025%（最低 5 元）+ 卖出印花税 0.05% |
+| 加权成本 | 买入合并摊薄、卖出不变，盈亏/盈亏% 逐持仓给出 |
+| 估值降级 | 缺现价时用最后成交价并标注 `stale`（默认口径，下单时前端填现价） |
+| 团队汇总 | 资金加权收益率、总资产、总盈亏、活跃持仓数 |
+| 排行 | 收益率降序 + 净值兜底，纯函数可复现 |
+
+### 新增：持久化与 API（`app/db/paper.py`、`app/routes/paper.py`）
+
+- 三表：`paper_accounts` / `paper_trades` / `paper_snapshots`（租户隔离，已注册 `_TENANT_TABLES`）
+- 上限治理：每团队 12 账户、单账户 500 笔；快照按日幂等 upsert（净值曲线存档）
+- 六端点：`GET/POST /api/paper/accounts`、`DELETE /api/paper/accounts/{aid}`、
+  `GET /api/paper/accounts/{aid}`（估值+净值曲线+最近交易）、
+  `POST /api/paper/accounts/{aid}/trades`（引擎校验→手续费→落库→当日快照）、
+  `POST .../snapshot`（手动存档）
+- agent/MCP 工具 ×3：`paper_open` / `paper_trade` / `paper_overview`（工具总数 34）
+
+### 新增：前端「模拟盘」工作台（导航第 9 tab，券商终端式看板）
+
+- **团队摘要条**：账户数 / 总资产 / 总收益 / 团队收益率 / 活跃持仓
+- **排行条形图**：成员收益率横向 bar（A 股红涨绿跌、正负分色）+ 明细行（排名/资产/盈亏/持仓）
+- **账户详情**：净值曲线（对 1.0 基准）+ 持仓市值 donut 饼图 + 持仓盈亏表 + 最近 20 笔交易表
+- **交易表单**：买/卖切换（红买绿卖）、代码/现价/股数、整手与现金不足即时校验、佣金+印花税费用预估、成交后自动刷新净值与排行
+- **开户表单**：成员名 + 初始资金（≥1000），一键入队；删除账户连同交易/快照级联清理
+- 图表全部走 `useEChart` / `useCandleColors` / `usePalette` 共享基建，深色模式与红涨绿跌方案即时换色
+
+### 验证
+
+- 后端：引擎 19 项单测 + API 集成测试（开户→下单→排行→详情→删除全链路、400/404 分支），全量回归通过
+- 前端：tsc 类型检查、vitest 111 passed、vite build 绿
+- 版本 4.2.0 三处同步（`version.py` / `pyproject.toml` / `package.json`）
+
+## [4.1.0] - 2026-10-26（投研深化：统计预测 + 财报可视化增强）
+
+> 延续 4.0 原则：**确定性计算 + 可复核输出**，预测也交给统计引擎而非模型猜。
+
+### 新增：价格统计预测引擎（`app/calculations/forecast.py`）
+
+| 能力 | 内容 |
+|---|---|
+| 线性趋势 | 最小二乘回归外推未来 N 期（斜率方向 → 偏多/偏空/中性） |
+| 波动率 | 对数收益率年化波动率（√252），区间宽度随波动率放大 |
+| 蒙特卡洛 GBM | 固定种子（42）可复现，2000 条路径 → 中值 + 5%/95% 分位区间带 |
+| 均值回归 | 当前价相对 20 日均线偏离 %，偏离 ≥5% 提示回归倾向 |
+| 结论 | 模板化中文说明（统计情景推演 + 免责声明），无需模型 |
+
+新增端点 `/api/research/forecast`；agent/MCP 工具 `research_forecast`（工具总数 31）。
+
+### 新增：财报分析增强
+
+- `trends.cashflow_stack`：经营 / 投资 / 筹资三流序列（供前端堆叠柱图与现金净增加额汇总）
+- 每期原始三流随 `periods[].cashflow` 返回，多期对比可直接落表
+
+### 前端深化（金融可视化）
+
+- **投研页**：K 线蜡烛改 **A 股红涨绿跌**（跟随全局颜色方案，us 模式自动反转）；日/周/月周期切换；缩放重置按钮；新增「价格统计预测」面板（趋势线 + 中值 + 5%-95% 区间带 + 四项指标）；回测参数可调（双均线快/慢线、定投金额/间隔）；双均线交易回合明细表
+- **财报页**：现金流三流堆叠柱图 + 现金净增加额汇总；杜邦拆解条图（三因子 × → ROE，缺因子标注）；多期指标对比明细表（14 项指标 × 各期，同比/现金流着色）
+- 新增共享 hook `useCandleColors`（解析 `--color-up/--color-down`，方案切换即时换色）
+
+### 测试与修复
+
+- 新增 `tests/test_forecast.py`（18 项：趋势/波动率/GBM 可复现/区间带/文本）+ API 用例
+- 修复 `test_secrets.py` 超时：改用 `git ls-files` 只扫代码树（语义更贴合，避开 node_modules 海量遍历）
+
+## [4.0.0] - 2026-10-26（财务智能体工作台：投研 + 财报分析）
+
+> 定位升级：从「能管仓位的财务部门」变成「**垂直财务智能体工作台**」——对话只是入口，
+> 八个页签整页切换，每页都是「指标条 + 图表 + 明细表」的决策看板。
+> 新增两个垂直引擎（投研 / 财报），延续 3.0.0 的原则：**确定性计算 + 可复核输出**。
+
+### 新增：股票投研引擎（`app/calculations/{technical,backtest}.py`）
+
+| 能力 | 内容 |
+|---|---|
+| 技术指标 | MA(5/10/20/60)、EMA、MACD(12/26/9)、RSI(14)、BOLL(20,2σ)、KDJ(9,3,3) |
+| 信号合成 | 规则引擎：MA 金叉死叉 / MACD 金叉死叉 / RSI 超买超卖 / 布林突破 / KDJ 金叉死叉 / 放量，带多空倾向聚合 |
+| 策略回测 | 双均线（MA5/20，含交易成本）、定投（固定间隔定额）；总收益、年化、最大回撤、夏普、胜率、盈亏比、资金曲线 vs 买入持有 |
+| 行情源 | 直接复用东财 K 线层（push2his 前复权），失败降级标注原因，不 500 |
+
+新增 REST 端点：`/api/research/{analyze,backtest,overview}`；3 个 agent/MCP 工具
+（`research_analyze` / `research_backtest` / `statements_analyze`）。
+
+### 新增：财报分析引擎（`app/calculations/financial_statements.py`）
+
+| 能力 | 内容 |
+|---|---|
+| 指标 | 20+：毛利率/净利率/营业利润率/ROE/ROA、资产负债率/流动比率/速动比率/利息保障倍数、三类周转率、经营现金流/净利润、现金营收比、同比成长 |
+| 杜邦拆解 | ROE = 净利率 × 总资产周转率 × 权益乘数，缺因子标注不完整 |
+| 异常预警 | 规则引擎：经营现金流为负、利润含金量低、商誉占比>20%、高杠杆、流动比率<1、毛利率骤降、应收/存货异常 |
+| 报告 | 模板化中文分析报告（确定性，无需模型） |
+| 持久化 | 三表 JSON 落本地库（financial_statements 表，租户隔离），可重新分析/删除 |
+
+新增 REST 端点：`/api/statements/{analyze, 保存, 列表, 详情, 删除}`。
+
+### 新增：前端投研页 + 财报分析页（可视化差异化）
+
+- **投研页**：现价条 → 技术指标卡 → 可缩放 K 线主图（蜡烛 + MA5/20/60 + 布林带切换，成交量副图）
+  → 信号流 → 策略回测（双均线/定投切换，指标条 + 资金曲线对比）；行情不可用逐块降级
+- **财报页**：三表 JSON 输入（一键载入示例）→ 四组指标卡 → 营收&净利/盈利比率/偿债/现金流趋势图
+  → 五维财务雷达图 → 预警流 → 报告文本 → 本地保存与重新分析
+- ECharts 按需注册新增 candlestick / dataZoom 模块；首屏包不含投研/财报代码（懒加载）
+
+### 文档与版本
+
+- README / README.zh 定位重写：明确「与通用智能体的区别」，对话入口 + 工作台主场
+- 国产模型优先表述（DeepSeek / 豆包 / 通义 / Kimi），弱化国外平台
+- 版本号 3.0.0 → 4.0.0（version.py 单一真源）
+
 ## [3.0.0] - 2026-10-24（投资策略引擎 + 可复核底稿 + 模型评测）
 
 > 定位升级：从"会记账的助手"变成"能管仓位的财务部门"。
@@ -71,7 +191,7 @@
 - 删除入库的 `frontend/coverage/`（48 个产物文件）与零引用的 `docs/demo/`（980KB 旧图）。
 - `scripts/push-all.sh` 重写：5 目标真实可用，支持 `--dry-run`/`--only`，
   凭据只从环境读取、打码输出。
-- README 补 Release/CI/Docker badge、30 秒上手、Why Xiaoman 对比、策略页截图；
+- README 补 Release/CI/Docker badge、30 秒上手、Why Moneyhelper 对比、策略页截图；
   测试数统一为真实值。
 - PROGRESS 同步到 3.0.0；ROADMAP-v3 标注为历史快照；三份旧审计文档加
   「历史快照，不代表当前状态」声明并归入「质量与审计（历史）」分组。
@@ -109,7 +229,7 @@
 ## [2.9.2] - 2026-10-23（收尾：体检页去重 + 浏览器启动开关 + 清理）
 
 - 体检页：下方维度卡不再重复「建议」（上方「优先处理」已列出），只保留现状描述。
-- `run.py` 支持 `XIAOMAN_NO_BROWSER=1`：自动化验证不再弹出系统浏览器；
+- `run.py` 支持 `MONEYHELPER_NO_BROWSER=1`：自动化验证不再弹出系统浏览器；
   用户双击 exe 时仍自动打开（并把端口改为读取 `PORT`，此前硬编码 8788）。
 - 清理：关闭全部开发/演示服务进程，移除 `out/` 临时截图与演示库、缓存目录。
 
@@ -128,7 +248,7 @@
 
 ### 去重
 同一信息此前会重复三遍（风险块 / SummaryBlock 的等级徽章 / Action 按钮）：
-- 有富回答块时 `SummaryBlock` 只保留「小满的理解」（意图识别），不重复指标与等级。
+- 有富回答块时 `SummaryBlock` 只保留「Moneyhelper 的理解」（意图识别），不重复指标与等级。
 - 有块时不再渲染 action 按钮（块内已有「查看 →」）。
 - 风险块跳过集中度条目（持仓块底部已提示）。
 
@@ -215,9 +335,9 @@
 
 ### 打包
 
-- `xiaoman.exe` 嵌入图标（`backend/app.ico`，7 个尺寸）与版本资源
+- `moneyhelper.exe` 嵌入图标（`backend/app.ico`，7 个尺寸）与版本资源
   （FileVersion / ProductName / FileDescription 来自 `version.py` 单一真源）。
-- 实测：`FileVersion 2.8.3`、`ProductName Xiaoman`，运行首页 200 / API 正常 / MCP 正常。
+- 实测：`FileVersion 2.8.3`、`ProductName Moneyhelper`，运行首页 200 / API 正常 / MCP 正常。
 
 ## [2.8.3] - 2026-10-22（安全审计 + 全维度审查修复 + README 重做）
 
@@ -281,7 +401,7 @@
 - **总览页净资产卡**：环图与右侧明细两列对齐，环形中心显示资产合计；去掉重复的图表内图例。
 
 ### EXE 打包
-- 实际执行 `pyinstaller xiaoman.spec` 产出 **`backend/dist/xiaoman.exe`（约 150MB）**，
+- 实际执行 `pyinstaller moneyhelper.spec` 产出 **`backend/dist/moneyhelper.exe`（约 150MB）**，
   并实机运行验证：首页 200、`/api/health` 正常、`/mcp` 正常（406 为缺少 Accept 头的规范行为）。
 - 说明：此前仓库只有打包脚本、从未真正产出过 exe。本次验证了完整链路。
 
@@ -324,7 +444,7 @@
   把真告警挤出屏幕。压到 WARNING，并给日志页加「只看问题 / 全部」切换。
 - **体检空库显示 0 分**：数据不足时后端返回 score=0 且无维度，界面显示红字 0 分 + 三个空徽章，
   像是体检失败。改为引导态。
-- **空库首屏文案**：标题从「我是小满」改为统一的「问你的钱，这里都有答案」，
+- **空库首屏文案**：标题从「我是 Moneyhelper」改为统一的「问你的钱，这里都有答案」，
   副标题按有无数据切换引导语。
 
 ### 其他一致性
@@ -364,7 +484,7 @@
 - 新建会话改为立即切到临时线程（此前会先停在旧会话，需等接口返回才切换）。
 - 设置页改为独立全屏页：顶部标题 + 关闭，内容区居中 `max-w-5xl`；桌面侧栏去掉卡片描边。
 - 移动抽屉背景统一为侧栏灰，去掉与内容区不一致的卡片白。
-- 助手显示名与首屏标题随界面语言切换（英文 Xiaoman / 中文 小满）。
+- 助手显示名与首屏标题随界面语言切换（英文 Moneyhelper / 中文 Moneyhelper）。
 - 删除 `ChatHeader.tsx`、`AgentPanel.tsx` 两个不再使用的组件与相关文案。
 
 ### 验证
@@ -412,12 +532,12 @@
 ### 修复（可安装性，实测驱动）
 
 - **`pip install` 出来的包根本跑不起来**：wheel 只含 5 个门面文件（15KB），
-  真正的实现在 `backend/app` 下没有被打包；装完 `import xiaoman.server`
+  真正的实现在 `backend/app` 下没有被打包；装完 `import moneyhelper.server`
   直接 `ModuleNotFoundError: app`。现配置 `package-dir` 同时安装 `app.*`，
   wheel 变为 320KB / 102 个文件；实测从 `C:/Windows` 目录导入成功、
-  `xiaoman.server.app` 是真实 FastAPI 实例、CLI `--help` 正常。
+  `moneyhelper.server.app` 是真实 FastAPI 实例、CLI `--help` 正常。
 - **`pyproject.toml` 依赖漂移**：仍引用已删除的 mem0 / chromadb / opentelemetry /
-  langchain-litellm，且 `xiaoman.mcp` 未纳入包列表。已与 requirements 对齐。
+  langchain-litellm，且 `moneyhelper.mcp` 未纳入包列表。已与 requirements 对齐。
 
 ### 新增
 
@@ -425,8 +545,8 @@
   三平台矩阵，各自打 PyInstaller 单文件，带"产物能启动并响应健康检查"的冒烟测试，
   tag 触发时自动附加到 Release。
 - **MCP 定时产出资源**（Tasks 的可行替代）：
-  - `xiaoman://scheduled-outputs` —— 最近 10 条晨报/技能产出
-  - `xiaoman://scheduler-status` —— 调度状态
+  - `moneyhelper://scheduled-outputs` —— 最近 10 条晨报/技能产出
+  - `moneyhelper://scheduler-status` —— 调度状态
   为什么不用 Tasks：mcp 1.30 的 Tasks 仍是 experimental，fastmcp 2.x 未透传；
   而"客户端能拿到定时产出"用 resource 拉取即可满足，服务端仍由 APScheduler 生成。
 
@@ -499,10 +619,10 @@
 
 ### 桌面端（M4）
 
-- 重写 `xiaoman.spec`：清掉已删除的 mem0/chromadb/alembic/opentelemetry 引用，
+- 重写 `moneyhelper.spec`：清掉已删除的 mem0/chromadb/alembic/opentelemetry 引用，
   用文件系统递归收集 litellm 子模块 + 整目录收集其非 Python 资源
   （模型价格表、tokenizer）——缺任一项启动即失败，实测踩过。
-- `run.py` 修数据目录：打包后默认 `~/.xiaoman`（此前文档这么写但代码没做）。
+- `run.py` 修数据目录：打包后默认 `~/.moneyhelper`（此前文档这么写但代码没做）。
 - 实测产出 144MB 单文件，启动后健康检查 200、前端完整渲染、写入落盘、MCP 200。
 
 ## [2.5.0] - 2026-10-20（家庭账本上界面 + 升级路径实证）
@@ -541,10 +661,10 @@
 
 - **容器重建丢账本**：代码默认把库写在 `backend/app/data`，而 Dockerfile 的 VOLUME 与
   compose 挂的是 `backend/data`。实测确认：容器内写入的数据落在卷外，`docker rm` 即丢。
-  现在库 / 备份 / LangGraph checkpoint 统一由 `XIAOMAN_DATA_DIR` 决定（默认 `backend/data`），
+  现在库 / 备份 / LangGraph checkpoint 统一由 `MONEYHELPER_DATA_DIR` 决定（默认 `backend/data`），
   镜像内置 `/app/backend/data`，与数据卷一致。
 - **旧数据自动迁移**：升级后首次启动若新位置无库、旧位置有库，自动搬移（连带 `-wal` / `-shm`，
-  避免 WAL 中已提交事务丢失）。显式设置 `XIAOMAN_DB_PATH` 时不猜。
+  避免 WAL 中已提交事务丢失）。显式设置 `MONEYHELPER_DB_PATH` 时不猜。
 - **备份与 checkpoint 同目录**：`BACKUP_DIR` 与 `agent_checkpoints.db` 一并跟随数据目录，
   不再散落在代码目录里。
 
@@ -615,7 +735,7 @@
 - **设置页无法保存**：`saveMutate` 从未被调用，月收入/应急目标/储蓄率/晨报时间只改本地 state。新增底部保存栏（含未保存提示与放弃改动）。
 - **首屏 hooks 顺序违规**：`App.tsx` 在部分 hooks 之间条件 return 登录页，已注册实例且无 token 时会白屏。条件 return 移到全部 hooks 之后。
 - **依赖不可解**：`langgraph` 与 `langchain-core<0.4` 约束互斥；移除重复的 `react_agent`（官方 ReAct 包装）后统一走 `agent.run_agent`，依赖树恢复可解。
-- **Docker 数据路径退化**：compose 注入空串导致 `XIAOMAN_DB_PATH=""`，`Path("")` 解析为当前目录。路径解析改为忽略空值并展开相对路径；compose 不再传该变量。
+- **Docker 数据路径退化**：compose 注入空串导致 `MONEYHELPER_DB_PATH=""`，`Path("")` 解析为当前目录。路径解析改为忽略空值并展开相对路径；compose 不再传该变量。
 - **`.env` 泄密路径**：一键脚本把含密钥的 `.env` 写到仓库根但未被忽略，现已在 `.gitignore` 覆盖根目录 `.env`。
 
 ### 修复（P1）

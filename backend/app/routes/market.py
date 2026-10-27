@@ -80,7 +80,7 @@ async def _fetch_suggest(kw: str) -> dict:
     token = os.getenv("EASTMONEY_SEARCH_TOKEN", "D43BF722C8E33BDC906FB84D85E326E8")
     params = {"input": kw, "type": "14", "token": token}
     headers = {
-        "User-Agent": "Mozilla/5.0 (xiaoman)",
+        "User-Agent": "Mozilla/5.0 (moneyhelper)",
         "Referer": "https://quote.eastmoney.com/",
     }
     async with httpx.AsyncClient(timeout=4.0) as client:

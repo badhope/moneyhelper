@@ -1,13 +1,13 @@
 {
-  "name": "小满 Xiaoman · 个人理财智能体",
-  "short_name": "小满",
+  "name": "Moneyhelper · 个人理财智能体",
+  "short_name": "Moneyhelper",
   "description": "开源免费、本地优先的个人理财智能体。一句话记账、组合持仓管理、自选行情、财务体检。",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#0f0f10",
-  "theme_color": "#b8891f",
+  "background_color": "#0f8a73",
+  "theme_color": "#0f8a73",
   "lang": "zh-CN",
   "categories": ["finance", "productivity"],
   "icons": [

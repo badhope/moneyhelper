@@ -5,7 +5,7 @@
 每个请求体都小，不触发中间设备的包大小限制。
 
 用法（不要在任何输出里打印 token）：
-    python push_via_api.py --repo badhope/xiaoman --branch main --token-env GH_BADHOPE_TOKEN
+    python push_via_api.py --repo badhope/moneyhelper --branch main --token-env GH_BADHOPE_TOKEN
     python push_via_api.py ... --tag v3.0.0
 
 行为：
@@ -189,7 +189,7 @@ def main() -> int:
     print(f"pushed {args.branch} -> {commit_sha[:8]}")
 
     if args.tag:
-        gh.create_tag(owner, name, args.tag, commit_sha, f"Xiaoman {args.tag}")
+        gh.create_tag(owner, name, args.tag, commit_sha, f"Moneyhelper {args.tag}")
         print("tag", args.tag)
     return 0
 

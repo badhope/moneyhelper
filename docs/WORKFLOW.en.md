@@ -1,6 +1,6 @@
 # Conversation Workflow Guide (conversation is the hub)
 
-Ask AI is the center of Xiaoman: bookkeeping, quotes, holdings, reports, backups and settings all happen with one sentence in the chat; the other 4 tabs are views of the conversation results. On a fresh install the first screen directly lists the capability cards — just say what's on them.
+Ask AI is the center of Moneyhelper: bookkeeping, quotes, holdings, reports, backups and settings all happen with one sentence in the chat; the other 4 tabs are views of the conversation results. On a fresh install the first screen directly lists the capability cards — just say what's on them.
 
 ## 1. One-sentence bookkeeping
 

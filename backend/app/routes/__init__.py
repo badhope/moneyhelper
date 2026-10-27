@@ -14,9 +14,12 @@ from .import_routes import router as import_router
 from .ledger import router as ledger_router
 from .market import router as market_router
 from .members import router as members_router
+from .paper import router as paper_router
 from .provenance import router as provenance_router
 from .qa import router as qa_router
+from .research import router as research_router
 from .settings import router as settings_router
+from .statements import router as statements_router
 from .strategy import router as strategy_router
 from .system import router as system_router
 
@@ -31,9 +34,12 @@ __all__ = [
     "ledger_router",
     "market_router",
     "members_router",
+    "paper_router",
     "provenance_router",
     "qa_router",
+    "research_router",
     "settings_router",
+    "statements_router",
     "strategy_router",
     "system_router",
 ]

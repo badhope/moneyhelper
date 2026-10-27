@@ -1,8 +1,8 @@
-# 随身理财 · 单容器部署（前端构建产物 + 后端 FastAPI，同端口 8787）
+# Moneyhelper · 单容器部署（前端构建产物 + 后端 FastAPI，同端口 8787）
 # 多阶段构建：node 出前端 → python 出 venv → 精简运行时合并
 #
-# 构建：docker build -t xiaoman .
-# 运行：docker run -p 8787:8787 -v xiaoman-data:/app/backend/data xiaoman
+# 构建：docker build -t moneyhelper .
+# 运行：docker run -p 8787:8787 -v moneyhelper-data:/app/backend/data moneyhelper
 #       或直接 docker compose up -d --build（见 docker-compose.yml）
 
 # ---------- 阶段 1：前端构建 ----------
@@ -40,9 +40,9 @@ RUN useradd --create-home --uid 1000 --user-group xia \
 
 WORKDIR /app/backend
 # 数据目录持久化（SQLite + 备份 + LangGraph checkpoint），容器重启不丢数据。
-# 显式声明 XIAOMAN_DATA_DIR，与代码里的 data_dir() 默认值保持同一语义；
+# 显式声明 MONEYHELPER_DATA_DIR，与代码里的 data_dir() 默认值保持同一语义；
 # 之前代码默认写 app/data、卷挂 backend/data，导致重建即丢账本。
-ENV XIAOMAN_DATA_DIR=/app/backend/data
+ENV MONEYHELPER_DATA_DIR=/app/backend/data
 VOLUME /app/backend/data
 EXPOSE 8787
 

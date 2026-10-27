@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Command } from "cmdk";
 import {
-  BarChart3, CreditCard, Languages, LayoutDashboard, MessageCircle, MessageSquare, Moon,
+  BarChart3, CandlestickChart, CreditCard, FileText, Languages, LayoutDashboard, MessageCircle, MessageSquare, Moon, Users,
   Settings, SunMoon, Target, Undo2, Wallet,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -136,6 +136,18 @@ export function CommandPalette({
               <Command.Item onSelect={() => run(() => onNavigateFeature("holdings"))} className="cmd-item">
                 <Wallet className="w-4 h-4" />
                 <span>{t("cmd.goHoldings")}</span>
+              </Command.Item>
+              <Command.Item onSelect={() => run(() => onNavigateFeature("research"))} className="cmd-item">
+                <CandlestickChart className="w-4 h-4" />
+                <span>{t("cmd.goResearch")}</span>
+              </Command.Item>
+              <Command.Item onSelect={() => run(() => onNavigateFeature("statements"))} className="cmd-item">
+                <FileText className="w-4 h-4" />
+                <span>{t("cmd.goStatements")}</span>
+              </Command.Item>
+              <Command.Item onSelect={() => run(() => onNavigateFeature("paper"))} className="cmd-item">
+                <Users className="w-4 h-4" />
+                <span>{t("cmd.goPaper")}</span>
               </Command.Item>
               <Command.Item onSelect={() => run(() => onNavigateFeature("market"))} className="cmd-item">
                 <BarChart3 className="w-4 h-4" />
