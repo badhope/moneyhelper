@@ -72,10 +72,9 @@ async def _remote(method: str, url: str, token: str, path: str, body: dict | Non
     if token:
         headers["Authorization"] = f"Bearer {token}"
     async with httpx.AsyncClient(base_url=url.rstrip("/"), timeout=60.0) as client:
-        if method == "GET":
-            resp = await client.get(path, headers=headers)
-        else:
-            resp = await client.post(path, headers=headers, json=body or {})
+        # 支持 GET/POST/PUT/PATCH/DELETE：Studio 与管理类端点用到了全部五种，
+        # 此前非 GET 一律按 POST 发，DELETE 会打到错误路由。
+        resp = await client.request(method, path, headers=headers, json=body or {})
     if resp.status_code >= 400:
         _die(f"HTTP {resp.status_code}: {resp.text[:200]}")
     return resp.json()
@@ -269,6 +268,23 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("question")
     sp.set_defaults(func=cmd_ask)
 
+    sp = sub.add_parser("studio", help="Agent Studio：角色/技能/提示词/约束/Hook/市场")
+    sp.add_argument("action", choices=["list", "show", "add", "remove", "toggle", "import", "market", "ai"])
+    sp.add_argument("--kind", choices=["prompts", "rules", "hooks", "roles", "skills"], default="")
+    sp.add_argument("--id", default="")
+    sp.add_argument("--name", default="")
+    sp.add_argument("--description", default="")
+    sp.add_argument("--content", default="")
+    sp.add_argument("--severity", default="")
+    sp.add_argument("--scope", default="")
+    sp.add_argument("--priority", type=int, default=0)
+    sp.add_argument("--file", default="")
+    sp.add_argument("--install", default="")
+    sp.add_argument("--prompt", default="")
+    sp.add_argument("--force", action="store_true")
+    sp.add_argument("--off", action="store_true", help="toggle：关闭而不是启用")
+    sp.set_defaults(func=None, studio=True)
+
     sp = sub.add_parser("serve", help="启动本地服务")
     sp.add_argument("--host", default="127.0.0.1")
     sp.add_argument("--port", type=int, default=8788)
@@ -296,6 +312,10 @@ async def _run_and_close(args) -> int:
     同一进程里连续跑两次命令（测试、脚本、REPL）会挂死在新 loop 上。
     """
     try:
+        if getattr(args, "studio", False):
+            from . import studio as studio_cli
+
+            return await studio_cli.run(args)
         return await args.func(args)
     finally:
         try:

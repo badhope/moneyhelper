@@ -21,6 +21,7 @@ from .research import router as research_router
 from .settings import router as settings_router
 from .statements import router as statements_router
 from .strategy import router as strategy_router
+from .studio import router as studio_router
 from .system import router as system_router
 
 __all__ = [
@@ -41,5 +42,6 @@ __all__ = [
     "settings_router",
     "statements_router",
     "strategy_router",
+    "studio_router",
     "system_router",
 ]

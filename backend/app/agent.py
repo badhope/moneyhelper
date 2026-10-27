@@ -246,8 +246,27 @@ async def _compress_history(messages: list[dict[str, Any]], cfg: dict[str, Any])
     return [*head, compressed, *tail]
 
 
-async def run_agent(
-    question: str,
+async def studio_pre_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Studio pre_tool Hook 的统一入口（配置异常时放行，安全默认由内置 Hook 保证）。"""
+    try:
+        from .studio import store as studio_store
+
+        return await studio_store.run_pre_tool(name, args)
+    except Exception:  # noqa: BLE001 — Hook 失败不阻断正常工具
+        return {"blocked": False, "reason": "", "events": []}
+
+
+async def studio_post_answer(answer: str) -> list[dict[str, Any]]:
+    """Studio post_answer Hook：只做审计/告警，不修改回答内容。"""
+    try:
+        from .studio import store as studio_store
+
+        return await studio_store.run_post_answer(answer)
+    except Exception:  # noqa: BLE001
+        return []
+
+
+async def run_agent(    question: str,
     emit: Emit,
     history: list[dict[str, str]] | None = None,
     lang: str = "zh",
@@ -291,13 +310,23 @@ async def run_agent(
 
     # 自定义提示词：设置里填了就用它覆盖内置 instructions.md（留空则用文件默认值）。
     # 只允许追加/替换「财务分支」的系统提示；通用闲聊分支不受影响。
+    # Studio 提示词 / 约束 / pre_prompt Hook / 主角色指令在此叠加（scope 区分财务与科研）。
     custom_prompt = str(_s.get("custom_system_prompt") or "").strip()
     if system is not None:
-        system_prompt = system
+        base_prompt = system
     elif custom_prompt:
-        system_prompt = custom_prompt
+        base_prompt = custom_prompt
     else:
-        system_prompt = AGENT_SYSTEM
+        base_prompt = AGENT_SYSTEM
+    try:
+        from .studio import store as studio_store
+
+        if inject_memories:
+            system_prompt = await studio_store.build_system_prompt(base_prompt, scope="finance")
+        else:
+            system_prompt = base_prompt
+    except Exception:  # noqa: BLE001 — Studio 配置异常不得拖垮问答
+        system_prompt = base_prompt
     lang_rule = "请用简体中文回答用户的问题。" if lang == "zh" else "Answer the user in English."
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
@@ -352,12 +381,35 @@ async def run_agent(
     messages = await _compress_history(messages, cfg)
 
     tool_schemas = tools_list if tools_list is not None else READ_TOOLS
-    tool_map = impl_map if impl_map is not None else ALLOWED_IMPL
+    tool_map = impl_map if tools_list is not None else ALLOWED_IMPL
+    # Studio 内置科研工具：只进财务/科研分支的工具面（内部工具不对外暴露）
+    internal_impl: dict[str, Any] = {}
     if tools_list is None:
+        try:
+            from .studio import internal_tools as studio_tools
+            from .studio import store as studio_store
+
+            enabled_internal = await studio_store.internal_tools_enabled()
+            if enabled_internal:
+                wanted = [
+                    s
+                    for s in studio_tools.INTERNAL_FUNCTION_SCHEMAS
+                    if enabled_internal.get(s["function"]["name"])
+                ]
+                if wanted:
+                    tool_schemas = tool_schemas + wanted
+                    internal_impl = {
+                        name: (lambda args, _n=name: studio_tools.run_internal_tool(_n, args) or "")
+                        for name in enabled_internal
+                    }
+        except Exception:  # noqa: BLE001 — 内置工具装配失败不影响主工具面
+            internal_impl = {}
         # 技能开关真正生效：被关闭技能对应的工具从工具面移除（与 react 路径同口径）
         disabled_tools = await agent_config.disabled_tool_names()
         if disabled_tools:
-            tool_schemas = [t for t in READ_TOOLS if t["function"]["name"] not in disabled_tools]
+            tool_schemas = [
+                t for t in tool_schemas if t["function"]["name"] not in disabled_tools
+            ]
             tool_map = {k: v for k, v in ALLOWED_IMPL.items() if k not in disabled_tools}
     # P2 MCP：把已配置 MCP 服务器提供的工具动态合并进工具列表（仅财务分支，通用分支不接外部工具）
     mcp_schemas: list[dict[str, Any]] = []
@@ -402,6 +454,7 @@ async def run_agent(
             )
             if not full_answer:
                 raise AgentUnavailable("模型未产出回答")
+            await studio_post_answer(full_answer)
             return {
                 "answer": full_answer,
                 "steps": steps,
@@ -450,7 +503,7 @@ async def run_agent(
                         }
                     )
                     continue
-            impl = tool_map.get(name)
+            impl = tool_map.get(name) or internal_impl.get(name)
             if impl is None and mcp_hit is None:
                 messages.append(
                     {"role": "tool", "tool_call_id": tc.id, "content": f"工具不可用：{name}"}
@@ -462,9 +515,35 @@ async def run_agent(
                     args = {}
             except json.JSONDecodeError:
                 args = {}
+            # Studio pre_tool Hook：拦截 / 告警（默认拦截 shell、文件写入类外部工具）
+            try:
+                hook_result = await studio_pre_tool(name, args)
+                if hook_result.get("blocked"):
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": f"Hook 已拦截：{hook_result.get('reason') or '该工具被安全策略禁止'}",
+                        }
+                    )
+                    await emit(
+                        {
+                            "type": "agent_step",
+                            "name": name,
+                            "args": args,
+                            "summary": f"Hook 拦截：{hook_result.get('reason') or '安全策略'}",
+                        }
+                    )
+                    continue
+            except Exception:  # noqa: BLE001 — Hook 故障不阻断正常工具
+                pass
             # 执行前校验入参（extra="forbid" 落地点）：非法参数不进 impl，
             # 错误文案回填给模型，下一轮 self-correct。
-            clean_args, verr = validate_tool_args(name, args)
+            if name in internal_impl:
+                clean_args = args
+                verr = None
+            else:
+                clean_args, verr = validate_tool_args(name, args)
             if clean_args is None:
                 messages.append(
                     {"role": "tool", "tool_call_id": tc.id, "content": verr}

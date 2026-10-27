@@ -332,6 +332,35 @@ async def supervisor(state: AgentState) -> dict[str, Any]:
     if route == "action":
         return {"route": "action", "reason": reason, "mode": "deterministic"}
 
+    # 对话内配置（添加/停用/删除角色、技能、提示词、约束、Hook）：先于记账与记忆，
+    # 否则「添加技能 定投提醒：每周日检查」会被 nlparse 当成一笔支出入账。
+    from .studio import commands as studio_commands
+
+    studio_result = await studio_commands.handle_question(q, state.get("lang", "zh"))
+    if studio_result is not None:
+        return {
+            "route": "studio_admin",
+            "reason": (
+                "Studio configuration command"
+                if en_lang
+                else "对话内修改 Agent Studio 配置"
+            ),
+            "mode": "deterministic",
+            "result": {
+                "answer": studio_result.get("answer", ""),
+                "level": "L1 洞察" if not en_lang else "L1",
+                "route": "studio_admin",
+                "route_reason": "Studio configuration command"
+                if en_lang
+                else "对话内修改 Agent Studio 配置",
+                "metrics": {},
+                "flags": [],
+                "llm": "template",
+                "tools": [],
+                "actions": [],
+            },
+        }
+
     # 记忆指令其次（先于记账）：「记住/记得 …」明确是记忆意图，
     # 否则「记住我下个月要交房租 5000」会被一句话记账当成支出入账。
     # 写入只由 memory 节点做一次（它负责剥离「记住」前缀、去重与技能开关回执）；
@@ -667,6 +696,18 @@ async def memory(state: AgentState) -> dict[str, Any]:
     )
     assert result is not None
     return {"result": result}
+
+
+async def studio_admin(state: AgentState) -> dict[str, Any]:
+    """Studio 配置 agent：supervisor 已执行完配置写入，这里只回放执行结果。
+
+    单独成节点（而不是在 supervisor 里直接 return result）是为了让图路由显式：
+    配置改写是确定性副作用，不能落进财务管线，也不能被 collect_market 的取数覆盖。
+    """
+    result = state.get("result")
+    if isinstance(result, dict):
+        await _emit({"type": "text", "delta": str(result.get("answer") or "")})
+    return {}
 
 
 async def collect_market(state: AgentState) -> dict[str, Any]:
@@ -1128,6 +1169,8 @@ def _supervisor_route(state: AgentState) -> str:
         return "action"
     if r == "general":
         return "general"
+    if r == "studio_admin":
+        return "studio_admin"
     return "finance"
 
 
@@ -1138,6 +1181,7 @@ def _build_graph() -> Any:
     g.add_node("nl_cancel", nl_cancel)
     g.add_node("memory", memory)
     g.add_node("action", action)
+    g.add_node("studio_admin", studio_admin)
     g.add_node("general", general)
     g.add_node("collect_market", collect_market)
     g.add_node("collect_ledger", collect_ledger)
@@ -1154,6 +1198,7 @@ def _build_graph() -> Any:
             "memory": "memory",
             "general": "general",
             "action": "action",
+            "studio_admin": "studio_admin",
             "finance": "collect_market",
         },
     )
@@ -1166,6 +1211,7 @@ def _build_graph() -> Any:
     g.add_edge("nl_cancel", END)
     g.add_edge("memory", END)
     g.add_edge("action", END)
+    g.add_edge("studio_admin", END)
     g.add_edge("general", END)
     g.add_edge("finalize", END)
     # 仅声明图结构，不在此编译：结构图（get_graph）挂 MemorySaver，执行图

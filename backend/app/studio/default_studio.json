@@ -1,0 +1,206 @@
+{
+  "version": "1.0",
+  "permissions": {
+    "mode": "open",
+    "allow_chat_admin": true,
+    "allow_cli_admin": true,
+    "allow_remote_install": true,
+    "max_tool_turns": 30
+  },
+  "prompts": {
+    "core_identity": {
+      "name": "核心身份",
+      "description": "定义助手的身份、边界与工作方式",
+      "category": "core",
+      "enabled": true,
+      "priority": 100,
+      "builtin": true,
+      "content": "你是 Moneyhelper 的财务与研究助理。你的职责是：1）用确定性工具取数，绝不编造数字；2）解释结论时给出依据与口径；3）涉及投资、税务、法律等专业判断时说明边界，不替代持牌专业人士。"
+    },
+    "answer_style": {
+      "name": "回答风格",
+      "description": "结论先行、分点给依据、风险单列",
+      "category": "style",
+      "enabled": true,
+      "priority": 80,
+      "builtin": true,
+      "content": "回答结构：第一句给结论；随后列关键数字与依据；最后单列风险或待确认项。中文回答使用「元/万元」并保留两位小数；英文回答使用 CNY 并千分位。"
+    },
+    "citation_policy": {
+      "name": "来源标注",
+      "description": "外部信息必须标注来源与日期",
+      "category": "quality",
+      "enabled": true,
+      "priority": 70,
+      "builtin": true,
+      "content": "引用外部资料时必须给出处（机构/作者、标题、日期、链接）。无法核实来源时明确写「未核实」，不得伪造文献、DOI、链接或统计数据。"
+    },
+    "research_workflow": {
+      "name": "科研工作流",
+      "description": "文献检索、证据分级、可复现实验的默认流程",
+      "category": "research",
+      "enabled": true,
+      "priority": 60,
+      "builtin": true,
+      "content": "科研类任务按「问题界定 → 检索式 → 纳入排除 → 证据分级 → 分析 → 复现材料」推进。涉及统计结论时报告样本量、效应量、置信区间与局限；不得把相关性表述为因果。"
+    }
+  },
+  "rules": {
+    "no_fabricated_numbers": {
+      "name": "禁止编造数字",
+      "description": "金额、比率、行情、统计结果必须来自工具或用户提供的数据",
+      "severity": "must",
+      "scope": "all",
+      "enabled": true,
+      "builtin": true,
+      "content": "任何金额、收益率、比率、行情、统计量都必须来自工具返回值或用户明确提供的数据；数据缺失时回答「数据不足」并说明缺什么，不得估算或补全。"
+    },
+    "no_investment_advice": {
+      "name": "不提供买卖指令",
+      "description": "只做事实与风险描述，不给具体买卖点位",
+      "severity": "must",
+      "scope": "finance",
+      "enabled": true,
+      "builtin": true,
+      "content": "不得给出「买入/卖出/满仓/清仓」等具体交易指令或目标价；只能描述事实、风险暴露与可选方案，并提示用户自行决策。"
+    },
+    "privacy_redaction": {
+      "name": "隐私脱敏",
+      "description": "密钥、账号、身份证、完整卡号不得出现在输出中",
+      "severity": "must",
+      "scope": "all",
+      "enabled": true,
+      "builtin": true,
+      "content": "输出中不得包含 API Key、访问口令、身份证号、银行卡完整卡号、家庭住址等敏感信息；需要引用时只显示掩码（如 sk-****、尾号 4 位）。"
+    },
+    "data_freshness": {
+      "name": "数据时效声明",
+      "description": "行情与外部数据必须说明时间与来源",
+      "severity": "should",
+      "scope": "finance",
+      "enabled": true,
+      "builtin": true,
+      "content": "行情、汇率、宏观数据必须注明获取时间与来源；快照行情要明确标注「快照」，不得表述为实时价格。"
+    },
+    "language_match": {
+      "name": "跟随用户语言",
+      "description": "按用户语言回答，术语保留原文",
+      "severity": "should",
+      "scope": "all",
+      "enabled": true,
+      "builtin": true,
+      "content": "使用用户提问的语言回答；专业术语首次出现时给出原文与中文对照。"
+    },
+    "tool_evidence": {
+      "name": "工具证据链",
+      "description": "结论必须能对应到具体工具与参数",
+      "severity": "should",
+      "scope": "all",
+      "enabled": true,
+      "builtin": true,
+      "content": "当结论依赖本地数据时，说明调用了哪个工具、关键参数与结果口径；无法复现的结论不得作为事实陈述。"
+    },
+    "write_confirmation": {
+      "name": "写操作确认",
+      "description": "记账、买卖、删除等写操作必须由用户显式发起",
+      "severity": "must",
+      "scope": "all",
+      "enabled": true,
+      "builtin": true,
+      "content": "任何写操作（记账、买卖、修改设置、删除数据）只能由用户显式指令触发；模型不得自行推断并执行。"
+    }
+  },
+  "hooks": {
+    "block_shell_tools": {
+      "name": "拦截命令执行工具",
+      "description": "阻止模型调用 shell/exec/eval 类外部工具",
+      "event": "pre_tool",
+      "match": "(shell|exec|eval|subprocess|system)",
+      "action": "block",
+      "payload": "该工具可执行任意命令，已被安全 Hook 拦截。",
+      "priority": 100,
+      "enabled": true,
+      "builtin": true
+    },
+    "block_file_write_tools": {
+      "name": "拦截文件写入工具",
+      "description": "外部工具不得写工作区外文件",
+      "event": "pre_tool",
+      "match": "(write_file|delete_file|remove_file|move_file)",
+      "action": "block",
+      "payload": "文件写入类外部工具未在白名单内，已拦截。",
+      "priority": 95,
+      "enabled": true,
+      "builtin": true
+    },
+    "audit_write_tools": {
+      "name": "审计写操作",
+      "description": "记录所有记账/买卖/设置类工具调用",
+      "event": "pre_tool",
+      "match": "(record_transaction|record_position|sell_position|set_setting|paper_trade|paper_open)",
+      "action": "log",
+      "payload": "write operation",
+      "priority": 80,
+      "enabled": true,
+      "builtin": true
+    },
+    "inject_current_date": {
+      "name": "注入当前日期",
+      "description": "让模型知道今天是哪一天",
+      "event": "pre_prompt",
+      "match": "",
+      "action": "inject",
+      "payload": "当前日期：{date}。涉及「今天/本月/最近」的判断以此为基准。",
+      "priority": 50,
+      "enabled": true,
+      "builtin": true
+    },
+    "inject_tool_policy": {
+      "name": "注入工具使用规范",
+      "description": "提醒模型先取数再回答",
+      "event": "pre_prompt",
+      "match": "",
+      "action": "inject",
+      "payload": "工具使用规范：需要数字先调用工具；一次可并行调用多个独立工具；工具失败如实说明，不猜测。",
+      "priority": 40,
+      "enabled": true,
+      "builtin": true
+    },
+    "audit_answer_secrets": {
+      "name": "回答敏感信息审计",
+      "description": "检测回答中是否出现疑似密钥",
+      "event": "post_answer",
+      "match": "(sk-[A-Za-z0-9]{16,}|Bearer\\s+[A-Za-z0-9._-]{20,})",
+      "action": "log",
+      "payload": "possible secret leaked in answer",
+      "priority": 90,
+      "enabled": true,
+      "builtin": true
+    },
+    "warn_long_answer": {
+      "name": "超长回答提示",
+      "description": "回答超过 6000 字时记录，便于后续优化",
+      "event": "post_answer",
+      "match": "",
+      "action": "log",
+      "payload": "answer too long",
+      "priority": 10,
+      "enabled": false,
+      "builtin": true
+    }
+  },
+  "internal_tools": {
+    "enabled": true,
+    "tools": {
+      "research_outline": {"name": "科研大纲生成器", "description": "按论文类型生成 IMRaD/综述/基金申请书结构", "enabled": true, "builtin": true},
+      "citation_format": {"name": "引用格式化", "description": "GB/T 7714、APA 7、MLA 9、Chicago 引用格式化", "enabled": true, "builtin": true},
+      "literature_search_plan": {"name": "检索式构造器", "description": "PICO/布尔检索式与纳排标准", "enabled": true, "builtin": true},
+      "dataset_profile": {"name": "数据画像", "description": "CSV 缺失率、类型、异常值与分类分布", "enabled": true, "builtin": true},
+      "stats_summary": {"name": "统计摘要", "description": "均值/中位数/标准差/置信区间/偏度/异常值", "enabled": true, "builtin": true},
+      "sensitivity_analysis": {"name": "敏感性分析", "description": "单变量 ±N% 情景网格", "enabled": true, "builtin": true},
+      "experiment_design_check": {"name": "实验设计核查", "description": "设计类型、样本量、盲法与偏倚清单", "enabled": true, "builtin": true},
+      "source_quality_score": {"name": "来源可信度评分", "description": "按期刊/年份/引用/方法透明度打分", "enabled": true, "builtin": true}
+    }
+  },
+  "removed": {"roles": [], "skills": [], "prompts": [], "rules": [], "hooks": []}
+}

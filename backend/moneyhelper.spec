@@ -80,6 +80,9 @@ a = Analysis(
     datas=[
         (str(FRONTEND_DIST), "static"),
         ("app/agents", "app/agents"),
+        # Studio 默认包（提示词/约束/Hook/内置工具）是运行时读取的 JSON，不是 Python 模块，
+        # PyInstaller 静态分析发现不了；漏了它打包版设置页就是空的。
+        ("app/studio", "app/studio"),
         # LiteLLM 运行时读取的模型价格表、tokenizer 等非 Python 资源。
         # 整目录收集比逐个列文件可靠（版本间文件名会变，漏一个就启动失败）。
         (str(LITELLM_DIR), "litellm"),

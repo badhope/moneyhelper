@@ -33,7 +33,8 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from mcp import ClientSession
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
 
 from .logging_utils import get_logger
@@ -55,28 +56,46 @@ TIMEOUT = 15.0
 _servers: dict[str, list[str]] = {}
 
 
-def _load_config() -> list[dict[str, Any]]:
+def _load_config(include_disabled: bool = False) -> list[dict[str, Any]]:
     try:
         if not MCP_CFG.exists():
             return []
         data = json.loads(MCP_CFG.read_text(encoding="utf-8") or "{}")
         servers = data.get("servers") or []
-        # 只接受带 url 的条目：UI 保存的草稿可能缺字段，静默跳过而不是整份配置失效
-        return [s for s in servers if isinstance(s, dict) and str(s.get("url") or "").strip()]
+        out = [
+            s
+            for s in servers
+            if isinstance(s, dict)
+            and (str(s.get("url") or "").strip() or str(s.get("command") or "").strip())
+        ]
+        if not include_disabled:
+            out = [s for s in out if s.get("enabled", True)]
+        return out
     except Exception:  # noqa: BLE001 — 配置异常按无 MCP 处理
         _log.warning("mcp config parse failed")
         return []
 
 
+def raw_servers() -> list[dict[str, Any]]:
+    """完整服务器列表（含停用项与原始地址），供安装/启停编辑使用。"""
+    return _load_config(include_disabled=True)
+
+
 def list_servers() -> list[dict[str, Any]]:
     """当前配置的 MCP 服务器（给设置页展示，不含任何凭据——URL 里的 token 会被打码）。"""
     out: list[dict[str, Any]] = []
-    for s in _load_config():
+    for s in _load_config(include_disabled=True):
         url = str(s.get("url") or "")
+        command = str(s.get("command") or "")
+        args = s.get("args") or []
         out.append(
             {
                 "name": str(s.get("name") or ""),
                 "url": redact_url(url),
+                "transport": "http" if url else "stdio",
+                "command": command,
+                "args": list(args) if isinstance(args, list) else [],
+                "enabled": bool(s.get("enabled", True)),
                 "tools": list(_servers.get(str(s.get("name") or ""), [])),
             }
         )
@@ -86,8 +105,8 @@ def list_servers() -> list[dict[str, Any]]:
 def save_servers(servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """保存服务器列表（写 mcp.json），返回清洗后的列表。
 
-    校验：name 非空且唯一、url 必须是 http(s)、最多 20 台。
-    保存后清空发现缓存，下一次问答会重新拉工具清单。
+    校验：name 非空且唯一；http 服务器需 http(s) 地址；stdio 服务器需 command；
+    最多 20 台。保存后清空发现缓存，下一次问答会重新拉工具清单。
     """
     global _discover_cache
     cleaned: list[dict[str, Any]] = []
@@ -96,15 +115,29 @@ def save_servers(servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not isinstance(s, dict):
             continue
         name = str(s.get("name") or "").strip()[:40]
-        url = str(s.get("url") or "").strip()
-        if not name or not url:
+        if not name:
             continue
-        if not url.lower().startswith(("http://", "https://")):
+        url = str(s.get("url") or "").strip()
+        command = str(s.get("command") or "").strip()
+        if not url and not command:
+            continue
+        if url and not url.lower().startswith(("http://", "https://")):
             raise ValueError(f"服务器「{name}」的地址必须以 http:// 或 https:// 开头")
         if name in seen:
             raise ValueError(f"服务器名称重复：{name}")
         seen.add(name)
-        cleaned.append({"name": name, "url": url})
+        entry: dict[str, Any] = {"name": name, "enabled": bool(s.get("enabled", True))}
+        if url:
+            entry["url"] = url
+        else:
+            entry["command"] = command
+            args = s.get("args") or []
+            if not isinstance(args, list):
+                raise ValueError(f"服务器「{name}」的 args 必须是数组")
+            entry["args"] = [str(a)[:200] for a in args][:20]
+            if isinstance(s.get("env"), dict):
+                entry["env"] = {str(k)[:60]: str(v)[:500] for k, v in s["env"].items()}
+        cleaned.append(entry)
         if len(cleaned) >= 20:
             break
     MCP_CFG.parent.mkdir(parents=True, exist_ok=True)
@@ -113,6 +146,20 @@ def save_servers(servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     )
     _discover_cache = None
     return cleaned
+
+
+def set_server_enabled(name: str, enabled: bool) -> list[dict[str, Any]]:
+    """启用/停用某台服务器（保留配置，只改 enabled 标记）。"""
+    servers = _load_config(include_disabled=True)
+    found = False
+    for s in servers:
+        if str(s.get("name") or "") == name:
+            s["enabled"] = bool(enabled)
+            found = True
+    if not found:
+        raise ValueError(f"服务器不存在：{name}")
+    return save_servers(servers)
+
 
 
 def redact_url(url: str) -> str:
@@ -133,22 +180,33 @@ def redact_url(url: str) -> str:
 
 
 @asynccontextmanager
-async def _open_session(url: str) -> AsyncIterator[ClientSession]:
-    """打开一条 StreamableHTTP 会话并完成 initialize 握手（SDK 全托管）。
+async def _open_session(server: dict[str, Any] | str) -> AsyncIterator[ClientSession]:
+    """打开一条会话并完成 initialize 握手（SDK 全托管）。
 
-    新版 SDK 不再收 timeout 参数，改由调用方传入自建 httpx.AsyncClient；
+    http：传 URL 字符串（兼容旧调用）；stdio：传含 command/args/env 的配置对象。
     客户端生命周期归本函数管理（SDK 只管 MCP 会话本身）。
     """
-    http = httpx.AsyncClient(timeout=TIMEOUT)
-    try:
-        async with (
-            streamable_http_client(url, http_client=http) as (read, write, _),
-            ClientSession(read, write) as session,
-        ):
-            await session.initialize()
-            yield session
-    finally:
-        await http.aclose()
+    if isinstance(server, str) or not server.get("command"):
+        url = server if isinstance(server, str) else str(server.get("url") or "")
+        http = httpx.AsyncClient(timeout=TIMEOUT)
+        try:
+            async with (
+                streamable_http_client(url, http_client=http) as (read, write, _),
+                ClientSession(read, write) as session,
+            ):
+                await session.initialize()
+                yield session
+        finally:
+            await http.aclose()
+        return
+    params = StdioServerParameters(
+        command=str(server.get("command") or ""),
+        args=[str(a) for a in (server.get("args") or [])],
+        env={str(k): str(v) for k, v in (server.get("env") or {}).items()} or None,
+    )
+    async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+        await session.initialize()
+        yield session
 
 
 def _make_schema(tool: Any) -> dict[str, Any]:
@@ -182,19 +240,21 @@ def _content_text(content: Any) -> str:
 async def _discover(server: dict[str, Any]) -> list[Any]:
     """对单个服务器 list_tools，返回工具对象列表并登记注册表。"""
     name = server.get("name") or "mcp"
-    async with _open_session(server["url"]) as session:
+    async with _open_session(server) as session:
         resp = await session.list_tools()
     tools = list(resp.tools)
     _servers[name] = [f"mcp__{t.name}" for t in tools]
     return tools
 
 
-async def probe(url: str) -> list[str]:
+async def probe(url: str, command: str = "", args: list[str] | None = None) -> list[str]:
     """测试单台 MCP 服务器：打开会话并 list_tools，返回工具名。
 
     与 _discover 的区别：不写注册表、不读配置，纯连通性探测，供设置页「测试」按钮使用。
+    http 传 url；stdio 传 command + args。
     """
-    async with _open_session(url) as session:
+    target: dict[str, Any] | str = url or {"command": command, "args": args or []}
+    async with _open_session(target) as session:
         resp = await session.list_tools()
     return [str(getattr(t, "name", "")) for t in (resp.tools or []) if getattr(t, "name", None)]
 
@@ -235,7 +295,7 @@ async def call_mcp_tool(server_name: str, tool_name: str, args: dict[str, Any]) 
         if server.get("name") != server_name:
             continue
         try:
-            async with _open_session(server["url"]) as session:
+            async with _open_session(server) as session:
                 result = await session.call_tool(raw_name, args or {})
             if result.isError:
                 return json.dumps(

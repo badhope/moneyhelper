@@ -28,11 +28,47 @@ def _load_default() -> dict[str, Any]:
     return json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
 
 
+def _merge_defaults(cfg: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """把默认包里的角色/技能补进已有配置（不覆盖用户改过的同名项）。
+
+    为什么需要：老库的 agent_config 是历史默认值的快照，新增内置角色与技能
+    不会自动出现，用户会看到「设置里是空的」。只补缺失项，不覆盖用户配置。
+    """
+    default = _load_default()
+    if not default:
+        return cfg, False
+    changed = False
+    for bucket_name in ("agents", "skills"):
+        bucket = cfg.setdefault(bucket_name, {})
+        for aid, asset in (default.get(bucket_name) or {}).items():
+            if aid not in bucket:
+                bucket[aid] = json.loads(json.dumps(asset, ensure_ascii=False))
+                changed = True
+    defaults = cfg.setdefault("defaults", {})
+    for k, v in (default.get("defaults") or {}).items():
+        if k not in defaults:
+            defaults[k] = v
+            changed = True
+    if "version" not in cfg:
+        cfg["version"] = default.get("version", "3.0")
+        changed = True
+    return cfg, changed
+
+
 async def init_default_config() -> None:
-    """启动时调用：如果 settings 表里没有 agent_config，就写入默认值。"""
+    """启动时调用：没有配置就写默认值；已有配置则补齐新增内置项。"""
     existing = (await db.get_settings()).get(_SETTINGS_KEY)
     if existing:
-        log.info("agent.config.loaded from_db=true")
+        try:
+            cfg = json.loads(existing)
+        except Exception:  # noqa: BLE001 — 损坏配置回落默认包
+            cfg = {}
+        merged, changed = _merge_defaults(cfg)
+        if changed:
+            await db.set_setting(_SETTINGS_KEY, json.dumps(merged, ensure_ascii=False))
+            log.info("agent.config.merged_new_builtins")
+        else:
+            log.info("agent.config.loaded from_db=true")
         return
     default = _load_default()
     if not default:
@@ -42,14 +78,16 @@ async def init_default_config() -> None:
 
 
 async def get_config() -> dict[str, Any]:
-    """读当前 agent 配置（数据库里的，没有就用默认）。"""
+    """读当前 agent 配置（数据库里的；缺失的内置项按默认包补齐）。"""
     raw = (await db.get_settings()).get(_SETTINGS_KEY)
+    cfg: dict[str, Any] = {}
     if raw:
         try:
-            return json.loads(raw)
+            cfg = json.loads(raw)
         except Exception:
-            pass
-    return _load_default()
+            cfg = {}
+    merged, _ = _merge_defaults(cfg)
+    return merged
 
 
 async def update_config(new_config: dict[str, Any]) -> None:
@@ -73,9 +111,16 @@ async def is_skill_enabled(skill_name: str) -> bool:
 
 
 # 内置技能（default_config.json 预置）；其余为用户/AI 生成的「自定义技能」。
-BUILTIN_SKILLS = frozenset(
+BUILTIN_SKILLS = frozenset((_load_default().get("skills") or {}).keys()) or frozenset(
     {"risk_analysis", "goals_tracking", "morning_report", "long_memory"}
 )
+
+# 纯提示型内置技能 → 注入的指令块（没有对应工具开关的技能走这里）
+_SKILL_PROMPTS: dict[str, str] = {
+    "research_writing": "科研写作：论文结构按 IMRaD；引用格式统一；投稿前检查图表编号、字数限制与匿名要求。",
+    "literature_review": "文献综述：先定检索式与纳排标准；按主题组织证据；标注证据强度与冲突。",
+    "data_analysis": "数据分析：先做缺失率与分布检查；异常值单独说明；图表标注单位与样本量。",
+}
 
 # 内置技能 → 运行时能力映射（技能开关真正生效的落点）：
 # 关闭某技能 → 对应工具从 agent 工具面移除（agent / react 两条路径都过滤）。

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Award, BookOpen, Bot, Brain, BrainCog, FileText, GitCompareArrows, KeyRound, Plug, Users, Newspaper, PiggyBank, ScrollText, ShieldCheck, SlidersHorizontal, Wallet,
+  Award, BookOpen, Bot, Brain, BrainCog, FileText, GitCompareArrows, KeyRound, Lock, Package, Plug, Shield, Users, Newspaper, PiggyBank, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UserCog, Wallet, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboard } from "@/lib/store";
@@ -26,15 +26,27 @@ import { PluginsSection } from "@/components/settings/PluginsSection";
 import { PromptSection } from "@/components/settings/PromptSection";
 import { KnowledgeSection } from "@/components/settings/KnowledgeSection";
 import { EvalSection } from "@/components/settings/EvalSection";
+import { AssetManager } from "@/components/settings/AssetManager";
+import { PermissionsSection } from "@/components/settings/PermissionsSection";
+import { MarketplaceSection } from "@/components/settings/MarketplaceSection";
+import { InternalToolsSection } from "@/components/settings/InternalToolsSection";
+import { PrimaryRoleSection } from "@/components/settings/PrimaryRoleSection";
 
 const SECTIONS: { id: SectionId; labelKey: string; icon: typeof Wallet }[] = [
   { id: "prefs", labelKey: "settings.navPrefs", icon: SlidersHorizontal },
   { id: "rules", labelKey: "settings.navRules", icon: Wallet },
   { id: "budget", labelKey: "settings.navBudget", icon: PiggyBank },
   { id: "ai", labelKey: "settings.navAi", icon: Brain },
+  { id: "roles", labelKey: "settings.navRoles", icon: UserCog },
+  { id: "skills", labelKey: "settings.navSkills", icon: Sparkles },
   { id: "agent", labelKey: "settings.navAgent", icon: Bot },
   { id: "plugins", labelKey: "settings.navPlugins", icon: Plug },
+  { id: "market", labelKey: "settings.navMarket", icon: Package },
   { id: "prompt", labelKey: "settings.navPrompt", icon: FileText },
+  { id: "constraints", labelKey: "settings.navConstraints", icon: Shield },
+  { id: "hooks", labelKey: "settings.navHooks", icon: Wand2 },
+  { id: "permissions", labelKey: "settings.navPermissions", icon: Lock },
+  { id: "internalTools", labelKey: "settings.navInternalTools", icon: BrainCog },
   { id: "knowledge", labelKey: "settings.navKnowledge", icon: BookOpen },
   { id: "report", labelKey: "settings.navReport", icon: Newspaper },
   { id: "memory", labelKey: "settings.navMemory", icon: BrainCog },
@@ -49,7 +61,10 @@ const SECTIONS: { id: SectionId; labelKey: string; icon: typeof Wallet }[] = [
 
 const SECTION_GROUPS: { key: string; ids: SectionId[] }[] = [
   { key: "settings.groupGeneral", ids: ["prefs", "rules", "budget", "family"] },
-  { key: "settings.groupAi", ids: ["ai", "agent", "plugins", "prompt", "knowledge", "report", "memory"] },
+  {
+    key: "settings.groupAi",
+    ids: ["ai", "roles", "skills", "agent", "plugins", "market", "prompt", "constraints", "hooks", "permissions", "internalTools", "knowledge", "report", "memory"],
+  },
   { key: "settings.groupData", ids: ["data", "token", "logs", "audit", "provenance"] },
   { key: "settings.groupEval", ids: ["eval"] },
 ];
@@ -190,11 +205,61 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
           <ReportSection form={form} onField={set} scheduler={bootstrap.scheduler} />
         )}
 
+        {active === "roles" && (
+          <div className="space-y-3">
+            <PrimaryRoleSection />
+            <AssetManager
+              kind="roles"
+              titleKey="settings.navRoles"
+              descKey="studio.rolesDesc"
+              hintKey="studio.rolesHint"
+            />
+          </div>
+        )}
+
+        {active === "skills" && (
+          <AssetManager
+            kind="skills"
+            titleKey="settings.navSkills"
+            descKey="studio.skillsDesc"
+            hintKey="studio.skillsHint"
+          />
+        )}
+
         {active === "agent" && <AgentSection />}
 
         {active === "plugins" && <PluginsSection />}
 
-        {active === "prompt" && <PromptSection />}
+        {active === "market" && <MarketplaceSection />}
+
+        {active === "prompt" && (
+          <div className="space-y-3">
+            <PromptSection />
+            <AssetManager kind="prompts" titleKey="settings.navPrompt" descKey="studio.promptsDesc" />
+          </div>
+        )}
+
+        {active === "constraints" && (
+          <AssetManager
+            kind="rules"
+            titleKey="settings.navConstraints"
+            descKey="studio.rulesDesc"
+            hintKey="studio.rulesHint"
+          />
+        )}
+
+        {active === "hooks" && (
+          <AssetManager
+            kind="hooks"
+            titleKey="settings.navHooks"
+            descKey="studio.hooksDesc"
+            hintKey="studio.hooksHint"
+          />
+        )}
+
+        {active === "permissions" && <PermissionsSection />}
+
+        {active === "internalTools" && <InternalToolsSection />}
 
         {active === "knowledge" && <KnowledgeSection />}
 

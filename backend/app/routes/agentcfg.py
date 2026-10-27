@@ -127,14 +127,36 @@ async def put_mcp_servers(payload: dict) -> dict:
 
 @router.post("/api/mcp/test")
 async def test_mcp_server(payload: dict) -> dict:
-    """测试单台服务器连通性：握手 + list_tools，返回工具名列表。"""
+    """测试单台服务器连通性：握手 + list_tools，返回工具名列表。
+
+    http：传 url；stdio：传 command + args（本地拉起进程后握手）。
+    """
     from .. import mcp_client
 
     url = str(payload.get("url") or "").strip()
-    if not url.lower().startswith(("http://", "https://")):
+    command = str(payload.get("command") or "").strip()
+    args = payload.get("args") or []
+    if not url and not command:
+        return JSONResponse({"error": "请提供 url（http）或 command（stdio）"}, status_code=400)
+    if url and not url.lower().startswith(("http://", "https://")):
         return JSONResponse({"error": "地址必须以 http:// 或 https:// 开头"}, status_code=400)
+    if command and not isinstance(args, list):
+        return JSONResponse({"error": "args 必须是数组"}, status_code=400)
     try:
-        tools = await mcp_client.probe(url)
+        tools = await mcp_client.probe(url, command, [str(a) for a in args])
     except Exception as exc:  # noqa: BLE001 — 测试失败是预期结果，透出原因
         return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=400)
     return {"ok": True, "tools": tools}
+
+
+@router.post("/api/mcp/servers/{name}/toggle")
+async def toggle_mcp_server(name: str, payload: dict) -> dict:
+    """启用/停用某台 MCP 服务器（保留配置，不参与发现）。"""
+    from .. import mcp_client
+
+    enabled = bool((payload or {}).get("enabled", True))
+    try:
+        servers = mcp_client.set_server_enabled(name, enabled)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    return {"ok": True, "servers": servers}

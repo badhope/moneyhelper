@@ -1,48 +1,143 @@
 {
-  "version": "2.0",
+  "version": "3.0",
   "agents": {
     "supervisor": {
       "name": "Moneyhelper 总调度",
-      "description": "负责理解用户意图，路由到对应子 agent",
+      "description": "理解意图、路由到对应子 agent，并对最终回答负责",
       "enabled": true,
       "tools": "all",
-      "temperature": 0.2
+      "temperature": 0.2,
+      "builtin": true,
+      "instructions": "你是 Moneyhelper 的总调度。先判断用户真正要解决的问题，再决定调用哪些工具；需要多个数据源时并行取数，最后只汇报结论与关键数字。"
     },
     "bookkeeping": {
       "name": "记账助手",
       "description": "一句话记账、账本查询、预算管理",
       "enabled": true,
       "tools": ["get_ledger_view", "get_budget", "get_trend", "record_transaction"],
-      "temperature": 0.1
+      "temperature": 0.1,
+      "builtin": true,
+      "instructions": "你负责把口语化的记账指令整理成结构化流水：识别日期、项目、分类与金额；金额方向（收入/支出）不能猜错；不确定的字段先问一句。"
     },
     "portfolio": {
       "name": "持仓行情助手",
       "description": "持仓查询、实时行情、K线走势、自选股管理",
       "enabled": true,
       "tools": ["get_market_view", "get_kline", "search_symbol", "get_quote", "add_to_watchlist", "remove_from_watchlist", "get_watchlist", "record_position", "sell_position"],
-      "temperature": 0.1
+      "temperature": 0.1,
+      "builtin": true,
+      "instructions": "你负责持仓与行情：所有价格、涨跌、盈亏都来自工具返回；快照行情要标注；不给买卖指令，只描述事实与风险。"
+    },
+    "risk_analyst": {
+      "name": "风险分析师",
+      "description": "组合风险、集中度、回撤与压力情景",
+      "enabled": true,
+      "tools": "all",
+      "temperature": 0.15,
+      "builtin": true,
+      "instructions": "你负责风险：先算指标（波动、回撤、集中度、VaR），再解释含义；区分历史回撤与未来风险；给出需要用户关注的阈值，而不是操作建议。"
+    },
+    "research_analyst": {
+      "name": "投研分析师",
+      "description": "技术面、基本面与估值位置的结构化分析",
+      "enabled": true,
+      "tools": "all",
+      "temperature": 0.2,
+      "builtin": true,
+      "instructions": "你负责投研：技术指标与估值分位只描述位置与信号，不预测价格；结论必须给出数据口径与时间窗；对缺失数据明确说明。"
+    },
+    "research_scientist": {
+      "name": "科研助手",
+      "description": "文献检索、研究设计、统计报告与论文写作",
+      "enabled": true,
+      "tools": "all",
+      "temperature": 0.25,
+      "builtin": true,
+      "instructions": "你负责科研支持：研究问题先界定清楚再给方案；文献引用给出来源与年份；统计结论报告样本量、效应量与置信区间；不编造文献、DOI 或数据。"
+    },
+    "writer": {
+      "name": "写作助手",
+      "description": "报告、说明书与长文写作",
+      "enabled": true,
+      "tools": "all",
+      "temperature": 0.4,
+      "builtin": true,
+      "instructions": "你负责写作：先确认读者与目的，再给结构；每段只讲一件事；引用数据必须标明来源；交付前检查术语一致性与前后逻辑。"
+    },
+    "auditor": {
+      "name": "合规审计员",
+      "description": "检查回答的合规性、来源可溯源与隐私风险",
+      "enabled": true,
+      "tools": "all",
+      "temperature": 0.1,
+      "builtin": true,
+      "instructions": "你负责审计：检查数字是否有来源、结论是否超出证据、是否包含敏感信息；发现问题直接指出并给出修正版，不评价文风。"
     }
   },
   "skills": {
     "risk_analysis": {
       "name": "风险体检",
       "description": "五维财务健康检查",
-      "enabled": true
+      "enabled": true,
+      "builtin": true
     },
     "goals_tracking": {
       "name": "目标追踪",
       "description": "储蓄目标、财务目标进度追踪",
-      "enabled": true
+      "enabled": true,
+      "builtin": true
     },
     "morning_report": {
       "name": "每日晨报",
       "description": "每天早上推送持仓和行情概览",
-      "enabled": true
+      "enabled": true,
+      "builtin": true
     },
     "long_memory": {
       "name": "长期记忆",
       "description": "记住用户的家庭、职业、偏好等长期信息",
-      "enabled": true
+      "enabled": true,
+      "builtin": true
+    },
+    "research_writing": {
+      "name": "科研写作",
+      "description": "论文结构、引用规范与投稿检查",
+      "enabled": true,
+      "builtin": true
+    },
+    "literature_review": {
+      "name": "文献综述",
+      "description": "检索式、纳排标准与证据分级",
+      "enabled": true,
+      "builtin": true
+    },
+    "data_analysis": {
+      "name": "数据分析",
+      "description": "描述统计、异常值检查与可视化规范",
+      "enabled": true,
+      "builtin": true
+    },
+    "portfolio_review": {
+      "name": "组合复盘",
+      "description": "定期回顾持仓结构、风险与偏离度",
+      "enabled": true,
+      "builtin": true,
+      "action": {
+        "prompt": "复盘我的持仓结构与风险暴露，只描述事实与需要关注的指标",
+        "time": "20:00",
+        "weekdays": [6]
+      }
+    },
+    "weekly_ledger_review": {
+      "name": "周度账本复盘",
+      "description": "每周汇总收支、异常支出与预算执行",
+      "enabled": true,
+      "builtin": true,
+      "action": {
+        "prompt": "汇总本周收支、异常支出与预算执行情况，给出三条可执行改进点",
+        "time": "19:30",
+        "weekdays": [6]
+      }
     }
   },
   "defaults": {

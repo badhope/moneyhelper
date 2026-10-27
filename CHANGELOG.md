@@ -4,6 +4,35 @@
 
 ## [Unreleased]
 
+### 新增：Agent Studio（设置中心从「配置项」升级为「能力工坊」）
+
+- **角色 / 技能 / 提示词 / 约束 / Hook 全部可编辑并真正运行时生效**：
+  主角色指令、提示词（按优先级）、约束（must/should/may × all/finance/research）、
+  pre_prompt 注入统一进入系统提示；pre_tool Hook 可拦截/告警工具调用，post_answer Hook 做审计
+- **默认包非空**：8 个角色、9 个技能、4 份提示词、7 条约束、7 个 Hook、8 个内置科研工具，
+  首次启动即启用；用户可关闭/删除，重启不会复活（`marketplace.seeded` 只执行一次）
+- **四条添加通道**（每个分区都有）：对话内说一句、拖拽/上传（SKILL.md、md、json/yaml、zip）、
+  模板手写、AI 一键生成（生成后二次校验，未接入模型时明确报错）
+- **插件市场**：内置 38 个开源条目（Anthropic Skills 精选、学术论文/审稿/文献综述/引用管理/
+  EDA/科研绘图、科研与工程角色、Cursor 规则、官方 MCP 参考实现 + DeepWiki/GitMCP），
+  一键安装；支持粘贴 GitHub/任意 URL 安装单个文件；MCP 安装只写配置、默认停用
+- **权限模型**：全面放开 / 标准 / 严格三档；核心项（审批阈值下限、密钥、访问口令、
+  内置工具可见性、破坏性操作确认）在任何模式都锁定，`/api/studio/core-guard` 给出拒绝理由
+- **内置优势工具（不对外）**：科研大纲、引用格式化（GB/T 7714 / APA / MLA / Chicago）、
+  检索式构造、CSV 数据画像、统计摘要、敏感性分析、实验设计核查、来源可信度评分；
+  纯标准库、离线可用，只进内部工具面，不进 MCP 对外清单，逐个可开关
+- **运行时看门狗**：每 15 分钟检查日志错误、配置完整性、MCP 状态，设置页可立即检查并展示发现项
+- **CLI 对等**：`moneyhelper studio list/show/add/remove/toggle/import/market/ai`，
+  与设置页共用同一存储与校验（远程模式走同一 HTTP API）
+- **MCP 增强**：支持 stdio 传输（command + args）、逐台启用/停用；市场安装的 MCP 默认停用
+
+### 修复
+
+- 设置页新增分区原先会挤在一屏：改为左侧分组导航 + 移动端横向滚动条，14 个入口可达
+- 默认角色/技能升级后老库看不到新内置项：启动时按「只补缺失、不覆盖用户改动」合并
+- 技能定时动作在 Studio 侧编辑后不生效：写操作后自动 `sync_skill_jobs()`
+- 打包版缺 Studio 默认包（JSON 非 Python 模块，PyInstaller 静态分析发现不了）：spec 与 pyproject 同步收录
+
 ### 变更：品牌更名 Moneyhelper
 
 - 项目名、包名、CLI 命令、Docker 服务/数据卷、PyInstaller 产物、环境变量前缀统一为 Moneyhelper；

@@ -132,3 +132,43 @@ def test_facade_importable_from_any_cwd(tmp_path, monkeypatch):
     from app.version import __version__
 
     assert out.stdout.strip() == __version__
+
+
+async def test_cli_studio_add_and_list(tmp_path, monkeypatch) -> None:
+    """CLI 与设置页共用同一存储：add 后 list 能看到（不是第二套实现）。"""
+
+    from app import db
+    from app.studio import store
+
+    from moneyhelper.cli import studio as cli_studio
+
+    monkeypatch.setenv("MONEYHELPER_DB_PATH", str(tmp_path / "cli.db"))
+    monkeypatch.setattr(db._core, "DB_PATH", tmp_path / "cli.db")
+    await db.close_db()
+    await db.init_db()
+    try:
+        class Args:
+            action = "add"
+            kind = "rules"
+            id = "cli_rule"
+            name = "CLI 规则"
+            description = "通过 CLI 添加"
+            content = "不要在回答里出现账号"
+            severity = "must"
+            scope = "all"
+            priority = 0
+            file = ""
+            install = ""
+            prompt = ""
+            force = False
+            off = False
+            json = True
+            url = ""
+            token = ""
+
+        rc = await cli_studio.run(Args())
+        assert rc == 0
+        assets = await store.list_assets("rules")
+        assert any(a["id"] == "cli_rule" and a["severity"] == "must" for a in assets)
+    finally:
+        await db.close_db()

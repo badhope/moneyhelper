@@ -43,6 +43,7 @@ from .routes import (
     settings_router,
     statements_router,
     strategy_router,
+    studio_router,
     system_router,
 )
 from .version import __version__
@@ -111,9 +112,25 @@ async def lifespan(app_ref: FastAPI):
     observability._init()
     # Agent 配置：初始化默认角色/skills/工具配置
     await agent_config.init_default_config()
+    # Studio 默认包：提示词 / 约束 / Hook / 内置工具（非空起步）
+    from .studio import store as studio_store
+    from .studio import watchdog as studio_watchdog
+
+    await studio_store.get_config()
+    # 出厂预装：非 MCP 的市场资产默认装好并启用（用户可删可关，不会重启复活）
+    from .studio import installer as studio_installer
+
+    try:
+        await studio_installer.seed_default_bundle()
+    except Exception as exc:  # noqa: BLE001 — 预装失败不阻断启动
+        log.warning("studio.seed_default_bundle failed: %s", exc)
+    await studio_watchdog.start()
     log.info("database initialised, scheduler started")
     yield
     log.info("moneyhelper backend shutting down")
+    from .studio import watchdog as studio_watchdog
+
+    await studio_watchdog.stop()
     await scheduler.stop()
     await llm.aclose()
     vault.reset_cache()
@@ -202,6 +219,7 @@ app.include_router(debts_subs_router)
 app.include_router(market_router)
 app.include_router(calculations_router)
 app.include_router(strategy_router)
+app.include_router(studio_router)
 app.include_router(evaluation_router)
 app.include_router(import_router)
 app.include_router(paper_router)
