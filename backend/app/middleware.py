@@ -71,7 +71,9 @@ def _rate_limit_check(client_ip: str) -> tuple[bool, int]:
     bucket = _rate_buckets[client_ip]
     # 先计数再判定：新 IP 首个请求也计入窗口（修复旧实现"首请求不计数"）
     bucket.append(now)
-    if len(bucket) >= _RATE_LIMIT_MAX:
+    # 用 > 而不是 >=：文档写的是"每分钟 200 次"，第 200 次应当放行。
+    # 旧写法的实际配额是 199，与 X-RateLimit-Limit 自相矛盾（已有回归测试）。
+    if len(bucket) > _RATE_LIMIT_MAX:
         retry_after = int(bucket[0] + _RATE_LIMIT_WINDOW - now) + 1
         return False, max(1, retry_after)
     return True, 0

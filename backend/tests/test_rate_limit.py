@@ -60,3 +60,19 @@ def test_different_ips_independent():
     assert _rate_limit_check("full.ip")[0] is False
     # 新 IP 仍放行
     assert _rate_limit_check("fresh.ip")[0] is True
+
+
+def test_exactly_max_requests_are_allowed():
+    """文档写 200 次/分钟：第 200 次必须放行，第 201 次才拒绝。
+
+    旧实现用 `len(bucket) >= max`，实际配额只有 199，与响应头
+    X-RateLimit-Limit: 200 自相矛盾。
+    """
+    from app import middleware as mw
+
+    mw._rate_buckets.clear()
+    for i in range(mw._RATE_LIMIT_MAX):
+        allowed, _ = _rate_limit_check("5.5.5.5")
+        assert allowed is True, f"第 {i + 1} 次请求被误拒（配额应等于 {mw._RATE_LIMIT_MAX}）"
+    allowed, retry = _rate_limit_check("5.5.5.5")
+    assert allowed is False and retry > 0
