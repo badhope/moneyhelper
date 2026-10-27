@@ -21,6 +21,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import db
+from .compat_env import getenv
 from .logging_utils import get_logger
 
 log = get_logger(__name__)
@@ -192,18 +193,31 @@ def _rate_limited(key: str) -> bool:
 # --- 端点处理 ---
 
 
+def client_ip(request: Request | None) -> str:
+    """取客户端 IP 用于限流键。
+
+    `X-Forwarded-For` 只有在显式声明"我部署在可信反代后面"时才采信
+    （`MONEYHELPER_TRUST_PROXY=1`）。默认不信任：否则任何能直连端口的
+    人都能伪造该头，给每次登录换一个"IP"，把按 IP 的限流整个绕开。
+    反代部署需在 nginx 里覆盖（而非追加）该头，见 docs/DEPLOY.md。
+    """
+    if request is None:
+        return "unknown"
+    if getenv("MONEYHELPER_TRUST_PROXY").strip() in ("1", "true", "yes"):
+        fwd = request.headers.get("x-forwarded-for", "")
+        first = fwd.split(",")[0].strip()
+        if first:
+            return first
+    return request.client.host if request.client else "unknown"
+
+
 async def login(req: LoginReq, request: Request | None = None) -> TokenResp:
     # 暴力破解保护：真实客户端 IP + 用户名 5 次 / 分钟（防分布式爆破）
-    client_ip = "unknown"
-    if request is not None:
-        fwd = request.headers.get("x-forwarded-for", "")
-        client_ip = fwd.split(",")[0].strip() or (
-            request.client.host if request.client else "unknown"
-        )
-    rate_key = f"{client_ip}:{req.username}"
+    ip = client_ip(request)
+    rate_key = f"{ip}:{req.username}"
     if _rate_limited(rate_key) or _rate_limited(f"user:{req.username}"):
         log.warning(
-            "AUTH: rate-limited login attempt user=%s ip=%s", req.username, client_ip
+            "AUTH: rate-limited login attempt user=%s ip=%s", req.username, ip
         )
         raise HTTPException(status_code=429, detail="登录尝试过于频繁，请稍后再试")
 
@@ -212,7 +226,7 @@ async def login(req: LoginReq, request: Request | None = None) -> TokenResp:
         log.warning(
             "AUTH: login failed user=%s ip=%s reason=%s",
             req.username,
-            client_ip,
+            ip,
             "user_not_found" if not user else "disabled",
         )
         raise HTTPException(status_code=401, detail="用户名或密码错误")
@@ -220,7 +234,7 @@ async def login(req: LoginReq, request: Request | None = None) -> TokenResp:
         log.warning(
             "AUTH: login failed user=%s ip=%s reason=bad_password",
             req.username,
-            client_ip,
+            ip,
         )
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     await db.user_update_last_login(user["id"])

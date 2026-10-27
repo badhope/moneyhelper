@@ -41,7 +41,16 @@ The app **only allows localhost by default**. Configure access before exposing i
 
 ```bash
 # nginx reverse proxy example (port 8787, same-origin paths)
-location / { proxy_pass http://127.0.0.1:8787; }
+location / {
+  proxy_pass http://127.0.0.1:8787;
+  proxy_set_header X-Forwarded-For $remote_addr;   # overwrite, don't append
+  proxy_set_header Host $host;
+}
+
+> Login throttling behind a proxy: failed logins are counted per socket peer IP by
+> default. Set `MONEYHELPER_TRUST_PROXY=1` only when a trusted reverse proxy sits in
+> front — `X-Forwarded-For` is spoofable, so enabling it on a directly exposed port
+> hands the per-IP limit to the attacker.
 ```
 
 ## 4. Data & backups

@@ -49,7 +49,15 @@ docker compose up -d --build     # http://<服务器IP>:8787
 
 ```bash
 # 反代示例（nginx，端口 8787，口径一致）
-location / { proxy_pass http://127.0.0.1:8787; }
+location / {
+  proxy_pass http://127.0.0.1:8787;
+  proxy_set_header X-Forwarded-For $remote_addr;   # 覆盖而非追加：追加会把客户端可伪造的值保留在最前
+  proxy_set_header Host $host;
+}
+
+> 反代部署登录限流：登录失败计数默认按 socket 对端 IP 计。处在可信反代后面时，
+> 设 `MONEYHELPER_TRUST_PROXY=1` 让它按 `X-Forwarded-For` 取真实客户端 IP；
+> 直连暴露端口时不要开——该头可伪造，开了等于把按 IP 的限流交出去。
 ```
 
 ## 4. 数据与备份
