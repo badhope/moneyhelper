@@ -49,9 +49,11 @@ def test_rate_limit_counts_first_request(monkeypatch):
     mw._rate_buckets.pop(ip, None)
     ok1, _ = mw._rate_limit_check(ip)
     assert ok1 is True
-    # 首个请求必须已计数：窗口内再打满 MAX-1 次即触发限流
+    # 首个请求必须已计数：窗口内 quota 用完（累计 MAX 次）后，下一次即被拒
     for _ in range(mw._RATE_LIMIT_MAX - 1):
-        ok, retry = mw._rate_limit_check(ip)
+        ok, _ = mw._rate_limit_check(ip)
+    assert ok is True, "第 MAX 次请求应放行（配额 = MAX）"
+    ok, retry = mw._rate_limit_check(ip)
     assert ok is False and retry >= 1
 
 

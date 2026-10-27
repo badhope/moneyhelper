@@ -48,6 +48,7 @@ COMPAT_ALLOWLIST = {
     Path("backend/app/compat_env.py"),
     Path("backend/tests/test_compat_env.py"),
     Path("backend/tests/test_brand.py"),
+    Path("backend/tests/test_auth_proxy.py"),
     # 升级说明必须写出旧变量名，否则用户不知道该改什么
     Path("docs/CONFIG.md"),
     Path("CHANGELOG.md"),
