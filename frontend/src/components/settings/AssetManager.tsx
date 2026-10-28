@@ -356,14 +356,24 @@ export function AssetManager({
     for (const f of files) fd.append("files", f);
     fd.append("kind", kind);
     try {
-      const r = await api<{ ok: boolean; saved: { name: string }[]; errors: { file: string; error: string }[] }>(
-        "/api/studio/import",
-        { method: "POST", body: fd },
-      );
+      const r = await api<{
+        ok: boolean;
+        saved: { name: string; replaced?: boolean }[];
+        errors: { file: string; error: string }[];
+      }>("/api/studio/import", { method: "POST", body: fd });
       setImportErrors(r.errors ?? []);
       await refresh();
-      if (r.saved?.length) toast(t("studio.imported", { n: r.saved.length }), "ok");
-      if (!r.saved?.length && !r.errors?.length) toast(t("studio.importEmpty"), "error");
+      const n = r.saved?.length ?? 0;
+      const replaced = (r.saved ?? []).filter((x) => x.replaced).length;
+      if (n) {
+        toast(
+          replaced
+            ? t("studio.importedWithOverwrite", { n, replaced })
+            : t("studio.imported", { n }),
+          "ok",
+        );
+      }
+      if (!n && !r.errors?.length) toast(t("studio.importEmpty"), "error");
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "error");
     } finally {
@@ -640,9 +650,15 @@ export function AssetManager({
             {t("studio.empty")}
           </div>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="grid gap-2 @lg:grid-cols-2">
             {assets.map((a) => (
-              <li key={a.id} className="rounded-lg border border-border px-3 py-2">
+              <li
+                key={a.id}
+                className={cn(
+                  "flex flex-col rounded-xl border bg-card p-3 transition-colors",
+                  a.enabled === false ? "border-border/60 opacity-70" : "border-border hover:border-primary/30",
+                )}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium">
@@ -689,7 +705,13 @@ export function AssetManager({
                       );
                     })()}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <Switch
+                    checked={a.enabled !== false}
+                    onChange={() => void toggle(a)}
+                    label={`${t("studio.toggle")} ${a.name}`}
+                  />
+                </div>
+                <div className="mt-auto flex flex-wrap items-center gap-1 border-t border-border/60 pt-2">
                     {kind === "skills" && (a as unknown as { action?: unknown }).action ? (
                       <button
                         type="button"
@@ -715,25 +737,19 @@ export function AssetManager({
                     <button
                       type="button"
                       aria-label={`${t("studio.edit")} ${a.name}`}
-                      className="rounded p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                      className="ml-auto inline-flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] text-muted-foreground hover:bg-primary/10 hover:text-primary"
                       onClick={() => startEdit(a)}
                     >
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Pencil className="h-3 w-3" /> {t("studio.edit")}
                     </button>
                     <button
                       type="button"
                       aria-label={`${t("studio.delete")} ${a.name}`}
-                      className="rounded p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-600"
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] text-muted-foreground hover:bg-red-500/10 hover:text-red-600"
                       onClick={() => setPendingDelete(a)}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3 w-3" /> {t("studio.delete")}
                     </button>
-                    <Switch
-                      checked={a.enabled !== false}
-                      onChange={() => void toggle(a)}
-                      label={`${t("studio.toggle")} ${a.name}`}
-                    />
-                  </div>
                 </div>
                 {lastRun?.id === a.id && lastRun.answer && (
                   <div className="mt-1.5 whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-2 text-[11px]">

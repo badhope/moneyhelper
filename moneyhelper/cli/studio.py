@@ -132,13 +132,25 @@ async def _import_local(args: Any) -> int:
             errors.extend(entry["__zip_errors__"])
             continue
         try:
+            existing = {a["id"] for a in await store.list_assets(entry["kind"])}
+            replaced = entry["id"] in existing
             asset = await store.upsert_asset(entry["kind"], entry["id"], entry["asset"])
-            saved.append({"kind": entry["kind"], "id": entry["id"], "name": asset.get("name", "")})
+            saved.append(
+                {
+                    "kind": entry["kind"],
+                    "id": entry["id"],
+                    "name": asset.get("name", ""),
+                    "replaced": replaced,
+                }
+            )
         except Exception as exc:  # noqa: BLE001 — 逐条回报
             errors.append({"file": entry.get("source", path.name), "error": str(exc)})
     if errors and not saved:
         _die("; ".join(f"{e['file']}: {e['error']}" for e in errors))
+    replaced_n = sum(1 for x in saved if x.get("replaced"))
     text = f"已导入 {len(saved)} 项"
+    if replaced_n:
+        text += f"（其中 {replaced_n} 项覆盖了同名资产）"
     if errors:
         text += f"，{len(errors)} 项失败：" + "; ".join(f"{e['file']}: {e['error']}" for e in errors[:3])
     _out({"saved": saved, "errors": errors}, args.json, text)

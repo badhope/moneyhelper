@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { Section } from "./shared";
 
 interface InternalTool {
@@ -137,12 +138,18 @@ export function InternalToolsSection() {
         </div>
 
         {revealed && (
-          <ul className="space-y-1.5">
+          <ul className="grid gap-2 @lg:grid-cols-2">
             {(internal?.tools ?? []).map((tool) => (
-              <li key={tool.id} className="flex items-start justify-between gap-2 rounded-lg border border-border px-3 py-2">
+              <li
+                key={tool.id}
+                className={cn(
+                  "flex items-start justify-between gap-2 rounded-xl border bg-card p-3",
+                  tool.enabled ? "border-border" : "border-border/60 opacity-70",
+                )}
+              >
                 <div className="min-w-0">
                   <div className="text-[13px] font-medium">{tool.name}</div>
-                  <div className="text-[11px] text-muted-foreground">{tool.description}</div>
+                  <div className="text-[11px] leading-relaxed text-muted-foreground">{tool.description}</div>
                   <div className="mt-0.5 font-mono text-[10px] text-muted-foreground/70">{tool.id}</div>
                 </div>
                 <Switch

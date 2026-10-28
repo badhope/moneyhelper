@@ -112,7 +112,13 @@ async def export_data() -> dict[str, Any]:
 
 
 def _export_mcp_servers() -> list[dict[str, Any]]:
-    """导出 MCP 配置（URL 里的凭据打码：备份可能被分享）。"""
+    """导出 MCP 配置（凭据一律打码：备份文件可能被分享/上传）。
+
+    两处会带凭据：
+    - `url` 里的 `user:token@host`
+    - `env` 里的 API Key（如 GITHUB_TOKEN / ZOTERO_API_KEY）
+    只保留键名、把值替换成 ***，恢复后由用户重新填写。
+    """
     try:
         from .. import mcp_client
 
@@ -121,6 +127,8 @@ def _export_mcp_servers() -> list[dict[str, Any]]:
             entry = dict(s)
             if entry.get("url"):
                 entry["url"] = mcp_client.redact_url(str(entry["url"]))
+            if isinstance(entry.get("env"), dict):
+                entry["env"] = {k: "***" for k in entry["env"]}
             out.append(entry)
         return out
     except Exception:  # noqa: BLE001 — MCP 配置读取失败不应让备份整体失败
@@ -305,11 +313,21 @@ async def _import_backup_locked(
             try:
                 from .. import mcp_client
 
-                clean = [
-                    {k: v for k, v in s.items() if k in ("name", "url", "command", "args", "env", "enabled")}
-                    for s in mcp_servers
-                    if isinstance(s, dict)
-                ]
+                def _keep(entry: dict[str, Any]) -> dict[str, Any]:
+                    out = {
+                        k: v
+                        for k, v in entry.items()
+                        if k in ("name", "url", "command", "args", "enabled")
+                    }
+                    env = entry.get("env")
+                    if isinstance(env, dict):
+                        # 备份里的 *** 是打码占位，不能当真实密钥写回配置
+                        real = {k: v for k, v in env.items() if v and v != "***"}
+                        if real:
+                            out["env"] = real
+                    return out
+
+                clean = [_keep(s) for s in mcp_servers if isinstance(s, dict)]
                 mcp_client.save_servers(clean)
                 counts["mcp_servers"] = len(clean)
             except Exception:  # noqa: BLE001 — MCP 恢复失败不阻断其余数据

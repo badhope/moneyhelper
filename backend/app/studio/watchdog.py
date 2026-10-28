@@ -24,6 +24,7 @@ _state: dict[str, Any] = {
 }
 _task: asyncio.Task | None = None
 _stop: asyncio.Event | None = None
+_current_interval: int = 0
 _ERROR_MARKERS = ("ERROR", "CRITICAL", "Traceback")
 
 
@@ -46,8 +47,12 @@ def _scan_logs(limit: int = 400) -> list[str]:
     return out[-20:]
 
 
-async def run_check() -> dict[str, Any]:
-    """执行一轮检查，返回发现项（空数组 = 健康）。"""
+async def run_check(advance_state: bool = True) -> dict[str, Any]:
+    """执行一轮检查，返回发现项（空数组 = 健康）。
+
+    advance_state=False 用于设置页「一键自检」：只读扫一遍，不改看门狗的
+    checks 计数与 last_check_at（否则点几次自检就把巡检节奏记录搞乱）。
+    """
     findings: list[dict[str, str]] = []
     try:
         await db.get_settings()
@@ -85,16 +90,19 @@ async def run_check() -> dict[str, Any]:
                 "message": f"日志中有 {len(errs)} 条错误/告警，最近一条：{errs[-1]}",
             }
         )
-    _state["checks"] += 1
-    _state["errors_seen"] += len([f for f in findings if f["level"] == "error"])
-    _state["last_check_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
-    _state["last_findings"] = findings
+    if advance_state:
+        _state["checks"] += 1
+        _state["errors_seen"] += len([f for f in findings if f["level"] == "error"])
+        _state["last_check_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        _state["last_findings"] = findings
     if findings:
         log.info("studio.watchdog findings=%s", len(findings))
     return {"ok": True, "findings": findings, "checked_at": _state["last_check_at"]}
 
 
 async def _loop(interval_minutes: int) -> None:
+    global _current_interval
+    _current_interval = interval_minutes
     assert _stop is not None
     while not _stop.is_set():
         try:
@@ -112,11 +120,15 @@ async def start() -> None:
     cfg = await store.watchdog_settings()
     if not cfg.get("enabled", True):
         return
+    wanted = int(cfg.get("interval_minutes") or 15)
     if _task and not _task.done():
-        return
+        # 已在跑：若间隔改了，必须重启 loop 才生效（否则改了设置看不出变化）
+        if wanted == _current_interval:
+            return
+        await stop()
     _stop = asyncio.Event()
-    _task = asyncio.create_task(_loop(int(cfg.get("interval_minutes") or 15)))
-    log.info("studio.watchdog started interval=%smin", cfg.get("interval_minutes"))
+    _task = asyncio.create_task(_loop(wanted))
+    log.info("studio.watchdog started interval=%smin", wanted)
 
 
 async def stop() -> None:

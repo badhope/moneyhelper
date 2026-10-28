@@ -431,8 +431,16 @@ async def run_agent(    question: str,
                 t for t in tool_schemas if t["function"]["name"] not in disabled_tools
             ]
             tool_map = {k: v for k, v in ALLOWED_IMPL.items() if k not in disabled_tools}
-        # 主角色工具白名单：设置页「角色 → 工具白名单」填了具体工具名时只暴露这些。
-        # 之前该字段只存不用，等于给了用户一个无效开关。
+    # P2 MCP：把已配置 MCP 服务器提供的工具动态合并进工具列表（仅财务分支，通用分支不接外部工具）
+    mcp_schemas: list[dict[str, Any]] = []
+    if tools_list is None:
+        try:
+            mcp_schemas = await mcp_client.refresh()
+            tool_schemas = tool_schemas + mcp_schemas
+        except Exception:  # noqa: BLE001 — MCP 异常不影响主流程
+            pass
+        # 主角色工具白名单必须放在最后一步：它是「最终暴露给模型的工具面」，
+        # 放在 MCP 合并之前会被后加的 mcp__* 工具绕过去（实测白名单只剩 1 个工具时仍有 9 个）。
         try:
             from .studio import store as studio_store
 
@@ -442,15 +450,8 @@ async def run_agent(    question: str,
                 allow = {str(x) for x in allowed}
                 tool_schemas = [t for t in tool_schemas if t["function"]["name"] in allow]
                 tool_map = {k: v for k, v in tool_map.items() if k in allow}
+                mcp_schemas = [m for m in mcp_schemas if m["function"]["name"] in allow]
         except Exception:  # noqa: BLE001 — 角色配置异常时保留完整工具面
-            pass
-    # P2 MCP：把已配置 MCP 服务器提供的工具动态合并进工具列表（仅财务分支，通用分支不接外部工具）
-    mcp_schemas: list[dict[str, Any]] = []
-    if tools_list is None:
-        try:
-            mcp_schemas = await mcp_client.refresh()
-            tool_schemas = tool_schemas + mcp_schemas
-        except Exception:  # noqa: BLE001 — MCP 异常不影响主流程
             pass
     # 循环检测：模型有时会反复用完全相同的参数调同一个工具（尤其工具持续报错时），
     # 白烧 token 也拿不到新信息。连续 3 次完全相同则中断并如实说明。

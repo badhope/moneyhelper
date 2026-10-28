@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { Section, inputCls, labelCls } from "./shared";
 
 interface McpServer {
@@ -38,7 +39,7 @@ export function PluginsSection() {
   const [saving, setSaving] = useState(false);
 
   const list = useQuery({
-    queryKey: ["/api/mcp/servers"],
+    queryKey: ["/api/mcp/servers", "full"],
     queryFn: () =>
       api<{ servers: McpServer[]; discovery_failures?: Record<string, string> }>(
         "/api/mcp/servers",
@@ -259,9 +260,15 @@ export function PluginsSection() {
             {t("plugins.empty")}
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="grid gap-2 @lg:grid-cols-2">
             {servers.map((s) => (
-              <li key={s.name} className="rounded-lg border border-border px-3 py-2">
+              <li
+                key={s.name}
+                className={cn(
+                  "flex flex-col rounded-xl border bg-card p-3",
+                  s.enabled === false ? "border-border/60 opacity-75" : "border-border",
+                )}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 text-sm font-medium">
@@ -308,6 +315,11 @@ export function PluginsSection() {
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
+                    <Switch
+                      checked={s.enabled !== false}
+                      onChange={() => void toggle(s)}
+                      label={`${t("plugins.toggle")} ${s.name}`}
+                    />
                     <button
                       type="button"
                       aria-label={t("plugins.remove", { name: s.name })}
@@ -316,11 +328,6 @@ export function PluginsSection() {
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                    <Switch
-                      checked={s.enabled !== false}
-                      onChange={() => void toggle(s)}
-                      label={`${t("plugins.toggle")} ${s.name}`}
-                    />
                   </div>
                 </div>
               </li>

@@ -18,7 +18,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "moneyhelper"
-version = "4.3.1"
+version = "4.3.2"
 description = "Moneyhelper —— 本地优先的垂直财务智能体工作台（数字可复核、投研/财报/策略全流程、MCP 开放）"
 readme = "README.md"
 requires-python = ">=3.10"

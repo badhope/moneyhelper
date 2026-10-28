@@ -126,6 +126,10 @@ moneyhelper studio ai --kind skills --prompt "每周日检查定投"
 |---|---|---|---|
 | ![技能表单](screenshots/76-studio-skill-form.png) | ![角色表单](screenshots/77-studio-role-form.png) | ![科研 MCP](screenshots/78-studio-market-research-mcp.png) | ![深色](screenshots/79-studio-roles-dark.png) |
 
-| 约束 | Hook | 导入格式示例 | 移动端权限 |
+| 约束（卡片网格） | Hook | 导入格式示例 | 移动端 |
 |---|---|---|---|
 | ![约束](screenshots/80-studio-rules.png) | ![Hook](screenshots/81-studio-hooks.png) | ![格式](screenshots/82-studio-import-spec.png) | ![移动端](screenshots/83-studio-mobile-permissions.png) |
+
+| MCP 卡片 | 移动端 MCP |
+|---|---|
+| ![MCP 卡片](screenshots/84-studio-mcp-cards.png) | ![移动端 MCP](screenshots/85-studio-mobile-mcp.png) |

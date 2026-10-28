@@ -168,7 +168,7 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
-        className="min-h-0 min-w-0 flex-1 overflow-y-auto scroll-thin px-4 py-4 sm:px-6 space-y-3"
+        className="@container min-h-0 min-w-0 flex-1 overflow-y-auto scroll-thin px-4 py-4 sm:px-6 space-y-3"
       >
         {active === "prefs" && (
           <PrefsSection

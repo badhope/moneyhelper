@@ -68,8 +68,22 @@ def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
 
 
 def _slug(text: str, fallback: str) -> str:
-    s = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(text or "").strip()).strip("-._").lower()
-    return s[:64] or fallback
+    """把名称转成 id。
+
+    中文名会被正则清空，早期实现直接回落成 `fallback`（如 "rule"），于是
+    「规则甲 / 规则乙 / 规则丙」三个文件拿到同一个 id，后导入的静默覆盖前面的。
+    现在：ASCII 名照旧；非 ASCII 名拼一段内容哈希，保证不同名称 → 不同 id。
+    """
+    import hashlib
+
+    raw = str(text or "").strip()
+    s = re.sub(r"[^A-Za-z0-9_.-]+", "-", raw).strip("-._").lower()
+    if s and re.search(r"[a-z0-9]", s):
+        return s[:64]
+    if not raw:
+        return fallback
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:10]
+    return f"{fallback}-{digest}"
 
 
 def _title_from_body(body: str) -> str:

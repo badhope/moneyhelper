@@ -48,10 +48,31 @@ export function MarketplaceSection() {
 
   const list = useQuery({
     queryKey: ["/api/studio/market/list"],
-    queryFn: () => api<{ items: MarketItem[]; categories: string[] }>("/api/studio/market/list"),
+    queryFn: () =>
+      api<{
+        items: MarketItem[];
+        categories: string[];
+        mcp_enabled?: Record<string, boolean>;
+      }>("/api/studio/market/list"),
+  });
+  // queryKey 必须与 PluginsSection 不同：两处都请求同一个端点，但返回形状不同
+  // （这里只取 servers 数组，插件页要 servers + discovery_failures）。共用 key 会让
+  // 先加载的一方决定缓存形状，另一方拿到错误类型直接崩（实测整页 "页面出错了"）。
+  const mcpServers = useQuery({
+    queryKey: ["/api/mcp/servers", "names-only"],
+    queryFn: () =>
+      api<{ servers: { name: string; enabled?: boolean }[] }>("/api/mcp/servers").then((r) => {
+        const list = Array.isArray(r?.servers) ? r.servers : [];
+        return list;
+      }),
   });
   const items = list.data?.items ?? [];
   const categories = list.data?.categories ?? [];
+  const mcpEnabled = new Map(
+    (Array.isArray(mcpServers.data) ? mcpServers.data : []).map(
+      (s) => [s.name, s.enabled !== false] as const,
+    ),
+  );
 
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: ["/api/studio/market/list"] });
@@ -253,8 +274,20 @@ export function MarketplaceSection() {
                   </Button>
                 </div>
                 {item.installed && (
-                  <div className="mt-1 inline-flex items-center gap-1 text-[10.5px] text-emerald-600">
-                    <Check className="h-3 w-3" /> {t("studio.alreadyInstalled")}
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[10.5px]">
+                    <span className="inline-flex items-center gap-1 text-emerald-600">
+                      <Check className="h-3 w-3" /> {t("studio.alreadyInstalled")}
+                    </span>
+                    {item.kind === "mcp" &&
+                      (() => {
+                        const on = mcpEnabled.get(item.id.replace(/^mcp-/, ""));
+                        if (on === undefined || on) return null;
+                        return (
+                          <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-600">
+                            {t("studio.mcpInstalledDisabled")}
+                          </span>
+                        );
+                      })()}
                   </div>
                 )}
               </li>

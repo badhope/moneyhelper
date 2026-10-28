@@ -306,3 +306,164 @@ async def test_backup_includes_mcp_servers(temp_db, tmp_path, monkeypatch) -> No
     servers = mcp_client.list_servers()
     assert [s["name"] for s in servers] == ["s1"]
     assert servers[0]["enabled"] is False
+
+
+async def test_concurrent_writes_do_not_lose_data(temp_db) -> None:
+    """并发保存不能互相覆盖：读-改-写必须串行（实测未加锁时 8 并发只存下 3 个）。"""
+    import asyncio
+
+    async def add(i: int):
+        return await store.upsert_asset(
+            "prompts", f"race{i}", {"name": f"P{i}", "content": "x"}
+        )
+
+    await asyncio.gather(*[add(i) for i in range(12)])
+    ids = {a["id"] for a in await store.list_assets("prompts")}
+    assert {f"race{i}" for i in range(12)} <= ids
+
+
+async def test_mixed_concurrent_writes(temp_db) -> None:
+    """不同类型资产的并发写共用同一份配置，也必须串行。"""
+    import asyncio
+
+    async def op(i: int):
+        if i % 3 == 0:
+            return await store.upsert_asset("rules", f"mix{i}", {"name": f"M{i}", "content": "x"})
+        if i % 3 == 1:
+            return await store.set_enabled("prompts", "core_identity", True)
+        return await store.update_permissions({"allow_remote_install": True})
+
+    await asyncio.gather(*[op(i) for i in range(9)])
+    rules = {a["id"] for a in await store.list_assets("rules")}
+    assert {"mix0", "mix3", "mix6"} <= rules
+
+
+async def test_editing_builtin_keeps_builtin_flag(temp_db) -> None:
+    """编辑内置资产不能抹掉 builtin 标记（否则一次编辑就变成可自由删除）。"""
+    await store.upsert_asset(
+        "rules",
+        "no_investment_advice",
+        {"name": "改名", "content": "改内容", "severity": "must", "scope": "finance", "enabled": True},
+    )
+    assets = {a["id"]: a for a in await store.list_assets("rules")}
+    assert assets["no_investment_advice"]["builtin"] is True
+
+
+async def test_invalid_skill_action_rejected(temp_db) -> None:
+    """非法定时动作必须报错，不能静默存下一个永不触发的配置。"""
+    with pytest.raises(ValueError, match="定时动作格式不合法"):
+        await store.upsert_asset(
+            "skills",
+            "bad_action",
+            {"name": "坏", "content": "x", "action": {"prompt": "", "time": "99:99", "weekdays": [9]}},
+        )
+    with pytest.raises(ValueError, match="定时动作格式不合法"):
+        await store.upsert_asset(
+            "skills", "bad2", {"name": "坏2", "content": "x", "action": {"time": "20:00"}}
+        )
+    ok = await store.upsert_asset(
+        "skills",
+        "good_action",
+        {"name": "好", "content": "x", "action": {"prompt": "检查", "time": "20:00", "weekdays": [1]}},
+    )
+    assert ok["action"] == {"prompt": "检查", "time": "20:00", "weekdays": [1]}
+
+
+async def test_standard_mode_disables_url_install() -> None:
+    """非全面放开模式必须同时关掉 URL 安装，否则是权限后门。"""
+    perms, errors = store.validate_permissions({"mode": "standard"})
+    assert not errors
+    assert perms["allow_chat_admin"] is False
+    assert perms["allow_cli_admin"] is False
+    assert perms["allow_remote_install"] is False
+
+
+async def test_watchdog_restarts_on_interval_change(temp_db) -> None:
+    """改看门狗间隔后必须重启 loop，否则新间隔不生效。"""
+    from app.studio import watchdog
+
+    await store.set_watchdog(enabled=True, interval_minutes=5)
+    await watchdog.start()
+    try:
+        assert watchdog.status()["running"] is True
+        await store.set_watchdog(interval_minutes=45)
+        await watchdog.start()
+        assert watchdog.status()["running"] is True
+    finally:
+        await watchdog.stop()
+
+
+async def test_backup_masks_mcp_env_secrets(temp_db, tmp_path, monkeypatch) -> None:
+    """MCP 的 env 常放 API Key：导出必须打码，恢复不能把 *** 当真实值写回。"""
+    from app import mcp_client
+    from app.db import backup
+
+    monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
+    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    mcp_client._servers.clear()
+    mcp_client.save_servers(
+        [
+            {
+                "name": "withkey",
+                "command": "npx",
+                "args": ["-y", "pkg"],
+                "env": {"GITHUB_TOKEN": "ghp_realsecret123", "MODE": "read"},
+                "enabled": True,
+            }
+        ]
+    )
+    data = await backup.export_data()
+    env = data["mcp_servers"][0]["env"]
+    assert env == {"GITHUB_TOKEN": "***", "MODE": "***"}
+
+    mcp_client.save_servers([])
+    await backup.import_backup({**data, "settings": data.get("settings") or {}})
+    restored = mcp_client.raw_servers()[0]
+    # 打码占位不能当真实密钥写回；用户需自行重填
+    assert "env" not in restored
+
+
+def test_import_chinese_names_get_distinct_ids() -> None:
+    """中文名文件不能都落到同一个 fallback id（否则后导入的静默覆盖前面的）。"""
+    ids = set()
+    sep = chr(10)
+    for name in ("规则甲", "规则乙", "规则丙"):
+        body = sep.join(["---", "name: " + name, "description: d", "---", "", "body"])
+        ids.add(importer.parse_file(body.encode(), name + ".md", "rules")[0]["id"])
+    assert len(ids) == 3
+
+
+
+async def test_repair_mcp_config_restores_missing_servers(temp_db, tmp_path, monkeypatch) -> None:
+    """mcp.json 丢失后，已安装过的 MCP 要自动补回（DB 与文件不同生命周期）。"""
+    from app import mcp_client
+    from app.studio import installer
+
+    monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
+    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    mcp_client._servers.clear()
+    await installer.seed_default_bundle()
+    before = {s["name"] for s in mcp_client.list_servers()}
+    assert before
+
+    # 模拟「配置文件被删」：清空但不改 seeded 标记
+    mcp_client.save_servers([])
+    assert mcp_client.list_servers() == []
+    out = await installer.repair_mcp_config()
+    after = {s["name"] for s in mcp_client.list_servers()}
+    assert out["repaired"] and after == before
+
+
+async def test_repair_does_not_resurrect_uninstalled(temp_db, tmp_path, monkeypatch) -> None:
+    """用户主动卸载过的 MCP 不能被 repair 复活。"""
+    from app import mcp_client
+    from app.studio import installer
+
+    monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
+    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    mcp_client._servers.clear()
+    await installer.seed_default_bundle()
+    await installer.uninstall_market("mcp-fetch")
+    assert "fetch" not in {s["name"] for s in mcp_client.list_servers()}
+    await installer.repair_mcp_config()
+    assert "fetch" not in {s["name"] for s in mcp_client.list_servers()}

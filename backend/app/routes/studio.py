@@ -42,6 +42,25 @@ def _err(msg: str, status: int = 400) -> JSONResponse:
     return JSONResponse({"ok": False, "error": msg}, status_code=status)
 
 
+async def _audit(
+    action: str, entity_type: str, before: dict | None, after: dict | None
+) -> None:
+    """Studio 变更审计（失败只记日志，不影响主流程）。"""
+    try:
+        from ..provenance import record_provenance
+
+        await record_provenance(
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_type,
+            before=before,
+            after=after,
+            source="studio",
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("studio audit failed (%s): %s", action, exc)
+
+
 async def _require_admin(kind: str = "write") -> JSONResponse | None:
     if await store.chat_admin_allowed():
         return None
@@ -171,9 +190,18 @@ async def studio_import(
                 errors.extend(entry["__zip_errors__"])
                 continue
             try:
+                existing_ids = {a["id"] for a in await store.list_assets(entry["kind"])}
+                replaced = entry["id"] in existing_ids
                 asset = await store.upsert_asset(entry["kind"], entry["id"], entry["asset"])
                 saved.append(
-                    {"kind": entry["kind"], "id": entry["id"], "name": asset.get("name", ""), "file": name}
+                    {
+                        "kind": entry["kind"],
+                        "id": entry["id"],
+                        "name": asset.get("name", ""),
+                        "file": name,
+                        # 覆盖同名资产时要让用户知道（否则「导入 3 个只剩 1 个」无从察觉）
+                        "replaced": replaced,
+                    }
                 )
             except Exception as exc:  # noqa: BLE001
                 errors.append({"file": entry.get("source") or name, "error": str(exc)})
@@ -334,13 +362,14 @@ async def studio_permissions() -> dict:
 
 @router.put("/api/studio/permissions")
 async def studio_set_permissions(payload: dict) -> dict:
-    cfg = await store.get_config()
+    """权限变更必须留痕：谁在什么时候把权限从 X 改成了 Y。"""
     perms, errors = store.validate_permissions(payload or {})
     if errors:
         return _err("; ".join(errors))
-    cfg["permissions"] = {**store.permissions(cfg), **perms}
-    await store.save_config(cfg)
-    return {"ok": True, "permissions": cfg["permissions"]}
+    before = store.permissions(await store.get_config())
+    updated = await store.update_permissions(perms)
+    await _audit("studio.permissions_changed", "permissions", before, updated)
+    return {"ok": True, "permissions": updated}
 
 
 @router.post("/api/studio/core-guard")
@@ -349,6 +378,7 @@ async def studio_core_guard(payload: dict) -> dict:
     key = str((payload or {}).get("key") or "")
     if key not in store.CORE_LOCKED:
         return {"ok": True, "allowed": True}
+    await _audit("studio.core_guard_blocked", "core_guard", {"key": key}, None)
     return {
         "ok": False,
         "allowed": False,
@@ -477,7 +507,7 @@ async def studio_diagnostics() -> dict:
             "detail": "已配置可用端点" if await llm.llm_available() else "未接入模型：AI 生成与自定义技能注入将降级",
         }
     )
-    wd = await watchdog.run_check()
+    wd = await watchdog.run_check(advance_state=False)
     checks.append(
         {
             "id": "runtime",
@@ -570,6 +600,7 @@ async def studio_upsert(kind: str, payload: dict) -> dict:
         saved = await store.upsert_asset(kind, asset_id, body)
     except ValueError as exc:
         return _err(str(exc))
+    await _audit(f"studio.{kind}_created", kind, None, {"id": asset_id, "name": saved.get("name")})
     return {"ok": True, "asset": {"id": asset_id, **saved}}
 
 
@@ -602,6 +633,7 @@ async def studio_delete(kind: str, asset_id: str, force: bool = False) -> dict:
         return _err(str(exc), 409)
     if not removed:
         return _err(f"资产不存在：{asset_id}", 404)
+    await _audit(f"studio.{kind}_deleted", kind, {"id": asset_id}, None)
     return {"ok": True, "deleted": asset_id}
 
 

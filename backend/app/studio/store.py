@@ -119,6 +119,18 @@ def _merge_defaults(cfg: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     return out, changed
 
 
+def _studio_lock():
+    """Studio 配置的读-改-写串行锁。
+
+    每次 save 都是「读整份 JSON → 改一个键 → 写回整份」；两个并发请求各自读到同一份
+    快照时，后写的那份会把先写的改动整段丢掉（实测 8 个并发只存下 3 个）。
+    复用 db 层按事件循环持有的写锁，与批量入账/导入导入共用同一排他语义。
+    """
+    from ..db._core import get_write_lock
+
+    return get_write_lock()
+
+
 async def _read() -> dict[str, Any]:
     raw = (await db.get_settings()).get(SETTINGS_KEY)
     cfg: dict[str, Any] = {}
@@ -138,6 +150,23 @@ async def _write(cfg: dict[str, Any]) -> None:
     await db.set_setting(SETTINGS_KEY, json.dumps(cfg, ensure_ascii=False))
 
 
+async def mutate_config(mutator) -> dict[str, Any]:
+    """加锁的读-改-写：mutator(cfg) 就地修改配置，函数负责写回。
+
+    对外公开（安装器也要用）：任何「读整份 → 改一个键 → 写回」的路径都必须走这里，
+    否则并发保存会互相覆盖（实测 8 并发丢 5 个）。
+    """
+    async with _studio_lock():
+        cfg = await _read()
+        result = mutator(cfg)
+        await _write(cfg)
+        return result
+
+
+# 兼容内部旧调用名
+_mutate = mutate_config
+
+
 async def get_config() -> dict[str, Any]:
     return await _read()
 
@@ -146,6 +175,15 @@ async def save_config(cfg: dict[str, Any]) -> dict[str, Any]:
     merged, _ = _merge_defaults(cfg)
     await _write(merged)
     return merged
+
+
+async def update_permissions(patch: dict[str, Any]) -> dict[str, Any]:
+    """权限更新走锁：与其它配置写入共用同一份快照，避免并发覆盖。"""
+    async with _studio_lock():
+        cfg = await _read()
+        cfg["permissions"] = {**permissions(cfg), **patch}
+        await _write(cfg)
+        return cfg["permissions"]
 
 
 def permissions(cfg: dict[str, Any]) -> dict[str, Any]:
@@ -179,9 +217,19 @@ def validate_permissions(payload: dict[str, Any]) -> tuple[dict[str, Any], list[
         if key in out and not isinstance(out[key], bool):
             errors.append(f"{key} 必须是布尔值")
     if mode != "open":
+        # 非全面放开 = 不允许任何程序化写入：对话、CLI、URL 安装一律关闭。
+        # 之前只关前两个，URL 安装仍开着，等于留了一个绕过权限的后门。
         out["allow_chat_admin"] = False
         out["allow_cli_admin"] = False
+        out["allow_remote_install"] = False
     return out, errors
+
+
+def _normalize_action(raw: Any) -> dict[str, Any] | None:
+    """定时动作校验：与 agent_config.normalize_skill_action 同一实现（不复制规则）。"""
+    from .. import agent_config
+
+    return agent_config.normalize_skill_action(raw)
 
 
 def normalize_asset(kind: str, asset_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -265,12 +313,18 @@ def normalize_asset(kind: str, asset_id: str, payload: dict[str, Any]) -> dict[s
             }
         )
     elif kind == "skills":
-        base.update(
-            {
-                "content": str(payload.get("content") or payload.get("description") or "").strip()[:4000],
-                "action": payload.get("action"),
-            }
-        )
+        content = str(payload.get("content") or payload.get("description") or "").strip()[:4000]
+        raw_action = payload.get("action")
+        action = None
+        if raw_action not in (None, {}, ""):
+            action = _normalize_action(raw_action)
+            if action is None:
+                raise ValueError(
+                    "定时动作格式不合法：需 prompt（1-200 字）+ time（HH:MM）+ weekdays（0-6 整数数组）"
+                )
+            if not content:
+                content = str(action.get("prompt") or "")
+        base.update({"content": content, "action": action})
     else:
         raise ValueError(f"未知资产类型：{kind}")
     return base
@@ -301,6 +355,13 @@ async def _sync_skill_schedule() -> None:
 
 async def upsert_asset(kind: str, asset_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     asset = normalize_asset(kind, asset_id, payload)
+    # builtin 是「随包分发的内置资产」标记，由默认包决定，不能被编辑表单抹掉：
+    # normalize_asset 只收可编辑字段，这里把既有标记补回来（否则编辑一次内置项就变成可删）。
+    if kind in ("prompts", "rules", "hooks"):
+        existing_cfg = await _read()
+        existing = (existing_cfg.get(kind) or {}).get(asset_id)
+        if isinstance(existing, dict) and existing.get("builtin"):
+            asset["builtin"] = True
     await _clear_tombstone(kind, asset_id)
     if kind in ("roles", "skills"):
         from .. import agent_config
@@ -316,10 +377,7 @@ async def upsert_asset(kind: str, asset_id: str, payload: dict[str, Any]) -> dic
         if kind == "skills":
             await _sync_skill_schedule()
         return {"id": asset_id, **bucket[asset_id]}
-    cfg = await _read()
-    bucket = cfg.setdefault(kind, {})
-    bucket[asset_id] = asset
-    await _write(cfg)
+    await _mutate(lambda cfg: cfg.setdefault(kind, {}).__setitem__(asset_id, asset))
     return {"id": asset_id, **asset}
 
 
@@ -364,15 +422,16 @@ async def delete_asset(kind: str, asset_id: str, *, force: bool = False) -> bool
         if kind == "skills":
             await _sync_skill_schedule()
         return True
-    cfg = await _read()
-    bucket = cfg.get(kind) or {}
-    if asset_id not in bucket:
-        return False
-    if bucket[asset_id].get("builtin") and not force:
-        raise ValueError("内置资产不可删除；可关闭或使用 force=true 强制删除")
-    bucket.pop(asset_id, None)
-    _add_tombstone(cfg, kind, asset_id)
-    await _write(cfg)
+    async with _studio_lock():
+        cfg = await _read()
+        bucket = cfg.get(kind) or {}
+        if asset_id not in bucket:
+            return False
+        if bucket[asset_id].get("builtin") and not force:
+            raise ValueError("内置资产不可删除；可关闭或使用 force=true 强制删除")
+        bucket.pop(asset_id, None)
+        _add_tombstone(cfg, kind, asset_id)
+        await _write(cfg)
     return True
 
 
@@ -390,13 +449,14 @@ async def set_enabled(kind: str, asset_id: str, enabled: bool) -> dict[str, Any]
         if kind == "skills":
             await _sync_skill_schedule()
         return {"id": asset_id, **bucket[asset_id]}
-    cfg = await _read()
-    bucket = cfg.setdefault(kind, {})
-    if asset_id not in bucket:
-        return None
-    bucket[asset_id]["enabled"] = bool(enabled)
-    await _write(cfg)
-    return {"id": asset_id, **bucket[asset_id]}
+    async with _studio_lock():
+        cfg = await _read()
+        bucket = cfg.setdefault(kind, {})
+        if asset_id not in bucket:
+            return None
+        bucket[asset_id]["enabled"] = bool(enabled)
+        await _write(cfg)
+        return {"id": asset_id, **bucket[asset_id]}
 
 
 def _active(assets: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
@@ -525,9 +585,7 @@ async def set_primary_role(role_id: str) -> dict[str, Any]:
     acfg = await agent_config.get_config()
     if role_id not in (acfg.get("agents") or {}):
         raise ValueError(f"角色不存在：{role_id}")
-    cfg = await _read()
-    cfg["primary_role"] = role_id
-    await _write(cfg)
+    await _mutate(lambda cfg: cfg.__setitem__("primary_role", role_id))
     return {"primary_role": role_id}
 
 
@@ -537,14 +595,15 @@ async def watchdog_settings() -> dict[str, Any]:
 
 
 async def set_watchdog(enabled: bool | None = None, interval_minutes: int | None = None) -> dict[str, Any]:
-    cfg = await _read()
-    wd = cfg.setdefault("watchdog", {"enabled": True, "interval_minutes": 15})
-    if enabled is not None:
-        wd["enabled"] = bool(enabled)
-    if interval_minutes is not None:
-        wd["interval_minutes"] = max(1, min(1440, int(interval_minutes)))
-    await _write(cfg)
-    return dict(wd)
+    async with _studio_lock():
+        cfg = await _read()
+        wd = cfg.setdefault("watchdog", {"enabled": True, "interval_minutes": 15})
+        if enabled is not None:
+            wd["enabled"] = bool(enabled)
+        if interval_minutes is not None:
+            wd["interval_minutes"] = max(1, min(1440, int(interval_minutes)))
+        await _write(cfg)
+        return dict(wd)
 
 
 async def internal_tools_enabled() -> dict[str, bool]:
@@ -560,22 +619,24 @@ async def internal_tools_enabled() -> dict[str, bool]:
 
 
 async def set_internal_tool(tool_id: str, enabled: bool) -> dict[str, Any] | None:
-    cfg = await _read()
-    tools = cfg.setdefault("internal_tools", {"enabled": True, "tools": {}})
-    entry = (tools.get("tools") or {}).get(tool_id)
-    if entry is None:
-        return None
-    entry["enabled"] = bool(enabled)
-    await _write(cfg)
-    return {"id": tool_id, **entry}
+    async with _studio_lock():
+        cfg = await _read()
+        tools = cfg.setdefault("internal_tools", {"enabled": True, "tools": {}})
+        entry = (tools.get("tools") or {}).get(tool_id)
+        if entry is None:
+            return None
+        entry["enabled"] = bool(enabled)
+        await _write(cfg)
+        return {"id": tool_id, **entry}
 
 
 async def set_internal_tools_enabled(enabled: bool) -> dict[str, Any]:
-    cfg = await _read()
-    tools = cfg.setdefault("internal_tools", {"enabled": True, "tools": {}})
-    tools["enabled"] = bool(enabled)
-    await _write(cfg)
-    return {"enabled": tools["enabled"]}
+    async with _studio_lock():
+        cfg = await _read()
+        tools = cfg.setdefault("internal_tools", {"enabled": True, "tools": {}})
+        tools["enabled"] = bool(enabled)
+        await _write(cfg)
+        return {"enabled": tools["enabled"]}
 
 
 def new_id(prefix: str) -> str:

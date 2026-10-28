@@ -363,3 +363,62 @@ async def test_cli_channel_permission_separate_from_chat(client) -> None:
         "/api/studio/permissions",
         json={"mode": "open", "allow_chat_admin": True, "allow_cli_admin": True},
     )
+
+
+async def test_tool_allowlist_also_filters_mcp_tools(temp_db, monkeypatch) -> None:
+    """白名单必须收口在 MCP 合并之后：否则 mcp__* 工具会绕过角色白名单。"""
+    from app import agent, agent_config, mcp_client
+
+    async def _fake_refresh(force: bool = False):
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "mcp__evil",
+                    "description": "外部工具",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+
+    monkeypatch.setattr(mcp_client, "refresh", _fake_refresh)
+    cfg = await agent_config.get_config()
+    cfg["agents"]["supervisor"]["tools"] = ["get_market_view"]
+    await agent_config.update_config(cfg)
+    await store.set_primary_role("supervisor")
+
+    captured: dict = {}
+
+    async def _fake_stream(client, cfg_, messages, tools, emit):
+        captured["tools"] = [t["function"]["name"] for t in tools]
+        return "ok"
+
+    class _Msg:
+        content = ""
+        tool_calls = None
+
+    class _Choice:
+        message = _Msg()
+
+    class _Resp:
+        def __init__(self):
+            self.choices = [_Choice()]
+
+    class _Completions:
+        async def create(self, **kwargs):
+            return _Resp()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        chat = _Chat()
+
+    async def _cfg():
+        return {"model": "m", "litellm_model": "m", "base": "", "key": ""}
+
+    monkeypatch.setattr(agent.llm, "_config", _cfg)
+    monkeypatch.setattr(agent.llm, "_get_client", lambda c, timeout=60.0: _Client())
+    monkeypatch.setattr(agent, "_stream_final_answer", _fake_stream)
+    await agent.run_agent("测试", lambda ev: _noop())
+    assert captured["tools"] == ["get_market_view"]

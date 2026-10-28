@@ -500,6 +500,8 @@ export const en: Record<string, string> = {
   "studio.promptsTitle": "Prompt engineering (priority stacked)",
   "studio.showFormat": "Show official format examples",
   "studio.hideFormat": "Hide format examples",
+  "studio.importedWithOverwrite": "Imported {n} item(s) — {replaced} replaced an existing asset",
+  "studio.mcpInstalledDisabled": "Configured but disabled — enable it in Plugins (MCP)",
   "settings.navPrefs": "Preferences",
   "settings.navRules": "Ledger rules",
   "settings.navBudget": "Budget",

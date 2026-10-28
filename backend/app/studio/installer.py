@@ -118,7 +118,7 @@ async def install_market(item_id: str) -> dict[str, Any]:
 async def install_recommended() -> dict[str, Any]:
     """安装推荐组合：全部非 MCP 资产 + 配置推荐 MCP（离线安全，MCP 需手动启用）。"""
     cfg = await store.get_config()
-    installed = cfg.setdefault("marketplace", {}).setdefault("installed", {})
+    installed = (cfg.setdefault("marketplace", {}).setdefault("installed", {}))
     saved: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
     mcp_configured: list[str] = []
@@ -147,7 +147,7 @@ async def install_recommended() -> dict[str, Any]:
             saved.append({"kind": item["kind"], "id": item["id"], "name": asset.get("name", "")})
         except Exception as exc:  # noqa: BLE001
             errors.append({"file": item["id"], "error": str(exc)})
-    await store.save_config(cfg)
+    await store.mutate_config(lambda c: c.update({"marketplace": cfg["marketplace"]}))
     return {
         "ok": not errors,
         "saved": saved,
@@ -158,10 +158,11 @@ async def install_recommended() -> dict[str, Any]:
 
 
 async def _record_install(item_id: str) -> None:
-    cfg = await store.get_config()
-    installed = cfg.setdefault("marketplace", {}).setdefault("installed", {})
-    installed[item_id] = {"installed_at": store.now_iso()}
-    await store.save_config(cfg)
+    def _apply(cfg):
+        installed = cfg.setdefault("marketplace", {}).setdefault("installed", {})
+        installed[item_id] = {"installed_at": store.now_iso()}
+
+    await store.mutate_config(_apply)
 
 
 async def uninstall_market(item_id: str) -> dict[str, Any]:
@@ -169,7 +170,7 @@ async def uninstall_market(item_id: str) -> dict[str, Any]:
     if item is None:
         raise ValueError(f"市场条目不存在：{item_id}")
     cfg = await store.get_config()
-    installed = cfg.setdefault("marketplace", {}).setdefault("installed", {})
+    installed = (cfg.setdefault("marketplace", {}).setdefault("installed", {}))
     if item["kind"] == "mcp":
         server = item.get("server") or {}
         raw = [e for e in mcp_client.raw_servers() if e.get("name") != server.get("name")]
@@ -180,7 +181,7 @@ async def uninstall_market(item_id: str) -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001 — 删除失败如实回报
             raise ValueError(str(exc)) from exc
     installed.pop(item_id, None)
-    await store.save_config(cfg)
+    await store.mutate_config(lambda c: c.update({"marketplace": cfg["marketplace"]}))
     return {"ok": True, "uninstalled": item_id}
 
 
@@ -237,9 +238,42 @@ async def seed_default_bundle() -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001 — 单条失败不阻断出厂预装
             log.warning("studio.seed asset failed (%s): %s", item["id"], exc)
     marketplace["seeded"] = True
-    await store.save_config(cfg)
+    await store.mutate_config(lambda c: c.update({"marketplace": marketplace}))
     log.info("studio.seed_default_bundle assets=%s mcp=%s", saved, len(mcp_names))
     return {"seeded": True, "assets": saved, "mcp_configured": mcp_names}
+
+
+async def repair_mcp_config() -> dict[str, Any]:
+    """修复 MCP 配置漂移：已安装过的市场条目若从 mcp.json 里消失，重新补回。
+
+    为什么需要单独一步：`mcp.json` 在 data/ 下、`seeded` 标记在 settings 表里，
+    两者生命周期不同——用户删了 mcp.json（换机器/清数据）后 DB 仍认为「已预装」，
+    MCP 就永远回不来了。只补 `installed` 里记录过的条目，不会复活用户主动卸载的。
+    """
+    cfg = await store.get_config()
+    installed = (cfg.get("marketplace") or {}).get("installed") or {}
+    if not installed:
+        return {"repaired": []}
+    raw = mcp_client.raw_servers()
+    names = {str(e.get("name") or "") for e in raw}
+    repaired: list[str] = []
+    for item in market.catalog():
+        if item["kind"] != "mcp" or item["id"] not in installed:
+            continue
+        server = dict(item.get("server") or {})
+        name = str(server.get("name") or "")
+        if not name or name in names:
+            continue
+        raw.append({**server, "enabled": bool(server.get("url"))})
+        names.add(name)
+        repaired.append(name)
+    if repaired:
+        try:
+            mcp_client.save_servers(raw)
+        except ValueError as exc:
+            log.warning("studio.repair_mcp failed: %s", exc)
+            return {"repaired": [], "error": str(exc)}
+    return {"repaired": repaired}
 
 
 def template_for(kind: str) -> dict[str, Any]:

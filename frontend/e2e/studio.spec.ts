@@ -70,6 +70,28 @@ test.describe("Agent Studio", () => {
     await expect(page.getByText(/broken\.json/).first()).toBeVisible({ timeout: 10_000 });
   });
 
+  test("插件市场不崩且左侧导航仍在（queryKey 形状冲突回归）", async ({ page }) => {
+    await openSettings(page, "插件市场");
+    await page.waitForTimeout(1200);
+    // 之前 MarketplaceSection 与 PluginsSection 共用 queryKey 但返回形状不同，
+    // 先打开插件页再进市场页会整页 "页面出错了"。
+    await expect(page.getByText("页面出错了")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "内置工具", exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/共 \d+ 个条目/)).toBeVisible();
+  });
+
+  test("插件页与市场页来回切换均正常", async ({ page }) => {
+    await openSettings(page, "插件（MCP）");
+    await page.waitForTimeout(700);
+    await page.getByRole("button", { name: "插件市场", exact: true }).first().click();
+    await page.waitForTimeout(900);
+    await expect(page.getByText("页面出错了")).toHaveCount(0);
+    await page.getByRole("button", { name: "插件（MCP）", exact: true }).first().click();
+    await page.waitForTimeout(700);
+    await expect(page.getByText("页面出错了")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "插件市场", exact: true }).first()).toBeVisible();
+  });
+
   test("插件市场一键安装并显示已安装", async ({ page }) => {
     await openSettings(page, "插件市场");
     await expect(page.getByText("PDF 工具链").first()).toBeVisible({ timeout: 10_000 });

@@ -122,6 +122,10 @@ async def lifespan(app_ref: FastAPI):
 
     try:
         await studio_installer.seed_default_bundle()
+        # 修复 MCP 配置漂移（mcp.json 在 data/ 下，与 DB 里的 seeded 标记不同生命周期）
+        repaired = await studio_installer.repair_mcp_config()
+        if repaired.get("repaired"):
+            log.info("studio.mcp_repaired %s", repaired["repaired"])
     except Exception as exc:  # noqa: BLE001 — 预装失败不阻断启动
         log.warning("studio.seed_default_bundle failed: %s", exc)
     await studio_watchdog.start()

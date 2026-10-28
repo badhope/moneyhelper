@@ -500,6 +500,8 @@ export const zh: Record<string, string> = {
   "studio.promptsTitle": "提示词工程（按优先级叠加）",
   "studio.showFormat": "查看官方格式示例",
   "studio.hideFormat": "收起格式示例",
+  "studio.importedWithOverwrite": "已导入 {n} 项（其中 {replaced} 项覆盖了同名资产）",
+  "studio.mcpInstalledDisabled": "已配置但未启用（到「插件（MCP）」打开）",
   "settings.navPrefs": "偏好",
   "settings.navRules": "账本规则",
   "settings.navBudget": "预算",
