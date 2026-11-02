@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { CandlestickChart, FileText, HeartPulse, LayoutGrid, NotebookPen, Target, TrendingUp, Users, Wallet } from "lucide-react";
+import { CandlestickChart, FileText, HeartPulse, LayoutGrid, NotebookPen, Plug, Target, TrendingUp, Users, Wallet } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -30,12 +30,16 @@ const StatementsBody = lazy(() =>
 const PaperBody = lazy(() =>
   import("@/components/PaperTradingPage").then((m) => ({ default: m.PaperTradingPage })),
 );
+const ConnectBody = lazy(() =>
+  import("@/components/ConnectPage").then((m) => ({ default: m.ConnectPage })),
+);
 
-export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper";
+export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect";
 
 const TABS: { key: DataKind; labelKey: string; icon: typeof LayoutGrid }[] = [
   { key: "overview", labelKey: "nav.dashboard", icon: LayoutGrid },
   { key: "holdings", labelKey: "nav.holdings", icon: Wallet },
+  { key: "connect", labelKey: "nav.connect", icon: Plug },
   { key: "research", labelKey: "nav.research", icon: CandlestickChart },
   { key: "statements", labelKey: "nav.statements", icon: FileText },
   { key: "paper", labelKey: "nav.paper", icon: Users },
@@ -101,6 +105,7 @@ export function FinancePage({
           >
             {kind === "overview" && <Dashboard />}
             {kind === "holdings" && <HoldingsView />}
+            {kind === "connect" && <ConnectBody />}
             {kind === "research" && <ResearchBody />}
             {kind === "statements" && <StatementsBody />}
             {kind === "paper" && <PaperBody />}

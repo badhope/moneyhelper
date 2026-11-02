@@ -435,4 +435,67 @@ CREATE TABLE IF NOT EXISTS paper_snapshots (
     market_value REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_paper_snapshots_account ON paper_snapshots(user_id, account_id, date);
+-- 连接中心（v4.4）：外部数据源 / 资金账户接入。凭据一律不落库：
+-- account_ref 只存「后四位」这类辨识信息，meta_json 只存用户可见的展示字段。
+CREATE TABLE IF NOT EXISTS connect_accounts (
+    user_id      INTEGER NOT NULL DEFAULT 0,
+    id           TEXT NOT NULL,
+    connector_id TEXT NOT NULL,
+    label        TEXT NOT NULL DEFAULT '',
+    kind         TEXT NOT NULL DEFAULT '',
+    status       TEXT NOT NULL DEFAULT 'unconfigured',
+    account_ref  TEXT NOT NULL DEFAULT '',
+    meta_json    TEXT NOT NULL DEFAULT '{}',
+    last_sync_at TEXT NOT NULL DEFAULT '',
+    last_error   TEXT NOT NULL DEFAULT '',
+    created_at   TEXT NOT NULL DEFAULT '',
+    updated_at   TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_connect_accounts_user ON connect_accounts(user_id, connector_id);
+-- 一次性配对码：浏览器代登录 / 书签脚本回传的短时凭据（10 分钟，用后即焚）
+CREATE TABLE IF NOT EXISTS connect_pairings (
+    user_id      INTEGER NOT NULL DEFAULT 0,
+    code         TEXT NOT NULL,
+    connector_id TEXT NOT NULL,
+    expires_at   TEXT NOT NULL DEFAULT '',
+    used_at      TEXT NOT NULL DEFAULT '',
+    created_at   TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, code)
+);
+-- 同步任务：用户点「同步」或系统定时拉取的一次执行记录
+CREATE TABLE IF NOT EXISTS connect_jobs (
+    user_id      INTEGER NOT NULL DEFAULT 0,
+    id           TEXT NOT NULL,
+    connector_id TEXT NOT NULL,
+    kind         TEXT NOT NULL DEFAULT 'sync',
+    status       TEXT NOT NULL DEFAULT 'queued',
+    progress     REAL NOT NULL DEFAULT 0,
+    message      TEXT NOT NULL DEFAULT '',
+    result_json  TEXT NOT NULL DEFAULT '{}',
+    created_at   TEXT NOT NULL DEFAULT '',
+    finished_at  TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_connect_jobs_user ON connect_jobs(user_id, created_at);
+-- 交易意图：可审计的下单指令。paper=模拟盘直接执行；live=生成交接单，用户在券商页面确认成交
+CREATE TABLE IF NOT EXISTS connect_intents (
+    user_id      INTEGER NOT NULL DEFAULT 0,
+    id           TEXT NOT NULL,
+    connector_id TEXT NOT NULL DEFAULT '',
+    symbol       TEXT NOT NULL,
+    name         TEXT NOT NULL DEFAULT '',
+    side         TEXT NOT NULL,
+    price        REAL NOT NULL,
+    shares       REAL NOT NULL,
+    amount       REAL NOT NULL,
+    mode         TEXT NOT NULL DEFAULT 'paper',
+    status       TEXT NOT NULL DEFAULT 'awaiting_confirm',
+    note         TEXT NOT NULL DEFAULT '',
+    result_json  TEXT NOT NULL DEFAULT '{}',
+    created_at   TEXT NOT NULL DEFAULT '',
+    executed_at  TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_connect_intents_user ON connect_intents(user_id, created_at);
 """

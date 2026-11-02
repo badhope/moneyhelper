@@ -239,6 +239,44 @@ def _reschedule() -> None:
         CronTrigger(hour=h, minute=m, timezone="Asia/Shanghai"),
         id="subs_due_check",
     )
+    # 连接中心自动同步：公开数据源每小时刷新；账单收件箱每 10 分钟扫一次
+    _sched.add_job(_sync_connect_sources, trigger="interval", minutes=60, id="connect_auto_sync")
+    _sched.add_job(_scan_connect_inbox, trigger="interval", minutes=10, id="connect_inbox_scan")
+
+
+async def _sync_connect_sources() -> None:
+    """后台自动同步「全自动」类连接（公开行情 / 基金净值）。
+
+    只碰 automation=auto 且未停用的连接：登录类连接需要用户在场，
+    绝不在后台凭空消耗配对码。单条失败只记日志，不影响其他连接。
+    """
+    try:
+        from . import connect
+
+        for conn in await connect.list_connections():
+            if conn["status"] == "disabled":
+                continue
+            connector = connect.get_connector(conn["connector_id"]) or {}
+            if connector.get("automation") != "auto":
+                continue
+            try:
+                await connect.sync_connection(conn["id"])
+            except Exception as exc:  # noqa: BLE001 — 单条同步失败不阻断调度
+                log.warning("connect.auto_sync_failed id=%s err=%s", conn["id"], exc)
+    except Exception as exc:  # noqa: BLE001 — 调度任务失败不能炸服务
+        log.warning("connect.auto_sync crashed: %s", exc)
+
+
+async def _scan_connect_inbox() -> None:
+    """后台自动扫描账单收件箱：用户只需把官方导出的 CSV 放进去。"""
+    try:
+        from . import connect
+
+        out = await connect.scan_import_inbox()
+        if out.get("imported"):
+            log.info("connect.inbox_auto_imported n=%s", out["imported"])
+    except Exception as exc:  # noqa: BLE001
+        log.warning("connect.inbox_scan crashed: %s", exc)
 
 
 async def _cron_job() -> None:

@@ -416,6 +416,62 @@ async def paper_overview() -> str:
 
 
 # ---------------------------------------------------------------------------
+# 连接中心（v4.4）：外部数据源与资金账户接入
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def connect_catalog() -> str:
+    """连接中心目录：支持哪些外部平台（行情/券商/银行/支付/发票/公司财税）、接入方式与当前连接状态。"""
+    return await xtools.tool_connect_catalog({})
+
+
+@mcp.tool()
+async def connect_sync(
+    connector_id: str,
+    label: str = "",
+    account_ref: str = "",
+    sync: bool = True,
+) -> str:
+    """建立/刷新一个外部连接：公开源立即拉数据；登录类返回官方入口与一次性配对码。"""
+    return await xtools.tool_connect_sync(
+        {"connector_id": connector_id, "label": label, "account_ref": account_ref, "sync": sync}
+    )
+
+
+@mcp.tool()
+async def connect_fund_nav(codes: str) -> str:
+    """查场外基金最新净值（公开接口免登录），多个代码逗号分隔。"""
+    return await xtools.tool_connect_fund_nav({"codes": codes})
+
+
+@mcp.tool()
+async def connect_order(
+    symbol: str,
+    side: str,
+    price: float,
+    shares: float,
+    mode: str = "paper",
+    name: str = "",
+    connector_id: str = "",
+    execute: bool = False,
+) -> str:
+    """生成交易指令：paper=模拟盘（可立即成交），live=只出交接单由用户在券商页面下单。"""
+    return await xtools.tool_connect_order(
+        {
+            "symbol": symbol,
+            "side": side,
+            "price": price,
+            "shares": shares,
+            "mode": mode,
+            "name": name,
+            "connector_id": connector_id,
+            "execute": execute,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # 写操作（需谨慎）：晨报 / 备份
 # ---------------------------------------------------------------------------
 

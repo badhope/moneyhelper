@@ -28,6 +28,7 @@ from .middleware import setup as setup_middleware
 from .routes import (
     budgets_router,
     calculations_router,
+    connect_router,
     debts_subs_router,
     evaluation_router,
     family_router,
@@ -222,6 +223,7 @@ app.include_router(goals_router)
 app.include_router(debts_subs_router)
 app.include_router(market_router)
 app.include_router(calculations_router)
+app.include_router(connect_router)
 app.include_router(strategy_router)
 app.include_router(studio_router)
 app.include_router(evaluation_router)

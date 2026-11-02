@@ -263,7 +263,11 @@ _indices_cache = TTLCache[str, list[dict[str, Any]]](maxsize=1, ttl=30.0)
 
 
 async def indices_quotes() -> list[dict[str, Any]]:
-    """大盘指数快照：[{symbol, name, price, change, change_pct}]；失败返回 []。"""
+    """大盘指数快照：[{symbol, name, price, change, change_pct}]；失败返回 []。
+
+    东财 push2 在部分网络（尤其本机运营商出口）会被直接重置，实测整条行情条消失。
+    因此失败后降级新浪 hq.sinajs.cn（与个股备源同一域名，已证明可达）。
+    """
     cached = _indices_cache.get("v")
     if cached is not None:
         return cached
@@ -281,8 +285,11 @@ async def indices_quotes() -> list[dict[str, Any]]:
             resp = await client.get(EASTMONEY_URL, params=params, headers=headers)
             resp.raise_for_status()
             payload = resp.json()
-    except Exception:  # noqa: BLE001 — 指数失败只隐藏行情条，不影响其他
-        return []
+    except Exception:  # noqa: BLE001 — 东财失败降级新浪，不影响其他功能
+        out = await _sina_indices()
+        if out:
+            _indices_cache["v"] = out
+        return out
 
     diff = ((payload or {}).get("data") or {}).get("diff") or []
     if isinstance(diff, dict):
@@ -310,7 +317,55 @@ async def indices_quotes() -> list[dict[str, Any]]:
                 "change_pct": _num(item.get("f3")),
             }
         )
-    _indices_cache["v"] = out
+    if not out:
+        out = await _sina_indices()
+    if out:
+        _indices_cache["v"] = out
+    return out
+
+
+async def _sina_indices() -> list[dict[str, Any]]:
+    """新浪指数备源：批量拉取四大指数，GBK 解码后按昨收算涨跌。"""
+    names = {sym: name for sym, (_secid, name) in INDICES.items()}
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            resp = await client.get(
+                SINA_URL + ",".join(names),
+                headers=_SINA_HEADERS,
+            )
+            resp.raise_for_status()
+            resp.encoding = "gbk"
+            text = resp.text
+    except Exception:  # noqa: BLE001 — 备源也失败则隐藏行情条
+        return []
+
+    out: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        if "=" not in line:
+            continue
+        head, _, body = line.partition("=")
+        sym = head.replace("var hq_str_", "").strip()
+        if sym not in names:
+            continue
+        parts = body.strip().strip(";").strip('"').split(",")
+        if len(parts) < 4:
+            continue
+        try:
+            prev = float(parts[2])
+            now = float(parts[3])
+        except ValueError:
+            continue
+        if prev <= 0 or now <= 0:
+            continue
+        out.append(
+            {
+                "symbol": sym,
+                "name": names[sym],
+                "price": round(now, 2),
+                "change": round(now - prev, 2),
+                "change_pct": round((now / prev - 1) * 100, 2),
+            }
+        )
     return out
 
 

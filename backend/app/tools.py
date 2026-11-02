@@ -532,6 +532,125 @@ async def tool_get_goals(_args: dict[str, Any]) -> str:
     return json.dumps(analysis.goal_progress(goals), ensure_ascii=False)
 
 
+# ---------------------------------------------------------------------------
+# 连接中心工具（v4.4）：让模型能查「数据从哪来」、建连接、拉基金净值、生成交易指令。
+# 边界：实盘永远只生成交接单；模拟盘才直接成交。
+# ---------------------------------------------------------------------------
+
+
+async def tool_connect_catalog(_args: dict[str, Any]) -> str:
+    """查连接中心目录：支持哪些平台（行情/券商/银行/支付/发票/公司）、各自怎么接、当前连接状态。"""
+    from . import connect
+
+    cat = connect.grouped_catalog()
+    rows = []
+    for g in cat["groups"]:
+        items = [
+            {
+                "id": i["id"],
+                "name": i["name"],
+                "kind": i["kind"],
+                "automation": i["automation"],
+                "capabilities": i["capabilities"],
+                "supports_trade": i["supports_trade"],
+            }
+            for i in g["items"]
+        ]
+        rows.append({"category": g["key"], "label": g["label"], "items": items})
+    connections = await connect.list_connections()
+    return json.dumps(
+        {
+            "counts": cat["counts"],
+            "groups": rows,
+            "connections": [
+                {"id": c["id"], "connector_id": c["connector_id"], "label": c["label"], "status": c["status"]}
+                for c in connections
+            ],
+            "hint": "用户说「连一下支付宝/招商银行」时，用 connect_sync 建连接；需要登录的平台会自动给出配对码与官方入口。",
+        },
+        ensure_ascii=False,
+    )
+
+
+async def tool_connect_sync(args: dict[str, Any]) -> str:
+    """建立连接并同步一次：公开源直接拉数据；登录类返回官方入口 + 一次性配对码。"""
+    from . import connect
+
+    connector_id = str(args.get("connector_id") or "").strip()
+    if not connector_id:
+        return "需要提供 connector_id，例如 alipay / cmb / eastmoney_fund（先用 connect_catalog 查）"
+    existing = [c for c in await connect.list_connections() if c["connector_id"] == connector_id]
+    label = str(args.get("label") or "").strip()
+    try:
+        if existing and (not label or any(c["label"] == label for c in existing)):
+            conn = existing[0]
+        else:
+            conn = await connect.create_connection(
+                connector_id, label, str(args.get("account_ref") or "")
+            )
+    except ValueError as exc:
+        return f"建立连接失败：{exc}"
+    if not bool(args.get("sync", True)):
+        return json.dumps({"ok": True, "connection": conn, "synced": False}, ensure_ascii=False)
+    job = await connect.sync_connection(conn["id"])
+    return json.dumps(
+        {
+            "ok": job.get("status") == "done",
+            "connection_id": conn["id"],
+            "connector_id": connector_id,
+            "label": conn["label"],
+            "job": job,
+            "hint": "登录类平台：把 login_url 发给用户，配对码 10 分钟有效、用后即焚。",
+        },
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+async def tool_connect_fund_nav(args: dict[str, Any]) -> str:
+    """查场外基金最新净值（公开接口，免登录）：支持多只代码，逗号分隔。"""
+    from .connect import marketdata
+
+    codes = str(args.get("codes") or "").strip()
+    if not codes:
+        return "需要提供基金代码，如 110011"
+    out = await marketdata.fund_nav(codes)
+    return json.dumps(out, ensure_ascii=False, default=str)
+
+
+async def tool_connect_order(args: dict[str, Any]) -> str:
+    """生成交易指令：paper 模式可直接在模拟盘成交；live 模式只出交接单，由用户在券商页面下单。"""
+    from . import connect
+
+    mode = str(args.get("mode") or "paper")
+    try:
+        intent = await connect.create_intent(
+            {
+                "symbol": args.get("symbol"),
+                "name": args.get("name") or "",
+                "side": args.get("side"),
+                "price": args.get("price"),
+                "shares": args.get("shares"),
+                "mode": mode,
+                "connector_id": args.get("connector_id") or "",
+            }
+        )
+    except ValueError as exc:
+        return f"生成交易指令失败：{exc}"
+
+    if not bool(args.get("execute")):
+        return json.dumps(
+            {"ok": True, "intent": intent, "executed": False, "hint": "指令已生成，待用户确认后执行"},
+            ensure_ascii=False,
+        )
+    res = await connect.execute_trade_intent(intent["id"])
+    return json.dumps(
+        {"ok": res.get("ok"), **res, "disclaimer": "交易指令不构成投资建议；实盘需用户在券商页面自行确认。"},
+        ensure_ascii=False,
+        default=str,
+    )
+
+
 async def tool_get_user_memory(args: dict[str, Any]) -> str:
     """查用户长期记忆：用户主动告知的长期信息（偏好、家庭、计划等）。
     可选 kind 过滤（fact / preference / goal_related）；可选 query 做 BM25 关键词检索
@@ -1139,6 +1258,14 @@ FINANCE_TOOL_NAMES: tuple[tuple[str, str], ...] = (
      "团队模拟盘下单：买入/卖出虚拟持仓（A股整手、含佣金与印花税），自动更新净值与团队排行。适合「模拟买入 600519 100 股」「帮我模拟卖出」。"),
     ("paper_overview",
      "团队模拟盘总览：账户收益率排行、团队汇总、各账户持仓摘要。适合「团队炒股战绩如何」「模拟盘谁跑得好」。"),
+    ("connect_catalog",
+     "查连接中心：支持哪些外部平台（行情/券商/银行/支付/发票/公司财税）、各自接入方式与当前连接状态。适合「你能连支付宝吗」「我的数据从哪来」「有哪些行情源」。"),
+    ("connect_sync",
+     "建立或刷新一个外部连接：公开源（东财行情/天天基金/涨跌榜）立即拉数据；需要登录的平台（支付宝/银行/券商）返回官方入口与一次性配对码。适合「帮我连上招商银行」「把基金账户接进来」。"),
+    ("connect_fund_nav",
+     "查场外基金最新净值（公开接口免登录，多只逗号分隔）。适合「帮我查一下 110011 的净值」。"),
+    ("connect_order",
+     "生成交易指令：paper=模拟盘（可立即成交），live=只生成交接单并给券商入口，绝不代下单。适合「模拟买入 600519 100 股」「帮我准备实盘下单指令」。"),
 )
 
 TOOLS: list[dict[str, Any]] = [
@@ -1181,6 +1308,10 @@ TOOL_IMPL: dict[str, Any] = {
     "paper_open": tool_paper_open,
     "paper_trade": tool_paper_trade,
     "paper_overview": tool_paper_overview,
+    "connect_catalog": tool_connect_catalog,
+    "connect_sync": tool_connect_sync,
+    "connect_fund_nav": tool_connect_fund_nav,
+    "connect_order": tool_connect_order,
 }
 
 # 工具返回体量上限：超过即截断（防止把整库明细喂给模型）

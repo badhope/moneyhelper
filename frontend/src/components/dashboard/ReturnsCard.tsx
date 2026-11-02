@@ -7,13 +7,15 @@ import { useI18n } from "@/lib/i18n";
 import { fmtPct, pnlClass } from "@/lib/format";
 import { useReturns, type ReturnMetric } from "@/lib/use-calculations";
 
-function metricPct(m: ReturnMetric | { error: string }): number | null {
-  if ("error" in m) return null;
+/** 指标可能整体缺失：空账本/无持仓时后端不返回 xirr 与 twr 键，
+ *  旧实现直接 `"error" in m` 会对 undefined 做 in 运算并整页崩溃（总览白屏）。 */
+function metricPct(m: ReturnMetric | { error: string } | undefined | null): number | null {
+  if (!m || "error" in m) return null;
   return m.pct;
 }
 
-function metricValue(m: ReturnMetric | { error: string }): string {
-  if ("error" in m) return "—";
+function metricValue(m: ReturnMetric | { error: string } | undefined | null): string {
+  if (!m || "error" in m) return "—";
   return fmtPct(m.pct, true);
 }
 
@@ -54,13 +56,13 @@ export function ReturnsCard({ months = 6 }: { months?: number }) {
       <div className="grid grid-cols-3 gap-2">
         <ReturnStat
           label={tr("returns.xirr")}
-          value={metricValue(data.xirr)}
-          pct={metricPct(data.xirr)}
+          value={metricValue(data.xirr ?? undefined)}
+          pct={metricPct(data.xirr ?? undefined)}
         />
         <ReturnStat
           label={tr("returns.twr")}
-          value={metricValue(data.twr)}
-          pct={metricPct(data.twr)}
+          value={metricValue(data.twr ?? undefined)}
+          pct={metricPct(data.twr ?? undefined)}
         />
         <ReturnStat
           label={tr("returns.simple")}

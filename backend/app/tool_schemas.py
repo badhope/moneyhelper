@@ -158,6 +158,36 @@ class PaperOverviewIn(_In):
     pass
 
 
+class ConnectCatalogIn(_In):
+    """查连接中心目录：外部平台接入方式、已建连接与状态。"""
+
+
+class ConnectSyncIn(_In):
+    connector_id: str = Field(..., description="连接器 ID，如 alipay / cmb / eastmoney_fund（先用 connect_catalog 查）")
+    label: str = Field("", description="连接标签，默认用连接器名；同平台多账户时用于区分")
+    account_ref: str = Field("", description="账号后四位等辨识信息（可选，勿填完整卡号）")
+    sync: bool = Field(True, description="建好连接后是否立即同步一次，默认 true")
+
+
+class ConnectFundNavIn(_In):
+    codes: str = Field(..., description="基金代码，多个用逗号分隔，如 110011,000001")
+
+
+class ConnectOrderIn(_In):
+    symbol: str = Field(..., description="6位证券代码，如 600519")
+    side: Literal["buy", "sell"] = Field(..., description="buy 买入 / sell 卖出")
+    price: float = Field(..., description="委托价（可填现价）")
+    shares: float = Field(..., description="股数；买入须 100 股整数倍")
+    mode: Literal["paper", "live"] = Field(
+        "paper", description="paper 模拟盘直接成交；live 只生成交接单，用户在券商页面自行下单"
+    )
+    name: str = Field("", description="标的名称（可选）")
+    connector_id: str = Field("", description="交易通道 ID（可选，实盘时填券商连接器，如 eastmoney_sec）")
+    execute: bool = Field(
+        False, description="是否立即执行：paper 且 execute=true 时直接写入模拟盘；实盘永远只生成交接单"
+    )
+
+
 class GetUserMemoryIn(_In):
     query: str = Field("", description="检索关键词（可选）：返回与该话题相关的记忆")
     kind: str = Field(
@@ -336,6 +366,11 @@ TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     "paper_open": PaperOpenIn,
     "paper_trade": PaperTradeIn,
     "paper_overview": PaperOverviewIn,
+    # 连接中心（v4.4）
+    "connect_catalog": ConnectCatalogIn,
+    "connect_sync": ConnectSyncIn,
+    "connect_fund_nav": ConnectFundNavIn,
+    "connect_order": ConnectOrderIn,
     # 财务写入
     "record_transaction": RecordTransactionIn,
     "save_user_memory": SaveUserMemoryIn,

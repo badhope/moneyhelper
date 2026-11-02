@@ -33,6 +33,10 @@ _SKIP_AUTH_PATHS = {
     "/api/auth/login",
     "/api/auth/register",
     "/api/auth/user-count",
+    # 书签脚本回传：从用户浏览器（可能跨域）发起，凭据是 URL 里的一次性配对码。
+    # 配对码 10 分钟有效、用后即焚，且只能写入不能读出，因此不要求 JWT；
+    # 仍受限流与 Host 防护约束。
+    "/api/connect/ingest",
 }
 
 # ---------------------------------------------------------------------------
@@ -332,6 +336,32 @@ async def host_guard(request: Request, call_next):
 
 
 # ---------------------------------------------------------------------------
+# 书签脚本回传的 CORS：脚本在第三方站点（如 alipay.com）里执行，
+# 浏览器会带 Origin: https://www.alipay.com 预检。这条通路只接受一次性配对码、
+# 只写不读，因此单独放开 CORS，不影响其他 /api/* 端点的同源策略。
+# ---------------------------------------------------------------------------
+_INGEST_PATH = "/api/connect/ingest"
+
+
+async def ingest_cors(request: Request, call_next):
+    if request.url.path != _INGEST_PATH:
+        return await call_next(request)
+    if request.method == "OPTIONS":
+        return Response(
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Max-Age": "600",
+            },
+        )
+    resp = await call_next(request)
+    resp.headers.setdefault("Access-Control-Allow-Origin", "*")
+    return resp
+
+
+# ---------------------------------------------------------------------------
 # 安全响应头：所有响应统一加固（防 MIME 嗅探 / 点击劫持 / 敏感来源泄露）
 # 用 setdefault 避免覆盖下游主动设置；不设 CSP，避免破坏 Vite 内联 module 与 echarts。
 # ---------------------------------------------------------------------------
@@ -477,6 +507,7 @@ def setup(app: FastAPI) -> None:
 
     app.middleware("http")(api_auth)
     app.middleware("http")(host_guard)
+    app.middleware("http")(ingest_cors)
     app.middleware("http")(security_headers)
     app.middleware("http")(metrics_counter)
     app.middleware("http")(audit_logger)

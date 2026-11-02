@@ -32,7 +32,9 @@ def test_over_limit_rejects():
     from app import middleware as mw
 
     now = time.time()
-    mw._rate_buckets["9.9.9.9"] = [now - i * 0.01 for i in range(mw._RATE_LIMIT_MAX)]
+    # 桶内时间戳必须全部落在过去：旧写法 i=0 时写入的是「此刻」，retry_after 恰好等于
+    # 窗口边界（+1s），浮点误差会让 60 变成 61，测试随机假失败。
+    mw._rate_buckets["9.9.9.9"] = [now - 10 - i * 0.01 for i in range(mw._RATE_LIMIT_MAX)]
     # 再来一条即触发上限
     allowed, retry = _rate_limit_check("9.9.9.9")
     assert allowed is False
