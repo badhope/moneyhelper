@@ -46,9 +46,12 @@ import { Segmented } from "@/components/ui/segmented";
 import {
   BreadthCard,
   ConditionalCard,
+  ExecuteStatusCard,
   HoldingsImportCard,
   InvoiceCard,
+  PdfStatementCard,
   PretradeCard,
+  RecategorizeCard,
   RiskSettingsCard,
   StockProfileCard,
 } from "@/components/ConnectDeepPanels";
@@ -922,7 +925,12 @@ export function ConnectPage() {
       {tab === "invoice" && (
         <div className="grid gap-3 lg:grid-cols-2">
           <InvoiceCard />
+          <PdfStatementCard />
           <HoldingsImportCard />
+          <div className="min-w-0 space-y-3">
+            <ExecuteStatusCard />
+            <RecategorizeCard />
+          </div>
         </div>
       )}
 

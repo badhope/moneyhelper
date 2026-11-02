@@ -32,6 +32,7 @@ from .routes import (
     connect_router,
     debts_subs_router,
     evaluation_router,
+    execute_router,
     family_router,
     finance_tax_router,
     goals_router,
@@ -228,6 +229,7 @@ app.include_router(calculations_router)
 app.include_router(connect_router)
 app.include_router(connect_deep_router)
 app.include_router(finance_tax_router)
+app.include_router(execute_router)
 app.include_router(strategy_router)
 app.include_router(studio_router)
 app.include_router(evaluation_router)

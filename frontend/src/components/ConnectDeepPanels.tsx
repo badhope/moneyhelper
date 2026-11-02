@@ -4,7 +4,8 @@
  * use-connect 的 hooks，彼此独立，按需渲染。
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Banknote,
   Gauge,
@@ -38,6 +39,11 @@ import {
   useSaveRiskSettings,
   useStockProfile,
   useUploadInvoiceText,
+  useVisionStatus,
+  useUploadInvoiceImage,
+  useUploadStatementPdf,
+  useApplyCategorize,
+  useExecuteStatus,
   type RiskCheckResult,
 } from "@/lib/use-connect";
 
@@ -521,6 +527,7 @@ export function ConditionalCard() {
 export function InvoiceCard() {
   const { t } = useI18n();
   const { toast } = useToast();
+  const qc = useQueryClient();
   const q = useInvoices();
   const upload = useUploadInvoiceText();
   const del = useDeleteInvoice();
@@ -560,6 +567,7 @@ export function InvoiceCard() {
           ))}
         </div>
       ) : null}
+      <ImageInvoiceInput onParsed={() => void qc.invalidateQueries({ queryKey: ["/api/connect/invoices"] })} />
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -693,6 +701,259 @@ export function HoldingsImportCard() {
           )}
         </div>
       )}
+    </Card>
+  );
+}
+
+
+/** 发票图片上传（v4.6）：二维码优先，OCR 兜底；能力缺失时给安装提示 */
+function ImageInvoiceInput({ onParsed }: { onParsed: () => void }) {
+  const { t } = useI18n();
+  const { toast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const vision = useVisionStatus();
+  const upload = useUploadInvoiceImage();
+  const [hint, setHint] = useState("");
+
+  const pick = async (file: File) => {
+    try {
+      const res = await upload.mutateAsync(file);
+      if (!res.ok) {
+        setHint(res.install_hint || t("connect.imageFail"));
+        toast(res.install_hint || t("connect.imageFail"), "info");
+        return;
+      }
+      setHint("");
+      toast(
+        `${t("connect.imageOk")} · ${res.method}${res.duplicate ? ` · ${t("connect.invoiceDuplicate")}` : ""}`,
+        "ok",
+      );
+      onParsed();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
+
+  const cap = vision.data;
+  return (
+    <div className="mt-2 rounded-lg border border-dashed border-border/70 px-2 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={upload.isPending}
+          onClick={() => inputRef.current?.click()}
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11.5px] hover:bg-accent disabled:opacity-50"
+        >
+          {upload.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />}
+          {t("connect.uploadImage")}
+        </button>
+        <span className="text-[10.5px] text-muted-foreground">
+          {t("connect.visionQr")}: {cap?.qr.available ? cap.qr.decoders.join("/") : t("connect.notInstalled")}
+          {" · "}
+          {t("connect.visionOcr")}: {cap?.ocr.available ? cap.ocr.engines.join("/") : t("connect.notInstalled")}
+        </span>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void pick(f);
+          e.target.value = "";
+        }}
+      />
+      {hint ? <div className="mt-1 text-[10.5px] text-amber-600 dark:text-amber-400">{hint}</div> : null}
+    </div>
+  );
+}
+
+/** PDF 对账单导入（v4.6） */
+export function PdfStatementCard() {
+  const { t } = useI18n();
+  const { toast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const upload = useUploadStatementPdf();
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof upload.mutateAsync>> | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+
+  const pick = (f: File) => {
+    setFile(f);
+    void upload
+      .mutateAsync({ file: f, apply: false })
+      .then(setPreview)
+      .catch((e) => toast(e instanceof Error ? e.message : String(e), "error"));
+  };
+
+  const apply = async () => {
+    if (!file) return;
+    try {
+      const res = await upload.mutateAsync({ file, apply: true });
+      setPreview(res);
+      toast(t("connect.pdfImported", { n: res.imported ?? 0, d: res.duplicated ?? 0 }), "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
+
+  return (
+    <Card className="min-w-0 p-[var(--card-pad)]">
+      <div className="flex items-center gap-1.5 text-[13px] font-semibold">
+        <Banknote className="h-4 w-4 text-primary" />
+        {t("connect.pdfTitle")}
+      </div>
+      <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">{t("connect.pdfHint")}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={upload.isPending}
+          onClick={() => inputRef.current?.click()}
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11.5px] hover:bg-accent disabled:opacity-50"
+        >
+          {upload.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          {t("connect.choosePdf")}
+        </button>
+        {preview && preview.ok && preview.count > 0 ? (
+          <Button size="sm" onClick={() => void apply()} disabled={upload.isPending}>
+            {t("connect.applyImport")}
+          </Button>
+        ) : null}
+        {file ? <span className="text-[10.5px] text-muted-foreground">{file.name}</span> : null}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) pick(f);
+          e.target.value = "";
+        }}
+      />
+      {preview ? (
+        <div className="mt-2 border-t border-border/60 pt-2">
+          <div className="text-[11px] text-muted-foreground">
+            {t("connect.pdfResult", { n: preview.count, m: preview.method || "-" })}
+          </div>
+          {preview.warnings.length ? (
+            <div className="mt-1 space-y-0.5">
+              {preview.warnings.slice(0, 3).map((w) => (
+                <div key={w} className="text-[10px] text-amber-600 dark:text-amber-400">
+                  {w}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {preview.rows.length ? (
+            <div className="mt-1 max-h-40 overflow-y-auto scroll-thin">
+              <table className="w-full text-[11px]">
+                <tbody>
+                  {preview.rows.slice(0, 20).map((r, i) => (
+                    <tr key={`${r.date}-${i}`} className="border-t border-border/40">
+                      <td className="py-1 pr-2 tabular-nums">{r.date}</td>
+                      <td className="py-1 pr-2">{r.item}</td>
+                      <td className={cn("py-1 text-right tabular-nums", pnlClass(r.amount))}>
+                        {fmtMoney(r.amount, true)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+/** 券商执行状态（v4.6）：护栏与适配器可用性，不提供下单按钮 */
+export function ExecuteStatusCard() {
+  const { t } = useI18n();
+  const q = useExecuteStatus();
+  const d = q.data;
+  if (q.isPending) {
+    return (
+      <Card className="p-[var(--card-pad)]">
+        <Skeleton className="h-24 w-full" />
+      </Card>
+    );
+  }
+  if (!d) {
+    return (
+      <Card className="p-[var(--card-pad)]">
+        <EmptyState mode="compact" text={t("connect.noData")} />
+      </Card>
+    );
+  }
+  return (
+    <Card className="min-w-0 p-[var(--card-pad)]">
+      <div className="flex items-center gap-1.5 text-[13px] font-semibold">
+        <ShieldCheck className="h-4 w-4 text-primary" />
+        {t("connect.execTitle")}
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        <Badge variant={d.guardrails.trading_enabled ? "warn" : "ok"} className="px-1.5 py-0 text-[10px]">
+          {d.guardrails.trading_enabled ? t("connect.execOn") : t("connect.execOff")}
+        </Badge>
+        <Badge variant={d.guardrails.dry_run ? "ok" : "danger"} className="px-1.5 py-0 text-[10px]">
+          {d.guardrails.dry_run ? "dry-run" : t("connect.execLive")}
+        </Badge>
+        <span className="text-[10.5px] text-muted-foreground">
+          {t("connect.execBroker")}: {d.guardrails.broker}
+        </span>
+      </div>
+      <div className="mt-2 space-y-1">
+        {d.adapters.map((a) => (
+          <div key={a.id} className="flex items-start gap-1.5 text-[11px]">
+            <span
+              className={cn(
+                "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
+                a.available ? "bg-emerald-500" : "bg-muted-foreground/40",
+              )}
+            />
+            <span className="min-w-0">
+              <span className="font-medium">{a.id}</span>
+              {a.supports_trading ? (
+                <span className="ml-1 text-amber-600 dark:text-amber-400">{t("connect.execReal")}</span>
+              ) : null}
+              <span className="block text-[10px] leading-snug text-muted-foreground">{a.note}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-1.5 border-t border-border/60 pt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+        {d.note}
+      </p>
+    </Card>
+  );
+}
+
+/** 一键重新归类（v4.6） */
+export function RecategorizeCard() {
+  const { t } = useI18n();
+  const { toast } = useToast();
+  const apply = useApplyCategorize();
+  return (
+    <Card className="p-[var(--card-pad)]">
+      <div className="text-[13px] font-semibold">{t("connect.recatTitle")}</div>
+      <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">{t("connect.recatHint")}</p>
+      <Button
+        size="sm"
+        className="mt-2 w-full"
+        disabled={apply.isPending}
+        onClick={() =>
+          void apply
+            .mutateAsync()
+            .then((r) => toast(t("connect.recatDone", { n: r.changed, t: r.total }), r.changed ? "ok" : "info"))
+            .catch((e) => toast(String(e), "error"))
+        }
+      >
+        {apply.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+        {t("connect.recatRun")}
+      </Button>
     </Card>
   );
 }

@@ -262,6 +262,37 @@ class ConditionalOrderIn(_In):
     name: str = Field("", description="标的名称（可选）")
 
 
+class CategorizeIn(_In):
+    rows: list[dict] = Field(..., description="交易数组，每项含 item（摘要）、可选 peer/category、amount")
+
+
+class PdfStatementIn(_In):
+    pass
+
+
+class BrokerStatusIn(_In):
+    pass
+
+
+class BrokerPreviewIn(_In):
+    symbol: str = Field(..., description="6 位证券代码")
+    side: Literal["buy", "sell"] = Field(..., description="buy / sell")
+    quantity: int = Field(..., description="股数；买入须 100 股整数倍")
+    limit_price: float = Field(..., description="限价")
+
+
+class BrokerSubmitIn(_In):
+    symbol: str = Field(..., description="6 位证券代码")
+    side: Literal["buy", "sell"] = Field(..., description="buy / sell")
+    quantity: int = Field(..., description="股数")
+    limit_price: float = Field(..., description="限价")
+    confirmation_token: str = Field("", description="preview 返回的确认令牌；dry_run 模式可空")
+
+
+class InvoiceVisionIn(_In):
+    pass
+
+
 class GetUserMemoryIn(_In):
     query: str = Field("", description="检索关键词（可选）：返回与该话题相关的记忆")
     kind: str = Field(
@@ -456,6 +487,12 @@ TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     "market_breadth": MarketBreadthIn,
     "stock_profile": StockProfileIn,
     "conditional_order": ConditionalOrderIn,
+    # 攻坚（v4.6）
+    "categorize_bills": CategorizeIn,
+    "broker_status": BrokerStatusIn,
+    "broker_preview_order": BrokerPreviewIn,
+    "broker_submit_order": BrokerSubmitIn,
+    "invoice_vision_status": InvoiceVisionIn,
     # 财务写入
     "record_transaction": RecordTransactionIn,
     "save_user_memory": SaveUserMemoryIn,

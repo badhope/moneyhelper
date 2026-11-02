@@ -1072,3 +1072,44 @@ if __name__ == "__main__":
         asyncio.run(mcp.run_async(transport="stdio"))
     else:
         asyncio.run(mcp.run_async(transport="streamable-http", host="0.0.0.0", port=8765))
+
+# ---------------------------------------------------------------------------
+# v4.6：账单规则归类 / 券商执行层 / 发票视觉能力
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def categorize_bills(rows: list) -> str:
+    """账单智能归类：按规则引擎给交易打分类，返回命中规则与兜底比例。"""
+    return await xtools.tool_categorize_bills({"rows": rows})
+
+
+@mcp.tool()
+async def broker_status() -> str:
+    """券商执行层状态：交易开关、dry-run、适配器可用性与缺失项。"""
+    return await xtools.tool_broker_status({})
+
+
+@mcp.tool()
+async def broker_preview_order(symbol: str, side: str, quantity: int, limit_price: float) -> str:
+    """券商下单预检：跑全部护栏，返回放行结果与确认令牌（默认 dry-run 不下单）。"""
+    return await xtools.tool_broker_preview_order(
+        {"symbol": symbol, "side": side, "quantity": quantity, "limit_price": limit_price}
+    )
+
+
+@mcp.tool()
+async def broker_submit_order(symbol: str, side: str, quantity: int, limit_price: float,
+                              confirmation_token: str = "") -> str:
+    """券商报单：需预检令牌；默认 dry-run 只返回模拟结果。"""
+    return await xtools.tool_broker_submit_order({
+        "symbol": symbol, "side": side, "quantity": quantity,
+        "limit_price": limit_price, "confirmation_token": confirmation_token,
+    })
+
+
+@mcp.tool()
+async def invoice_vision_status() -> str:
+    """探测发票识别能力：二维码 / OCR / PDF 表格。"""
+    return await xtools.tool_invoice_vision_status({})
+

@@ -31,17 +31,19 @@ scripts/dev.sh --prod
 - **Every number comes from a deterministic engine** — the model only classifies intent and writes prose, so it cannot invent an amount.
 - **Built for Chinese bills** — WeChat Pay, Alipay and bank CSV imports are native, not an afterthought.
 - **Conversation is the operation** — one sentence records an expense, opens a position, or gets a rebalancing plan.
-- **Your data stays on your machine** — local SQLite, with optional passphrase-protected encrypted backups.
+- **Connects to the outside world** — quotes and fund NAV from public sources; broker statements, Alipay/WeChat/bank bills, OFD/PDF/image invoices all import; login-required platforms use a one-time pairing code (no passwords stored).
+- **Handles company books** — VAT & surcharges, corporate income tax, cumulative IIT withholding, payroll with social insurance, month-end close checklist, three-band cash-flow forecast. All parameters tunable, all formulas explicit, clearly marked as not formal tax advice.
+- **Your data stays yours** — local SQLite by default, with optional passphrase-protected encrypted backups; self-hosted and cloud are deployment options.
 
 ## What it is
 
-Moneyhelper is **not "a generic chat model + a bookkeeping plugin"** — it is a local-first **vertical finance intelligence workbench**:
+Moneyhelper is **not "a generic chat model + a bookkeeping plugin"** — it is an **AI finance department you can audit**:
 a general-model base focused end-to-end on personal / retail / small-business finance decisions — bookkeeping,
 position risk control, stock research, corporate statement analysis, strategy backtesting and team paper-trading, every conclusion
 visualized and traceable.
 
-Moneyhelper is the helper for your money: a local-first workbench that turns every entry into a decision you can check,
-so saving and investing stay deliberate instead of hopeful.
+Moneyhelper is the finance team your money never had: it turns every entry into a decision you can check,
+from bookkeeping to tax estimates to execution hand-offs, so saving and investing stay deliberate instead of hopeful.
 
 ### What makes it different from a generic assistant
 
@@ -51,8 +53,9 @@ so saving and investing stay deliberate instead of hopeful.
 | Financial accuracy | Relies on memorized knowledge; formulas/tax/ratios hallucinate | Metric definitions live in docstrings; insufficient data returns `null` with a reason — never a plausible fake number |
 | Capability boundary | Can chat about anything, finance stays "encyclopedia-level" | Finance only, but runs the whole loop: bookkeeping → position risk → research → statements → backtest |
 | Interaction | Mostly plain-text chat | Chat + visual workbench: ask once, get charts, tables and conclusions |
-| Privacy | Raw data goes to the model provider | Local-first: sensitive data stays in local SQLite, only sanitized structured data leaves the machine |
+| Data handling | Raw data goes to the model provider | Sensitive data stays in your own SQLite; only sanitized structured context is sent to the model. Local, self-hosted or cloud are all deployment options |
 | Workflow | Single-turn Q&A, no persistent state | Persistent finance workspace: assets, positions, statements, backtests survive across sessions |
+| Execution | Chat only, or a black-box order button | 9 pre-trade checks → confirmation token → broker adapter (NullBroker + dry-run by default, cannot fire accidentally) → full audit trail |
 
 | You say | Moneyhelper does |
 |---|---|
@@ -313,4 +316,4 @@ Everything this software outputs (health checks, reports, AI answers, suggestion
 - License: [MIT](LICENSE) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md)
 - Issues and PRs welcome; please pair new features with tests and pass the test commands above before submitting.
 
-**Topics**: `personal-finance` `finance-assistant` `ai-agent` `langgraph` `fastapi` `react` `sqlite` `local-first` `mcp` `pwa`
+**Topics**: `personal-finance` `finance-assistant` `ai-agent` `langgraph` `fastapi` `react` `sqlite` `self-hosted` `mcp` `pwa`

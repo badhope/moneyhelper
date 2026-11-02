@@ -4,6 +4,57 @@
 
 ## [Unreleased]
 
+## [4.6.0] - 2026-10-30（边界攻坚：发票识别 / PDF 对账单 / 规则归类 / 券商执行层 / 定位纠偏）
+
+> 上一版标为「边界」的四件事，这一版逐个调研开源实现并落地；另外修正了对外定位描述。
+
+### 新增：发票图片识别（二维码优先 + OCR 兜底）
+
+- **发票二维码解析**（`import_parsers/invoice_vision.py`）：按国家税务总局格式解析
+  `01,发票代码,发票号码,金额,开票日期,校验码,随机码`，比 OCR 更准。
+- **双解码器探测**：OpenCV `QRCodeDetector`（首选）→ pyzbar（备选）；都缺失时返回安装提示。
+- **OCR 兜底**：RapidOCR（首选，离线轻量）→ PaddleOCR；识别文本复用发票字段正则。
+- 图片一体化识别：二维码优先取关键字段，OCR 只补购买方/销售方/税额，不覆盖更可信的值。
+- 接口：`POST /api/connect/invoices/image`、`GET /api/connect/invoices/vision/status`。
+
+### 新增：PDF 对账单解析
+
+- `import_parsers/pdf_statement.py`：pdfplumber 表格抽取优先 → 文本行回退 → 扫描件明确拒绝。
+- **对账核对**：`statement_reconcile()` 按「日期 + 金额」匹配（摘要不参与，避免假差异）。
+- 接口：`POST /api/connect/import/statement-pdf`（预览/入账）、`POST /api/connect/statement/reconcile`。
+
+### 新增：账单智能归类规则引擎
+
+- `categorize.py`：参照 double-entry-generator 的多维规则模型（peer/item/category/type/金额区间），
+  按「具体度」排序，同分精确优先于正则；正则带编译缓存与长度上限。
+- 19 条内置规则；兜底命中打 `needs_review` 标签；`explain()` 输出兜底比例与补规则建议。
+- 接口：`GET /api/connect/categorize/rules`、`POST .../preview`、`POST .../apply`。
+
+### 新增：券商执行层（默认永不下单）
+
+- `broker_adapter.py`：`BrokerAdapter` 协议 + 四个实现（NullBroker 默认 / PaperBroker /
+  XtQuantBroker / EasytraderBroker）。
+- **七道护栏**在 `guarded_submit()` 强制：总开关、dry-run、券商白名单、单笔上限、单日上限、
+  单票集中度、二次确认令牌（绑定内容、用后即焚、5 分钟过期）。
+- 适配器 `probe()` 明确列出缺什么（xtquant 不能 pip 安装、easytrader 需客户端路径等）。
+- 接口：`/api/execute/{status,preview,submit,orders}`、`/api/execute/adapters/{name}/{connect,disconnect}`。
+
+### 变更：定位纠偏
+
+- 全仓 5 个对外文件（README / README.zh / docs/index / pyproject / frontend index.html）
+  及 3 处次级文档移除「local-first / 本地优先」作为核心卖点的表述，改为
+  「面向个人与小微公司的 AI 财务部门」，本地/自托管/云端明确为部署选项。
+- 同步补入真实能力卖点：外部数据接入、公司财税、交易执行护栏。
+
+### 新增依赖分组（全部可选）
+
+`vision`（opencv/pillow/pdfplumber/pypdf）、`ocr`（rapidocr）、`broker`（easytrader/pywinauto）。
+未安装时能力探测返回 `available=false` + 安装提示，不报错。
+
+### 测试
+
+后端 **1220 passed**（v4.5 基线 1164 + 新增 56：确定性/解析 39 + HTTP 17）；前端 112、tsc、build 通过。
+
 ## [4.5.0] - 2026-10-29（连接中心深化：从「能接上」到「能干活」）
 
 > v4.4 解决接入，v4.5 把每个模块做深：行情加腾讯源与市场温度、导入加持仓对账与发票、

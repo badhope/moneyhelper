@@ -2,7 +2,7 @@
 
 ## 一句话定位
 
-开源、本地优先的个人理财 AI Agent：用 LangGraph 多 Agent 编排驱动记账 / 持仓 / 风控 / 洞察，以 MCP 协议对外暴露完整工具集，同时提供独立的 React Web 前端和 Claude/Codex 等 IDE 直连能力。
+开源的 AI 财务部门：用 LangGraph 多 Agent 编排驱动记账 / 持仓 / 风控 / 投研 / 财报 / 税负 / 资金调度，以 MCP 协议对外暴露完整工具集，同时提供独立的 React Web 前端和 Claude/Codex 等 IDE 直连能力。部署形态（本地 SQLite / 自托管 / 云端）是选项，不是卖点。
 
 ## 技术栈分层
 

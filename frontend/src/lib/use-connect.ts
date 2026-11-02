@@ -586,3 +586,132 @@ export function useImportHoldings() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// v4.6 攻坚：发票图片识别 / PDF 对账单 / 规则归类 / 券商执行层
+// ---------------------------------------------------------------------------
+
+export interface VisionStatus {
+  qr: { available: boolean; decoders: string[] };
+  ocr: { available: boolean; engines: string[]; note: string };
+  pdf_tables: { available: boolean; note: string };
+  hint: string;
+}
+
+export interface BrokerAdapterInfo {
+  id: string;
+  name: string;
+  available: boolean;
+  supports_trading: boolean;
+  problems?: string[];
+  note: string;
+}
+
+export interface ExecuteStatus {
+  guardrails: {
+    trading_enabled: boolean;
+    dry_run: boolean;
+    broker: string;
+    max_order_amount: number;
+    max_daily_amount: number;
+    max_position_ratio: number;
+    confirmation_ttl_seconds: number;
+  };
+  adapters: BrokerAdapterInfo[];
+  current: BrokerAdapterInfo | null;
+  note: string;
+}
+
+export interface CategorizeResult {
+  results: Record<string, unknown>[];
+  total: number;
+  fallback: number;
+  fallback_pct: number;
+  by_category: Record<string, number>;
+  by_rule: Record<string, number>;
+  rule_count: number;
+  hint: string;
+}
+
+export interface StatementPreview {
+  ok: boolean;
+  rows: { date: string; item: string; amount: number; category: string }[];
+  count: number;
+  method: string;
+  pages: number;
+  warnings: string[];
+  imported?: number;
+  duplicated?: number;
+}
+
+export function useVisionStatus() {
+  return useQuery({
+    queryKey: ["/api/connect/invoices/vision/status"],
+    queryFn: () => api<VisionStatus>("/api/connect/invoices/vision/status"),
+    staleTime: 120_000,
+  });
+}
+
+export function useExecuteStatus() {
+  return useQuery({
+    queryKey: ["/api/execute/status"],
+    queryFn: () => api<ExecuteStatus>("/api/execute/status"),
+    staleTime: 30_000,
+  });
+}
+
+export function useUploadInvoiceImage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const body = new FormData();
+      body.append("file", file);
+      // FormData 由浏览器自带 boundary；api() 已处理不覆盖 Content-Type
+      return api<{
+        ok: boolean;
+        method: string;
+        invoice?: Record<string, unknown>;
+        parsed?: Record<string, unknown>;
+        warnings?: string[];
+        install_hint?: string;
+        duplicate?: boolean;
+      }>("/api/connect/invoices/image", { method: "POST", body });
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/connect/invoices"] }),
+  });
+}
+
+export function useUploadStatementPdf() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, apply }: { file: File; apply: boolean }) => {
+      const body = new FormData();
+      body.append("file", file);
+      if (apply) body.append("apply", "true");
+      return api<StatementPreview>("/api/connect/import/statement-pdf", { method: "POST", body });
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["dashboard"] }),
+  });
+}
+
+export function useCategorizePreview() {
+  return useMutation({
+    mutationFn: (rows: Record<string, unknown>[]) =>
+      api<CategorizeResult>("/api/connect/categorize/preview", {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      }),
+  });
+}
+
+export function useApplyCategorize() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<{ ok: boolean; changed: number; total: number; errors: string[] }>(
+        "/api/connect/categorize/apply",
+        { method: "POST", body: JSON.stringify({}) },
+      ),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["dashboard"] }),
+  });
+}

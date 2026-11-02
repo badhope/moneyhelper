@@ -18,8 +18,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "moneyhelper"
-version = "4.5.0"
-description = "Moneyhelper —— 本地优先的垂直财务智能体工作台（数字可复核、投研/财报/策略全流程、MCP 开放）"
+version = "4.6.0"
+description = "Moneyhelper —— 面向个人与小微公司的 AI 财务部门（记账/投研/财报/税负/资金调度，数字可复核、操作可审计、MCP 开放）"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -61,6 +61,21 @@ full = [
   "cachetools>=5.0,<6",
   "duckduckgo_search>=6.0,<7",
   "sse-starlette>=1.6,<2",
+]
+# —— 票据/对账单识别（v4.6）：按需安装，缺失时功能优雅降级并给出安装提示 ——
+vision = [
+  "opencv-python-headless>=4.9",   # 发票二维码解码（最准，优先）
+  "pillow>=10.0",                  # 图片读取（OCR/预览）
+  "pdfplumber>=0.11",              # PDF 表格对账单
+  "pypdf>=4.0",                    # PDF 文本层（发票）
+]
+ocr = [
+  "rapidocr-onnxruntime>=1.3",     # 离线 OCR，体积小，优先
+]
+# —— 券商实盘执行（v4.6）：仅 Windows，且需券商客户端/终端，默认不安装 ——
+broker = [
+  "easytrader>=0.23",              # 券商客户端 GUI 自动化（脆弱，需锁版本）
+  "pywinauto>=0.6.8",
 ]
 dev = [
   "pytest>=8.0,<9",

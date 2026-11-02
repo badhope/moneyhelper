@@ -47,7 +47,7 @@
 
 | 方案 | 哲学 | 适合 |
 |---|---|---|
-| **Mem0**（62k★） | 轻量提取+去重+更新，drop-in，Python/TS SDK | ✅ **Moneyhelper 选这个**。我们是 local-first，mem0 支持 SQLite/chroma 本地后端，零外部服务 |
+| **Mem0**（62k★） | 轻量提取+去重+更新，drop-in，Python/TS SDK | ✅ **Moneyhelper 选这个**。默认部署形态用 SQLite 后端，mem0 支持 SQLite/chroma，零外部服务 |
 
 > **2026-10 变更**：mem0 已移除。原因是它的 embedder 默认走 OpenAI，记忆内容会离开本机，与"数据 100% 本地"的承诺冲突；同时它引入了 chromadb 这一重依赖。现改为 `backend/app/mem.py` 直接用本地 BM25（rank-bm25）检索 `user_memory` 表，接口 `remember/recall` 保持不变。
 | Letta（原 MemGPT） | 自编辑记忆块，完整 agent runtime | 不选。太重，我们不需要 agent 自己编辑内存 |
