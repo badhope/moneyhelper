@@ -49,6 +49,7 @@ export function useChatView({
 
   const settings = bootstrap?.settings ?? {};
   const voiceOn = settings.voice_input === "on";
+  const voiceOutputOn = settings.voice_output === "on";
   const exportOn = settings.show_export === "on";
   const suggestionsOn = settings.show_suggestions === "on";
 
@@ -281,7 +282,7 @@ export function useChatView({
     showSteps, showSessions, sessionSearch, setSessionSearch,
     scrolledUp, handleListScroll,
     // derived
-    settings, voiceOn, exportOn, suggestions, hasData,
+    settings, voiceOn, voiceOutputOn, exportOn, suggestions, hasData,
     // stream
     stream, streamingMsg, finishedMessages, panelMsg,
     // callbacks

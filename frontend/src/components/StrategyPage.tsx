@@ -29,6 +29,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatCell } from "@/components/ui/stat";
 import { ConfirmDialog } from "@/components/ui/confirm";
 import { useEChart, usePalette, axisLabelColor } from "@/lib/charts";
+import { SandboxCard } from "@/components/SandboxCard";
 import { useTheme } from "@/lib/theme";
 import { useI18n } from "@/lib/i18n";
 import { useDashboard } from "@/lib/store";
@@ -902,14 +903,18 @@ export function StrategyPage() {
 
   const hasHoldings = dashboard.positions.some((p) => p.kind !== "现金");
   if (!hasHoldings) {
+    // 仓位相关模块需要持仓；反事实沙盒只依赖收支，没有持仓也要能用
     return (
-      <Card>
-        <EmptyState
-          illustration="holdings"
-          title={t("strategy.emptyTitle")}
-          desc={t("strategy.emptyDesc")}
-        />
-      </Card>
+      <div className="space-y-3">
+        <Card>
+          <EmptyState
+            illustration="holdings"
+            title={t("strategy.emptyTitle")}
+            desc={t("strategy.emptyDesc")}
+          />
+        </Card>
+        <SandboxCard />
+      </div>
     );
   }
 
@@ -922,6 +927,7 @@ export function StrategyPage() {
       </div>
       <DcaSection />
       <FireSection />
-    </div>
+      <SandboxCard />
+</div>
   );
 }

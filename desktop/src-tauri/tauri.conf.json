@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Moneyhelper",
+  "version": "4.8.0",
+  "identifier": "com.badhope.moneyhelper",
+  "build": {
+    "frontendDist": "../../frontend/dist",
+    "devUrl": "http://127.0.0.1:5198",
+    "beforeDevCommand": "cd ../frontend && npm run dev",
+    "beforeBuildCommand": "cd ../frontend && npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Moneyhelper",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "dmg", "appimage", "deb"],
+    "icon": ["icons/icon.png"],
+    "copyright": "MIT",
+    "category": "Finance",
+    "shortDescription": "AI finance department for individuals and small businesses",
+    "longDescription": "Moneyhelper: bookkeeping, portfolio risk, research, statements, tax estimates and cash scheduling. Every number computed deterministically and auditable.",
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://gitcode.com/badhope/moneyhelper/releases/latest/download/latest.json"],
+      "pubkey": ""
+    }
+  }
+}

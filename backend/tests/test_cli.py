@@ -172,3 +172,36 @@ async def test_cli_studio_add_and_list(tmp_path, monkeypatch) -> None:
         assert any(a["id"] == "cli_rule" and a["severity"] == "must" for a in assets)
     finally:
         await db.close_db()
+
+
+def test_cli_dept_list_empty(temp_db, capsys):
+    rc = _run(["dept", "list"])
+    assert rc == 0
+    assert "还没有呈批件" in capsys.readouterr().out
+
+
+def test_cli_dept_run_creates_report(temp_db, capsys, monkeypatch):
+    import asyncio
+
+    from app import db
+
+    # 不接模型：走确定性规则派工 + 部门 fallback，验证 CLI 到呈批件落库整链
+    async def _no_llm():
+        return False
+
+    from app import llm
+
+    monkeypatch.setattr(llm, "llm_available", _no_llm)
+    rc = _run(["dept", "run", "--question", "盘一下上季度开销"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "呈批件" in out
+
+    rows = asyncio.run(db.dept_report_list(None, 5))
+    assert rows and rows[0]["status"] == "pending"
+
+
+def test_cli_dept_approve_requires_existing(temp_db, capsys):
+    with pytest.raises(SystemExit) as exc:
+        _run(["dept", "approve", "--report-id", "nope"])
+    assert exc.value.code == 1

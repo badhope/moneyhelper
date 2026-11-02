@@ -180,6 +180,16 @@ from .memory import (
     stale_memory_count,
     touch_memory,
 )
+from .motions import (
+    cast_vote,
+    create_motion,
+    get_motion,
+    list_motions,
+    withdraw_motion,
+)
+from .motions import (
+    tally as motion_tally,
+)
 from .paper import (
     add_trade,
     delete_account,
@@ -265,6 +275,7 @@ __all__ = [
     "broker_list_credentials",
     "broker_save_credentials",
     "budget_usage",
+    "cast_vote",
     "claim_pending_action",
     "claim_pending_nl",
     "clear_audit_logs",
@@ -276,6 +287,7 @@ __all__ = [
     "count_transactions",
     "counts_by_tenant",
     "create_conditional",
+    "create_motion",
     "create_pending_action",
     "create_session",
     "data_dir",
@@ -312,6 +324,7 @@ __all__ = [
     "get_conditional",
     "get_conversation_summary",
     "get_invoice",
+    "get_motion",
     "get_pending_action",
     "get_risk_settings",
     "get_settings",
@@ -335,6 +348,7 @@ __all__ = [
     "list_loans",
     "list_members",
     "list_memory",
+    "list_motions",
     "list_positions",
     "list_reflections",
     "list_runs",
@@ -361,6 +375,7 @@ __all__ = [
     "month_cashflow",
     "month_expense_by_category",
     "monthly_trend",
+    "motion_tally",
     "move_runs",
     "open_account",
     "record_brokerage_import",
@@ -398,4 +413,5 @@ __all__ = [
     "user_update_last_login",
     "user_verify_password",
     "uuid_hex",
+    "withdraw_motion",
 ]

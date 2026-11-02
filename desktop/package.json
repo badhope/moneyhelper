@@ -1,0 +1,13 @@
+{
+  "name": "moneyhelper-desktop",
+  "private": true,
+  "version": "4.8.0",
+  "description": "Tauri desktop shell for Moneyhelper",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}

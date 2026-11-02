@@ -276,6 +276,8 @@ _TENANT_TABLES = (
     "paper_accounts",
     "paper_trades",
     "paper_snapshots",
+    "family_motions",
+    "family_votes",
 )
 
 # 复合主键重建表：旧主键 + user_id = 新主键

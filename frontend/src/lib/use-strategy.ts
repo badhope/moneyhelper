@@ -260,3 +260,62 @@ export function useFire() {
     refetchOnWindowFocus: false,
   });
 }
+
+// ---------------------------------------------------------------------------
+// 反事实沙盒（M5.5）
+// ---------------------------------------------------------------------------
+
+export interface SandboxSnapshot {
+  monthly_income: number;
+  monthly_expense: number;
+  monthly_net: number;
+  savings_rate_pct: number;
+  cash: number;
+  emergency_months: number | null;
+  fire_target: number;
+  fire_years: number | null;
+}
+
+export interface SandboxResult {
+  available: boolean;
+  reason?: string;
+  kind: string;
+  detail: Record<string, number | string>;
+  before: SandboxSnapshot;
+  after: SandboxSnapshot;
+  diff: Record<string, number | null>;
+  warnings: string[];
+  assumptions: { annual_return: number; withdrawal_rate: number; basis: string };
+  disclaimer: string;
+}
+
+export interface SandboxBase {
+  monthly_income: number;
+  monthly_expense: number;
+  cash: number;
+  essential_monthly: number;
+  target_category_expense: number;
+  dca_monthly: number;
+  category: string;
+  available: boolean;
+}
+
+export function useSandboxBase(category = "") {
+  return useQuery({
+    queryKey: ["/api/strategy/sandbox/base", category],
+    queryFn: () => api<SandboxBase>(`/api/strategy/sandbox/base?category=${encodeURIComponent(category)}`),
+    staleTime: 30_000,
+  });
+}
+
+export function useSandbox() {
+  return useMutation({
+    mutationFn: (params: { kind: string; amount?: number; percent?: number; category?: string }) => {
+      const q = new URLSearchParams({ kind: params.kind });
+      if (params.amount) q.set("amount", String(params.amount));
+      if (params.percent) q.set("percent", String(params.percent));
+      if (params.category) q.set("category", params.category);
+      return api<SandboxResult>(`/api/strategy/sandbox?${q.toString()}`);
+    },
+  });
+}

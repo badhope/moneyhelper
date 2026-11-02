@@ -75,7 +75,8 @@ nav:
       - 连接中心（深化）: connect-hub-deep.md
       - 边界攻坚（v4.6）: hardening.md
       - Agent Studio: studio.md
-      - MCP 接入: mcp-guide.md
+      - MCP 接入（Claude/Cursor/Cline）: mcp-guide.md
+      - 可复核性标准: reviewability-standard.md
   - 部署与配置:
       - 自托管部署: self-host.md
       - 部署指南: DEPLOY.md

@@ -98,6 +98,13 @@ export function PrefsSection({
       </div>
       <div className="mt-3 flex items-center justify-between">
         <div>
+          <div className="text-sm">{t("settings.voiceOutput")}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">{t("settings.voiceOutputHint")}</div>
+        </div>
+        <Switch checked={form.voice_output === "on"} onChange={() => onToggle("voice_output")} label={t("settings.voiceOutput")} />
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <div>
           <div className="text-sm">{t("settings.language")}</div>
           <div className="text-xs text-muted-foreground mt-0.5">{t("settings.languageHint")}</div>
         </div>

@@ -35,6 +35,27 @@ claude mcp add --transport http moneyhelper \
   http://127.0.0.1:8788/mcp --header "Authorization: Bearer $API_TOKEN"
 ```
 
+## Cline（VS Code 扩展）
+
+Cline 的 MCP 配置在扩展设置里（Settings → MCP Servers → Configure MCP Servers），
+编辑 `cline_mcp_settings.json`：
+
+```json
+{
+  "mcpServers": {
+    "moneyhelper": {
+      "type": "streamableHttp",
+      "url": "http://127.0.0.1:8788/mcp",
+      "headers": { "Authorization": "Bearer <你的 API_TOKEN>" },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+未设 `API_TOKEN` 时删掉 `headers`。保存后 Cline 会列出工具；首次调用写工具会请求确认。
+
 ## Cursor / 其他客户端
 
 在 MCP 配置文件里加（`~/.cursor/mcp.json` 或客户端对应位置）：
@@ -54,7 +75,7 @@ claude mcp add --transport http moneyhelper \
 
 ## 可用工具
 
-工具清单的唯一真源是 `backend/app/tool_schemas.py`，共 31 个：
+工具清单的唯一真源是 `backend/app/tool_schemas.py`，共 53 个财务工具（MCP 与 function calling 同源）：
 
 | 类别 | 工具 |
 |---|---|
@@ -65,6 +86,11 @@ claude mcp add --transport http moneyhelper \
 | 家庭与审计 | `get_family_summary`、`get_provenance` |
 | 记忆 | `get_user_memory`、`save_user_memory`、`get_lessons` |
 | 设置与产出 | `set_setting`、`trigger_morning_report`、`backup_now` |
+| 连接中心 | `connect_catalog`、`connect_sync`、`connect_fund_nav`、`connect_order` |
+| 财税与现金流 | `tax_calc`、`cashflow_forecast`、`scan_subscriptions`、`scan_anomalies` |
+| 交易风控 | `pretrade_check`、`broker_status`、`broker_preview_order`、`broker_submit_order` |
+| 票据与对账 | `parse_invoice`、`import_brokerage_holdings`、`invoice_vision_status` |
+| 市场与条件单 | `market_breadth`、`stock_profile`、`conditional_order`、`categorize_bills` |
 | 通用 | `get_now`、`web_search` |
 
 ## 验证

@@ -18,6 +18,7 @@ import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import { fmtMoney } from "@/lib/format";
 import { Section, inputCls, labelCls } from "./shared";
+import { MotionsPanel } from "./MotionsPanel";
 import { cn } from "@/lib/utils";
 
 const ROLES: { value: FamilyMember["role"]; key: string }[] = [
@@ -335,6 +336,7 @@ export function FamilySection() {
           </div>
         </div>
       )}
+          <MotionsPanel />
     </Section>
   );
 }

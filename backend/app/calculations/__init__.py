@@ -77,6 +77,7 @@ from .pretrade import (
     rebalance_orders,
 )
 from .returns import calculate_simple_return, calculate_twr, calculate_xirr
+from .sandbox import ScenarioInput, simulate
 from .strategy import RebalancePlan, compute_fire, compute_rebalance
 from .tax import (
     PayrollResult,
@@ -102,6 +103,7 @@ __all__ = [
     "PayrollResult",
     "RebalancePlan",
     "RiskMetrics",
+    "ScenarioInput",
     "Valuation",
     "analyze_statements",
     "annualized_return",
@@ -147,6 +149,7 @@ __all__ = [
     "round_lots",
     "run_backtest",
     "sharpe_ratio",
+    "simulate",
     "sortino_ratio",
     "tax_summary",
     "team_summary",

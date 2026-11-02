@@ -16,14 +16,14 @@ import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
 import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import {
-  ChevronDown, ChevronUp, Copy, Download, Loader2, RotateCcw, Sparkles, Wrench,
-} from "lucide-react";
+  ChevronDown, ChevronUp, Copy, Download, Loader2, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SummaryBlock } from "@/components/SummaryBlock";
 import { FinanceBlocks, type FinanceCardData } from "@/components/chat/FinanceBlocks";
 import { BRAND, BrandLogo } from "@/lib/brand";
 import { useI18n } from "@/lib/i18n";
+import { useSpeech } from "@/lib/use-speech";
 import { useTheme } from "@/lib/theme";
 import type { AgentToolStep, AgentPlanStep, AnswerMeta } from "@/lib/types";
 
@@ -262,6 +262,7 @@ interface BubbleProps {
   streaming?: boolean;
   showSteps: boolean;
   exportOn: boolean;
+  voiceOn?: boolean;
   onToggleSteps: () => void;
   onNavigate: (tab: string) => void;
   onRegenerate: (msg: ChatMessage) => void;
@@ -275,6 +276,7 @@ function BubbleInner({
   streaming = false,
   showSteps,
   exportOn,
+  voiceOn = false,
   onToggleSteps,
   onNavigate,
   onRegenerate,
@@ -282,6 +284,14 @@ function BubbleInner({
   onDecidePending,
 }: BubbleProps) {
   const { t: tr, lang } = useI18n();
+  const speech = useSpeech();
+  const spokenRef = useState<{ text: string }>({ text: "" })[0];
+  useEffect(() => {
+    if (!voiceOn || m.role !== "assistant" || streaming || !m.text) return;
+    if (spokenRef.text === m.text) return;
+    spokenRef.text = m.text;
+    speech.speak(m.text, lang);
+  }, [voiceOn, m.role, m.text, streaming, lang, spokenRef, speech]);
   const assistantName = lang === "en" ? BRAND.en : BRAND.name;
 
   if (m.role === "user") {
@@ -479,6 +489,18 @@ function BubbleInner({
               >
                 <Copy className="h-3.5 w-3.5" />
               </button>
+              {speech.supported && (
+                <button
+                  type="button"
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+                  aria-label={tr("chat.speak")}
+                  title={tr("chat.speak")}
+                  disabled={busy}
+                  onClick={() => speech.toggle(m.text, lang)}
+                >
+                  {speech.speaking ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                </button>
+              )}
               <button
                 type="button"
                 className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"

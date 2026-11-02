@@ -104,6 +104,7 @@ SEED_SETTINGS = {
     "report_time": "08:00",
     # ---- 功能开关（设置中心可自定义）----
     "voice_input": "off",  # 问答语音输入（浏览器支持时）
+    "voice_output": "off",  # 回答语音播报（浏览器 SpeechSynthesis）
     # 适老化：正文缩放（normal/large/xlarge）与高对比度（on/off）
     "text_scale": "normal",
     "high_contrast": "off",
@@ -366,6 +367,30 @@ CREATE TABLE IF NOT EXISTS member_loans (
 );
 CREATE INDEX IF NOT EXISTS idx_member_loans_from ON member_loans(from_member_id);
 CREATE INDEX IF NOT EXISTS idx_member_loans_to ON member_loans(to_member_id);
+-- 家庭议会（v4.8）：重大支出/资金调拨需多人表决，避免"一个人说了算"
+CREATE TABLE IF NOT EXISTS family_motions (
+    user_id      INTEGER NOT NULL DEFAULT 0,
+    id           TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    amount       REAL NOT NULL DEFAULT 0,
+    category     TEXT NOT NULL DEFAULT '',
+    note         TEXT NOT NULL DEFAULT '',
+    proposer_id  INTEGER,
+    status       TEXT NOT NULL DEFAULT 'voting',  -- voting/approved/rejected/withdrawn
+    created_at   TEXT NOT NULL DEFAULT '',
+    decided_at   TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_family_motions_user ON family_motions(user_id, status);
+CREATE TABLE IF NOT EXISTS family_votes (
+    user_id      INTEGER NOT NULL DEFAULT 0,
+    motion_id    TEXT NOT NULL,
+    member_id    INTEGER NOT NULL,
+    vote         TEXT NOT NULL,                   -- yes/no/abstain
+    note         TEXT NOT NULL DEFAULT '',
+    created_at   TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, motion_id, member_id)
+);
 -- 目标配置（再平衡）：每个标的的目标权重；symbol=CASH 表示现金目标
 CREATE TABLE IF NOT EXISTS allocation_targets (
     user_id    INTEGER NOT NULL DEFAULT 0,

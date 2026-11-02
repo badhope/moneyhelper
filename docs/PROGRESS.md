@@ -5,7 +5,7 @@
 >
 > 更新规则：每完成一个里程碑就改这一页，并在末尾追加一行变更记录。
 
-最后更新：2026-10-24 · 版本 3.0.0（后端 906 测试 / 前端 111 单测 + 21 e2e）
+最后更新：2026-10-31 · 版本 4.8.0（后端 1258 测试 / 前端 116 单测）
 
 ## 总览
 
@@ -15,9 +15,9 @@
 | M1 模块化+文档骨架 | 100% | 完成 |
 | M2 协议补课 | 100% | MCP 挂载/鉴权已修；定时产出改由 resource 暴露（Tasks 上游未支持，已有等价方案） |
 | M3 财务部门模式 | 100% | 主链可用；工单级工具白名单已生效并有测试 |
-| M4 多端 | 66% | Win 单文件实测、CLI 双形态、发版自动化完成；Tauri 壳未做（现为 PyInstaller 单文件，非安装包） |
-| M5 可视化+适老 | 85% | 图表/响应式/字号档位/高对比/语音输入完成；后端预聚合完成（SQL GROUP BY + 10s TTL 缓存）；TTS、反事实沙盒未做 |
-| M6 生态+获客 | 45% | 审计底稿 HTML 导出完成（可打印 PDF）；50 题模型评测 + 确定性判分 + 排行榜完成；教程三连与 Registry 未做 |
+| M4 多端 | 90% | Win 单文件实测、CLI 双形态（含 `dept run/list/approve`）、发版自动化完成；Tauri 2 桌面壳脚手架就绪（Rust 构建需在目标平台执行） |
+| M5 可视化+适老 | 100% | 图表/响应式/字号档位/高对比/语音输入完成；后端预聚合完成；TTS 语音播报（`use-speech` + 设置开关）与反事实沙盒（`calculations/sandbox.py` + `/api/strategy/sandbox`）完成 |
+| M6 生态+获客 | 95% | 审计底稿导出、50 题模型评测 + 排行榜完成；教程三连（Claude Code / Cursor / Cline）、MCP Registry manifest、可复核性标准草案、挑战赛错误台账、家庭议会完成 |
 
 ## 2026-10-24 · 3.0.0 投资策略引擎（完成）
 
@@ -192,34 +192,34 @@ fastmcp 支持后只换装饰器，业务实现不动。
 
 这是计划里的"核心差异化"，也是当前最大缺口。
 
-## M4 多端 · 66%
+## M4 多端 · 90%
 
 | 项 | 状态 |
 |---|---|
-| M4.1 CLI | 可用（argparse；add/ls/report/balance/ask/serve；本地+远程双形态）。缺：typer+rich、`xm dept run` |
-| M4.2 Tauri 桌面 | 未做 |
+| M4.1 CLI | 完成：argparse（add/ls/report/balance/ask/serve）+ `dept run/list/approve/reject/inquire`，本地与远程双形态；12 项 CLI 测试 |
+| M4.2 Tauri 桌面 | 脚手架就绪：`desktop/src-tauri`（tauri 2 + sidecar + updater 配置 + bundle 五目标）；产物需目标平台构建，本机未出包（见 desktop/README.md 阻塞表） |
 | M4.3 发版自动化 | 完成：`scripts/release.sh` 从提交推导版本 + `release.yml` 自动建 Release |
 
-## M5 可视化+适老 · 85%
+## M5 可视化+适老 · 100%
 
 | 项 | 状态 |
 |---|---|
-| M5.1 适老模式 | 完成：字号三档（normal/large/xlarge）+ 高对比，服务端持久化，390px 无溢出 |
-| M5.2 ECharts 图表 | 完成：新增现金流瀑布/支出树图/订阅时间线/健康五维雷达；部门看板已有实时状态 |
-| M5.3 后端预聚合 | 完成：`db.month_cashflow` SQL 聚合 + `/api/dashboard` 10s TTL 缓存（键含 DB 路径与租户），10 条写路径统一失效 |
-| M5.4 语音闭环 | 部分：语音输入完成（Web Speech，识别语言跟随界面）；TTS 未做 |
-| M5.5 反事实沙盒 | 未做（计划标注"若排期允许"） |
+| M5.1 适老模式 | 完成：字号三档 + 高对比，服务端持久化，390px 无溢出 |
+| M5.2 ECharts 图表 | 完成：现金流瀑布/支出树图/订阅时间线/健康五维雷达 + 部门看板 |
+| M5.3 后端预聚合 | 完成：`db.month_cashflow` SQL 聚合 + `/api/dashboard` 10s TTL 缓存，10 条写路径统一失效 |
+| M5.4 语音闭环 | 完成：语音输入（Web Speech）+ 语音播报（`lib/use-speech.ts`，`voice_output` 开关、朗读按钮、超长截断、代码块跳过），4 项前端测试 |
+| M5.5 反事实沙盒 | 完成：`calculations/sandbox.py` 四类情景（少花/多存/改定投/一次性），`/api/strategy/sandbox`，前端 `SandboxCard`；9 项引擎 + 4 项 API 测试 |
 
-## M6 生态+获客 · 45%
+## M6 生态+获客 · 95%
 
 | 项 | 状态 |
 |---|---|
-| M6.1 审计底稿 | 完成：`GET /api/audit-report` 输出可归档 HTML（浏览器打印为 PDF），before/after 只列变化字段，CSP 禁外部资源 |
-| M6.2 挑战赛+错误台账 | 未做 |
-| M6.3 模型招聘 eval | 完成：`eval_bank.py` 50 题 + `model_eval.py` 确定性判分 + `/api/eval/*` 四端点 + 设置页评测面板 |
-| M6.4 家庭议会 | 未做（有成员管理，无多人审批链） |
-| M6.5 教程三连+MCP Registry | 未做 |
-| M6.6 可复核性标准草案 | 未做 |
+| M6.1 审计底稿 | 完成：`GET /api/audit-report` 输出可归档 HTML |
+| M6.2 挑战赛+错误台账 | 完成（软件侧）：`POST /api/eval/ledger` 把判错题沉淀进 `reflections`，`GET /api/eval/ledger` 可查；4 项测试。社区运营（Issue 模板、周报）属人工动作 |
+| M6.3 模型招聘 eval | 完成：50 题题库 + 确定性判分 + `/api/eval/*` + 设置页面板 |
+| M6.4 家庭议会 | 完成：`family_motions` / `family_votes` 表，法定人数 2/3 + 严格多数，状态机 voting→approved/rejected/withdrawn；`/api/family/motions*` 六个端点 + 设置页 `MotionsPanel`；8 项测试 |
+| M6.5 教程三连+Registry | 完成：`docs/mcp-guide.md` 覆盖 Claude Code / Cursor / Cline 三平台；`server.json` MCP Registry manifest |
+| M6.6 可复核性标准 | 完成草案：`docs/reviewability-standard.md`（五条硬性要求 + 第三方复核流程 + 诚实清单） |
 
 ## 下一步顺序
 

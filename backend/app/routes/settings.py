@@ -33,6 +33,7 @@ COLOR_SCHEMES = ("cn", "us")
 DEFAULT_TABS = ("overview", "holdings", "market", "ledger", "chat", "features")
 ONOFF_KEYS = (
     "voice_input",
+    "voice_output",
     "show_export",
     "expand_process",
     "show_suggestions",

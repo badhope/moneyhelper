@@ -4,6 +4,37 @@
 
 ## [Unreleased]
 
+## [4.8.0] - 2026-10-31（路线图收口：CLI/语音/沙盒/议会/生态）
+
+### 新增
+
+- **M4.1 CLI `dept`**：`run / list / approve / reject / inquire`，本地直连与远程 HTTP 双形态；12 项 CLI 测试。
+- **M5.4 语音播报**：`lib/use-speech.ts`（SpeechSynthesis，离线可用），设置项 `voice_output`、回答气泡朗读按钮、
+  自动朗读、超长截断 1200 字、代码块跳过；4 项前端测试。
+- **M5.5 反事实沙盒**：`calculations/sandbox.py` 四类情景（少花/多存/改定投/一次性），
+  `/api/strategy/sandbox` 与 `/base`，前端 `SandboxCard` 并排对比变更前/后/差值；9 项引擎 + 4 项 API 测试。
+- **M6.2 评测错误台账**：`POST/GET /api/eval/ledger` 把判错题写入经验库（reflections），同题同模型去重；4 项测试。
+- **M6.4 家庭议会**：`family_motions` / `family_votes` 表；2/3 法定人数 + 严格多数；状态机
+  voting→approved/rejected/withdrawn；六个 API + 设置页 `MotionsPanel`；8 项测试。
+- **M6.5 教程三连 + Registry**：`docs/mcp-guide.md` 补齐 Cline 接入；`server.json` MCP Registry manifest。
+- **M6.6 可复核性标准草案**：`docs/reviewability-standard.md`（五条硬性要求、第三方复核流程、诚实清单）。
+- **M4.2 Tauri 桌面脚手架**：`desktop/src-tauri`（tauri 2、sidecar 启停、updater 配置、五类 bundle 目标、图标）。
+
+### 修复
+
+- 反事实沙盒口径错误：`save_more` / `dca_change` 曾被当成支出增加，导致净流入反降；改为「储蓄」维度后
+  净流入与 FIRE 年限方向正确（6000→8000，27.98→23.76 年），并补回归断言。
+
+### 已知边界
+
+- Tauri 安装包未在本机产出：需目标平台工具链（WiX/NSIS/Xcode/webkit2gtk），本机内存不足以稳定完成 Rust 构建；
+  脚手架与配置已校验，`desktop/README.md` 列明阻塞与构建步骤。
+- M6.2 的社区运营部分（Issue 模板、每周台账 post）是人工动作，软件侧能力已就绪。
+
+### 测试
+
+后端 1258 passed（新增 28，较 v4.7 的 1230）；前端 116 passed（新增 4）；tsc、build、ruff 通过。
+
 ## [4.7.0] - 2026-10-30（真实券商通道：富途/长桥/老虎/盈透/QMT/easytrader）
 
 ### 新增

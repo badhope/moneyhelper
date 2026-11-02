@@ -224,6 +224,98 @@ async def cmd_ask(args: argparse.Namespace) -> int:
     return 0
 
 
+
+async def cmd_dept(args: argparse.Namespace) -> int:
+    """部门模式：run 派工并出呈批件；list/approve/reject/inquire 走呈批链。"""
+    action = args.action
+    if args.url:
+        if action == "run":
+            data = await _remote(
+                "POST", args.url, args.token, "/api/department/run", {"question": args.question}
+            )
+            report = data.get("report") or {}
+            _out(report, args.json, _dept_text(report))
+            return 0
+        if action == "list":
+            data = await _remote("GET", args.url, args.token, "/api/department/reports", None)
+            _out(data, args.json, _dept_list_text(data.get("reports") or []))
+            return 0
+        if action in ("approve", "reject", "inquire"):
+            body = {"decision": action, "note": args.note}
+            data = await _remote(
+                "POST", args.url, args.token, f"/api/department/reports/{args.report_id}/decide", body
+            )
+            _out(data, args.json, f"已{action}：{args.report_id}")
+            return 0
+        _die("未知的 dept 动作", 1)
+
+    from app import db
+    from app.department import run_department_mode
+
+    await db.init_db()
+    try:
+        if action == "run":
+            question = (args.question or "").strip()
+            if not question:
+                _die("缺少问题（--question）", 1)
+
+            async def _noop(_ev: dict) -> None:
+                return None
+
+            report = await run_department_mode(question, _noop)
+            try:
+                report_id = await db.dept_report_save(question, report)
+                report = {**report, "report_id": report_id, "status": "pending"}
+            except Exception:  # noqa: BLE001 — 落库失败不阻断输出
+                pass
+            _out(report, args.json, _dept_text(report))
+            return 0
+        if action == "list":
+            rows = await db.dept_report_list(None, args.limit)
+            _out({"reports": rows}, args.json, _dept_list_text(rows))
+            return 0
+        if action in ("approve", "reject", "inquire"):
+            if not args.report_id:
+                _die("缺少 --report-id", 1)
+            updated = await db.dept_report_decide(args.report_id, action, args.note)
+            if not updated:
+                _die(f"呈批件不存在：{args.report_id}", 1)
+            _out(updated, args.json, f"已{action}：{args.report_id}")
+            return 0
+        _die("未知的 dept 动作", 1)
+    finally:
+        await db.close_db()
+    return 0
+
+
+def _dept_text(report: dict) -> str:
+    sep = chr(10)
+    lines = [f"呈批件：{report.get('report_id', '-')}", f"问题：{report.get('question', '')}", ""]
+    verdict = report.get("verdict")
+    if isinstance(verdict, str) and verdict.strip():
+        lines.append(f"结论：{verdict.strip()}")
+    for d in report.get("orders") or []:
+        lines.append(f"- [{d.get('dept')}] {d.get('status')}：{(d.get('output') or d.get('error') or '')[:120]}")
+    conflicts = report.get("conflicts") or []
+    if conflicts:
+        lines.append("需核对：")
+        for c in conflicts[:5]:
+            if isinstance(c, dict):
+                lines.append(f"  · {c.get('metric')}：{c.get('detail')}")
+            else:
+                lines.append(f"  · {c}")
+    return sep.join(lines)
+
+
+def _dept_list_text(rows: list[dict]) -> str:
+    if not rows:
+        return "还没有呈批件"
+    sep = chr(10)
+    return sep.join(
+        f"{r.get('report_id')} · {r.get('status')} · {(r.get('question') or '')[:40]}" for r in rows
+    )
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -284,6 +376,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--force", action="store_true")
     sp.add_argument("--off", action="store_true", help="toggle：关闭而不是启用")
     sp.set_defaults(func=None, studio=True)
+
+    sp = sub.add_parser("dept", help="财务部门模式：派工 / 呈批 / 审批")
+    sp.add_argument("action", choices=["run", "list", "approve", "reject", "inquire"])
+    sp.add_argument("--question", default="", help="run：要盘什么，如「盘一下上季度」")
+    sp.add_argument("--report-id", default="", help="approve/reject/inquire：呈批件 ID")
+    sp.add_argument("--note", default="", help="审批备注")
+    sp.add_argument("--limit", type=int, default=20, help="list：最多显示条数")
+    sp.set_defaults(func=cmd_dept)
 
     sp = sub.add_parser("serve", help="启动本地服务")
     sp.add_argument("--host", default="127.0.0.1")

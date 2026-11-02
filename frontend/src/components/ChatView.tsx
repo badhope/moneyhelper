@@ -42,7 +42,7 @@ export function ChatView({
   const {
     messages, input, setInput, attachments,
     showSteps, exportOn, scrolledUp, handleListScroll,
-    voiceOn, suggestions, hasData,
+    voiceOn, voiceOutputOn, suggestions, hasData,
     stream, streamingMsg, finishedMessages,
     bubbleCallbacks, listening, scrollNow,
     stableSend, stableSendInput, stableStop, stableToggleVoice,
@@ -129,6 +129,7 @@ export function ChatView({
                     busy={stream.isPending}
                     showSteps={showSteps}
                     exportOn={exportOn}
+                    voiceOn={voiceOutputOn}
                     onNavigate={onNavigate}
                     {...bubbleCallbacks}
                   />
@@ -139,6 +140,7 @@ export function ChatView({
                       streaming
                       showSteps={showSteps}
                       exportOn={exportOn}
+                      voiceOn={voiceOutputOn}
                       onNavigate={onNavigate}
                       {...bubbleCallbacks}
                     />
