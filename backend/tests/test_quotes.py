@@ -216,3 +216,40 @@ async def test_kline_returns_points_and_caches(monkeypatch) -> None:
     assert a["period"] == "daily"
     assert a["points"][0]["close"] == 1545.12
     assert calls["n"] == 1, "同参数 300s 内应命中缓存"
+
+
+async def test_sina_indices_skip_zero_price_auction(monkeypatch) -> None:
+    """集合竞价/停牌时段新浪返回现价 0：必须跳过，不能算出 -100% 假涨跌。"""
+    from app import quotes
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        @property
+        def text(self):
+            zero = "0,0.000," * 15
+            return (
+                f'var hq_str_sz399001="深证成指,0.000,11138.198,0.000,0.000,0.000,{zero}'
+                f'2026-10-30,09:04:18,00,";\n'
+                f'var hq_str_sh000001="上证指数,3655.00,3651.41,3651.41,3655.00,3648.00,{zero}'
+                f'2026-10-30,09:30:00,00,";\n'
+            )
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, *a, **kw):
+            return _Resp()
+
+    monkeypatch.setattr(quotes.httpx, "AsyncClient", lambda *a, **kw: _Client())
+    monkeypatch.setattr(quotes._indices_cache, "get", lambda k: None, raising=False)
+    out = await quotes._sina_indices()
+    names = {i["symbol"]: i for i in out}
+    # 现价 0 的档位被跳过，不出现 -100% 假涨跌
+    assert "sz399001" not in names
+    assert names["sh000001"]["price"] == 3651.41

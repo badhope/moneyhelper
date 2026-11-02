@@ -355,6 +355,7 @@ async def _sina_indices() -> list[dict[str, Any]]:
             now = float(parts[3])
         except ValueError:
             continue
+        # 集合竞价/停牌时段现价为 0：跳过而不是算出 -100% 的假涨跌
         if prev <= 0 or now <= 0:
             continue
         out.append(
