@@ -164,6 +164,22 @@ README images: `node scripts/readme-shots.mjs` (writes `docs/screenshots/`).
 
 More in [docs/screenshots/](docs/screenshots/).
 
+### v4.8 live feature captures (2026-11-01)
+
+These are captured from the current backend/frontend, not historical mockups:
+
+| Scheduled skill | Skill configuration | Trigger history |
+|---|---|---|
+| ![Scheduled skill](docs/screenshots/20-chat-skill-schedule.png) | ![Skill configuration](docs/screenshots/21-skill-scheduled.png) | ![Trigger history](docs/screenshots/22-skill-history.png) |
+
+| Internal tools and watchdog | Rules | Hooks |
+|---|---|---|
+| ![Internal tools and watchdog](docs/screenshots/23-internal-tools-list.png) | ![Rules](docs/screenshots/25-rules.png) | ![Hooks](docs/screenshots/26-hooks.png) |
+
+| Diagnostics | Prompts | Mobile permissions |
+|---|---|---|
+| ![Diagnostics](docs/screenshots/24-diagnostics.png) | ![Prompts](docs/screenshots/27-prompts.png) | ![Mobile permissions](docs/screenshots/28-mobile-permissions.png) |
+
 ## Quick start
 
 Requirements: Python 3.10+, Node.js 20.19+.

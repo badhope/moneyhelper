@@ -149,6 +149,22 @@ README 展示图：`node scripts/readme-shots.mjs`（写入 `docs/screenshots/`�
 
 更多截图见 [docs/screenshots/](docs/screenshots/)。
 
+### v4.8 当前功能截图（2026-11-01）
+
+以下截图来自当前运行中的前后端，不是历史 mockup：
+
+| 定时技能 | 技能配置 | 触发记录 |
+|---|---|---|
+| ![定时技能](docs/screenshots/20-chat-skill-schedule.png) | ![技能配置](docs/screenshots/21-skill-scheduled.png) | ![触发记录](docs/screenshots/22-skill-history.png) |
+
+| 诊断与看门狗 | 约束 | Hook |
+|---|---|---|
+| ![诊断与看门狗](docs/screenshots/24-diagnostics.png) | ![约束](docs/screenshots/25-rules.png) | ![Hook](docs/screenshots/26-hooks.png) |
+
+| 系统提示词 | 手机权限 |
+|---|---|
+| ![系统提示词](docs/screenshots/27-prompts.png) | ![手机权限](docs/screenshots/28-mobile-permissions.png) |
+
 ## 快速开始
 
 要求：Python 3.10+，Node.js 20.19+。

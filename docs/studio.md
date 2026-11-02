@@ -114,6 +114,22 @@ moneyhelper studio ai --kind skills --prompt "每周日检查定投"
 
 ## 截图
 
+v4.8 运行态截图（2026-11-01，当前前后端实例）：
+
+| 对话内创建技能 | 技能定时配置 | 技能触发记录 |
+|---|---|---|
+| ![对话内创建技能](screenshots/20-chat-skill-schedule.png) | ![技能定时配置](screenshots/21-skill-scheduled.png) | ![技能触发记录](screenshots/22-skill-history.png) |
+
+| 内置工具清单 | 诊断与看门狗 | 约束 |
+|---|---|---|
+| ![内置工具清单](screenshots/23-internal-tools-list.png) | ![诊断与看门狗](screenshots/24-diagnostics.png) | ![约束](screenshots/25-rules.png) |
+
+| Hook | 系统提示词 | 手机权限 |
+|---|---|---|
+| ![Hook](screenshots/26-hooks.png) | ![系统提示词](screenshots/27-prompts.png) | ![手机权限](screenshots/28-mobile-permissions.png) |
+
+历史 Studio 场景：
+
 | 对话内创建 | 角色 | 技能 |
 |---|---|---|
 | ![对话内创建](screenshots/70-studio-chat-create.png) | ![角色](screenshots/71-studio-roles.png) | ![技能](screenshots/72-studio-skills.png) |
