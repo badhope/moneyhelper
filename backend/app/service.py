@@ -697,6 +697,21 @@ GENERAL_FALLBACK_EN = (
 )
 
 
+async def _narrate(system: str, user: str, fallback: str, usage: dict[str, int]):
+    """调用 llm.stream_narrate，兼容不支持 usage_out 的实现（测试桩/第三方替换）。
+
+    harness 需要把每轮 token 落库，但 stream_narrate 是可替换点：旧桩函数
+    只接受三个位置参数。这里先按新签名调用，遇到 TypeError 再退回旧签名，
+    计量缺失不影响回答——宁可少一个数字，也不能让整轮对话失败。
+    """
+    try:
+        stream = llm.stream_narrate(system, user, fallback, usage_out=usage)
+    except TypeError:
+        stream = llm.stream_narrate(system, user, fallback)
+    async for item in stream:
+        yield item
+
+
 async def _run_general(
     question: str,
     reason: str,
@@ -771,7 +786,8 @@ async def _run_general(
     fallback = GENERAL_FALLBACK if lang == "zh" else GENERAL_FALLBACK_EN
     chunks: list[str] = []
     src = "template"
-    async for delta, s in llm.stream_narrate(system, user, fallback):
+    usage: dict[str, int] = {}
+    async for delta, s in _narrate(system, user, fallback, usage):
         if s == "reasoning":
             # 思考过程单列事件，不混进正文（否则答案里会冒出推理草稿）
             await emit({"type": "thinking", "data": {"content": delta}})
@@ -788,6 +804,7 @@ async def _run_general(
         "metrics": {},
         "flags": [],
         "llm": src,
+        "tokens": usage,
     }
 
 

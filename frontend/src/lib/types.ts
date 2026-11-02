@@ -135,7 +135,27 @@ export interface DashboardData {
   emergency: EmergencyInfo;
   flags: RiskFlag[];
   transactions: Transaction[];
+  /** 决策中心：把风险与目标收敛成的可执行待办（后端纯函数产出） */
+  actions?: ActionCenter;
   source: { portfolio: string; ledger: string; quotes: string; seeded: boolean };
+}
+
+/** 单条待办：priority 越小越紧急；action_tab 指向应跳转的财务页 */
+export interface ActionItem {
+  domain: string;
+  domain_label: string;
+  priority: number;
+  title: string;
+  detail: string;
+  impact: string;
+  action: string;
+  action_tab: string;
+}
+
+export interface ActionCenter {
+  items: ActionItem[];
+  count: number;
+  top: ActionItem | null;
 }
 
 export interface RunRecord {
@@ -310,6 +330,20 @@ export type AskEvent =
       /** 写类动作待确认（HITL）：非空即展示确认卡片 */
       pending_token?: string;
       pending_summary?: string;
+      /** harness：本轮 token 用量（模板降级轮为空对象） */
+      tokens?: { prompt?: number; completion?: number };
     }
   | { type: "error"; message: string }
   | { type: "done" };
+
+/** 会话 token 计量（GET /api/sessions/{id}/usage） */
+export type SessionUsage = {
+  thread_id: string;
+  turns: number;
+  tokens_in: number;
+  tokens_out: number;
+  tokens_total: number;
+  context_est: number;
+  summary_chars: number;
+  compacted: boolean;
+};

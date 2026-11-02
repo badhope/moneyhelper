@@ -32,9 +32,19 @@ export function PositionContributionCard({ positions, compact }: { positions: Po
     // 图表自下而上绘制：反转后盈亏最大的排在最上面
     const data = [...rows].reverse();
     const label = axisLabelColor(resolved);
+    const maxAbs = Math.max(...data.map((p) => Math.abs(p.pnl)), 1);
+    const hasNegative = data.some((p) => p.pnl < 0);
     return {
-      grid: { left: 8, right: 78, top: 6, bottom: 6, containLabel: true },
-      xAxis: { type: "value", show: false },
+      // 左右各留出标签位：负值标签在条左侧，正值标签在条右侧，都不压条
+      grid: { left: 8, right: 8, top: 6, bottom: 6, containLabel: true },
+      // 盈亏是「相对零轴的方向性」数据。零轴必须居中且可见：
+      // 正值向右、负值向左，否则亏损条会看起来也朝右延伸，被读成盈利。
+      xAxis: {
+        type: "value",
+        show: false,
+        min: hasNegative ? -maxAbs : 0,
+        max: maxAbs,
+      },
       yAxis: {
         type: "category",
         data: data.map((p) => p.name),
@@ -49,7 +59,8 @@ export function PositionContributionCard({ positions, compact }: { positions: Po
             value: p.pnl,
             itemStyle: {
               color: p.pnl >= 0 ? "#dc2626" : "#059669",
-              borderRadius: 3,
+              // 圆角只给「远离零轴的那一端」，让方向一眼可辨
+              borderRadius: p.pnl >= 0 ? [0, 3, 3, 0] : [3, 0, 0, 3],
             },
             // 用序号占位，避免依赖原始顺序
             _i: i,
@@ -57,10 +68,19 @@ export function PositionContributionCard({ positions, compact }: { positions: Po
           barWidth: 12,
           label: {
             show: true,
+            // 正值标签在条右端、负值在条左端（都是远离零轴的方向）
             position: "right",
+            distance: 6,
             fontSize: 11,
             color: label,
             formatter: (p: { value: number }) => fmtMoney(p.value, true, compact),
+          },
+          markLine: {
+            silent: true,
+            symbol: "none",
+            lineStyle: { color: label, width: 1, type: "solid", opacity: 0.35 },
+            label: { show: false },
+            data: [{ xAxis: 0 }],
           },
         },
       ],

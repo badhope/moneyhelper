@@ -179,9 +179,14 @@ async def llm_available() -> bool:
 
 
 async def stream_narrate(
-    system: str, user: str, fallback: str
+    system: str, user: str, fallback: str, usage_out: dict[str, int] | None = None
 ) -> AsyncIterator[tuple[str, str]]:
-    """流式调用；失败或空流时整体退回模板。产出 (文本增量, 来源)。"""
+    """流式调用；失败或空流时整体退回模板。产出 (文本增量, 来源)。
+
+    usage_out 传入一个可变 dict 时，成功路径把最后一次响应的
+    prompt/completion tokens 写回（{"prompt": int, "completion": int}），
+    供调用方按轮落库；失败/模板路径不写，调用方据此区分。
+    """
     cfg = await _config()
     if cfg is None:
         yield fallback, "template"
@@ -244,10 +249,13 @@ async def stream_narrate(
                     got_any = True
                     yield text, "llm"
 
-            # 读成本
+            # 读成本并回传给调用方（harness：按轮 token 计量的数据来源）
             try:
-                cost = getattr(response, "_hidden_params", {}).get("response_cost")
                 usage = getattr(response, "usage", None)
+                if usage is not None and usage_out is not None:
+                    usage_out["prompt"] = int(getattr(usage, "prompt_tokens", 0) or 0)
+                    usage_out["completion"] = int(getattr(usage, "completion_tokens", 0) or 0)
+                cost = getattr(response, "_hidden_params", {}).get("response_cost")
                 if cost is not None or usage is not None:
                     prompt_tk = getattr(usage, "prompt_tokens", 0) if usage else 0
                     compl_tk = getattr(usage, "completion_tokens", 0) if usage else 0

@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import { CandlestickChart, FileText, HeartPulse, LayoutGrid, NotebookPen, Plug, Receipt, Target, TrendingUp, Users, Wallet } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { GroupedNav, type NavGroup } from "@/components/ui/grouped-nav";
 
 const Dashboard = lazy(() =>
   import("@/components/Dashboard").then((m) => ({ default: m.Dashboard })),
@@ -39,18 +39,51 @@ const TaxBody = lazy(() =>
 
 export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax";
 
-const TABS: { key: DataKind; labelKey: string; icon: typeof LayoutGrid }[] = [
-  { key: "overview", labelKey: "nav.dashboard", icon: LayoutGrid },
-  { key: "holdings", labelKey: "nav.holdings", icon: Wallet },
-  { key: "connect", labelKey: "nav.connect", icon: Plug },
-  { key: "tax", labelKey: "nav.tax", icon: Receipt },
-  { key: "research", labelKey: "nav.research", icon: CandlestickChart },
-  { key: "statements", labelKey: "nav.statements", icon: FileText },
-  { key: "paper", labelKey: "nav.paper", icon: Users },
-  { key: "strategy", labelKey: "nav.strategy", icon: Target },
-  { key: "market", labelKey: "nav.market", icon: TrendingUp },
-  { key: "ledger", labelKey: "nav.ledger", icon: NotebookPen },
-  { key: "health", labelKey: "hc.title", icon: HeartPulse },
+/**
+ * 分组：按用户的心智模型收纳，而不是按功能清单平铺。
+ *
+ *   daily   每天都会看：总览、持仓、记账
+ *   analyze 需要判断时看：行情、投研、策略、体检
+ *   books   记账算账时才进：财报、税负、模拟盘
+ *   connect 一次性配置：连接中心
+ *
+ * 原来 11 个 tab 同级平铺，用户每次都要线性扫一遍；分组后每屏只看到
+ * 3-4 项，且「日常」与「配置」在视觉上分开，不会把一次性动作误当高频动作。
+ */
+const GROUPS: NavGroup<DataKind>[] = [
+  {
+    id: "daily",
+    labelKey: "nav.groupDaily",
+    items: [
+      { key: "overview", labelKey: "nav.dashboard", icon: LayoutGrid },
+      { key: "holdings", labelKey: "nav.holdings", icon: Wallet },
+      { key: "ledger", labelKey: "nav.ledger", icon: NotebookPen },
+    ],
+  },
+  {
+    id: "analyze",
+    labelKey: "nav.groupAnalyze",
+    items: [
+      { key: "market", labelKey: "nav.market", icon: TrendingUp },
+      { key: "research", labelKey: "nav.research", icon: CandlestickChart },
+      { key: "strategy", labelKey: "nav.strategy", icon: Target },
+      { key: "health", labelKey: "hc.title", icon: HeartPulse },
+    ],
+  },
+  {
+    id: "books",
+    labelKey: "nav.groupBooks",
+    items: [
+      { key: "statements", labelKey: "nav.statements", icon: FileText },
+      { key: "tax", labelKey: "nav.tax", icon: Receipt },
+      { key: "paper", labelKey: "nav.paper", icon: Users },
+    ],
+  },
+  {
+    id: "connect",
+    labelKey: "nav.groupConnect",
+    items: [{ key: "connect", labelKey: "nav.connect", icon: Plug }],
+  },
 ];
 
 /**
@@ -71,32 +104,7 @@ export function FinancePage({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 border-b border-border/70">
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-1 overflow-x-auto px-4 sm:px-6">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const active = tab.key === kind;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => onKindChange(tab.key)}
-                className={cn(
-                  "relative -mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 py-3 text-[13px] transition-colors sm:px-3 sm:text-[13.5px]",
-                  active
-                    ? "border-foreground font-medium text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Icon className="hidden h-4 w-4 sm:block" />
-                {t(tab.labelKey)}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <GroupedNav groups={GROUPS} value={kind} onChange={onKindChange} />
 
       <div className="min-h-0 flex-1 overflow-y-auto scroll-thin">
         <div className="@container mx-auto w-full max-w-6xl px-4 py-5 sm:px-6">
@@ -107,7 +115,12 @@ export function FinancePage({
               </div>
             }
           >
-            {kind === "overview" && <Dashboard />}
+            {kind === "overview" && <Dashboard onNavigateTab={(tab) => {
+              // 决策中心「去处理」：目标页若在本工作区内直接切过去
+              const known: DataKind[] = ["overview", "holdings", "market", "ledger", "health",
+                "strategy", "research", "statements", "paper", "connect", "tax"];
+              if (known.includes(tab as DataKind)) onKindChange(tab as DataKind);
+            }} />}
             {kind === "holdings" && <HoldingsView />}
             {kind === "connect" && <ConnectBody />}
             {kind === "tax" && <TaxBody />}

@@ -1,8 +1,9 @@
 import { useRef } from "react";
-import { ArrowDown, BarChart3, Clock3, CreditCard, Sparkles, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowDown, BarChart3, Clock3, CreditCard, Gauge, Sparkles, Wallet, type LucideIcon } from "lucide-react";
 import { useBootstrap, useDashboard, store } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { api } from "@/lib/api";
+import { fmtTokens } from "@/lib/format";
 import type { AgentToolStep, AgentPlanStep } from "@/lib/types";
 import type { ChatMessage, StepInfo } from "@/components/ChatMessageBubble";
 import { ChatInput } from "@/components/ChatInput";
@@ -47,6 +48,7 @@ export function ChatView({
     bubbleCallbacks, listening, scrollNow,
     stableSend, stableSendInput, stableStop, stableToggleVoice,
     uploadAttachment, removeAttachment, refreshBootstrap,
+    usage,
   } = useChatView({ threadId, locateRunId, onLocateDone, inputRef, listRef });
 
   const empty = messages.length === 0;
@@ -87,6 +89,25 @@ export function ChatView({
                   </span>
                   <span>{tr("chat.ctxHoldings", { n: holdingsCount })}</span>
                   <span>{tr("chat.ctxTurns", { n: messages.length })}</span>
+                  {/* harness：上下文用量。只在有真实计量时出现——模板降级轮
+                      没有 token 数据，显示 0 反而误导。 */}
+                  {usage && usage.tokens_total > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 tabular-nums"
+                      title={tr("chat.ctxUsageHint", {
+                        in: String(usage.tokens_in),
+                        out: String(usage.tokens_out),
+                      })}
+                    >
+                      <Gauge className="h-3 w-3" />
+                      {fmtTokens(usage.tokens_total)}
+                      {usage.compacted && (
+                        <span className="rounded bg-primary/10 px-1 text-[10px] text-primary">
+                          {tr("chat.ctxCompacted")}
+                        </span>
+                      )}
+                    </span>
+                  )}
                   <span className="ml-auto inline-flex items-center gap-1">
                     <Clock3 className="h-3 w-3" />
                     {tr("chat.ctxUpdated", { t: updatedLabel })}

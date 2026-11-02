@@ -32,12 +32,14 @@ async def save_run(
     tools: list[str] | None = None,
     actions: list[dict[str, Any]] | None = None,
     skip_session: bool = False,
+    tokens: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     conn = await _conn()
     created = datetime.now().astimezone().isoformat(timespec="seconds")
+    usage = tokens if isinstance(tokens, dict) else {}
     cur = await conn.execute(
-        "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,route,llm,route_reason,tools,actions)"
-        " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,route,llm,route_reason,tools,actions,tokens_in,tokens_out)"
+        " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             current_user_id(),
             thread_id or "default",
@@ -51,6 +53,8 @@ async def save_run(
             route_reason or "",
             json.dumps(tools or [], ensure_ascii=False),
             json.dumps(actions or [], ensure_ascii=False),
+            int(usage.get("prompt") or 0),
+            int(usage.get("completion") or 0),
         ),
     )
     await conn.commit()
@@ -483,3 +487,90 @@ async def mark_pending_action(token: str, status: str) -> dict[str, Any]:
     )
     await conn.commit()
     return {"ok": True, "changed": cur.rowcount}
+
+
+# --------------------------------------------------------------------------
+# harness：会话 token 计量 + 会话分叉（fork）
+# --------------------------------------------------------------------------
+
+
+async def session_usage(thread_id: str) -> dict[str, Any]:
+    """某会话的 token 用量汇总（harness 上下文仪表的数据源）。
+
+    tokens 逐轮来自模型真实回传（无模型/模板轮为 0）；context_est 用
+    近轮 tokens_in 总和 + 会话摘要长度估算，仅作仪表展示，不参与计费。
+    """
+    rows = await fetch_all(
+        "SELECT tokens_in, tokens_out, created_at FROM runs"
+        " WHERE user_id=? AND thread_id=? ORDER BY id ASC",
+        (current_user_id(), thread_id),
+    )
+    tokens_in = sum(int(r["tokens_in"] or 0) for r in rows)
+    tokens_out = sum(int(r["tokens_out"] or 0) for r in rows)
+    turns = len(rows)
+    summary = await get_conversation_summary(thread_id)
+    summary_chars = len(str((summary or {}).get("summary") or ""))
+    # 粗估：中文 ≈1.6 char/token，摘要按 1.6 折算 + 每轮 token_in 本身已含当轮上下文
+    context_est = tokens_in + int(summary_chars / 1.6)
+    return {
+        "thread_id": thread_id,
+        "turns": turns,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "tokens_total": tokens_in + tokens_out,
+        "context_est": context_est,
+        "summary_chars": summary_chars,
+        "compacted": bool(summary and (summary.get("summary"))),
+    }
+
+
+async def fork_session(thread_id: str, run_id: int) -> dict[str, Any] | None:
+    """从某条问答处分叉出新会话（opencode 式 branch）：复制该轮及之前的全部 run。
+
+    新线程标题取「原标题 · 分支」；摘要表不复制（分叉后各自演化）。
+    run_id 不属于该会话时返回 None，绝不复制错会话的数据。
+    """
+    rows = await fetch_all(
+        "SELECT * FROM runs WHERE user_id=? AND thread_id=? AND id<=?"
+        " ORDER BY id ASC",
+        (current_user_id(), thread_id, int(run_id)),
+    )
+    if not rows:
+        return None
+    sessions = await fetch_all(
+        "SELECT title FROM sessions WHERE user_id=? AND thread_id=?",
+        (current_user_id(), thread_id),
+    )
+    base_title = (sessions[0]["title"] if sessions else "") or "新会话"
+    new_tid = uuid_hex()
+    conn = await _conn()
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    await conn.execute(
+        "INSERT INTO sessions(user_id,thread_id,title,created_at,updated_at)"
+        " VALUES(?,?,?,?,?)",
+        (current_user_id(), new_tid, ("%s · 分支" % base_title)[:40], now, now),
+    )
+    for r in rows:
+        await conn.execute(
+            "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,"
+            "route,llm,route_reason,tools,actions,tokens_in,tokens_out)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                current_user_id(),
+                new_tid,
+                r["question"],
+                r["answer"],
+                r["level"] or "",
+                r["flags_json"] or "[]",
+                r["created_at"],
+                r["route"] or "",
+                r["llm"] or "",
+                r["route_reason"] or "",
+                r["tools"] or "[]",
+                r["actions"] or "[]",
+                int(r["tokens_in"] or 0),
+                int(r["tokens_out"] or 0),
+            ),
+        )
+    await conn.commit()
+    return {"ok": True, "thread_id": new_tid, "copied": len(rows)}

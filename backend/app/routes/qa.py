@@ -279,6 +279,7 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
                 route_reason=result.get("route_reason", ""),
                 tools=result.get("tools") or [],
                 actions=result.get("actions") or [],
+                tokens=result.get("tokens") or None,
             )
         except Exception:  # noqa: BLE001 — 落库失败不打断交付
             log.exception("save_run failed")
@@ -304,6 +305,8 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
                 # 待确认写操作：前端拿 token 显示确认卡片，确认后走 /api/confirm 执行
                 "pending_token": result.get("pending_token", ""),
                 "pending_summary": result.get("pending_summary", ""),
+                # harness：本轮 token 用量（模板轮为 {}，前端仪表按需显示）
+                "tokens": result.get("tokens") or {},
                 # 备份口令：只在当次 final 事件下发一次（不落库、不进历史），
                 # 否则用户拿到加密包却没有解密口令，备份等于不可恢复。
                 "passphrase": result.get("passphrase", ""),
@@ -633,3 +636,42 @@ async def migrate_session_runs(session_id: int, request: Request) -> dict:
 @router.delete("/api/sessions/{session_id}")
 async def delete_session(session_id: int) -> dict:
     return await db.delete_session(session_id)
+
+
+# ---------------------------------------------------------------------------
+# harness：上下文用量 / 重新生成 / 会话分叉
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/sessions/{session_id}/usage")
+async def session_usage_endpoint(session_id: int) -> dict:
+    """会话 token 计量（前端上下文仪表数据源）。"""
+    tid = await db.session_thread_id(session_id)
+    if not tid:
+        return JSONResponse({"error": "session not found"}, status_code=404)
+    return await db.session_usage(tid)
+
+
+@router.get("/api/sessions/by-thread/{thread_id}/usage")
+async def session_usage_by_thread(thread_id: str) -> dict:
+    """按 thread_id 取会话 token 计量。
+
+    对话页手里只有 thread_id（会话可能尚未在 sessions 表落行），因此提供
+    按线程直查的入口；未知线程返回零值而不是 404——「还没有用量」是正常状态。
+    """
+    return await db.session_usage(thread_id)
+
+
+@router.post("/api/sessions/{session_id}/fork")
+async def fork_session_endpoint(session_id: int, payload: dict) -> dict:
+    """从某条问答分叉出新会话（opencode 式 branch）：复制该轮及之前的全部历史。"""
+    run_id = int(payload.get("run_id") or 0)
+    if run_id <= 0:
+        return JSONResponse({"error": "run_id required"}, status_code=400)
+    tid = await db.session_thread_id(session_id)
+    if not tid:
+        return JSONResponse({"error": "session not found"}, status_code=404)
+    forked = await db.fork_session(tid, run_id)
+    if not forked:
+        return JSONResponse({"error": "run not in session"}, status_code=404)
+    return forked

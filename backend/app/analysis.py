@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Any
 
 from . import db, quotes
+from .calculations import decisions as _decisions
 
 DISCLAIMER = "以上为基于你的组合与账本数据的洞察，不构成投资建议。"
 DISCLAIMER_EN = "This is an insight based on your portfolio and ledger data, not investment advice."
@@ -585,6 +586,8 @@ async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict
         "flags": flags,
         "indices": indices,
         "today_pnl": today_pnl,
+        # 决策中心：把风险标记与目标进度收敛成可执行待办（纯函数，不新增估算口径）
+        "actions": _build_actions(flags, goals, lang),
         "transactions": txs[:500],
         "transactions_total": total_tx,
         "source": {
@@ -597,6 +600,15 @@ async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict
     if use_cache:
         _dashboard_cache[key] = (time.monotonic(), out)
     return out
+
+
+def _build_actions(flags: list[dict[str, Any]], goals: list[dict[str, Any]],
+                   lang: str) -> dict[str, Any]:
+    """决策中心入口：只依赖已算好的 flags/goals，失败时返回空清单不阻断仪表盘。"""
+    try:
+        return _decisions.build_actions(flags=flags, goals=goals, lang=lang)
+    except Exception:  # noqa: BLE001 — 待办清单失败不该让整个总览 500
+        return {"items": [], "count": 0, "top": None}
 
 
 def invalidate_dashboard_cache() -> None:

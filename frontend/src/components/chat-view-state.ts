@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiStream, deleteAttachment, uploadAttachment } from "@/lib/api";
 import { useStreamingMutate } from "@/lib/use-streaming-mutate";
-import { store, useDashboard, useBootstrap } from "@/lib/store";
+import { store, useDashboard, useBootstrap, useSessionUsage } from "@/lib/store";
 import { BRAND } from "@/lib/brand";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
@@ -98,6 +98,8 @@ export function useChatView({
 
   useChatHistory({ threadId, bootstrap, setMessages, setShowSteps, listRef, abort: stream.stop });
   useAutoFocus(inputRef, threadId);
+  // harness：会话 token 用量（轮次变化时由 queryKey/staleTime 触发刷新）
+  const { usage } = useSessionUsage(threadId);
 
   // 历史跳转定位
   const locatedRef = useRef(false);
@@ -283,6 +285,8 @@ export function useChatView({
     scrolledUp, handleListScroll,
     // derived
     settings, voiceOn, voiceOutputOn, exportOn, suggestions, hasData,
+    // harness：会话 token 用量（轮次变化后重新拉取，失败静默）
+    usage,
     // stream
     stream, streamingMsg, finishedMessages, panelMsg,
     // callbacks

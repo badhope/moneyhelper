@@ -1081,7 +1081,10 @@ async def finalize(state: AgentState) -> dict[str, Any]:
 
     chunks: list[str] = []
     src = "template"
-    async for delta, s in llm.stream_narrate(system, user, fallback):
+    usage: dict[str, int] = {}
+    # 经 service._narrate 调用：兼容不支持 usage_out 的 stream_narrate 实现，
+    # 计量缺失也不影响成文（见 service._narrate 的说明）。
+    async for delta, s in service._narrate(system, user, fallback, usage):
         if s == "reasoning":
             # 思考过程单列事件，不混进正文
             await _emit({"type": "thinking", "data": {"content": delta}})
@@ -1139,6 +1142,8 @@ async def finalize(state: AgentState) -> dict[str, Any]:
             "flags": flags,
             "llm": src,
             "tools": [],
+            # harness：本轮 token 用量（模型真实回传；模板轮为空 dict）
+            "tokens": usage,
             # 同上：过滤单路由命中时的 None 项
             "actions": [
                 a

@@ -194,7 +194,9 @@ CREATE TABLE IF NOT EXISTS runs (
     llm           TEXT NOT NULL DEFAULT '',
     route_reason  TEXT NOT NULL DEFAULT '',
     tools         TEXT NOT NULL DEFAULT '',
-    actions       TEXT NOT NULL DEFAULT '[]'
+    actions       TEXT NOT NULL DEFAULT '[]',
+    tokens_in     INTEGER NOT NULL DEFAULT 0,
+    tokens_out    INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_runs_thread ON runs(thread_id, id);
 CREATE TABLE IF NOT EXISTS sessions (

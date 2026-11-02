@@ -62,3 +62,12 @@ export function fmtMonth(month: string): string {
   const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${names[n - 1]} ${y}`;
 }
+
+/** token 数量显示：1234 -> "1.2k"，保持窄栏不换行（harness 上下文仪表用）。 */
+export function fmtTokens(n: number | undefined | null): string {
+  const v = Number(n ?? 0);
+  if (!Number.isFinite(v) || v <= 0) return "0";
+  if (v < 1000) return String(Math.round(v));
+  if (v < 1_000_000) return `${(v / 1000).toFixed(v < 10_000 ? 1 : 0)}k`;
+  return `${(v / 1_000_000).toFixed(1)}M`;
+}

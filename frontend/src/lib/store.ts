@@ -18,12 +18,13 @@ import {
 } from "@tanstack/react-query";
 import { api } from "./api";
 import { useI18n } from "./i18n";
-import type { BootstrapData, DashboardData, SessionItem } from "./types";
+import type { BootstrapData, DashboardData, SessionItem, SessionUsage } from "./types";
 
 export const queryKeys = {
   dashboard: ["dashboard"] as const,
   bootstrap: ["bootstrap"] as const,
   sessions: ["sessions"] as const,
+  sessionUsage: ["session-usage"] as const,
 };
 
 let client: TQClient | null = null;
@@ -75,6 +76,23 @@ export function useBootstrap() {
 export function useSessions() {
   const q = useQuery({ queryKey: queryKeys.sessions, queryFn: fetchSessions });
   return { sessions: q.data ?? [], loading: q.isPending };
+}
+
+/**
+ * 会话 token 用量（harness 上下文仪表）。
+ *
+ * 计量数据只在有模型时产生，所以失败一律静默返回 null——不能因为
+ * 「用量接口不可用」就让对话页出现错误条。
+ */
+export function useSessionUsage(threadId: string | null | undefined) {
+  const q = useQuery({
+    queryKey: [...queryKeys.sessionUsage, threadId ?? ""],
+    queryFn: () => api<SessionUsage>(`/api/sessions/by-thread/${threadId}/usage`),
+    enabled: Boolean(threadId),
+    retry: false,
+    staleTime: 5_000,
+  });
+  return { usage: q.data ?? null };
 }
 
 /** 数据变更后统一失效（记账 / 设置 / 问答完成时调用；语义同旧 bump()）。

@@ -228,6 +228,9 @@ async def _migrate_add_columns() -> None:
             "route_reason": "TEXT NOT NULL DEFAULT ''",
             "tools": "TEXT NOT NULL DEFAULT ''",
             "actions": "TEXT NOT NULL DEFAULT '[]'",
+            # harness：按轮 token 计量（模型真实回传，无模型时保持 0）
+            "tokens_in": "INTEGER NOT NULL DEFAULT 0",
+            "tokens_out": "INTEGER NOT NULL DEFAULT 0",
         },
         # 主动遗忘：记录每次被注入/使用的时间，便于按未使用时长清理
         "user_memory": {"last_used": "TEXT NOT NULL DEFAULT ''"},

@@ -23,6 +23,7 @@ import { PositionsTable } from "@/components/PositionsTable";
 import { HealthCheckDialog } from "@/components/HealthCheckDialog";
 import { IndicesStrip } from "@/components/IndicesStrip";
 import { NetWorthCard } from "@/components/dashboard/NetWorthCard";
+import { ActionCenterCard } from "@/components/dashboard/ActionCenterCard";
 import { HealthScoreCard } from "@/components/dashboard/HealthScoreCard";
 import { ReturnsCard } from "@/components/dashboard/ReturnsCard";
 import { CashflowWaterfallCard } from "@/components/dashboard/CashflowWaterfallCard";
@@ -569,11 +570,14 @@ export function Dashboard({
   onGoMarket,
   onGoChat,
   onGoSettings,
+  onNavigateTab,
 }: {
   onGoLedger?: () => void;
   onGoMarket?: () => void;
   onGoChat?: () => void;
   onGoSettings?: () => void;
+  /** 决策中心「去处理」跳转：传财务页 key（holdings / strategy / tax / health） */
+  onNavigateTab?: (tab: string) => void;
 } = {}) {
   const { dashboard, loading } = useDashboard();
   const { bootstrap } = useBootstrap();
@@ -693,6 +697,10 @@ export function Dashboard({
       )}
       {/* 置顶快捷记账条：记一笔就走，AI 自动分类 */}
       <QuickLedgerBar />
+
+      {/* 决策中心：先回答「我现在该做什么」，再给指标。
+          放在净值之前是刻意的——用户打开总览的第一诉求是行动项，不是数字罗列。 */}
+      <ActionCenterCard actions={dashboard.actions} onNavigate={onNavigateTab} />
 
       {/* 净值总览：资产 / 负债 / 组成饼图，一眼看到净资产 */}
       <NetWorthCard />
