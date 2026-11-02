@@ -1559,4 +1559,16 @@ export const en: Record<string, string> = {
   "connect.recatHint": "Recompute categories for all transactions using the rule engine (merchant/summary). Only categories change.",
   "connect.recatRun": "Run re-categorization",
   "connect.recatDone": "Updated {n} of {t}",
+
+  // ---- v4.7 real broker channels ----
+  "connect.brokerConfigTitle": "Real broker channels",
+  "connect.brokerConfigHint": "Broker OpenAPI / local gateway parameters are encrypted with the vault; passwords and tokens are never echoed. Dry-run remains the default; live orders require explicit guardrails.",
+  "connect.brokerLabelPh": "Channel label (e.g. My Futu)",
+  "connect.brokerSave": "Encrypt & save",
+  "connect.brokerSaved": "Broker channel encrypted and saved",
+  "connect.brokerConfigured": "Credentials configured",
+  "connect.brokerNotConfigured": "Not configured",
+  "connect.brokerFill": "Enter at least one credential field",
+  "connect.brokerSafety": "Official APIs/gateways require broker authorization; this app does not open accounts, bypass 2FA, or log credentials.",
+  "connect.kind.gateway": "Local gateway",
 };

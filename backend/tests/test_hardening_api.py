@@ -206,7 +206,7 @@ async def test_execute_status_default_safe(client) -> None:
     assert body["guardrails"]["dry_run"] is True
     assert body["current"]["id"] == "null"
     ids = {a["id"] for a in body["adapters"]}
-    assert {"null", "paper", "xtquant", "easytrader"} == ids
+    assert {"null", "paper", "xtquant", "easytrader", "futu", "longport", "tiger", "ibkr"}.issubset(ids)
 
 
 async def test_execute_preview_blocked_by_switch(client) -> None:

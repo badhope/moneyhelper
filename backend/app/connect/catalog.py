@@ -21,7 +21,7 @@ from __future__ import annotations
 from typing import Any
 
 # 接入方式
-KINDS = ("public_api", "deep_link", "browser_login", "file_import")
+KINDS = ("public_api", "deep_link", "browser_login", "file_import", "gateway")
 # 自动化程度：auto=后台全自动；semi=用户点一下/扫一次；manual=用户自己做一次导出
 AUTOMATION = ("auto", "semi", "manual")
 
@@ -166,6 +166,62 @@ CONNECTORS: list[dict[str, Any]] = [
     # ------------------------------------------------------------------
     # 证券与交易（真实下单：跳转券商官方页面；本系统只生成交易意图）
     # ------------------------------------------------------------------
+    _c(
+        "futu",
+        "富途 OpenAPI",
+        "broker",
+        "gateway",
+        "semi",
+        ["holdings", "trade"],
+        login_url="https://openapi.futunn.com/",
+        docs_url="https://openapi.futunn.com/futu-api-doc/",
+        note="真实 API 通道：需本机运行 Futu OpenD、App Key/Secret 或 OpenD 账号与交易权限；系统默认 dry-run。",
+        requires_login=True,
+        supports_trade=True,
+        fields=["OpenD 地址", "账户 ID", "交易市场", "API 凭据"],
+    ),
+    _c(
+        "longport",
+        "长桥 OpenAPI",
+        "broker",
+        "gateway",
+        "semi",
+        ["holdings", "trade"],
+        login_url="https://open.longbridge.com/",
+        docs_url="https://open.longportapp.com/docs/",
+        note="官方 OpenAPI：需申请 App Key / App Secret / Access Token；覆盖港美股及权限范围内市场。",
+        requires_login=True,
+        supports_trade=True,
+        fields=["App Key", "App Secret", "Access Token"],
+    ),
+    _c(
+        "tiger",
+        "老虎 OpenAPI",
+        "broker",
+        "gateway",
+        "semi",
+        ["holdings", "trade"],
+        login_url="https://open.itigerup.com/",
+        docs_url="https://quant.itigerup.com/openapi/",
+        note="官方 OpenAPI：需 Tiger ID / 私钥 / 交易账户；本系统不托管私钥明文。",
+        requires_login=True,
+        supports_trade=True,
+        fields=["Tiger ID", "Private Key", "Account"],
+    ),
+    _c(
+        "ibkr",
+        "Interactive Brokers",
+        "broker",
+        "gateway",
+        "semi",
+        ["holdings", "trade"],
+        login_url="https://www.interactivebrokers.com/",
+        docs_url="https://ib-insync.readthedocs.io/",
+        note="需本机 TWS / IB Gateway 开启 API（默认 7497）；适合美股/港股等市场。",
+        requires_login=True,
+        supports_trade=True,
+        fields=["TWS 地址", "端口", "Client ID"],
+    ),
     _c(
         "eastmoney_sec",
         "东方财富证券",

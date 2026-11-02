@@ -52,6 +52,21 @@ from .audit import (
     set_attachment_indexed,
 )
 from .backup import export_data, import_backup, monthly_trend
+from .broker_credentials import (
+    delete_credentials as broker_delete_credentials,
+)
+from .broker_credentials import (
+    get_masked as broker_get_masked,
+)
+from .broker_credentials import (
+    get_secret as broker_get_secret,
+)
+from .broker_credentials import (
+    list_masked as broker_list_credentials,
+)
+from .broker_credentials import (
+    save_credentials as broker_save_credentials,
+)
 from .budgets import (
     budget_usage,
     count_transactions,
@@ -244,6 +259,11 @@ __all__ = [
     "add_transactions_batch",
     "add_watchlist",
     "all_members_summary",
+    "broker_delete_credentials",
+    "broker_get_masked",
+    "broker_get_secret",
+    "broker_list_credentials",
+    "broker_save_credentials",
     "budget_usage",
     "claim_pending_action",
     "claim_pending_nl",

@@ -498,12 +498,25 @@ class EasytraderBroker:
 # 注册表 + 护栏
 # ---------------------------------------------------------------------------
 
+# 真实 SDK 适配器懒导入：SDK 缺失不影响应用启动，probe() 会精确返回缺项。
+try:
+    from .broker_live import FutuBroker, IBKRBroker, LongPortBroker, TigerBroker
+except Exception:  # noqa: BLE001 — 可选 SDK/平台缺失时保留基础适配器
+    FutuBroker = LongPortBroker = TigerBroker = IBKRBroker = None  # type: ignore[assignment]
+
 _ADAPTERS: dict[str, type] = {
     "null": NullBroker,
     "paper": PaperBroker,
     "xtquant": XtQuantBroker,
     "easytrader": EasytraderBroker,
 }
+if FutuBroker is not None:
+    _ADAPTERS.update({
+        "futu": FutuBroker,
+        "longport": LongPortBroker,
+        "tiger": TigerBroker,
+        "ibkr": IBKRBroker,
+    })
 
 # 白名单：只允许这些名字，防止动态传入任意类名
 ALLOWED_BROKERS = tuple(_ADAPTERS)
@@ -532,10 +545,16 @@ def list_adapters() -> list[dict[str, Any]]:
     return out
 
 
-def build_adapter(name: str) -> BrokerAdapter:
+def build_adapter(name: str, credentials: dict[str, Any] | None = None) -> BrokerAdapter:
     if name not in _ADAPTERS:
         raise ValueError(f"未知券商适配器：{name}（可选：{', '.join(ALLOWED_BROKERS)}）")
-    return _ADAPTERS[name]()
+    cls = _ADAPTERS[name]
+    try:
+        return cls(credentials)  # type: ignore[call-arg]
+    except TypeError:
+        # 兼容 v4.6 基础适配器无参构造；真实通道接收解密后的凭据 dict
+        return cls()
+
 
 
 @dataclass

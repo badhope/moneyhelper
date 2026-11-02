@@ -1559,4 +1559,16 @@ export const zh: Record<string, string> = {
   "connect.recatHint": "用规则引擎按「商户/摘要」重算全部流水的分类；只改分类，不动金额与日期。",
   "connect.recatRun": "开始重新归类",
   "connect.recatDone": "已更新 {n} 条（共 {t} 条）",
+
+  // ---- v4.7 real broker channels ----
+  "connect.brokerConfigTitle": "真实券商通道",
+  "connect.brokerConfigHint": "填入券商 OpenAPI / 本机网关参数后，系统会用 vault 加密保存；密码与 Token 不会回显。默认仍是 dry-run，真实委托要显式开启护栏。",
+  "connect.brokerLabelPh": "通道标签（如「我的富途」）",
+  "connect.brokerSave": "加密保存通道",
+  "connect.brokerSaved": "券商通道已加密保存",
+  "connect.brokerConfigured": "凭据已配置",
+  "connect.brokerNotConfigured": "未配置",
+  "connect.brokerFill": "请至少填写一个凭据字段",
+  "connect.brokerSafety": "官方 API/网关由券商授权；本系统不替你开户、不绕过二次验证、不把凭据写入日志。",
+  "connect.kind.gateway": "本地网关",
 };

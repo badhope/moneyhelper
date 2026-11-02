@@ -213,3 +213,91 @@ pip install -e ".[broker]"   # 券商 GUI 自动化（仅 Windows）
 - 前端：112 passed，tsc 0，build 成功
 - 实测：二维码解码、OCR 识别、PDF 表格抽取与对账、规则归类、券商七道护栏逐项触发
 - 定位：`grep -rn "local-first|本地优先"` 在 5 个对外文件中清零
+
+
+# 八、v4.7 真实券商通道（不是占位）
+
+v4.7 把执行层从「只有 Null/Paper/XtQuant/easytrader 框架」升级为真实 SDK 通道：
+
+| 通道 | SDK | 本机安装/探测 | 真实连接条件 |
+|---|---|---|---|
+| 富途 | `futu-api` | import 成功；无凭据时 probe 精确提示 | 本机 Futu OpenD（默认 127.0.0.1:11111）+ 交易权限 + account_id |
+| 长桥 | `longport` | `longport.openapi` 入口验证通过 | App Key / App Secret / Access Token + 权限 |
+| 老虎 | `tigeropen` | config/client API 入口验证通过 | Tiger ID / 私钥 / 交易账户 |
+| 盈透 | `ib_insync` | import 成功 | 本机 TWS/IB Gateway（7496/7497）+ API 开关 |
+| QMT | `xtquant` | 本机缺少（probe 给路径提示） | 券商开通 miniQMT，终端 `userdata_mini` |
+| easytrader | `easytrader` | pip import 成功；本机缺客户端路径/账户 | Windows 券商客户端 + 路径/账户配置 |
+
+真实适配器文件：`backend/app/broker_live.py`，每个通道都实现：
+
+- `probe()`：只检测 SDK/参数，不联网、不泄密；
+- `connect()`：真实连接 OpenD / OpenAPI / TWS；
+- `get_cash()` / `get_positions()`：读取真实资金与持仓；
+- `preview()`：本地预检；
+- `submit()`：真实委托（但必须通过 `guarded_submit()`）；
+- `poll_orders()`：拉取委托状态，强调「已提交不等于已成交」。
+
+## 凭据保存
+
+`broker_credentials` 表只存 vault 加密 JSON：
+
+```text
+secret_enc = ~<salt>:<fernet ciphertext>
+```
+
+- `VAULT_PASSPHRASE` 未配置时拒绝保存，不降级成明文；
+- API/UI 只返回 `configured=true`、label、meta，不返回 App Secret、Access Token、私钥；
+- 真实 SDK 适配器读取顺序：连接记录的 vault 凭据 → 环境变量（便于 CLI/容器）；
+- 连接器 UI 支持选通道、填写字段、加密保存，下一步可直接点连接/读取账户。
+
+## 真实下单护栏不解除
+
+接上真实通道不等于取消安全边界。真实提交仍需：
+
+1. `MONEYHELPER_TRADING_ENABLED=true`；
+2. `MONEYHELPER_TRADING_DRY_RUN=false`；
+3. `MONEYHELPER_TRADING_BROKER` 在白名单；
+4. 单笔/单日金额与单票集中度不过限；
+5. preview 产生的 5 分钟一次性 confirmation token；
+6. provenance 审计；
+7. 提交后轮询券商成交状态。
+
+默认状态依然是 `NullBroker + dry_run=true`，不会因用户配置了 API Key 就误触真实委托。
+
+
+# 八、v4.7 真券商接入（SDK 实装，不是占位）
+
+## 通道矩阵
+
+| 通道 | SDK / 网关 | 已实装内容 | 仍需用户具备的条件 |
+|---|---|---|---|
+| 富途 | `futu-api` + Futu OpenD | probe / connect / cash / positions / preview / submit / orders | OpenD 本机 11111、富途交易权限、Account ID |
+| 长桥 | `longport` OpenAPI | Config.from_apikey、cash / positions / submit / orders | App Key / Secret / Access Token、相应市场权限 |
+| 老虎 | `tigeropen` | TigerClientConfig、cash / positions / submit / orders | Tiger ID、私钥、交易账户 |
+| 盈透 | `ib_insync` + TWS/IB Gateway | accountSummary / positions / LimitOrder / openTrades | TWS/Gateway API 端口 7496/7497、API 开关 |
+| QMT | `xtquant` | 原有 QMT 适配器保留 | 券商开通 miniQMT，终端 userdata_mini |
+| easytrader | `easytrader` + 券商客户端 | GUI 适配器保留 | Windows 客户端路径、账户、客户端版本稳定 |
+
+本机已安装并验证 import：`futu`、`longport`、`tigeropen`、`easytrader`、`ib_insync`；
+QMT 因依赖券商终端，不在 pip 中安装，`probe()` 会给出缺项。
+
+## 凭据安全
+
+`broker_credentials` 只存 vault 加密 JSON。API 与前端仅返回：通道名、label、meta、`configured`、`enabled`；
+不返回 App Secret、Access Token、私钥或密码。`VAULT_PASSPHRASE` 未配置时拒绝保存，不降级成明文。
+备份不导出券商密文，避免将券商凭据复制到备份文件；恢复后需要重新配置。
+
+## 为什么不是「一键自动炒股」
+
+接入真实 API 后，系统仍强制：`trading_enabled`、`dry_run=false`、白名单、单笔/单日/集中度限额、
+preview 确认令牌、provenance 审计、成交轮询。SDK 的 submit 返回「委托提交」而不是「成交」，本系统不会把
+提交假报成成交。用户需要自行完成券商开户、API 授权、OpenD/TWS/客户端登录与合规确认；这些是外部权限，
+不是软件可以合法替代的步骤。
+
+配置接口：
+
+- `GET /api/execute/status`：适配器探测 + 配置状态（打码）；
+- `PUT /api/execute/brokers/{name}/credentials`：vault 加密保存（只传 API Key/Token/连接参数）；
+- `GET /api/execute/brokers/configured`：只读掩码状态；
+- `POST /api/execute/adapters/{name}/connect`：真实连接并读取现金/持仓；
+- `POST /api/execute/preview` → `POST /api/execute/submit`：预检→一次性确认令牌→报单。

@@ -4,6 +4,27 @@
 
 ## [Unreleased]
 
+## [4.7.0] - 2026-10-30（真实券商通道：富途/长桥/老虎/盈透/QMT/easytrader）
+
+### 新增
+
+- `broker_live.py` 实装 futu-api、longport、tigeropen、ib_insync 四个真实 SDK 适配器，保留 QMT/ easytrader；
+  每个通道提供 probe/connect/cash/positions/preview/submit/poll。
+- `broker_credentials` vault 加密存储：没有 `VAULT_PASSPHRASE` 时 fail-closed；API/前端不回显秘密；
+  券商密文不进入备份文件。
+- 连接中心新增真实券商配置卡：通道选择、参数填写、加密保存、配置状态与本机缺项提示。
+- 目录新增四个真实 OpenAPI 通道：富途、长桥、老虎、Interactive Brokers。
+
+### 安全边界
+
+真实通道不会解除 v4.6 护栏：默认 NullBroker + dry-run；真实报单仍需要显式开关、适配器白名单、
+金额/集中度限额、一次性确认令牌与成交对账。用户必须自行从券商申请 API 权限、运行 OpenD/TWS 或客户端；
+本系统不代开户、不绕过 2FA、不把密码写日志。
+
+### 验证
+
+券商测试 65 项通过；全量后端 **1230 passed**；前端 112 tests、tsc、build 保持通过。
+
 ## [4.6.0] - 2026-10-30（边界攻坚：发票识别 / PDF 对账单 / 规则归类 / 券商执行层 / 定位纠偏）
 
 > 上一版标为「边界」的四件事，这一版逐个调研开源实现并落地；另外修正了对外定位描述。

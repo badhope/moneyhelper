@@ -45,6 +45,7 @@ import { PillTabs } from "@/components/ui/pill-tabs";
 import { Segmented } from "@/components/ui/segmented";
 import {
   BreadthCard,
+  BrokerConfigCard,
   ConditionalCard,
   ExecuteStatusCard,
   HoldingsImportCard,
@@ -928,6 +929,7 @@ export function ConnectPage() {
           <PdfStatementCard />
           <HoldingsImportCard />
           <div className="min-w-0 space-y-3">
+            <BrokerConfigCard />
             <ExecuteStatusCard />
             <RecategorizeCard />
           </div>

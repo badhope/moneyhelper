@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 // 类型契约
 // ---------------------------------------------------------------------------
 
-export type ConnectorKind = "public_api" | "deep_link" | "browser_login" | "file_import";
+export type ConnectorKind = "public_api" | "deep_link" | "browser_login" | "file_import" | "gateway";
 export type Automation = "auto" | "semi" | "manual";
 
 export interface Connection {
@@ -605,6 +605,9 @@ export interface BrokerAdapterInfo {
   supports_trading: boolean;
   problems?: string[];
   note: string;
+  configured?: boolean;
+  configured_enabled?: boolean;
+  meta?: Record<string, unknown>;
 }
 
 export interface ExecuteStatus {
@@ -713,5 +716,28 @@ export function useApplyCategorize() {
         { method: "POST", body: JSON.stringify({}) },
       ),
     onSettled: () => void qc.invalidateQueries({ queryKey: ["dashboard"] }),
+  });
+}
+
+export function useConfigureBroker() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, secret, label, meta, enabled }: { name: string; secret: Record<string, string>; label?: string; meta?: Record<string, unknown>; enabled?: boolean }) =>
+      api<{ ok: boolean; broker: Record<string, unknown> }>(`/api/execute/brokers/${name}/credentials`, {
+        method: "PUT",
+        body: JSON.stringify({ secret, label, meta, enabled }),
+      }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["/api/execute/status"] });
+      void qc.invalidateQueries({ queryKey: ["/api/execute/brokers"] });
+    },
+  });
+}
+
+export function useDeleteBrokerCredentials() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api(`/api/execute/brokers/${name}/credentials`, { method: "DELETE" }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/execute/status"] }),
   });
 }

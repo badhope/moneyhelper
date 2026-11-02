@@ -26,7 +26,6 @@ from ..broker_adapter import (
     default_guardrails,
     guarded_submit,
     issue_confirmation,
-    list_adapters,
     trading_status,
 )
 from ..provenance import record_provenance
@@ -42,12 +41,22 @@ def _bad(msg: str, code: int = 400) -> JSONResponse:
     return JSONResponse({"error": msg}, status_code=code)
 
 
-def _get_adapter(name: str) -> Any:
+async def _get_adapter(name: str) -> Any:
     if name not in ALLOWED_BROKERS:
         raise ValueError(f"未知适配器：{name}")
     if name not in _adapters:
-        _adapters[name] = build_adapter(name)
+        credentials = await db.broker_get_secret(name)
+        _adapters[name] = build_adapter(name, credentials)
     return _adapters[name]
+
+
+async def _clear_adapter(name: str) -> None:
+    adapter = _adapters.pop(name, None)
+    if adapter is not None:
+        try:
+            await asyncio.to_thread(adapter.disconnect)
+        except Exception:  # noqa: BLE001 — 清理失败不阻断重新配置
+            pass
 
 
 def _parse_request(payload: dict[str, Any]) -> OrderRequest:
@@ -81,19 +90,71 @@ def _parse_request(payload: dict[str, Any]) -> OrderRequest:
 
 @router.get("/api/execute/status")
 async def execute_status() -> dict[str, Any]:
-    """交易状态：开关、dry-run、各适配器本机可用性与问题清单。"""
-    return trading_status()
+    """交易状态：开关、dry-run、各适配器本机可用性与问题清单（不回传秘密）。"""
+    out = trading_status()
+    configured = {row["broker_id"]: row for row in await db.broker_list_credentials()}
+    for adapter in out.get("adapters", []):
+        row = configured.get(adapter["id"])
+        adapter["configured"] = bool(row and row.get("configured"))
+        adapter["configured_enabled"] = bool(row and row.get("enabled"))
+        if row and row.get("meta"):
+            adapter["meta"] = row["meta"]
+    out["configured"] = list(configured.values())
+    return out
+
+
+@router.get("/api/execute/brokers")
+async def execute_brokers() -> dict[str, Any]:
+    """券商通道清单：SDK 探测 + 加密凭据配置状态。"""
+    return {"items": (await execute_status()).get("adapters", [])}
+
+
+@router.put("/api/execute/brokers/{name}/credentials")
+async def configure_broker(name: str, payload: dict[str, Any]) -> Any:
+    """保存券商凭据：secret 整体进入 vault；API 只返回配置状态与元信息。"""
+    if name not in ALLOWED_BROKERS:
+        return _bad(f"未知适配器：{name}")
+    secret = payload.get("secret")
+    if not isinstance(secret, dict) or not secret:
+        return _bad("secret 必须是非空对象（只提交券商要求的 API Key/Token，不要提交登录密码）")
+    try:
+        saved = await db.broker_save_credentials(
+            name,
+            secret,
+            label=str(payload.get("label") or name),
+            meta=payload.get("meta") if isinstance(payload.get("meta"), dict) else {},
+            enabled=bool(payload.get("enabled", False)),
+        )
+    except RuntimeError as exc:
+        return _bad(str(exc), 503)
+    except ValueError as exc:
+        return _bad(str(exc))
+    await _clear_adapter(name)
+    return {"ok": True, "broker": saved}
+
+
+@router.get("/api/execute/brokers/configured")
+async def configured_brokers() -> dict[str, Any]:
+    return {"items": await db.broker_list_credentials()}
+
+
+@router.delete("/api/execute/brokers/{name}/credentials")
+async def delete_broker_credentials(name: str) -> Any:
+    if name not in ALLOWED_BROKERS:
+        return _bad(f"未知适配器：{name}")
+    await _clear_adapter(name)
+    return {"deleted": name, "ok": await db.broker_delete_credentials(name)}
 
 
 @router.post("/api/execute/adapters/{name}/connect")
 async def connect_adapter(name: str) -> Any:
-    """连接适配器（QMT/easytrader 需要本机环境完整，否则返回问题清单）。"""
+    """连接适配器：使用 vault 解密的配置或环境变量，成功后读取真实资金/持仓。"""
     if name not in ALLOWED_BROKERS:
         return _bad(f"未知适配器：{name}")
-    info = next((a for a in list_adapters() if a["id"] == name), {})
+    adapter = await _get_adapter(name)
+    info = adapter.probe()
     if not info.get("available"):
         return _bad(f"该适配器本机不可用：{info.get('note') or '环境不满足'}")
-    adapter = _get_adapter(name)
     try:
         async with _lock:
             await asyncio.to_thread(adapter.connect)
@@ -112,7 +173,7 @@ async def connect_adapter(name: str) -> Any:
 async def disconnect_adapter(name: str) -> Any:
     if name not in ALLOWED_BROKERS:
         return _bad(f"未知适配器：{name}")
-    adapter = _get_adapter(name)
+    adapter = await _get_adapter(name)
     async with _lock:
         await asyncio.to_thread(adapter.disconnect)
     return {"ok": True, "adapter": name, "connected": adapter.is_connected()}
@@ -132,7 +193,7 @@ async def execute_preview(payload: dict[str, Any]) -> Any:
         return _bad(str(exc))
 
     g = default_guardrails()
-    adapter = _get_adapter(g["broker"])
+    adapter = await _get_adapter(g["broker"])
     positions = await db.list_positions()
     total_value = sum(float(p.get("shares", 0)) * float(p.get("last", 0)) for p in positions)
     held = next((p for p in positions if str(p.get("symbol", "")).upper() == req.symbol), None)
@@ -171,7 +232,7 @@ async def execute_submit(payload: dict[str, Any]) -> Any:
         return _bad(str(exc))
 
     g = default_guardrails()
-    adapter = _get_adapter(g["broker"])
+    adapter = await _get_adapter(g["broker"])
     positions = await db.list_positions()
     total_value = sum(float(p.get("shares", 0)) * float(p.get("last", 0)) for p in positions)
     held = next((p for p in positions if str(p.get("symbol", "")).upper() == req.symbol), None)
@@ -206,7 +267,7 @@ async def execute_submit(payload: dict[str, Any]) -> Any:
 async def execute_orders() -> dict[str, Any]:
     """对账：拉当前适配器的当日委托（实盘返回券商状态，默认适配器返回空）。"""
     g = default_guardrails()
-    adapter = _get_adapter(g["broker"])
+    adapter = await _get_adapter(g["broker"])
     try:
         rows = await asyncio.to_thread(adapter.poll_orders)
     except Exception as exc:  # noqa: BLE001
