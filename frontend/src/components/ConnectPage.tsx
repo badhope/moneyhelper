@@ -43,6 +43,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PillTabs } from "@/components/ui/pill-tabs";
 import { Segmented } from "@/components/ui/segmented";
+import {
+  BreadthCard,
+  ConditionalCard,
+  HoldingsImportCard,
+  InvoiceCard,
+  PretradeCard,
+  RiskSettingsCard,
+  StockProfileCard,
+} from "@/components/ConnectDeepPanels";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
@@ -274,7 +283,7 @@ export function ConnectPage() {
   const intentsQuery = useIntents();
   const indicesQuery = useIndices();
 
-  const [tab, setTab] = useState<"sources" | "connectors" | "inbox" | "orders">("sources");
+  const [tab, setTab] = useState<"sources" | "connectors" | "inbox" | "orders" | "research" | "trade" | "invoice">("sources");
   const [moverKind, setMoverKind] = useState<"gainers" | "losers" | "turnover">("gainers");
   const moversQuery = useMovers(moverKind);
   const [fundCodes, setFundCodes] = useState("110011");
@@ -490,6 +499,9 @@ export function ConnectPage() {
               { value: "connectors", label: t("connect.tabConnectors") },
               { value: "inbox", label: t("connect.tabInbox") },
               { value: "orders", label: t("connect.tabOrders") },
+              { value: "research", label: t("connect.tabResearch") },
+              { value: "trade", label: t("connect.tabTrade") },
+              { value: "invoice", label: t("connect.tabInvoice") },
             ]}
           />
         </div>
@@ -870,6 +882,47 @@ export function ConnectPage() {
               {t("connect.orderSafety")}
             </p>
           </Card>
+        </div>
+      )}
+
+
+      {/* 5. 投研深化：市场温度 + 个股档案 */}
+      {tab === "research" && (
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="min-w-0 space-y-3">
+            <BreadthCard />
+            <StockProfileCard defaultSymbol="600519" />
+          </div>
+          <Card className="h-fit p-[var(--card-pad)]">
+            <div className="text-[13px] font-semibold">{t("connect.researchHintTitle")}</div>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
+              {t("connect.researchHint")}
+            </p>
+            <div className="mt-2 space-y-1.5 text-[11.5px] text-muted-foreground">
+              <div>· {t("connect.researchTip1")}</div>
+              <div>· {t("connect.researchTip2")}</div>
+              <div>· {t("connect.researchTip3")}</div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* 6. 交易深化：预交易检查 + 条件单 + 风控设置 */}
+      {tab === "trade" && (
+        <div className="grid gap-3 lg:grid-cols-[22rem_minmax(0,1fr)]">
+          <div className="min-w-0 space-y-3">
+            <PretradeCard />
+            <RiskSettingsCard />
+          </div>
+          <ConditionalCard />
+        </div>
+      )}
+
+      {/* 7. 发票与对账 */}
+      {tab === "invoice" && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <InvoiceCard />
+          <HoldingsImportCard />
         </div>
       )}
 

@@ -7,9 +7,11 @@ Keeps main.py focused on middleware / core endpoints (ask, confirm, bootstrap, d
 from .budgets import router as budgets_router
 from .calculations import router as calculations_router
 from .connect import router as connect_router
+from .connect_deep import router as connect_deep_router
 from .debts_subs import router as debts_subs_router
 from .evaluation import router as evaluation_router
 from .family import router as family_router
+from .finance_tax import router as finance_tax_router
 from .goals import router as goals_router
 from .import_routes import router as import_router
 from .ledger import router as ledger_router
@@ -28,10 +30,12 @@ from .system import router as system_router
 __all__ = [
     "budgets_router",
     "calculations_router",
+    "connect_deep_router",
     "connect_router",
     "debts_subs_router",
     "evaluation_router",
     "family_router",
+    "finance_tax_router",
     "goals_router",
     "import_router",
     "ledger_router",

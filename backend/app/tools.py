@@ -37,6 +37,7 @@ from .logging_utils import get_logger
 from .provenance import record_provenance
 from .quotes import invalidate_quotes_cache, quote_now
 from .quotes import kline as fetch_kline
+from .tool_impl_deep import DEEP_TOOL_IMPL, DEEP_TOOL_NAMES
 
 _action_log = get_logger("tools.action")
 
@@ -1266,6 +1267,7 @@ FINANCE_TOOL_NAMES: tuple[tuple[str, str], ...] = (
      "查场外基金最新净值（公开接口免登录，多只逗号分隔）。适合「帮我查一下 110011 的净值」。"),
     ("connect_order",
      "生成交易指令：paper=模拟盘（可立即成交），live=只生成交接单并给券商入口，绝不代下单。适合「模拟买入 600519 100 股」「帮我准备实盘下单指令」。"),
+    *DEEP_TOOL_NAMES,
 )
 
 TOOLS: list[dict[str, Any]] = [
@@ -1312,6 +1314,7 @@ TOOL_IMPL: dict[str, Any] = {
     "connect_sync": tool_connect_sync,
     "connect_fund_nav": tool_connect_fund_nav,
     "connect_order": tool_connect_order,
+    **DEEP_TOOL_IMPL,
 }
 
 # 工具返回体量上限：超过即截断（防止把整库明细喂给模型）

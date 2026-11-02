@@ -62,7 +62,8 @@ export function MobileTabBar({
         active === "research" ||
         active === "statements" ||
         active === "paper" ||
-        active === "connect",
+        active === "connect" ||
+        active === "tax",
     },
     {
       key: "holdings",

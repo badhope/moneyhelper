@@ -322,3 +322,267 @@ export function useRejectIntent() {
     onSettled: invalidate,
   });
 }
+
+// ---------------------------------------------------------------------------
+// v4.5 深化：市场温度 / 个股档案 / 预交易风控 / 条件单 / 发票 / 持仓对账
+// ---------------------------------------------------------------------------
+
+export interface Breadth {
+  available: boolean;
+  reason?: string;
+  up?: number;
+  down?: number;
+  flat?: number;
+  total?: number;
+  limit_up?: number;
+  limit_down?: number;
+  strong?: number;
+  up_ratio_pct?: number;
+  temperature?: number;
+  mood?: "hot" | "warm" | "neutral" | "cool" | "cold";
+  checked_at?: string;
+}
+
+export interface StockProfile {
+  symbol: string;
+  name: string;
+  price: number;
+  change_pct: number | null;
+  pe_ttm: number | null;
+  pb: number | null;
+  total_mv_yi: number | null;
+  float_mv_yi: number | null;
+  turnover_pct: number | null;
+  volume_ratio: number | null;
+  amplitude_pct: number | null;
+  limit_up: number | null;
+  limit_down: number | null;
+  valuation: { pe_ttm: number | null; pb: number | null; total_mv_yi: number | null; float_mv_yi: number | null; pe_note: string };
+  activity: { turnover_pct: number | null; volume_ratio: number | null; amplitude_pct: number | null; amount_wan: number | null };
+  source: string;
+}
+
+export interface RiskSettings {
+  daily_limit: number;
+  deviation_pct: number;
+  concentration_pct: number;
+  auto_execute_paper: number;
+  updated_at?: string;
+}
+
+export interface RiskCheckItem {
+  id: string;
+  ok: boolean;
+  level: "block" | "warn" | "info";
+  detail: string;
+}
+
+export interface RiskCheckResult {
+  ok: boolean;
+  amount: number;
+  blocking: RiskCheckItem[];
+  warnings: RiskCheckItem[];
+  checks: RiskCheckItem[];
+  summary: string;
+  quote?: { price: number | null; prev_close: number | null; name: string };
+  available_cash?: number;
+  portfolio_value?: number;
+  daily_used?: number;
+}
+
+export interface ConditionalOrder {
+  id: string;
+  symbol: string;
+  name: string;
+  side: "buy" | "sell";
+  trigger_type: "price_below" | "price_above" | "pct_change_below" | "pct_change_above";
+  trigger_value: number;
+  price: number;
+  shares: number;
+  mode: "paper" | "live";
+  status: "watching" | "triggered" | "cancelled" | "expired";
+  note: string;
+  triggered_at: string;
+  created_at: string;
+}
+
+export interface InvoiceRecord {
+  id: string;
+  file_name: string;
+  source_format: string;
+  invoice_code: string;
+  invoice_number: string;
+  invoice_date: string;
+  buyer: string;
+  seller: string;
+  item: string;
+  total_amount: number | null;
+  tax_amount: number | null;
+  tax_rate: string;
+  kind: string;
+  confidence: string;
+  status: string;
+  created_at: string;
+}
+
+export interface InvoiceSummary {
+  count: number;
+  total_amount: number;
+  total_tax: number;
+  pending: number;
+  by_month: { month: string; amount: number }[];
+}
+
+export function useBreadth() {
+  return useQuery({
+    queryKey: ["/api/connect/market/breadth"],
+    queryFn: () => api<Breadth>("/api/connect/market/breadth"),
+    staleTime: 60_000,
+  });
+}
+
+export function useStockProfile(symbol: string | null) {
+  return useQuery({
+    queryKey: ["/api/connect/stock/profile", symbol],
+    queryFn: () => api<StockProfile>(`/api/connect/stock/${encodeURIComponent(symbol ?? "")}/profile`),
+    enabled: Boolean(symbol && /^\d{6}$/.test(symbol)),
+    staleTime: 20_000,
+    retry: false,
+  });
+}
+
+export function useRiskSettings() {
+  return useQuery({
+    queryKey: ["/api/connect/risk/settings"],
+    queryFn: () => api<RiskSettings>("/api/connect/risk/settings"),
+    staleTime: 60_000,
+  });
+}
+
+export function useSaveRiskSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<RiskSettings>) =>
+      api<RiskSettings>("/api/connect/risk/settings", { method: "PUT", body: JSON.stringify(body) }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/connect/risk/settings"] }),
+  });
+}
+
+export function useRiskCheck() {
+  return useMutation({
+    mutationFn: (body: { symbol: string; side: string; price: number; shares: number }) =>
+      api<RiskCheckResult>("/api/connect/risk/check", { method: "POST", body: JSON.stringify(body) }),
+  });
+}
+
+export function useConditionals() {
+  return useQuery({
+    queryKey: ["/api/connect/conditionals"],
+    queryFn: () =>
+      api<{ items: ConditionalOrder[] }>("/api/connect/conditionals").then((r) => r.items ?? []),
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateConditional() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      symbol: string;
+      side: "buy" | "sell";
+      trigger_type: string;
+      trigger_value: number;
+      price: number;
+      shares: number;
+      mode: "paper" | "live";
+      name?: string;
+    }) => api<ConditionalOrder>("/api/connect/conditionals", { method: "POST", body: JSON.stringify(body) }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/connect/conditionals"] }),
+  });
+}
+
+export function useEvaluateConditionals() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<{ checked: number; triggered: unknown[]; quotes_available: number }>(
+        "/api/connect/conditionals/evaluate",
+        { method: "POST" },
+      ),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["/api/connect/conditionals"] });
+      void qc.invalidateQueries({ queryKey: ["/api/connect/intents"] });
+    },
+  });
+}
+
+export function useDeleteConditional() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/api/connect/conditionals/${id}`, { method: "DELETE" }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/connect/conditionals"] }),
+  });
+}
+
+export function useInvoices() {
+  return useQuery({
+    queryKey: ["/api/connect/invoices"],
+    queryFn: () =>
+      api<{ items: InvoiceRecord[]; summary: InvoiceSummary }>("/api/connect/invoices"),
+    staleTime: 30_000,
+  });
+}
+
+export function useUploadInvoiceText() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { text: string; file_name?: string }) =>
+      api<{ ok: boolean; invoice: InvoiceRecord; parsed: Record<string, unknown>; duplicate: boolean }>(
+        "/api/connect/invoices/text",
+        { method: "POST", body: JSON.stringify(body) },
+      ),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/connect/invoices"] }),
+  });
+}
+
+export function useDeleteInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/api/connect/invoices/${id}`, { method: "DELETE" }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/connect/invoices"] }),
+  });
+}
+
+export interface HoldingsImportResult {
+  ok: boolean;
+  account: string;
+  positions: {
+    symbol: string;
+    name: string;
+    shares: number;
+    cost: number;
+    last: number;
+    kind: string;
+    market_value: number | null;
+    pnl: number | null;
+  }[];
+  count: number;
+  skipped: number;
+  warnings: string[];
+  applied?: number;
+  errors?: string[];
+}
+
+export function useImportHoldings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { content: string; apply?: boolean; file_name?: string }) =>
+      api<HoldingsImportResult>("/api/connect/import/holdings", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}

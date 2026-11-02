@@ -108,6 +108,21 @@ async def export_data() -> dict[str, Any]:
             "SELECT * FROM dept_reports WHERE user_id=? ORDER BY id",
             (current_user_id(),),
         ),
+        # 连接中心深化（v4.5）：发票归档 / 对账单导入记录 / 条件单 / 风控设置
+        "invoices": await fetch_all(
+            "SELECT * FROM invoices WHERE user_id=? ORDER BY created_at", (current_user_id(),)
+        ),
+        "brokerage_imports": await fetch_all(
+            "SELECT * FROM brokerage_imports WHERE user_id=? ORDER BY created_at",
+            (current_user_id(),),
+        ),
+        "conditional_orders": await fetch_all(
+            "SELECT * FROM conditional_orders WHERE user_id=? ORDER BY created_at",
+            (current_user_id(),),
+        ),
+        "trade_risk_settings": await fetch_all(
+            "SELECT * FROM trade_risk_settings WHERE user_id=?", (current_user_id(),)
+        ),
     }
 
 
@@ -191,6 +206,10 @@ async def _import_backup_locked(
             "attachments",
             "conversation_summary",
             "dept_reports",
+            "invoices",
+            "brokerage_imports",
+            "conditional_orders",
+            "trade_risk_settings",
         ):
             # 只清当前租户：多租户下清全表会把别人的数据一起抹掉
             await conn.execute(f"DELETE FROM {t} WHERE user_id=?", (uid,))
@@ -303,6 +322,44 @@ async def _import_backup_locked(
             data.get("dept_reports"),
             "INSERT INTO dept_reports(user_id,id,report_id,question,dispatch,verdict,report,orders_json,conflicts_json,status,decision_note,decided_at,created_at)"
             " VALUES(:user_id,:id,:report_id,:question,:dispatch,:verdict,:report,:orders_json,:conflicts_json,:status,:decision_note,:decided_at,:created_at)",
+        )
+        counts["invoices"] = await _restore_table(
+            conn,
+            "invoices",
+            data.get("invoices"),
+            "INSERT INTO invoices(user_id,id,file_name,file_hash,source_format,invoice_code,"
+            "invoice_number,invoice_date,buyer,seller,item,total_amount,tax_amount,tax_rate,"
+            "kind,confidence,status,note,created_at)"
+            " VALUES(:user_id,:id,:file_name,:file_hash,:source_format,:invoice_code,"
+            ":invoice_number,:invoice_date,:buyer,:seller,:item,:total_amount,:tax_amount,:tax_rate,"
+            ":kind,:confidence,:status,:note,:created_at)",
+        )
+        counts["brokerage_imports"] = await _restore_table(
+            conn,
+            "brokerage_imports",
+            data.get("brokerage_imports"),
+            "INSERT INTO brokerage_imports(user_id,id,file_name,file_hash,account,"
+            "position_count,applied,warnings_json,created_at)"
+            " VALUES(:user_id,:id,:file_name,:file_hash,:account,"
+            ":position_count,:applied,:warnings_json,:created_at)",
+        )
+        counts["conditional_orders"] = await _restore_table(
+            conn,
+            "conditional_orders",
+            data.get("conditional_orders"),
+            "INSERT INTO conditional_orders(user_id,id,symbol,name,side,trigger_type,"
+            "trigger_value,price,shares,mode,status,note,triggered_at,created_at)"
+            " VALUES(:user_id,:id,:symbol,:name,:side,:trigger_type,"
+            ":trigger_value,:price,:shares,:mode,:status,:note,:triggered_at,:created_at)",
+        )
+        counts["trade_risk_settings"] = await _restore_table(
+            conn,
+            "trade_risk_settings",
+            data.get("trade_risk_settings"),
+            "INSERT INTO trade_risk_settings(user_id,daily_limit,deviation_pct,concentration_pct,"
+            "auto_execute_paper,updated_at)"
+            " VALUES(:user_id,:daily_limit,:deviation_pct,:concentration_pct,"
+            ":auto_execute_paper,:updated_at)",
         )
 
         # 设置：整表覆盖，但 AI Key 永不恢复（明文 Key 不进备份/恢复链路）

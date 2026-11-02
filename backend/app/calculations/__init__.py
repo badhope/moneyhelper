@@ -17,6 +17,12 @@ v4.0 新增（财务工作台垂直深化）：
 v4.1 新增：
 - forecast:         股票价格统计预测（线性趋势 / 历史波动率 / 蒙特卡洛 GBM 分位区间）
 
+v4.5 新增（财务部门级深化）：
+- tax:              中国大陆税负与薪酬：增值税及附加 / 企业所得税 / 个税累计预扣 /
+                    五险一金工资核算 / 月度结账清单
+- cashflow:         现金流三档预测 / 订阅识别 / 异常扣款检测（中位数 + MAD）
+- pretrade:         预交易风控（涨跌停 / 整手 / T+1 / 集中度 / 日限额 / 重复单）与再平衡下单
+
 设计原则：
 1. 所有函数均为纯函数（无副作用、无 I/O、无全局状态），可直接单测。
 2. 仅依赖 Python 标准库（datetime, dataclasses, math, statistics, random），不引入 numpy/scipy。
@@ -30,6 +36,11 @@ v4.1 新增：
 """
 
 from .backtest import backtest_dca, backtest_ma_cross, backtest_text, run_backtest
+from .cashflow import (
+    cashflow_forecast,
+    detect_anomalies,
+    detect_subscriptions,
+)
 from .financial_statements import analyze_statements, compute_period_metrics
 from .forecast import forecast, forecast_text
 from .goals import GoalProgress, calculate_goal_progress
@@ -58,8 +69,24 @@ from .portfolio_risk import (
     sharpe_ratio,
     sortino_ratio,
 )
+from .pretrade import (
+    daily_order_amount,
+    limit_prices,
+    pre_trade_check,
+    price_limit,
+    rebalance_orders,
+)
 from .returns import calculate_simple_return, calculate_twr, calculate_xirr
 from .strategy import RebalancePlan, compute_fire, compute_rebalance
+from .tax import (
+    PayrollResult,
+    corporate_income_tax,
+    individual_income_tax,
+    month_end_checklist,
+    payroll,
+    tax_summary,
+    vat,
+)
 from .technical import technical_analysis, trend_text
 from .valuation import (
     Valuation,
@@ -72,6 +99,7 @@ __all__ = [
     "FinancialHealthScore",
     "GoalProgress",
     "NetWorthSnapshot",
+    "PayrollResult",
     "RebalancePlan",
     "RiskMetrics",
     "Valuation",
@@ -90,26 +118,40 @@ __all__ = [
     "calculate_simple_return",
     "calculate_twr",
     "calculate_xirr",
+    "cashflow_forecast",
     "compute_dca_stats",
     "compute_fire",
     "compute_period_metrics",
     "compute_rebalance",
     "compute_risk_metrics",
     "compute_valuation",
+    "corporate_income_tax",
+    "daily_order_amount",
     "daily_returns",
+    "detect_anomalies",
+    "detect_subscriptions",
     "estimate",
     "fee_for",
     "forecast",
     "forecast_text",
+    "individual_income_tax",
+    "limit_prices",
     "max_drawdown",
+    "month_end_checklist",
     "next_run_date",
+    "payroll",
+    "pre_trade_check",
+    "price_limit",
     "ranking",
+    "rebalance_orders",
     "round_lots",
     "run_backtest",
     "sharpe_ratio",
     "sortino_ratio",
+    "tax_summary",
     "team_summary",
     "technical_analysis",
     "trend_text",
     "validate_trade",
+    "vat",
 ]

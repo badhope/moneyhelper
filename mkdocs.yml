@@ -72,6 +72,7 @@ nav:
       - Workflow (EN): WORKFLOW.en.md
       - 命令行: cli.md
       - 连接中心: connect-hub.md
+      - 连接中心（深化）: connect-hub-deep.md
       - Agent Studio: studio.md
       - MCP 接入: mcp-guide.md
   - 部署与配置:

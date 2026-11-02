@@ -498,4 +498,73 @@ CREATE TABLE IF NOT EXISTS connect_intents (
     PRIMARY KEY (user_id, id)
 );
 CREATE INDEX IF NOT EXISTS idx_connect_intents_user ON connect_intents(user_id, created_at);
+-- 发票归档（v4.5）：OFD/PDF/文本解析结果。票面字段可空（解析不全时留待人工补录），
+-- file_hash 用于防重复归档（同文件重复上传只保留一条）。
+CREATE TABLE IF NOT EXISTS invoices (
+    user_id        INTEGER NOT NULL DEFAULT 0,
+    id             TEXT NOT NULL,
+    file_name      TEXT NOT NULL DEFAULT '',
+    file_hash      TEXT NOT NULL DEFAULT '',
+    source_format  TEXT NOT NULL DEFAULT '',
+    invoice_code   TEXT NOT NULL DEFAULT '',
+    invoice_number TEXT NOT NULL DEFAULT '',
+    invoice_date   TEXT NOT NULL DEFAULT '',
+    buyer          TEXT NOT NULL DEFAULT '',
+    seller         TEXT NOT NULL DEFAULT '',
+    item           TEXT NOT NULL DEFAULT '',
+    total_amount   REAL,
+    tax_amount     REAL,
+    tax_rate       TEXT NOT NULL DEFAULT '',
+    kind           TEXT NOT NULL DEFAULT '',
+    confidence     TEXT NOT NULL DEFAULT '',
+    status         TEXT NOT NULL DEFAULT 'parsed',
+    note           TEXT NOT NULL DEFAULT '',
+    created_at     TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_invoices_user ON invoices(user_id, invoice_date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_hash ON invoices(user_id, file_hash);
+-- 持仓对账单导入记录（v4.5）：保留原始预览与结果，便于回溯"哪次导入改了什么"
+CREATE TABLE IF NOT EXISTS brokerage_imports (
+    user_id      INTEGER NOT NULL DEFAULT 0,
+    id           TEXT NOT NULL,
+    file_name    TEXT NOT NULL DEFAULT '',
+    file_hash    TEXT NOT NULL DEFAULT '',
+    account      TEXT NOT NULL DEFAULT '',
+    position_count INTEGER NOT NULL DEFAULT 0,
+    applied      INTEGER NOT NULL DEFAULT 0,
+    warnings_json TEXT NOT NULL DEFAULT '[]',
+    created_at   TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_brokerage_imports_user ON brokerage_imports(user_id, created_at);
+-- 条件单（v4.5）：价格触发型指令。只生成待确认意图，不代下单。
+CREATE TABLE IF NOT EXISTS conditional_orders (
+    user_id      INTEGER NOT NULL DEFAULT 0,
+    id           TEXT NOT NULL,
+    symbol       TEXT NOT NULL,
+    name         TEXT NOT NULL DEFAULT '',
+    side         TEXT NOT NULL,
+    trigger_type TEXT NOT NULL DEFAULT 'price_below',
+    trigger_value REAL NOT NULL,
+    price        REAL NOT NULL,
+    shares       REAL NOT NULL,
+    mode         TEXT NOT NULL DEFAULT 'paper',
+    status       TEXT NOT NULL DEFAULT 'watching',
+    note         TEXT NOT NULL DEFAULT '',
+    triggered_at TEXT NOT NULL DEFAULT '',
+    created_at   TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_conditional_orders_user ON conditional_orders(user_id, status);
+-- 风控设置（v4.5）：单行键值，与 settings 分表避免污染用户配置
+CREATE TABLE IF NOT EXISTS trade_risk_settings (
+    user_id            INTEGER NOT NULL DEFAULT 0,
+    daily_limit        REAL NOT NULL DEFAULT 200000,
+    deviation_pct      REAL NOT NULL DEFAULT 3.0,
+    concentration_pct  REAL NOT NULL DEFAULT 30.0,
+    auto_execute_paper INTEGER NOT NULL DEFAULT 1,
+    updated_at         TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id)
+);
 """
