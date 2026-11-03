@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { Download, FileText, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm";
 import { api } from "@/lib/api";
@@ -20,7 +20,7 @@ export function DataSection({
   bootstrap: BootstrapData;
   onRestoreDemo: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { toast } = useToast();
   const [resetOpen, setResetOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
@@ -41,6 +41,20 @@ export function DataSection({
       a.click();
       URL.revokeObjectURL(a.href);
       toast(pass ? t("settings.backupEncrypted") : t("settings.backupDownloaded"), "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
+
+  /** 导出单文件 HTML 报告：自包含、离线可看、可打印为 PDF。
+   *  与备份不同，这是「给人看的」成品，不加密、不含密钥。 */
+  const exportReport = async () => {
+    try {
+      const a = document.createElement("a");
+      a.href = `/api/export/report?lang=${encodeURIComponent(lang ?? "zh")}`;
+      a.download = `${BRAND.name}-report-${new Date().toISOString().slice(0, 10)}.html`;
+      a.click();
+      toast(t("settings.reportDownloaded"), "ok");
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "error");
     }
@@ -137,6 +151,12 @@ export function DataSection({
           <div className="text-xs text-muted-foreground">{t("settings.exportHint")}</div>
           <Button variant="outline" size="sm" onClick={() => void exportBackup()}>
             <Download className="w-3.5 h-3.5" /> {t("settings.exportBackup")}
+          </Button>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs text-muted-foreground">{t("settings.reportHint")}</div>
+          <Button variant="outline" size="sm" onClick={() => void exportReport()}>
+            <FileText className="w-3.5 h-3.5" /> {t("accounts.export")}
           </Button>
         </div>
         <div className="flex items-center justify-between gap-2 pt-3 border-t border-border/60">

@@ -24,6 +24,7 @@ import { HealthCheckDialog } from "@/components/HealthCheckDialog";
 import { IndicesStrip } from "@/components/IndicesStrip";
 import { NetWorthCard } from "@/components/dashboard/NetWorthCard";
 import { ActionCenterCard } from "@/components/dashboard/ActionCenterCard";
+import { AccountsMergeCard } from "@/components/dashboard/AccountsMergeCard";
 import { HealthScoreCard } from "@/components/dashboard/HealthScoreCard";
 import { ReturnsCard } from "@/components/dashboard/ReturnsCard";
 import { CashflowWaterfallCard } from "@/components/dashboard/CashflowWaterfallCard";
@@ -704,6 +705,9 @@ export function Dashboard({
 
       {/* 净值总览：资产 / 负债 / 组成饼图，一眼看到净资产 */}
       <NetWorthCard />
+
+      {/* 合并账户：本地账本 + 模拟盘 + 实盘的口径汇总（不含外币折算） */}
+      <AccountsMergeCard />
 
       {/* 指数行情条：大盘一眼可读 */}
       <IndicesStrip indices={dashboard.indices} />

@@ -100,3 +100,42 @@ async def export_csv() -> StreamingResponse:
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="ledger.csv"'},
     )
+
+
+@router.get("/api/export/report")
+async def export_report(lang: str = "zh") -> Response:
+    """导出单文件 HTML 报告（自包含、离线可看、可打印为 PDF）。
+
+    数据源与总览一致（同一 collect_dashboard 口径），不额外联网。
+    """
+    from datetime import datetime
+
+    from fastapi.responses import Response
+
+    from .. import analysis
+    from ..report import build_report
+
+    dash = await analysis.collect_dashboard(lang, use_cache=True)
+    accounts = None
+    try:
+        from .paper import accounts_overview
+
+        accounts = await accounts_overview(lang)
+    except Exception:  # noqa: BLE001 — 合并视图失败不阻断报告主体
+        accounts = None
+    actions = dash.get("actions")
+    title = "财务报告" if not str(lang).lower().startswith("en") else "Financial report"
+    html = build_report(
+        dashboard=dash,
+        accounts=accounts,
+        actions=actions if isinstance(actions, dict) else None,
+        title=title,
+        lang=lang,
+        generated_at=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M"),
+    )
+    filename = "moneyhelper-report-%s.html" % datetime.now().strftime("%Y%m%d")
+    return Response(
+        content=html,
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="%s"' % filename},
+    )
