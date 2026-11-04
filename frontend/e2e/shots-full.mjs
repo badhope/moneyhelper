@@ -20,6 +20,10 @@ const PAGES = [
   { name: "05-market", group: /^(判断时|Analyze)$/, tab: /^(行情|Market)$/ },
   { name: "06-strategy", group: /^(判断时|Analyze)$/, tab: /^(投资策略|Strategy)$/ },
   { name: "07-tax", group: /^(算账|Books)$/, tab: /^(公司财税|Tax)$/ },
+  // 新增：此前从未纳入截图的三个主功能页（也是 i18n 覆盖的重点）
+  { name: "08-statements", group: /^(算账|Books)$/, tab: /^(财报|Statements)$/ },
+  { name: "09-paper", group: /^(算账|Books)$/, tab: /^(模拟盘|Paper)$/ },
+  { name: "10-research", group: /^(判断时|Analyze)$/, tab: /^(投研|Research)$/ },
 ];
 
 async function launch() {
@@ -60,6 +64,14 @@ for (const vp of [
       await page.goto(BASE, { waitUntil: "networkidle", timeout: 30000 });
       await page.waitForTimeout(1500);
 
+      // 首启引导是 z-50 模态框，会拦截所有点击（不是 bug，但自动化必须先关掉）。
+      // 关闭按钮有 aria-label，直接按 role 找最稳。
+      const onboardClose = page.getByRole("button", { name: /关闭引导|Close guide|跳过引导|Skip and start/ }).first();
+      if (await onboardClose.count()) {
+        await onboardClose.click({ timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(400);
+      }
+
       if (p.group) {
         // 首屏是对话页；先进入财务区（侧栏/底部栏的「总览」入口），
         // 再用分组条切到目标组，最后点组内子项。
@@ -80,7 +92,7 @@ for (const vp of [
       console.log(`${vp.tag}/${p.name} ok`);
     } catch (e) {
       issues.push(`[${vp.tag}] ${p.name}: ${String(e).split("\n")[0].slice(0, 140)}`);
-      console.log(`${vp.tag}/${p.name} FAIL`);
+      console.log(`${vp.tag}/${p.name} FAIL:`, String(e).slice(0, 900));
     }
   }
   await ctx.close();

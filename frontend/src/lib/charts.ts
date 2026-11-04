@@ -26,16 +26,14 @@ function loadEcharts(): Promise<EChartsModule> {
         import("echarts/lib/chart/bar"),
         import("echarts/lib/chart/line"),
         import("echarts/lib/chart/pie"),
-        import("echarts/lib/chart/radar"),
-        import("echarts/lib/chart/treemap"),
-        import("echarts/lib/chart/graph"),
-        import("echarts/lib/chart/candlestick"),
+        // radar / treemap / candlestick 不做常驻注册：它们只在健康雷达、
+        // 支出矩形树、K 线三个页面用到，而 graph（关系图）本项目完全未用。
+        // 常驻注册会把它们全打进同一 chunk（实测 716KB）。改为按需注册，
+        // 让首屏图表只付 bar/line/pie 的体积。
         import("echarts/lib/component/grid"),
         import("echarts/lib/component/legend"),
         import("echarts/lib/component/tooltip"),
-        import("echarts/lib/component/radar"),
         import("echarts/lib/component/markLine"),
-        import("echarts/lib/component/dataZoom"),
       ]);
       core.use([CanvasRenderer]);
       echartsModule = core;
@@ -48,16 +46,51 @@ function loadEcharts(): Promise<EChartsModule> {
   return loading;
 }
 
-/** 把 option 挂到容器上，容器尺寸变化自动 resize；echarts 运行时按需异步加载。
+/** 按需注册重型图表模块（radar / treemap / candlestick / dataZoom）。
  *
- * 实例生命周期只跟容器走：挂载时 init 一次（不依赖 option 是否已就绪），卸载时 dispose。
- * option 后到或变化都只走 setOption，不重建实例（重建会丢动画并闪烁）。
+ * 为什么不在 loadEcharts 里一次性注册：这些模块合计占 echarts chunk 的大头，
+ * 但只有少数页面用。集中注册会让「打开总览」也下载它们。
+ * 调用方在真正需要时 await 本函数，已注册过的模块重复调用是幂等的。
  */
+const _loadedModules = new Set<string>();
+
+/** 按需注册重型图表模块（radar / treemap / candlestick / dataZoom）。
+ *
+ * 为什么不在 loadEcharts 里一次性注册：这些模块合计占 echarts chunk 的大头，
+ * 但只有少数页面用。集中注册会让「打开总览」也下载它们。
+ * 按 kinds 精确加载，已加载过的直接跳过（幂等）。
+ */
+export async function ensureChartModules(
+  kinds: ("radar" | "treemap" | "candlestick" | "dataZoom")[],
+): Promise<void> {
+  const pending = kinds.filter((k) => !_loadedModules.has(k));
+  if (!pending.length) return;
+  const core = await loadEcharts();
+  // 动态 import 的副作用就是向 echarts/core 注册对应图表；用映射避免拼字符串
+  const loaders: Record<string, () => Promise<unknown>> = {
+    radar: () => import("echarts/lib/chart/radar"),
+    treemap: () => import("echarts/lib/chart/treemap"),
+    candlestick: () => import("echarts/lib/chart/candlestick"),
+    dataZoom: () => import("echarts/lib/component/dataZoom"),
+  };
+  await Promise.all(pending.map((k) => loaders[k]()));
+  // radar 需要配套的坐标系组件（未同时注册时雷达图空白）
+  if (pending.includes("radar")) {
+    await import("echarts/lib/component/radar");
+  }
+  for (const k of pending) _loadedModules.add(k);
+  core.use([]);
+}
+
+
 export function useEChart(
   ref: RefObject<HTMLDivElement | null>,
   option: EChartsCoreOption | null,
   deps: unknown[],
   onReady?: (chart: EChartsType) => void,
+  /** 需要额外图表模块时传入（radar / treemap / candlestick / dataZoom）。
+   *  传了就先加载再 init，避免「模块未注册 → 图表空白」。 */
+  modules?: ("radar" | "treemap" | "candlestick" | "dataZoom")[],
 ): void {
   const optionRef = useRef<EChartsCoreOption | null>(null);
   optionRef.current = option;
@@ -69,7 +102,11 @@ export function useEChart(
     let disposed = false;
     let chart: EChartsType | null = null;
     let ro: ResizeObserver | null = null;
-    loadEcharts()
+    const preload =
+      modules && modules.length
+        ? Promise.all([loadEcharts(), ensureChartModules(modules)]).then(([core]) => core)
+        : loadEcharts();
+    preload
       .then((core) => {
         const el = ref.current;
         if (disposed || !el) return;

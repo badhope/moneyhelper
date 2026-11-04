@@ -183,7 +183,16 @@ async def init_db() -> None:
         _db = None
         _inited = False
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _db = await aiosqlite.connect(str(DB_PATH))
+    # isolation_level=None → sqlite3 的 autocommit 模式：每条语句自动提交，
+    # 不会出现「A 协程的 commit 把 B 协程半截事务一起提交」的跨协程事务污染。
+    #
+    # 为什么必须显式设置：默认 isolation_level="" 会让第一条写语句开启隐式事务，
+    # 而整库只有一条连接——所有协程共享同一个事务边界。历史上这导致
+    # 「备份恢复 rollback 却已删数据」「批量导入半截提交」这类不可逆问题。
+    #
+    # 多语句事务（批量入账/导入/恢复）走 get_write_lock() + 显式 BEGIN IMMEDIATE，
+    # 互斥仍在，但不再依赖隐式事务。
+    _db = await aiosqlite.connect(str(DB_PATH), isolation_level=None)
     _db.row_factory = aiosqlite.Row
     await _db.execute("PRAGMA journal_mode=WAL")
     await _db.execute("PRAGMA busy_timeout=5000")
@@ -699,12 +708,33 @@ async def write_txn() -> AsyncIterator[aiosqlite.Connection]:
     lock = get_write_lock()
     async with lock:
         conn = await _conn()
+        # 连接是 autocommit（isolation_level=None），commit()/rollback() 都是空操作，
+        # 必须显式开事务才能拿到「要么全成、要么全败」的语义。
+        #
+        # 嵌套处理：调用方可能已在外层事务里（测试或组合操作）。
+        # 此时 BEGIN 会抛 "cannot start a transaction within a transaction"，
+        # 改用 SAVEPOINT —— 这是 SQLite 标准的嵌套事务写法，回滚只影响内层。
+        import uuid as _uuid
+
+        sp = f"sp_{_uuid.uuid4().hex[:12]}"
+        nested = bool(conn.in_transaction)
+        if nested:
+            await conn.execute(f"SAVEPOINT {sp}")
+        else:
+            await conn.execute("BEGIN IMMEDIATE")
         try:
             yield conn
-            await conn.commit()
+            if nested:
+                await conn.execute(f"RELEASE {sp}")
+            else:
+                await conn.execute("COMMIT")
         except BaseException:
             try:
-                await conn.rollback()
+                if nested:
+                    await conn.execute(f"ROLLBACK TO {sp}")
+                    await conn.execute(f"RELEASE {sp}")
+                else:
+                    await conn.execute("ROLLBACK")
             except Exception:  # noqa: BLE001 — 回滚失败不能掩盖原始异常
                 pass
             raise

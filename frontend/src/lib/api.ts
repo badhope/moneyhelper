@@ -90,13 +90,16 @@ async function request(path: string, init: RequestInit = {}, retried = false): P
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const resp = await request(path, init);
   if (!resp.ok) {
-    let detail = `${resp.status}`;
+    // 兜底必须是「人能读懂的句子」，不能是裸状态码：代理层 502/504 常返回
+    // HTML 而非 JSON，此前用户界面会只显示 "500" / "502" —— 完全无法判断
+    // 是服务没启动、还是接口报错、还是网络断了。
+    let detail = `请求失败（HTTP ${resp.status}）`;
     try {
       const body = await resp.json();
-      // 后端标准错误形为 {"error": "..."}；少数代理层返回 {"detail": "..."}，双兜底
-      detail = body?.error ?? body?.detail ?? body?.message ?? `${resp.status}`;
+      detail = body?.error ?? body?.detail ?? body?.message ?? detail;
     } catch {
-      /* 非 JSON 响应体 */
+      if (resp.status >= 500) detail = `服务暂时不可用（HTTP ${resp.status}），请稍后重试或检查后端是否已启动`;
+      else if (resp.status === 404) detail = "接口不存在（HTTP 404），请确认前后端版本一致";
     }
     throw new Error(detail);
   }

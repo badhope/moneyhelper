@@ -178,7 +178,18 @@ async def import_backup(data: dict[str, Any]) -> dict[str, int]:
     # 多语句事务（先清表再逐表写入）：与批量入账共用写锁串行，
     # 否则并发写会在共享连接上互相破坏事务边界。
     async with get_write_lock():
-        await _import_backup_locked(conn, data, counts)
+        # autocommit 连接下必须显式开事务：这条路径先 DELETE 全租户数据再写回，
+        # 没有事务边界时「恢复失败回滚」是空话——原数据已经被删掉了。
+        await conn.execute("BEGIN IMMEDIATE")
+        try:
+            await _import_backup_locked(conn, data, counts)
+            await conn.execute("COMMIT")
+        except BaseException:
+            try:
+                await conn.execute("ROLLBACK")
+            except Exception:  # noqa: BLE001 — 回滚失败不能掩盖原始异常
+                pass
+            raise
     return counts
 
 
@@ -446,10 +457,7 @@ async def _import_backup_locked(
                 ),
             )
         counts["runs"] = len(runs)
-
-        await conn.commit()
-    except Exception:  # noqa: BLE001 — 恢复失败整体回滚，不留半截状态
-        await conn.rollback()
+    except Exception:  # noqa: BLE001 — 恢复失败由外层统一回滚，不留半截状态
         raise
 
 

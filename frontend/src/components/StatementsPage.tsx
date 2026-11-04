@@ -136,6 +136,7 @@ function TrendChart({ title, periods, series }: { title: string; periods: string
 }
 
 function RadarChart({ latest }: { latest: Record<string, number | null> }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement | null>(null);
   const palette = usePalette();
   const { resolved } = useTheme();
@@ -177,7 +178,7 @@ function RadarChart({ latest }: { latest: Record<string, number | null> }) {
 
   return (
     <div className="flex flex-col">
-      <div className="mb-1 text-sm font-medium">最新期财务雷达（五维 × 满分归一）</div>
+      <div className="mb-1 text-sm font-medium">{t("stmt2.n1")}</div>
       <div ref={ref} className="h-[240px] w-full" />
       <div className="text-[11px] text-muted-foreground/70">雷达值为五维指标相对满分（毛利率 60%、其余 30%）的归一位置，用于看盈利结构形状，非绝对评分。</div>
     </div>
@@ -186,6 +187,7 @@ function RadarChart({ latest }: { latest: Record<string, number | null> }) {
 
 /** 现金流三流堆叠柱状图（经营 / 投资 / 筹资） */
 function CashflowStackChart({ result }: { result: StatementAnalysis }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement | null>(null);
   const palette = usePalette();
   const { up } = useCandleColors();
@@ -224,7 +226,7 @@ function CashflowStackChart({ result }: { result: StatementAnalysis }) {
   if (!stack) return null;
   return (
     <div className="flex flex-col">
-      <div className="mb-1 text-sm font-medium">现金流结构（经营 / 投资 / 筹资）</div>
+      <div className="mb-1 text-sm font-medium">{t("stmt2.n2")}</div>
       <div ref={ref} className="h-[220px] w-full" />
       <div className="text-[11px] text-muted-foreground/70">
         {(() => {
@@ -243,6 +245,7 @@ function CashflowStackChart({ result }: { result: StatementAnalysis }) {
 
 /** 杜邦拆解条图：ROE = 净利率 × 总资产周转率 × 权益乘数（量纲归一展示） */
 function DupontChart({ dupont }: { dupont: StatementAnalysis["dupont"] }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement | null>(null);
   const palette = usePalette();
   const { resolved } = useTheme();
@@ -302,19 +305,19 @@ function DupontChart({ dupont }: { dupont: StatementAnalysis["dupont"] }) {
 
   return (
     <div className="flex flex-col">
-      <div className="mb-1 text-sm font-medium">杜邦拆解（ROE = 净利率 × 周转率 × 权益乘数）</div>
+      <div className="mb-1 text-sm font-medium">{t("stmt2.n3")}</div>
       <div ref={ref} className="h-[150px] w-full" />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
         <span>
-          净利率 <b className="tabular-nums">{dupont.net_margin_pct != null ? `${dupont.net_margin_pct}%` : "—"}</b>
+          {t("stmt.m3")} <b className="tabular-nums">{dupont.net_margin_pct != null ? `${dupont.net_margin_pct}%` : "—"}</b>
         </span>
         <span className="text-muted-foreground">×</span>
         <span>
-          总资产周转率 <b className="tabular-nums">{dupont.asset_turnover != null ? `${dupont.asset_turnover} 次` : "—"}</b>
+          {t("stmt.m11")} <b className="tabular-nums">{dupont.asset_turnover != null ? `${dupont.asset_turnover} 次` : "—"}</b>
         </span>
         <span className="text-muted-foreground">×</span>
         <span>
-          权益乘数 <b className="tabular-nums">{dupont.equity_multiplier != null ? `${dupont.equity_multiplier} 倍` : "—"}</b>
+          {t("stmt.m12")} <b className="tabular-nums">{dupont.equity_multiplier != null ? `${dupont.equity_multiplier} 倍` : "—"}</b>
         </span>
         <span className="text-muted-foreground">=</span>
         <span>
@@ -465,7 +468,7 @@ export function StatementsPage() {
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-medium">
             <FileText className="h-4 w-4 text-primary" />
-            三表数据输入（JSON）
+            {t("stmt3.input")}
           </div>
           <div className="flex gap-1.5">
             <Button
@@ -476,10 +479,10 @@ export function StatementsPage() {
                 setPayload(JSON.parse(SAMPLE_PAYLOAD) as Record<string, unknown>);
               }}
             >
-              载入示例
+              {t("stmt3.loadSample")}
             </Button>
             <Button size="sm" onClick={submit} disabled={analyze.isPending}>
-              {analyze.isPending ? "分析中…" : "开始分析"}
+              {analyze.isPending ? t("stmt3.analyzing") : t("stmt3.analyze")}
             </Button>
           </div>
         </div>
@@ -488,13 +491,11 @@ export function StatementsPage() {
           onChange={(e) => setInput(e.target.value)}
           spellCheck={false}
           className="h-48 w-full resize-y rounded-lg border border-border/70 bg-background p-3 font-mono text-xs leading-relaxed outline-none transition-colors focus:border-primary"
-          placeholder='{ "company": "公司名", "periods": [ { "period": "2024-12-31", "balance_sheet": {...}, "income_statement": {...}, "cashflow_statement": {...} } ] }'
-          aria-label="三表 JSON"
+          placeholder={t("stmt3.placeholder")}
+          aria-label={t("stmt3.aria")}
         />
         <div className="mt-1.5 text-[11px] text-muted-foreground/70">
-          字段：balance_sheet.total_assets / total_liabilities / total_equity / current_assets / current_liabilities / inventory / accounts_receivable / goodwill；
-          income_statement.revenue / gross_profit / operating_profit / net_profit / ebit / interest_expense；
-          cashflow_statement.operating_cashflow / investing_cashflow / financing_cashflow。缺字段的指标会标注「—」，不会编造。
+          {t("stmt3.fields")}
         </div>
       </Card>
 
@@ -508,7 +509,7 @@ export function StatementsPage() {
       ) : jsonError ? (
         <EmptyState icon={<AlertTriangle className="h-8 w-8 text-red-500/60" />} title="JSON 解析失败" desc={jsonError} />
       ) : parsingError ? (
-        <EmptyState icon={<AlertTriangle className="h-8 w-8 text-red-500/60" />} title="分析失败" desc={parsingError} />
+        <EmptyState icon={<AlertTriangle className="h-8 w-8 text-red-500/60" />} title={t("stmt.m18")} desc={parsingError} />
       ) : result ? (
         <>
           {/* 标题 + 保存 */}
@@ -521,13 +522,13 @@ export function StatementsPage() {
             </div>
             <div className="flex gap-1.5">
               {save.isPending ? (
-                <Button size="sm" disabled>保存中…</Button>
+                <Button size="sm" disabled>{t("stmt2.n4")}</Button>
               ) : save.data ? (
-                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">已保存 ✓</Badge>
+                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">{t("stmt2.n5")}</Badge>
               ) : (
                 <Button size="sm" variant="outline" onClick={() => payload && save.mutate(payload)}>
                   <Save className="mr-1.5 h-3.5 w-3.5" />
-                  保存到本地
+                  {t("stmt2.n6")}
                 </Button>
               )}
             </div>
@@ -651,7 +652,7 @@ export function StatementsPage() {
       <Card className="p-3">
         <div className="mb-2 flex items-center gap-2 text-sm font-medium">
           <FileText className="h-4 w-4 text-primary" />
-          本地保存的财报（{list.data?.total ?? 0}）
+          {t("stmt3.saved")}（{list.data?.total ?? 0}）
         </div>
         {list.isLoading ? (
           <div className="h-10 animate-pulse rounded-lg bg-muted/30" />
@@ -693,7 +694,7 @@ export function StatementsPage() {
             ))}
           </div>
         ) : (
-          <EmptyState illustration="folder" mode="compact" text="还没有保存的财报，分析后可一键保存" />
+          <EmptyState illustration="folder" mode="compact" text={t("stmt.m20")} />
         )}
       </Card>
       <ConfirmDialog

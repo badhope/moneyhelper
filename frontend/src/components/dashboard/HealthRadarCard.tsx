@@ -60,7 +60,7 @@ export function HealthRadarCard() {
     };
   }, [data, palette, resolved, t]);
 
-  useEChart(ref, option, [option]);
+  useEChart(ref, option, [option], undefined, ["radar"]);
 
   if (isLoading) {
     return (

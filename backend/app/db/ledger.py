@@ -78,6 +78,15 @@ async def add_transactions_batch(
     # 而用 SAVEPOINT 又会因共享连接上的同名 savepoint 互相干扰
     # （CI 实测："no such savepoint: add_tx_batch"）。用写锁串行化。
     async with get_write_lock():
+        # autocommit 连接（isolation_level=None）下 commit/rollback 是空操作，
+        # 必须显式开事务，否则「任一条失败整批回滚」的承诺是假的。
+        # 已在事务中时改用 SAVEPOINT（SQLite 标准的嵌套写法）。
+        nested = bool(conn.in_transaction)
+        sp = "sp_batch_tx"
+        if nested:
+            await conn.execute(f"SAVEPOINT {sp}")
+        else:
+            await conn.execute("BEGIN IMMEDIATE")
         try:
             for c in cleaned:
                 cur = await conn.execute(
@@ -96,10 +105,17 @@ async def add_transactions_batch(
                 await _record_snapshot("transaction", str(cur.lastrowid), "{}")
                 results.append({"ok": True, "id": cur.lastrowid})
             await _mark_user_data(conn)
-            await conn.commit()
+            if nested:
+                await conn.execute(f"RELEASE {sp}")
+            else:
+                await conn.execute("COMMIT")
             return results
         except Exception:
-            await conn.rollback()
+            if nested:
+                await conn.execute(f"ROLLBACK TO {sp}")
+                await conn.execute(f"RELEASE {sp}")
+            else:
+                await conn.execute("ROLLBACK")
             raise
 
 

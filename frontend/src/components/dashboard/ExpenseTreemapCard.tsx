@@ -63,7 +63,7 @@ export function ExpenseTreemapCard() {
     };
   }, [data, palette]);
 
-  useEChart(ref, option, [option]);
+  useEChart(ref, option, [option], undefined, ["treemap"]);
 
   if (loading) {
     return (

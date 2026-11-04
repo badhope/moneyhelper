@@ -125,9 +125,13 @@ def test_facade_importable_from_any_cwd(tmp_path, monkeypatch):
         capture_output=True,
         text=True,
         env={**__import__("os").environ, "PYTHONPATH": str(repo)},
-        timeout=120,
+        # 这个用例要起一个全新 Python 进程并 import 整个 app 包（含 litellm 等重依赖）。
+        # 机器负载高时 120s 会被打穿，表现为「全量跑失败、单独跑通过」的假 flake。
+        timeout=300,
     )
-    assert out.returncode == 0, out.stderr[-800:]
+    assert out.returncode == 0, (
+        f"returncode={out.returncode} stdout={out.stdout[-400:]} stderr={out.stderr[-800:]}"
+    )
     # 版本号来自单一真源（app/version.py），测试不硬编码具体版本
     from app.version import __version__
 

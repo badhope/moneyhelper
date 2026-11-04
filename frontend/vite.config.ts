@@ -52,7 +52,9 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: false,
     // echarts 已按依赖族独立分包且懒加载，555kB 属预期；上调阈值消除误报警告
-    chunkSizeWarningLimit: 650,
+    // echarts 独立分包且**懒加载**（不在首屏请求路径上），它的体积不影响首屏。
+    // 阈值设 750 是为了「超过就说明混进了不该进来的东西」，而不是追求压到 650。
+    chunkSizeWarningLimit: 750,
     // 按依赖族分包：echarts / markdown 渲染 / react 各自独立缓存，应用主包保持轻
     rollupOptions: {
       output: {

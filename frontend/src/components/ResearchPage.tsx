@@ -22,6 +22,7 @@ import {
   TrendingUp,
   Undo2,
 } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -156,7 +157,7 @@ function KlineChart({ series, period, onPeriod }: { series: TechnicalResult["ser
 
   useEChart(ref, option, [option], (chart) => {
     chartRef.current = chart;
-  });
+  }, ["candlestick", "dataZoom"]);
 
   return (
     <div className="flex flex-col">
@@ -283,6 +284,7 @@ function BacktestPanel({
   params: { fast: number; slow: number; invest_amount: number; freq_days: number };
   onParams: (p: Partial<{ fast: number; slow: number; invest_amount: number; freq_days: number }>) => void;
 }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement | null>(null);
   const palette = usePalette();
   const { resolved } = useTheme();
@@ -339,7 +341,7 @@ function BacktestPanel({
         {strategy === "ma_cross" ? (
           <>
             <label className="flex items-center gap-1.5 text-muted-foreground">
-              快线
+              {t("res2.n2")}
               <input
                 type="number"
                 min={2}
@@ -350,7 +352,7 @@ function BacktestPanel({
               />
             </label>
             <label className="flex items-center gap-1.5 text-muted-foreground">
-              慢线
+              {t("res2.n3")}
               <input
                 type="number"
                 min={5}
@@ -376,7 +378,7 @@ function BacktestPanel({
               />
             </label>
             <label className="flex items-center gap-1.5 text-muted-foreground">
-              间隔(交易日)
+              {t("res2.n4")}
               <input
                 type="number"
                 min={1}
@@ -426,6 +428,7 @@ function BacktestPanel({
 }
 
 export function ResearchPage() {
+  const { t } = useI18n();
   const [symbol, setSymbol] = useState<string>("600519");
   const [submitted, setSubmitted] = useState<string>("600519");
   const [strategy, setStrategy] = useState<"ma_cross" | "dca">("ma_cross");
@@ -457,9 +460,9 @@ export function ResearchPage() {
             value={symbol}
             onChange={(e) => setSymbol(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submit()}
-            placeholder="输入 A 股代码，如 600519"
+            placeholder={t("res.m17")}
             className="w-full rounded-lg border border-border/70 bg-background py-2 pl-8 pr-3 text-sm outline-none transition-colors focus:border-primary"
-            aria-label="股票代码"
+            aria-label={t("res.m18")}
           />
         </div>
         <Button size="sm" onClick={submit} disabled={analyze.isFetching}>
@@ -508,7 +511,7 @@ export function ResearchPage() {
           {/* 技术指标卡 */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <TechnicalCard
-              label="均线排列"
+              label={t("res2.n1")}
               value={(() => {
                 const ma = tech.last.ma;
                 const above = ["ma5", "ma10", "ma20"].filter((k) => ma[k] != null && tech.last.close >= ma[k]!).length;
@@ -569,7 +572,7 @@ export function ResearchPage() {
           {/* 信号流 */}
           {tech.signals.length > 0 ? (
             <Card className="p-3">
-              <div className="mb-2 text-sm font-medium">技术信号流（近 12 条）</div>
+              <div className="mb-2 text-sm font-medium">{t("res2.n5")}</div>
               <div className="flex flex-col gap-1.5">
                 {tech.signals.map((s, i) => (
                   <div key={`${s.date}-${s.code}-${i}`} className="flex items-center gap-2 text-[13px]">
@@ -606,7 +609,7 @@ export function ResearchPage() {
           {/* 文字结论 */}
           {analyze.data.trend_text ? (
             <Card className="p-3">
-              <div className="mb-1 text-sm font-medium">技术面结论</div>
+              <div className="mb-1 text-sm font-medium">{t("res2.n6")}</div>
               <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-muted-foreground">{analyze.data.trend_text}</pre>
               {analyze.data.disclaimer ? <div className="mt-1 text-[11px] text-muted-foreground/70">{analyze.data.disclaimer}</div> : null}
             </Card>

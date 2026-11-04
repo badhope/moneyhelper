@@ -32,7 +32,25 @@ log = get_logger(__name__)
 # MCP Server：fastmcp 版本与 FastAPI 版本可能冲突，import 失败就降级 no-op
 try:
     from fastmcp import Context, FastMCP
-    mcp = FastMCP("moneyhelper-finance")
+
+    # instructions：MCP 客户端（Claude Desktop / Cline / Continue 等）会把它
+    # 作为系统提示注入给模型，告诉模型「这个服务器是干什么的、什么时候该用」。
+    # 不设的话模型只能从 63 个工具名里猜，容易该调不调或乱调。
+    # instructions：MCP 客户端（Claude Desktop / Cline / Continue 等）会把它
+    # 作为系统提示注入给模型，告诉模型「这个服务器是干什么的、什么时候该用」。
+    # 不设的话模型只能从 63 个工具名里猜，容易该调不调或乱调。
+    mcp = FastMCP(
+        "moneyhelper-finance",
+        instructions=(
+            "Moneyhelper 个人财务服务器。提供本地账本、持仓、行情、风险、税负、"
+            "回测与报表工具。所有数字由本地确定性引擎计算，不联网也能用（行情除外）。\n\n"
+            "使用建议：\n"
+            "- 查现状优先用 get_* 工具（只读、无需确认）；\n"
+            "- 写操作（record_*/sell_position/backup_now 等）需要人工确认后才执行；\n"
+            "- 需要精确金额时一律以工具返回值为准，不要根据历史对话推算；\n"
+            "- 数据缺失时工具会明确说明，不要用假设值填补。"
+        ),
+    )
     MCP_AVAILABLE = True
 except Exception as e:  # pragma: no cover
     log.warning("mcp.fastmcp_unavailable: %s — MCP server disabled", e)
@@ -1112,3 +1130,57 @@ async def invoice_vision_status() -> str:
     """探测发票识别能力：二维码 / OCR / PDF 表格。"""
     return await xtools.tool_invoice_vision_status({})
 
+
+
+# ---------------------------------------------------------------------------
+# MCP Prompts：可复用的分析模板（第三大原语）
+#
+# 为什么需要：tools 让客户端"能算"，prompts 让它"知道该怎么问"。
+# 没有 prompts 时，每个客户端都要自己拼提示词，结果差异极大——
+# 有人问"我财务怎么样"得到三段流水，有人得到完整体检。
+# 这里给出官方口径的模板，保证不同客户端拿到一致的输出结构。
+# ---------------------------------------------------------------------------
+
+
+@mcp.prompt()
+def monthly_review(month: str = "") -> str:
+    """月度财务复盘：收支结构 + 异常项 + 下月建议。
+
+    参数 month 形如 2026-11；留空表示当月。
+    """
+    target = month or "本月"
+    return (
+        f"请为我做 {target} 的财务复盘，按以下结构输出：\n"
+        "1. 收支概览：总收入、总支出、结余、储蓄率（用 get_trend / get_budget 的数据）；\n"
+        "2. 支出结构：占比最高的三类及金额，指出是否存在异常增长（用 get_ledger_view）；\n"
+        "3. 风险提示：调用 get_risk_flags，逐条说明影响与可执行动作；\n"
+        "4. 下月建议：给出 1-3 条具体、可量化的调整建议。\n\n"
+        "要求：所有金额必须来自工具返回，不要估算；数据缺失时明确说明缺什么。"
+    )
+
+
+@mcp.prompt()
+def portfolio_checkup() -> str:
+    """持仓体检：集中度、盈亏归因、再平衡建议。"""
+    return (
+        "请对我的投资组合做一次体检，按以下结构输出：\n"
+        "1. 整体表现：总市值、累计盈亏、今日盈亏（get_market_view）；\n"
+        "2. 风险集中度：单一标的与行业占比，标出越过 40% 阈值的项（get_portfolio_risk）；\n"
+        "3. 盈亏贡献：哪几只贡献了主要盈利/亏损（get_market_view 的 pnl 字段）；\n"
+        "4. 再平衡建议：调用 get_rebalance_plan，说明每笔调整的金额与理由。\n\n"
+        "要求：不要给买卖建议式的肯定判断，只陈述数据与规则触发情况；"
+        "所有百分比保留两位小数。"
+    )
+
+
+@mcp.prompt()
+def goal_planning() -> str:
+    """目标规划：进度诊断 + 每月需存 + 可行性判断。"""
+    return (
+        "请评估我的财务目标进度，按以下结构输出：\n"
+        "1. 逐个目标的完成度、剩余缺口、距截止月还有几个月（get_goals）；\n"
+        "2. 按当前储蓄能力，判断每个目标是否可行；不可行的给出两个替代方案"
+        "（延长期限 / 降低目标额）；\n"
+        "3. 如果需要调整月度投入，给出具体数字。\n\n"
+        "要求：可行性判断必须基于 get_trend 的真实结余数据，不要用收入代替储蓄能力。"
+    )
