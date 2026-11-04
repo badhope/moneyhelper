@@ -97,5 +97,8 @@ def _no_real_llm(monkeypatch):
     """
     from app import llm
 
-    monkeypatch.setattr(llm, "_cfg", {})
+    # 配置缓存已从进程级 _cfg 改为按租户的 _cfg_by_tenant（多租户隔离）。
+    # 测试里把「当前租户」标记为无配置即可让 _config() 返回 None。
+    monkeypatch.setattr(llm, "_cfg_by_tenant", {}, raising=False)
+    monkeypatch.setitem(llm._cfg_by_tenant, llm._tenant_key(), {})
     monkeypatch.setattr(llm, "_client_singleton", None)

@@ -34,6 +34,7 @@ from ._core import (
     list_positions,
     list_subscriptions,
     list_transactions,
+    list_transactions_by_month,
     reset_to_seed,
     set_active_member,
     set_read_pool,
@@ -135,6 +136,7 @@ from .family import (
 from .goals import add_goal, delete_goal, list_goals, update_goal
 from .history import (
     claim_pending_action,
+    force_pending_status,
     claim_pending_nl,
     clear_conversation_summary,
     clear_history,
@@ -279,6 +281,7 @@ __all__ = [
     "budget_usage",
     "cast_vote",
     "claim_pending_action",
+    "force_pending_status",
     "claim_pending_nl",
     "clear_audit_logs",
     "clear_conversation_summary",
@@ -360,6 +363,7 @@ __all__ = [
     "list_snapshots",
     "list_subscriptions",
     "list_transactions",
+    "list_transactions_by_month",
     "list_undo_records",
     "list_watchlist",
     "loan_create",

@@ -1,335 +1,188 @@
 # Moneyhelper
 
-> A conversation-first personal finance assistant. One sentence to record an expense, check quotes, manage positions, run a health check, or get your morning report.
+**会算账的 AI 财务助手。** 一句话记账、看持仓、做体检、出晨报。
+所有数字来自确定性引擎，模型只负责理解意图与写话——**它编不出金额**。
 
-![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Release](https://img.shields.io/github/v/release/badhope/moneyhelper)
-![CI](https://github.com/badhope/moneyhelper/actions/workflows/ci.yml/badge.svg)
-![Docker](https://img.shields.io/badge/docker-compose-blue)
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)
-![React](https://img.shields.io/badge/React-19-61DAFB.svg)
-![LangGraph](https://img.shields.io/badge/LangGraph-1.x-1A2B4A.svg)
+[![Release](https://img.shields.io/badge/release-v4.11.0-0d9488)](https://github.com/badhope/moneyhelper/releases)
+[![Tests](https://img.shields.io/badge/tests-1400%2B%20passing-059669)](#工程基线)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB)](https://python.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-| 简体中文 | English |
-|---|---|
-| [README.zh.md](README.zh.md) | **README.md (current)** |
+简体中文 | [English](README.en.md) | [架构详解](docs/ARCHITECTURE-detail.md)
 
-## 30-second start
+---
 
-```bash
-docker compose up -d --build     # http://localhost:8787
-```
+## 三个形态，一套内核
 
-```bash
-# Or run locally (Python 3.10+ / Node 20.19+): one command — venv + pip install + SPA build + serve on 8788
-scripts/dev.sh --prod
-```
-
-## Why Moneyhelper
-
-- **Every number comes from a deterministic engine** — the model only classifies intent and writes prose, so it cannot invent an amount.
-- **Built for Chinese bills** — WeChat Pay, Alipay and bank CSV imports are native, not an afterthought.
-- **Conversation is the operation** — one sentence records an expense, opens a position, or gets a rebalancing plan.
-- **Connects to the outside world** — quotes and fund NAV from public sources; broker statements, Alipay/WeChat/bank bills, OFD/PDF/image invoices all import; login-required platforms use a one-time pairing code (no passwords stored).
-- **Handles company books** — VAT & surcharges, corporate income tax, cumulative IIT withholding, payroll with social insurance, month-end close checklist, three-band cash-flow forecast. All parameters tunable, all formulas explicit, clearly marked as not formal tax advice.
-- **Your data stays yours** — local SQLite by default, with optional passphrase-protected encrypted backups; self-hosted and cloud are deployment options.
-
-## What it is
-
-Moneyhelper is **not "a generic chat model + a bookkeeping plugin"** — it is an **AI finance department you can audit**:
-a general-model base focused end-to-end on personal / retail / small-business finance decisions — bookkeeping,
-position risk control, stock research, corporate statement analysis, strategy backtesting and team paper-trading, every conclusion
-visualized and traceable.
-
-Moneyhelper is the finance team your money never had: it turns every entry into a decision you can check,
-from bookkeeping to tax estimates to execution hand-offs, so saving and investing stay deliberate instead of hopeful.
-
-### What makes it different from a generic assistant
-
-| Dimension | Generic LLM assistant | Moneyhelper finance workbench |
+| 形态 | 启动方式 | 适合谁 |
 |---|---|---|
-| Core logic | Text-first; fluency beats accuracy | **Computation-first**: the model narrates, deterministic code computes |
-| Financial accuracy | Relies on memorized knowledge; formulas/tax/ratios hallucinate | Metric definitions live in docstrings; insufficient data returns `null` with a reason — never a plausible fake number |
-| Capability boundary | Can chat about anything, finance stays "encyclopedia-level" | Finance only, but runs the whole loop: bookkeeping → position risk → research → statements → backtest |
-| Interaction | Mostly plain-text chat | Chat + visual workbench: ask once, get charts, tables and conclusions |
-| Data handling | Raw data goes to the model provider | Sensitive data stays in your own SQLite; only sanitized structured context is sent to the model. Local, self-hosted or cloud are all deployment options |
-| Workflow | Single-turn Q&A, no persistent state | Persistent finance workspace: assets, positions, statements, backtests survive across sessions |
-| Execution | Chat only, or a black-box order button | 9 pre-trade checks → confirmation token → broker adapter (NullBroker + dry-run by default, cannot fire accidentally) → full audit trail |
-
-| You say | Moneyhelper does |
-|---|---|
-| "coffee 28, taxi 32" | Records two entries in one sentence |
-| "salary 1w credited" | Records income 10000 (supports 万/w/k and Chinese numerals) |
-| "check CATL, add to watchlist if good" | Quote → add to watchlist → visible on Market |
-| "buy 100 shares of 600519" | Opens a position at the current price (asks for cost when quotes are unavailable) |
-| "sell half of 600519" | Half-position sell, never an accidental full liquidation |
-| "analyze the technicals of 600519" | Research tab: K-line + MA/MACD/RSI/BOLL/KDJ + signal stream + bias |
-| "how does a MA cross-over strategy do on 600519" | Research tab: backtest with return/drawdown/Sharpe/win rate + equity curve |
-| "here are two years of statements" | Statements tab: 20+ metrics, DuPont, trend charts, radar, anomaly alerts |
-| "open paper accounts for the team, who performs best" | Paper Trading tab: open account → trade (lot/fee checks) → NAV curve + team ranking bars |
-
-The other tabs (Overview / Holdings / **Research** / **Statements** / **Paper Trading** / Strategy / Market / Ledger / Health)
-are views of the conversation results, not duplicate form entries.
-
-## Core features
-
-- **100% local data**: everything lives in a local SQLite database. Optional passphrase-protected encrypted backups (PBKDF2 + Fernet); the passphrase is never stored.
-- **Never fabricates numbers**: amounts, P&L, risk metrics, technical indicators, backtest results and statement ratios are all computed by deterministic engines; the model only classifies and writes prose. At runtime the model only sees read-only tools.
-- **Domestic models first**: unified access via LiteLLM, defaulting to DeepSeek / Doubao / Qwen / Kimi — zero friction on Chinese platforms. Fully usable without any model configured.
-- **Multi-agent orchestration**: a LangGraph graph (supervisor pipeline), plus a "finance department mode" that splits one request into tickets, runs departments in parallel, and summarizes for approval.
-- **MCP protocol**: all finance tools are exposed as a standard MCP Server via fastmcp — Cursor / Claude Code can query your local data directly.
-- **Agent Studio**: roles, skills, prompts, rules and hooks are data, not code. Ships a non-empty default pack (8 roles, 9 skills, 4 prompts, 7 rules, 7 hooks, 8 in-house research tools, 42 marketplace items), supports four add paths (chat command, drag-and-drop official formats, template form, AI generation), an open-but-core-locked permission model, and CLI parity via `moneyhelper studio`.
-- **Stock research engine**: technical indicators (MA/MACD/RSI/BOLL/KDJ) + rule-based signal synthesis + bull/bear bias; **statistical forecasting** (linear trend + Monte-Carlo GBM percentile band, fixed reproducible seed); MA-cross and DCA strategy backtests (return, annualized, drawdown, Sharpe, win rate, profit factor, equity curve, trade details).
-- **Statement analysis engine**: paste three-statement JSON → 20+ metrics (profitability / solvency / efficiency / growth / cash-flow quality) + DuPont decomposition + YoY trends + three-cashflow structure + rule-based anomaly alerts (goodwill, receivables, inventory, cash quality…) + a templated report.
-- **Investment strategy engine**: portfolio risk metrics (volatility / Sharpe / Sortino / max drawdown / Beta / VaR) against a benchmark, target-allocation rebalancing, valuation percentile, DCA plans and FIRE progress.
-- **Long-term memory**: preferences live in a local table and are recalled with BM25; memory never leaves the machine.
-- **3-level quote fallback**: Eastmoney → Sina → local snapshot, clearly labeled when offline.
-- **PWA**: installable on desktop and mobile.
-
-## Interface
-
-Two surfaces, each with a clear job:
-
-- **Chat** is the entry point — record an expense, ask a question.
-- **Finance workbench** follows stock-broker conventions: nine tabs, each a decision dashboard of
-  "metric strip + chart + detail table".
-
-Navigation: a persistent session sidebar (chat) plus nine top tabs
-(Overview / Holdings / **Research** / **Statements** / **Paper Trading** / Strategy / Market / Ledger / Health).
-The main area switches pages; "Back to chat" returns to the conversation.
-
-| Width | Layout |
-|---|---|
-| ≥1280 | Session sidebar (drag to resize) + main area (chat centred at 48rem, finance pages at 1200px) |
-| 768–1279 | Sidebar kept; finance two-column layouts collapse to one |
-| <768 | Compact top bar + five bottom tabs (Chat / Finance / Holdings / Scheduled / Settings), rest in a drawer |
-
-Highlights:
-- Holdings: summary strip → concentration warnings → table + P&L contribution chart, with
-  concentration / sector / risk columns on the right.
-- **Research**: quote strip → technical metric cards (MA alignment / RSI / MACD / BOLL / KDJ) →
-  zoomable candlestick chart (A-share red-up/green-down, MA + BOLL overlay toggle, daily/weekly/monthly) →
-  signal stream → **statistical forecast panel** (trend line + Monte-Carlo 5%-95% band) →
-  strategy backtest (MA-cross / DCA switch, tunable params, metric strip + equity curve + trade log).
-- **Paper Trading**: team virtual accounts with event-sourced positions — open account, trade (A-share lots, commission + stamp tax), per-account NAV curves, holdings donut, and team ranking bars
-- **Statements**: three-statement JSON input (with sample) → four metric-card groups →
-  revenue & net profit / margin / solvency / cash-flow trend charts → three-cashflow stacked chart +
-  DuPont bar chart → five-dimension financial radar → multi-period comparison table →
-  anomaly alert stream → templated report → local save & re-analyze.
-- Strategy: portfolio risk metrics and equity curve vs benchmark, rebalance checklist, valuation
-  percentile, DCA plans and FIRE progress.
-- Market: watchlist and holdings with 60-day sparklines, plus a detail panel (trend, period change,
-  60-day high/low, full K-line).
-- Ledger: one-sentence entry plus a standard transaction table.
-- Health: score, five-dimension bars, a "fix first" list, and per-dimension advice.
-- Settings uses a left nav with three groups on desktop and a horizontal segmented bar on mobile
-  (Basics / AI & automation / Data & security).
-- Sidebar width is remembered (localStorage), double-click the divider to reset; panels trap and
-  restore focus, Esc closes.
-- Only chat code loads on first paint; charts / research / statements / department board / inbox are lazy-loaded.
-
-Screenshots: `cd frontend && node scripts/ui-audit.mjs` (every page, into `out/ui-audit/`);
-README images: `node scripts/readme-shots.mjs` (writes `docs/screenshots/`).
-
-## Screenshots
-
-| Chat | Answer: plan + snapshot + actions |
-|---|---|
-| ![Chat](docs/screenshots/01-chat-home.png) | ![Answer](docs/screenshots/02-chat-answer.png) |
-
-| Overview | Holdings |
-|---|---|
-| ![Overview](docs/screenshots/03-overview.png) | ![Holdings](docs/screenshots/04-holdings.png) |
-
-| Market: list + detail | Ledger |
-|---|---|
-| ![Market](docs/screenshots/05-market.png) | ![Ledger](docs/screenshots/06-ledger.png) |
-
-| Health check | Settings |
-|---|---|
-| ![Health](docs/screenshots/07-health.png) | ![Settings](docs/screenshots/08-settings.png) |
-
-| Command palette (Ctrl+K) | Dark mode |
-|---|---|
-| ![Command palette](docs/screenshots/10-command-palette.png) | ![Dark](docs/screenshots/11-dark-mode.png) |
-
-| Mobile: chat | Mobile: finance |
-|---|---|
-| ![Mobile chat](docs/screenshots/12-mobile-chat.png) | ![Mobile finance](docs/screenshots/13-mobile-finance.png) |
-
-| Investment strategy: risk / rebalance / valuation / DCA / FIRE |
-|---|
-| ![Strategy](docs/screenshots/14-strategy.png) |
-
-More in [docs/screenshots/](docs/screenshots/).
-
-### v4.8 live feature captures (2026-11-01)
-
-These are captured from the current backend/frontend, not historical mockups:
-
-| Scheduled skill | Skill configuration | Trigger history |
-|---|---|---|
-| ![Scheduled skill](docs/screenshots/20-chat-skill-schedule.png) | ![Skill configuration](docs/screenshots/21-skill-scheduled.png) | ![Trigger history](docs/screenshots/22-skill-history.png) |
-
-| Internal tools and watchdog | Rules | Hooks |
-|---|---|---|
-| ![Internal tools and watchdog](docs/screenshots/23-internal-tools-list.png) | ![Rules](docs/screenshots/25-rules.png) | ![Hooks](docs/screenshots/26-hooks.png) |
-
-| Diagnostics | Prompts | Mobile permissions |
-|---|---|---|
-| ![Diagnostics](docs/screenshots/24-diagnostics.png) | ![Prompts](docs/screenshots/27-prompts.png) | ![Mobile permissions](docs/screenshots/28-mobile-permissions.png) |
-
-## Quick start
-
-Requirements: Python 3.10+, Node.js 20.19+.
-
-**Fastest path (Docker)**
+| **桌面安装包** | 下载 `.exe` / `.msi` / `.dmg` / `.AppImage` | 只想双击打开，不碰命令行 |
+| **Web + 后台** | `docker compose up -d` → `localhost:8787` | 自建服务器、多设备访问 |
+| **CLI** | `moneyhelper add "咖啡 28"` | 键盘党、脚本集成 |
 
 ```bash
-docker compose up -d --build   # single container, port 8787, volume moneyhelper-data
+# 本地开发（一条命令：venv + 依赖 + 前端构建 + 起服务）
+scripts/dev.sh --prod        # → http://localhost:8788
+
+# CLI
+moneyhelper add "午餐 45 打车 28"    # 一句话多笔自动分类
+moneyhelper balance                  # 净资产 + 持仓
+moneyhelper ask "这个月花在哪"        # 走完整问答管线
 ```
 
-**One-click (recommended for development)**
+---
 
-```bash
-scripts/dev.sh        # Windows (Git Bash) / macOS / Linux — backend 8788 + frontend 5198
-scripts/dev.sh --prod # production mode: build once, serve on a single port
-start.bat             # Windows: creates the venv, installs deps, opens two windows
-start.bat --prod      # Windows production mode: one window, one port
-```
+## 它解决什么问题
 
-The scripts create the virtualenv, install dependencies and check port conflicts; they pick
-`Scripts/` or `bin/` automatically per platform.
+大多数人不是缺记账工具，是**缺结论**。
 
-**Manual**
-
-```bash
-# Backend (run inside backend/)
-cd backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env   # optional: fill LLM_* to enable a model
-.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8788
-
-# Frontend dev mode (/api proxied to 8788)
-cd frontend
-npm install && npm run dev    # http://127.0.0.1:5198
-
-# Or production mode: build once, served by the backend on one port
-cd frontend && npm run build  # then open http://127.0.0.1:8788
-```
-
-The database lives at `backend/data/wealth.db` by default (`MONEYHELPER_DATA_DIR` / `MONEYHELPER_DB_PATH` override it; empty values fall back to the default).
-
-A fresh database starts empty with chat-style onboarding; everything works without an AI key.
-
-## Tech stack
-
-| Layer | Tech |
+| 你的困惑 | Moneyhelper 的回答 |
 |---|---|
-| Frontend | React 19 + Vite + Tailwind 4 · ECharts · TanStack Table · PWA |
-| Backend | FastAPI + LangGraph multi-agent orchestration + deterministic engine |
-| Data | SQLite (aiosqlite + WAL) · encrypted backups (PBKDF2 + Fernet) |
-| AI | LiteLLM unified access · local BM25 long-term memory · fastmcp |
-| Quotes | Eastmoney → Sina → local snapshot, 3-level fallback |
+| 这个月钱花哪了？ | 分类构成 + 环比 + 异常项 |
+| 净资产涨了，是存的还是涨的？ | 净储蓄 / 投资损益 / 负债变动 拆开给你 |
+| 我的持仓安全吗？ | 集中度、行业分布、越线标红 |
+| 我该先做什么？ | 按紧急度排序的行动清单（不是指标罗列） |
 
-## Architecture
+**核心差别**：不是再给你一个仪表盘，而是把「数据 → 判断 → 下一步动作」串起来。
+
+---
+
+## 关键能力
+
+### 账本与持仓
+
+- **一句话多笔**：`午餐 45 打车 28 工资 8000` → 三条流水，自动分类
+- **写入选代确认**：写操作走 HITL（人在环）审批，确认前不落库；重复确认被幂等拦住
+- **追加与加权成本**：再买同一标的自动累加股数、按股数加权成本（不覆盖原持仓）
+- **净值序列与归因**：每日快照，把变动拆成「存的 / 涨的 / 还债的 / 其他」
+
+### 分析与决策
+
+- **决策中心**：风险标记 + 目标进度 + 税负机会 → 按紧急度排序的行动清单，一键跳转
+- **财务体检**：五维评分（配置/现金流/负债/应急金/目标），缺失维度标 `unknown` 而非送分
+- **回测 → 模拟盘闭环**：策略回测后转模拟盘跟踪，输出跟踪误差与「是否已失效」
+- **集中度体检**：单标的、行业多维度越线检测
+
+### 报告与导出
+
+- **单文件 HTML 报告**：零外部依赖、断网可看、可打印为 PDF，内联 SVG 图表
+- **加密备份**：PBKDF2 派生 + Fernet，口令不进磁盘
+
+---
+
+## 确定性内核（为什么它不会算错）
 
 ```mermaid
 flowchart LR
-    FE[React SPA] --> API[FastAPI REST + SSE + static hosting]
-    API --> G[LangGraph orchestration, supervisor pipeline]
-    API --> D[Finance department mode, parallel tickets]
-    G --> T[Tool layer, 27 deterministic tools]
-    D --> T
-    T --> K[Deterministic engine, single source of truth]
-    T --> DB[(Local SQLite)]
-    T --> Q[3-level quote fallback]
-    G --> L[LiteLLM model access]
-    G --> M[local BM25 memory]
-    API --> MCP[MCP Server /mcp · 36 tools]
+    U[用户一句话] --> R{意图路由}
+    R -->|记账| P[nlparse 解析]
+    R -->|提问| A[Agent 图]
+    P --> V[校验: 金额/日期/分类]
+    V --> H{HITL 审批}
+    H -->|确认| DB[(SQLite)]
+    A --> T[工具调用]
+    T --> C["calculations/*.py<br/>纯函数引擎"]
+    C --> DB
+    DB --> N[数字回填]
+    N --> O[模型只写叙述]
 ```
 
-Principle: **the framework orchestrates; the engine computes**. The model only appears at classification and finalization; any failure degrades to the deterministic path. Full architecture with diagrams: [docs/architecture.md](docs/architecture.md).
+**三层隔离**：
 
-Key invariants:
-- Write tools are invisible to the model (removed at both schema and implementation layers); the model cannot edit the ledger.
-- Amounts, P&L and risk metrics are computed only by `analysis` / `calculations`.
-- Long-term memory is fully local (BM25); memory content never leaves the machine.
-- Confirmable write actions use atomic claiming (`claim_pending_action`), so a token executes exactly once.
+1. **计算层**（`calculations/`，20 个模块）—— 纯函数、无 I/O、可单测，所有数字出自这里
+2. **编排层**（`agent_graph.py`）—— LangGraph 状态机，中断/恢复/检查点落盘
+3. **叙述层**（`llm.py`）—— 模型只拿到「已算好的数字」写文案，无法反向影响计算
 
-## Repository layout
+> 这就是为什么它敢说「AI 编不出金额」：模型根本没有写数字的通道。
+
+---
+
+## 工程基线
+
+| 维度 | 现状 |
+|---|---|
+| 后端测试 | **1,400+ 通过**（含口径一致性、并发、租户隔离） |
+| 前端测试 | **140+ 通过**（19 个文件） |
+| 类型检查 | `tsc --noEmit` 零错误 |
+| 浏览器验证 | 14 张真实截图（桌面 7 + 移动 7），零横向溢出、零控制台错误 |
+| 安全 | SSRF 防护、工具权限三档、租户隔离、审计链 |
+
+**测试原则**：测「口径与不变量」，不测「字符串」。例如归因必须满足
+`储蓄 + 投资损益 + 负债变动 + 残差 = 总变动`，任何情况下不平即失败。
+
+---
+
+## 架构速览
 
 ```
 backend/app/
-  main.py            FastAPI entry: REST + SSE + auth + static hosting
-  db/                Data layer (domain modules): ledger / portfolio / budgets /
-                     debts / goals / memory / history / audit / backup / users ...
-  routes/            Routes: budgets / settings / goals / market / import ...
-  agents/            Multi-agent config: supervisor / bookkeeping / portfolio
-  agent_graph.py     LangGraph graph: supervisor + specialized nodes + routes
-  department.py      Finance department mode: tickets → parallel → summary
-  analysis.py        Deterministic engine: positions / cashflow / debt / risk
-  calculations/      Portfolio risk / rebalance / valuation / DCA / FIRE models
-  tools.py           Agent tool layer: 27 function-calling tools
-  quotes.py          Quotes: Eastmoney → Sina → snapshot fallback + cache
-  nlparse.py         One-sentence bookkeeping: rule engine + AI fallback
-  llm.py             LiteLLM unified model access
-  mem.py             long-term memory (local BM25, no network)
-  mcp_server.py      MCP Server exposing finance tools
-  backup.py          Local encrypted backup, passphrase never stored
-frontend/src/
-  App.tsx            Adaptive layout: resizable sidebar on desktop / bottom nav on mobile
-  components/        ChatView / Dashboard / HoldingsView / MarketView ...
-  lib/               api / store / i18n (zh+en) / charts / format
-docs/                Deploy / config / workflow / architecture / planning
+├── calculations/        20 个纯函数引擎（风险/税负/回测/健康/组合…）
+├── routes/              33 个路由模块，264 个端点
+├── agent_graph.py       LangGraph 状态机（HITL + 检查点）
+├── context.py           token 计量 + LLM 摘要压缩
+├── tool_policy.py       工具权限三档（read/ask/deny）
+├── netguard.py          SSRF 防护
+├── networth_series.py   净值快照与归因
+├── report.py            自包含 HTML 报告
+└── db/                  33 个数据访问模块，全租户隔离
 ```
 
-## Docs
+详见 [架构详解](docs/ARCHITECTURE-detail.md)。
 
-| Doc | Contents |
-|---|---|
-| [Quick start](docs/quickstart.md) | Up and running in 5 minutes |
-| [Deployment](docs/DEPLOY.en.md) | Local / Docker / external access / backup migration ([中文](docs/DEPLOY.md)) |
-| [Configuration](docs/CONFIG.en.md) | Env vars + settings + AI endpoint cheat-sheet ([中文](docs/CONFIG.md)) |
-| [Workflows](docs/WORKFLOW.en.md) | Every conversation pattern ([中文](docs/WORKFLOW.md)) |
-| [Architecture](docs/architecture.md) | Mermaid diagrams + department mode + data reliability |
-| [CLI](docs/cli.md) | `moneyhelper add / ls / report / balance / ask` — offline-first, same commands in local or remote mode |
-| [Module map](docs/module-map.md) | Every backend module: size, structure, responsibility |
-| [Development guide](docs/DEVELOPMENT.en.md) | Code map + add-tool/setting tutorials + release flow ([中文](docs/DEVELOPMENT.md)) |
-| [Progress](docs/PROGRESS.md) | What is done, what is left, in one page |
-| [Roadmap](docs/ROADMAP-v3.md) | v3 direction → [detailed plan](docs/PLAN-DETAILED.md) |
-| [Planning archive](docs/planning/) | Reviews / differentiation / research docs |
-| [Changelog](CHANGELOG.md) | Full version history |
+---
 
-## Tests
+## 快速上手（Docker）
 
 ```bash
-# Backend: 906 tests (engine / strategy / quote fallback / agent loop / LangGraph / API / backup / MCP ...)
-cd backend && .venv/bin/python -m pytest tests -q
-cd backend && .venv/bin/python -m ruff check app tests
-
-# Frontend: tsc + build + 111 unit tests + 21 Playwright e2e specs
-cd frontend && npm run build
-cd frontend && npm run test:e2e
+git clone https://github.com/badhope/moneyhelper.git
+cd moneyhelper
+cp .env.example .env          # 可选：填 LLM_API_KEY 启用 AI
+docker compose up -d --build
+open http://localhost:8787
 ```
 
-CI covers backend ruff (app + moneyhelper package) + pytest, frontend tsc + vitest + build,
-plus a hygiene job: no files over 1MB, and `mkdocs build --strict` must pass.
+**不接模型也能用**：所有计算、记账、体检、报表都是确定性的，模型只影响「自然语言对话」这一层。没配 Key 时自动降级到模板叙述，功能不缺。
 
-## Data & privacy
+---
 
-- All personal data lives in local SQLite; quotes use public Eastmoney/Sina endpoints; model calls go only to the endpoint you configured.
-- Encrypted backups recommended; plaintext export shows a strong warning. No telemetry, no tracking, no third-party analytics.
-- Auth: when `API_TOKEN` is set, all `/api/*` require `Bearer` or `?token=`; without a token, only localhost and the `ALLOWED_HOSTS` allowlist are accepted.
+## 配置
 
-## Disclaimer
+最小配置（`.env`）：
 
-Everything this software outputs (health checks, reports, AI answers, suggestions) is for reference only and does not constitute investment advice. Markets carry risk.
+```ini
+# 可选：不填则用模板叙述
+LLM_API_KEY=sk-...
+LLM_MODEL=deepseek-chat
+LLM_BASE_URL=https://api.deepseek.com/v1
 
-## Contributing
+# 可选：启用访问口令
+API_TOKEN=your-secret
 
-- License: [MIT](LICENSE) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md)
-- Issues and PRs welcome; please pair new features with tests and pass the test commands above before submitting.
+# 可选：数据目录（默认 ./data）
+MONEYHELPER_DATA_DIR=./data
+```
 
-**Topics**: `personal-finance` `finance-assistant` `ai-agent` `langgraph` `fastapi` `react` `sqlite` `self-hosted` `mcp` `pwa`
+完整配置见 [CONFIG.md](docs/CONFIG.md)。
+
+---
+
+## 边界与诚实清单
+
+这个项目**不做什么**：
+
+- ❌ 不代客下单。实盘只生成交接单，最后一键必须你自己点
+- ❌ 不做税务筹划建议。税负计算是「按公式算给你看」，不是「教你避税」
+- ❌ 不保证收益预测。回测与预测都标注了假设与失效条件
+- ✅ 离线可用：记账/分析/报表不依赖网络，只有实时行情需要
+
+已知限制见 [SECURITY.md](SECURITY.md) 与 [docs/REVIEW-FINDINGS.md](docs/REVIEW-FINDINGS.md)。
+
+---
+
+## 贡献与许可
+
+- [贡献指南](CONTRIBUTING.md) · [行为准则](CODE_OF_CONDUCT.md) · [安全策略](SECURITY.md)
+- MIT License — 见 [LICENSE](LICENSE)
+
+**做财务软件的第一原则：宁可说「不知道」，也不给一个看起来专业的错数字。**

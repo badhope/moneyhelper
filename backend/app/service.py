@@ -132,6 +132,9 @@ NL_MAX_LEN = 24
 # 多轮上下文：最多回看 4 轮，每条截断 400 字（控制 token 与外发体量）
 HISTORY_TURNS = 4
 HISTORY_ANSWER_CHARS = 400
+# 历史消息的 token 上限：为「本轮数据 + 工具结果 + 回答」留出空间。
+# 4 轮 × 400 字上限约 1600 token，留足余量；超出才触发折叠。
+HISTORY_MAX_TOKENS = 1200
 
 # 长会话压缩：会话问答轮次超过阈值后，把较早轮次压缩成结构化摘要落库，
 # 只在上下文里保留摘要 + 最近 K 轮完整（避免 token 无限增长，同时保住长程记忆）。
@@ -546,7 +549,12 @@ async def _build_history(
             out.append({"role": "user", "content": q[:HISTORY_ANSWER_CHARS]})
         if a:
             out.append({"role": "assistant", "content": a[:HISTORY_ANSWER_CHARS]})
-    return out
+    # 最后一道 token 闸：按轮次压缩只保证「轮数」有界，不保证「token」有界
+    # （单轮可能是长报告）。这里用 tiktoken 精确计量并做确定性折叠，
+    # 防止历史挤占掉本轮工具结果的位置。不调模型——构建历史必须是纯本地操作。
+    from .context import trim_messages
+
+    return trim_messages(out, max_tokens=HISTORY_MAX_TOKENS)
 
 
 # ---------------------------------------------------------------------------

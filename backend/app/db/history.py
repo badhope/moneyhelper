@@ -479,6 +479,21 @@ async def claim_pending_action(token: str) -> dict[str, Any] | None:
     }
 
 
+async def force_pending_status(token: str, status: str) -> dict[str, Any]:
+    """无条件设置待确认动作状态（用于执行失败后把 consumed 改成 failed）。
+
+    与 mark_pending_action 的区别：后者带 status='pending' 条件（只影响待处理行），
+    对已被 claim 消费的行是空操作；这里需要覆盖已消费行，才能如实记录失败。
+    """
+    conn = await _conn()
+    cur = await conn.execute(
+        "UPDATE pending_actions SET status=? WHERE user_id=? AND token=?",
+        (status, current_user_id(), token),
+    )
+    await conn.commit()
+    return {"ok": True, "changed": cur.rowcount}
+
+
 async def mark_pending_action(token: str, status: str) -> dict[str, Any]:
     conn = await _conn()
     cur = await conn.execute(
@@ -487,11 +502,6 @@ async def mark_pending_action(token: str, status: str) -> dict[str, Any]:
     )
     await conn.commit()
     return {"ok": True, "changed": cur.rowcount}
-
-
-# --------------------------------------------------------------------------
-# harness：会话 token 计量 + 会话分叉（fork）
-# --------------------------------------------------------------------------
 
 
 async def session_usage(thread_id: str) -> dict[str, Any]:

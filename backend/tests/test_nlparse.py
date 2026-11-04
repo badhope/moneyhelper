@@ -75,3 +75,41 @@ def test_valid_explicit_date_still_parsed() -> None:
     assert r is not None
     assert r["date"] == "2026-09-10"
     assert r["amount"] == -30
+
+
+class TestParseMany:
+    """一句话多笔：「午餐 45 打车 28」必须落成两条。
+
+    回归背景：原实现只取第一个金额、条目名取全文最后匹配的关键词，
+    于是这句话变成「打车 −45」——丢一笔 + 金额与条目错配。
+    """
+
+    def test_space_separated_two_items(self):
+        from app.nlparse import parse_many
+
+        out = parse_many("午餐 45 打车 28")
+        assert out is not None and len(out) == 2
+        assert {o["item"] for o in out} == {"午餐", "打车"}
+        amounts = sorted(abs(o["amount"]) for o in out)
+        assert amounts == [28.0, 45.0]
+        assert {o["category"] for o in out} == {"餐饮", "交通"}
+
+    def test_single_item_returns_none(self):
+        from app.nlparse import parse_many
+
+        assert parse_many("午餐 45") is None
+        assert parse_many("房租 6000 元") is None
+
+    def test_explicit_separators_defer_to_caller(self):
+        """已有逗号/顿号时交给上层分段，避免双重切分。"""
+        from app.nlparse import parse_many
+
+        assert parse_many("午餐 45，打车 28") is None
+
+    def test_amounts_not_mixed_up(self):
+        from app.nlparse import parse_many
+
+        out = parse_many("咖啡 28 房租 6000")
+        by_item = {o["item"]: abs(o["amount"]) for o in out or []}
+        assert by_item.get("咖啡") == 28.0
+        assert by_item.get("房租") == 6000.0

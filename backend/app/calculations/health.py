@@ -261,7 +261,10 @@ def _to_grade(score: int) -> str:
 
 # 体检五维各 20 分。status 是 analysis 侧的定性判断（good/warn/bad），
 # 这里给出对应的分值，保证「体检页 / 呈批件 / AI 回答」用的是同一套分数。
+# unknown = 数据缺失，不参与计分（不是 0 分）。若当成 0 分会把「没录入」
+# 惩罚成「很糟」，若当成满分则是凭空送分——两者都是假数据。
 _STATUS_SCORE = {"good": 20, "warn": 10, "bad": 0}
+_UNKNOWN_STATUSES = {"unknown", "n/a", "na", ""}
 
 
 def health_score_from_dimensions(dimensions: list[dict[str, Any]]) -> tuple[int, str]:
@@ -276,6 +279,8 @@ def health_score_from_dimensions(dimensions: list[dict[str, Any]]) -> tuple[int,
     possible = 0
     for dim in dimensions:
         status = str(dim.get("status") or "").lower()
+        if status in _UNKNOWN_STATUSES:
+            continue  # 数据缺失：既不送分也不扣分，只缩小分母
         weight = int(dim.get("max") or 20)
         possible += weight
         earned += _STATUS_SCORE.get(status, weight // 2)

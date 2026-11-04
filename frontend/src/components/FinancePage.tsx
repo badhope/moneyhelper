@@ -96,9 +96,15 @@ const GROUPS: NavGroup<DataKind>[] = [
 export function FinancePage({
   kind,
   onKindChange,
+  onGoChat,
+  onGoSettings,
 }: {
   kind: DataKind;
   onKindChange: (k: DataKind) => void;
+  /** 回对话页（空态「问 AI」按钮用） */
+  onGoChat?: () => void;
+  /** 打开设置（空态/引导用） */
+  onGoSettings?: () => void;
 }) {
   const { t } = useI18n();
 
@@ -115,13 +121,23 @@ export function FinancePage({
               </div>
             }
           >
-            {kind === "overview" && <Dashboard onNavigateTab={(tab) => {
-              // 决策中心「去处理」：目标页若在本工作区内直接切过去
-              const known: DataKind[] = ["overview", "holdings", "market", "ledger", "health",
-                "strategy", "research", "statements", "paper", "connect", "tax"];
-              if (known.includes(tab as DataKind)) onKindChange(tab as DataKind);
-            }} />}
-            {kind === "holdings" && <HoldingsView />}
+            {kind === "overview" && (
+              <Dashboard
+                // 空态三个主按钮必须有真实去处：此前 FinancePage 没传这几个
+                // 回调，新用户点「去记账 / 添加持仓 / 问 AI」全部无反应，
+                // 直接卡死首启转化。
+                onGoLedger={() => onKindChange("ledger")}
+                onGoMarket={() => onKindChange("market")}
+                onGoChat={onGoChat}
+                onGoSettings={onGoSettings}
+                onNavigateTab={(tab) => {
+                  const known: DataKind[] = ["overview", "holdings", "market", "ledger", "health",
+                    "strategy", "research", "statements", "paper", "connect", "tax"];
+                  if (known.includes(tab as DataKind)) onKindChange(tab as DataKind);
+                }}
+              />
+            )}
+            {kind === "holdings" && <HoldingsView onGoMarket={() => onKindChange("market")} />}
             {kind === "connect" && <ConnectBody />}
             {kind === "tax" && <TaxBody />}
             {kind === "research" && <ResearchBody />}

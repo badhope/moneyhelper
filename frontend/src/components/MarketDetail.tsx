@@ -79,7 +79,13 @@ export function MarketDetail({
         </span>
       </div>
 
-      {q.isPending ? (
+      {/* 先判 supported：enabled=false 时 TanStack 的 isPending 仍为 true，
+          会让场外基金/现金永远转圈「加载中」，用户以为网络卡住。 */}
+      {!supported ? (
+        <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
+          {t("market.noKline")}
+        </div>
+      ) : q.isPending ? (
         <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
           <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> {t("pos.loading")}
         </div>

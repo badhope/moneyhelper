@@ -88,3 +88,30 @@ describe("setMoneyLocale / getMoneyLocale", () => {
     expect(getMoneyLocale()).toBe("en");
   });
 });
+
+// 英文数量级边界：此前阈值沿用中文的 1e4/1e8、除数却是 1e6/1e9，
+// 12345 显示成 ¥0.0M——英文用户看到的金额整体少 100 倍。
+describe("fmtMoney en compact scales", () => {
+  it("uses k for thousands", () => {
+    setMoneyLocale("en");
+    expect(fmtMoney(1234, false, true)).toBe("¥1.2k");
+    expect(fmtMoney(12345, false, true)).toBe("¥12.3k");
+  });
+  it("uses M for millions", () => {
+    expect(fmtMoney(1_500_000, false, true)).toBe("¥1.5M");
+    expect(fmtMoney(999_999, false, true)).toBe("¥1000.0k");
+  });
+  it("uses B for billions", () => {
+    expect(fmtMoney(150_000_000, false, true)).toBe("¥150.0M"); // 1.5 亿按英文习惯是 150M，B 仅用于 ≥1e9
+    expect(fmtMoney(2_500_000_000, false, true)).toBe("¥2.50B");
+  });
+  it("keeps small numbers plain", () => {
+    expect(fmtMoney(999, false, true)).toBe("¥999");
+  });
+  it("zh scales unchanged", () => {
+    setMoneyLocale("zh");
+    expect(fmtMoney(15000, false, true)).toBe("¥1.5万");
+    expect(fmtMoney(150_000_000, false, true)).toBe("¥1.50亿");
+    setMoneyLocale("en");
+  });
+});

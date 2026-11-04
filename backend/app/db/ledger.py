@@ -1,6 +1,8 @@
 """流水域：入账（单笔/批量原子）/改删/合并。"""
 from __future__ import annotations
 
+import math
+
 import json
 import re
 from datetime import datetime
@@ -125,8 +127,11 @@ async def add_transaction(
         datetime.strptime(d, "%Y-%m-%d")
     except ValueError:
         raise ValueError(f"日期不是有效日历日：{d!r}") from None
-    if amt == 0 or amt != amt:  # NaN / 0 都拒绝
-        raise ValueError("金额不能为 0 或 NaN")
+    # 拒绝 0 / NaN / ±Inf：SQLite 会把 Inf 原样存下，而 JSONResponse 用
+    # allow_nan=False 序列化时抛 ValueError → 整个 dashboard/持仓接口持续 500，
+    # 用户连打开列表删掉这条坏数据都做不到。
+    if amt == 0 or not math.isfinite(amt):
+        raise ValueError("金额必须是有限非零数字")
 
     # 解析 owner_id
     resolved_owner = owner_id

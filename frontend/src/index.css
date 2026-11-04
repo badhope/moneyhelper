@@ -27,8 +27,11 @@
   --color-brand: hsl(var(--brand));
   --color-brand-gold: hsl(var(--brand-gold));
   --color-sidebar: hsl(var(--sidebar));
-  --color-up: #dc2626;   /* 涨/盈 = 红（中国市场惯例） */
-  --color-down: #059669; /* 跌/亏 = 绿 */
+  /* 涨跌色必须 var() 间接引用：这里若写字面量，Tailwind v4 会把颜色直接
+     内联进 .text-up 等工具类，:root[data-scheme] 的覆盖就只影响图表、
+     影响不了全站文字——「绿涨红跌」设置形同虚设（实测踩过）。 */
+  --color-up: var(--scheme-up);
+  --color-down: var(--scheme-down);
   --color-success: #059669; /* 状态语义（达标/完成/健康），与涨跌色分离 */
   --color-danger: #dc2626;
 
@@ -47,10 +50,15 @@
 }
 
 /* 涨跌颜色主题（设置中心可自定义）：cn 红涨绿跌（A股惯例，默认）；us 绿涨红跌（海外惯例）。
-   @theme inline 保留 var() 引用，此覆盖即时作用于全部 text-up/text-down 等涨跌色类。 */
+   scheme 变量在 :root 上定义、由 data-scheme 切换；@theme inline 里的 --color-up/down
+   只是引用它们，因此切换即时作用于全部工具类与 ECharts（读计算样式）。 */
+:root {
+  --scheme-up: #dc2626;
+  --scheme-down: #059669;
+}
 :root[data-scheme="us"] {
-  --color-up: #059669;
-  --color-down: #dc2626;
+  --scheme-up: #059669;
+  --scheme-down: #dc2626;
 }
 
 @layer base {

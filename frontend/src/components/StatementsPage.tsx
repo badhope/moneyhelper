@@ -17,11 +17,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/confirm";
 import { useEChart, usePalette, useCandleColors, axisLabelColor } from "@/lib/charts";
 import { useTheme } from "@/lib/theme";
 import { api } from "@/lib/api";
 import { fmtMoney, fmtPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 import {
   useStatementAnalyze,
   useStatementDelete,
@@ -382,6 +384,7 @@ function ComparisonTable({ result }: { result: StatementAnalysis }) {
 }
 
 export function StatementsPage() {
+  const { t } = useI18n();
   const [input, setInput] = useState<string>(SAMPLE_PAYLOAD);
   const [payload, setPayload] = useState<Record<string, unknown> | null>(() => {
     try {
@@ -394,6 +397,7 @@ export function StatementsPage() {
   const analyze = useStatementAnalyze();
   const save = useStatementSave();
   const del = useStatementDelete();
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; company: string } | null>(null);
   const list = useStatementList();
 
   const result: StatementAnalysis | undefined = analyze.data;
@@ -679,7 +683,8 @@ export function StatementsPage() {
                     size="sm"
                     variant="ghost"
                     className="text-red-500/70 hover:text-red-500"
-                    onClick={() => del.mutate(it.id)}
+                    aria-label={t("stmt.deleteAria", { name: it.company })}
+                    onClick={() => setPendingDelete({ id: it.id, company: it.company })}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -691,6 +696,18 @@ export function StatementsPage() {
           <EmptyState illustration="folder" mode="compact" text="还没有保存的财报，分析后可一键保存" />
         )}
       </Card>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+        title={t("stmt.deleteTitle", { name: pendingDelete?.company ?? "" })}
+        description={t("stmt.deleteDesc")}
+        confirmText={t("confirm.confirm")}
+        cancelText={t("confirm.cancel")}
+        danger
+        onConfirm={() => {
+          if (pendingDelete) del.mutate(pendingDelete.id);
+        }}
+      />
     </div>
   );
 }

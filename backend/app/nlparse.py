@@ -241,6 +241,52 @@ RECORD_VERBS = (
 )
 
 
+# 空格分隔的多笔：「午餐 45 打车 28」→ 两笔。
+# 判定要严：日期/时间/量词都可能长得像「文字+数字」，误切会把一笔拆成多笔，
+# 比不拆更糟（凭空多记假账）。先排日期形态，再要求至少两组「像条目的词 + 合理金额」。
+_MULTI_RE = re.compile(
+    r"(?<![年月日\d])([\u4e00-\u9fa5A-Za-z]{1,10})\s*(\d+(?:\.\d{1,2})?)\s*(?:元|块)?"
+)
+
+# 出现在数字前说明是日期/时间/计量，不是记账条目
+_NOT_ITEM_WORDS = frozenset({
+    "年", "月", "日", "号", "时", "点", "分", "秒",
+    "第", "共", "约", "近", "前", "后", "折", "期",
+})
+
+
+def parse_many(text: str) -> list[dict] | None:
+    """把一句话拆成多笔；不是多笔时返回 None（交给 parse 走单笔逻辑）。
+
+    为什么需要：parse() 只取第一个金额，而条目名/分类取全文最后匹配的关键词——
+    「午餐 45 打车 28」会变成「打车 −45」：金额来自午餐、名称来自打车，
+    既丢了一笔，又把两笔混成一条错数据。
+    """
+    t = text.strip()
+    if not t:
+        return None
+    # 已有显式分隔符时交给上层分段，避免双重切分
+    if re.search(r"[，,。;；、和及]", t):
+        return None
+    # 日期/时间形态直接放弃多笔判定，交给 parse 的日期解析
+    if re.search(r"\d{4}\s*年|\d{1,2}\s*月\s*\d{1,2}\s*[日号]", t):
+        return None
+    hits = _MULTI_RE.findall(t)
+    pairs = [
+        (w.strip(), n)
+        for w, n in hits
+        if w.strip() and w.strip() not in _NOT_ITEM_WORDS
+    ]
+    if len(pairs) < 2:
+        return None
+    out: list[dict] = []
+    for word, num in pairs:
+        one = parse(f"{word} {num}")
+        if one is not None and abs(one["amount"]) > 0:
+            out.append(one)
+    return out if len(out) >= 2 else None
+
+
 def parse(text: str) -> dict | None:
     """规则解析。失败（拿不到金额）返回 None。"""
     t = text.strip()

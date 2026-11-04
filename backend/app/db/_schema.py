@@ -461,6 +461,24 @@ CREATE TABLE IF NOT EXISTS paper_snapshots (
     cash         REAL NOT NULL,
     market_value REAL NOT NULL
 );
+
+-- 净值快照（每日）：净资产序列 + 归因所需的分项。
+-- 为什么必须有：没有历史快照就问不出「净值涨了是攒的还是涨的」——
+-- 用手工记账差分只能看到净流入，看不到市场波动贡献。TWR/归因/趋势图
+-- 全部依赖这张表；一天一行，写入幂等（同日覆盖）。
+CREATE TABLE IF NOT EXISTS net_worth_snapshots (
+    user_id       INTEGER NOT NULL DEFAULT 0,
+    date          TEXT NOT NULL,               -- YYYY-MM-DD（Asia/Shanghai）
+    total_assets  REAL NOT NULL DEFAULT 0,     -- 资产合计（含现金）
+    total_liabilities REAL NOT NULL DEFAULT 0, -- 负债合计
+    net_worth     REAL NOT NULL DEFAULT 0,
+    cash          REAL NOT NULL DEFAULT 0,
+    market_value  REAL NOT NULL DEFAULT 0,     -- 非现金持仓市值
+    source        TEXT NOT NULL DEFAULT '',    -- quotes / snapshot（估值口径）
+    created_at    TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, date)
+);
+CREATE INDEX IF NOT EXISTS idx_nws_user_date ON net_worth_snapshots(user_id, date DESC);
 CREATE INDEX IF NOT EXISTS idx_paper_snapshots_account ON paper_snapshots(user_id, account_id, date);
 -- 连接中心（v4.4）：外部数据源 / 资金账户接入。凭据一律不落库：
 -- account_ref 只存「后四位」这类辨识信息，meta_json 只存用户可见的展示字段。

@@ -221,6 +221,13 @@ async def studio_import_url(payload: dict) -> dict:
         "allow_remote_install", True
     ):
         return _err("远程安装已被权限设置关闭", 403)
+    # SSRF 防护：这是管理员接口，但管理员也不该被诱导去读取内网/云 metadata
+    from ..netguard import SSRFBlocked, assert_public_http_url
+
+    try:
+        url = assert_public_http_url(url)
+    except SSRFBlocked as exc:
+        return _err(str(exc))
     try:
         result = await installer.install_remote(url, kind)
     except ValueError as exc:

@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import math
+
 import re
 from datetime import datetime
 from typing import Any
@@ -210,6 +212,20 @@ async def nl_add(payload: dict) -> dict:
     if not text:
         return JSONResponse({"error": "请输入一句话记账内容"}, status_code=400)
 
+    # 先试多笔：「午餐 45 打车 28」必须落成两条，不能压成「打车 −45」。
+    many = nlparse.parse_many(text)
+    if many:
+        try:
+            inserted = await db.add_transactions_batch(
+                [{"date": m["date"], "item": m["item"], "category": m["category"],
+                  "amount": m["amount"]} for m in many]
+            )
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        analysis.invalidate_dashboard_cache()
+        return {"ok": True, "source": "rule-multi", "transactions": inserted,
+                "count": len(inserted)}
+
     parsed = nlparse.parse(text)
     source = "rule"
     if parsed is None:
@@ -285,14 +301,22 @@ async def import_csv_parse(payload: dict) -> dict:
 
 @router.post("/api/import/commit")
 async def import_csv_commit(payload: dict) -> dict:
-    """按前端确认的 rows 批量入账；先全部校验通过再逐个入账。"""
+    """按前端确认的 rows 批量入账：**先全量校验，再单事务写入**。
+
+    原实现边校验边写：第 37 行日期非法时，前 36 笔已经 commit 了，
+    用户看到 200 + imported=36，以为导入成功一半是"部分失败"，实际是半截账本；
+    再导一次就重复记账。现在任何一行不合法 → 整批拒绝并返回具体行号，
+    全部合法 → 一个事务落库（失败整批回滚）。
+    """
     rows = (payload or {}).get("rows")
     if not isinstance(rows, list) or not rows:
         return JSONResponse({"error": "没有可导入的数据"}, status_code=400)
-    ok, failed = 0, []
-    for r in rows:
+
+    cleaned: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for idx, r in enumerate(rows, start=1):
         if not isinstance(r, dict):
-            failed.append("非法行")
+            errors.append({"row": idx, "reason": "不是对象"})
             continue
         date = str(r.get("date") or "").strip()
         item = str(r.get("item") or "其他").strip()[:40] or "其他"
@@ -300,25 +324,32 @@ async def import_csv_commit(payload: dict) -> dict:
         try:
             amount = float(r.get("amount", 0) or 0)
         except (TypeError, ValueError):
-            failed.append(item)
+            errors.append({"row": idx, "item": item, "reason": "金额不是数字"})
             continue
-        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date) or amount == 0:
-            failed.append(item)
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+            errors.append({"row": idx, "item": item, "reason": "日期格式应为 YYYY-MM-DD"})
             continue
-        try:
-            await db.add_transaction(date, item, category, amount)
-            ok += 1
-        except Exception as e:  # noqa: BLE001
-            # 检测事务 closed 错误（前一行失败导致 connection state 异常）→ 连接级回滚
-            if (
-                "cannot operate on a closed database" in str(e).lower()
-                or "no active transaction" in str(e).lower()
-            ):
-                # 单个失败不应影响后续行；记录并继续
-                failed.append(f"{item}(事务中断)")
-                continue
-            failed.append(item)
-    return {"ok": True, "imported": ok, "failed": failed}
+        if not math.isfinite(amount) or amount == 0:
+            errors.append({"row": idx, "item": item, "reason": "金额必须是有限非零数字"})
+            continue
+        cleaned.append({"date": date, "item": item, "category": category, "amount": amount})
+
+    if errors:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": f"{len(errors)} 行数据不合法，已整批取消（未写入任何数据）",
+                "errors": errors[:50],
+                "total_errors": len(errors),
+            },
+            status_code=400,
+        )
+
+    try:
+        out = await db.add_transactions_batch(cleaned)
+    except Exception as e:  # noqa: BLE001 — 批量写入失败整批回滚
+        return JSONResponse({"ok": False, "error": f"写入失败，已回滚：{e}"}, status_code=500)
+    return {"ok": True, "imported": out, "failed": []}
 
 
 # ---------------------------------------------------------------------------

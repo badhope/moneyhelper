@@ -971,12 +971,20 @@ async def tool_sell_position(args: dict[str, Any]) -> str:
         cur = next((p for p in positions if p["symbol"] == symbol), None)
         if cur is None:
             return f"持仓里没有 {symbol}，无需卖出。当前持仓：{', '.join(p['symbol'] for p in positions) or '（空）'}"
-        try:
-            shares = float(args.get("shares") or 0)
-        except (TypeError, ValueError):
-            shares = 0
+        raw_shares = args.get("shares")
+        if raw_shares is None or str(raw_shares).strip() == "":
+            shares = 0.0  # 省略数量 = 全部清仓（与 docstring 一致）
+        else:
+            try:
+                shares = float(raw_shares)
+            except (TypeError, ValueError):
+                return f"卖出数量非法：{raw_shares!r}"
         before = dict(cur)
-        if shares <= 0 or shares >= cur["shares"]:
+        # 防误删：显式负数与「超出持仓」都必须拒绝，而不是当成清仓。
+        # 此前 shares=-5 或 shares=1000（持仓 100）都会被静默当成全部平仓。
+        if shares < 0:
+            return f"卖出数量不能为负（{shares:g}）。要全部清仓请省略数量，或填入 ≤ {cur['shares']:g} 的数量。"
+        if shares == 0:
             await db.delete_position(symbol)
             await record_provenance(
                 action="sell_position",
@@ -987,6 +995,11 @@ async def tool_sell_position(args: dict[str, Any]) -> str:
                 source="mcp",
                     )
             return f"已清仓卖出 {cur['name']}（{symbol}）：{cur['shares']:g} 份全部平仓，持仓已移除。"
+        if shares >= cur["shares"]:
+            return (
+                f"卖出数量 {shares:g} 超过当前持仓 {cur['shares']:g}。"
+                f"如需全部清仓请省略数量；否则请填入小于 {cur['shares']:g} 的数量。"
+            )
         new_shares = cur["shares"] - shares
         after = {**cur, "shares": new_shares}
         await db.add_position(
@@ -1159,6 +1172,39 @@ async def tool_record_position(args: dict[str, Any]) -> str:
         "buy_date": str(args.get("buy_date") or "") or None,
         "fee": 0,
     }
+    # 同代码已存在 → 追加（股数累加、成本加权平均），与 REST /append 同一语义。
+    # 此前这里是 upsert 覆盖：用户第二次说「买入茅台 100 股」会把第一次的持仓
+    # 静默替换掉，市值/盈亏/集中度全部失真。
+    async with _position_write_lock:
+        existing = next((p for p in await db.list_positions() if p["symbol"] == symbol), None)
+        if existing is not None:
+            total = float(existing["shares"]) + shares
+            if total <= 0:
+                return "合并后股数需大于 0"
+            merged_cost = (float(existing["shares"]) * float(existing["cost"]) + shares * cost) / total
+            merged = {
+                **existing,
+                "shares": total,
+                "cost": round(merged_cost, 6),
+                "last": max(last, float(existing.get("last") or 0)),
+                "name": name or existing.get("name"),
+            }
+            try:
+                await db.update_position(merged, symbol)
+            except Exception as exc:  # noqa: BLE001
+                return f"追加失败：{exc}"
+            await record_provenance(
+                action="append_position",
+                entity_type="position",
+                entity_id=symbol,
+                before=dict(existing),
+                after=merged,
+                source="mcp",
+            )
+            return (
+                f"已追加买入 {name}（{symbol}）：本次 {shares:g} 份 × {cost:g}。"
+                f"合并后 {total:g} 份，加权成本 {merged_cost:.4f}（现价 {last:g}）。"
+            )
     try:
         await db.add_position(position_data)
     except Exception as exc:  # noqa: BLE001

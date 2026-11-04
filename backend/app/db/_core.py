@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 import shutil
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -676,6 +678,38 @@ def get_write_lock() -> asyncio.Lock:
     return lk
 
 
+@asynccontextmanager
+async def write_txn() -> AsyncIterator[aiosqlite.Connection]:
+    """单语句写操作的安全通道：持写锁 + 显式事务 + 异常必回滚。
+
+    为什么需要它：全库只有一条 aiosqlite 连接，隐含事务是所有协程共享的。
+    一个协程写完未提交时，另一个协程的 commit() 会把它一起提交；一个协程
+    失败未回滚时，下一个 commit() 会把半截数据固化。历史上这类问题只在
+    「备份恢复 + 并发记账」时暴露，表现为"回滚了但数据已经没了"。
+
+    用法（替代裸 `conn.execute(...); commit()`）：
+        async with write_txn() as conn:
+            await conn.execute(...)
+            await conn.execute(...)
+        # 正常退出 → COMMIT；异常退出 → ROLLBACK 后原样抛出
+
+    注意：不接受嵌套——已在事务内再进入会死锁（同一把非重入锁）。
+    确实需要嵌套时用 savepoint，或把逻辑合并到一个 write_txn 里。
+    """
+    lock = get_write_lock()
+    async with lock:
+        conn = await _conn()
+        try:
+            yield conn
+            await conn.commit()
+        except BaseException:
+            try:
+                await conn.rollback()
+            except Exception:  # noqa: BLE001 — 回滚失败不能掩盖原始异常
+                pass
+            raise
+
+
 def _clean_due_day(v: object) -> str:
     """扣款日归一化：'' / '1'..'31'；非法值返回 ''。"""
     s = str(v or "").strip()
@@ -961,6 +995,17 @@ async def list_positions() -> list[dict[str, Any]]:
     return await fetch_all(
         "SELECT * FROM positions WHERE user_id=? ORDER BY symbol",
         (current_user_id(),),
+    )
+
+
+async def list_transactions_by_month(month: str) -> list[dict[str, Any]]:
+    """取某月流水（YYYY-MM）。账本视图只需要当月，不该拉全表。"""
+    from .tenant import current_user_id
+
+    return await fetch_all(
+        "SELECT * FROM transactions WHERE user_id=? AND date LIKE ? "
+        "ORDER BY date DESC, id DESC",
+        (current_user_id(), f"{month}-%"),
     )
 
 

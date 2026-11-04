@@ -29,7 +29,11 @@ async def export_data(passphrase: str | None = None) -> dict:
     data = await db.export_data()
     _mask_secret(data.get("settings", {}))
     if passphrase:
-        return backup.encrypt_export(data, passphrase)
+        # PBKDF2 600k 次派生是纯 CPU 同步操作，直接在 async 里跑会卡住
+        # 整个事件循环（期间所有请求含 SSE 心跳一起停摆）。丢到线程池。
+        import asyncio
+
+        return await asyncio.to_thread(backup.encrypt_export, data, passphrase)
     return data
 
 

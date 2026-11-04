@@ -96,22 +96,32 @@ async def cmd_add(args: argparse.Namespace) -> int:
 
     from app import db, nlparse
 
-    parsed = nlparse.parse(args.text)
-    if parsed is None:
-        _die("无法从这句话里解析出金额。试试「昨天打车 32 元」这类格式。", 2)
+    # 一句话多笔：先试多笔解析（「午餐 45 打车 28」），再退回单笔。
+    # 单笔解析会把这种句子压成「打车 −45」——金额取自午餐、名称取自打车。
+    many = nlparse.parse_many(args.text)
+    items = many if many else ([nlparse.parse(args.text)] if nlparse.parse(args.text) else [])
+    if not items:
+        _die("无法从这句话里解析出金额。试试「昨天打车 32 元」或「午餐 45 打车 28」。", 2)
     await db.init_db()
     try:
-        await db.add_transaction(
-            parsed["date"], parsed["item"], parsed["category"], parsed["amount"]
-        )
+        for it in items:
+            await db.add_transaction(it["date"], it["item"], it["category"], it["amount"])
     finally:
         await db.close_db()
-    _out(
-        parsed,
-        args.json,
-        f"已记账：{parsed['date']} {parsed['item']} "
-        f"{_fmt_amount(parsed['amount'])} 元（{parsed['category']}）",
-    )
+    if len(items) == 1:
+        it = items[0]
+        _out(it, args.json, f"已记账：{it['date']} {it['item']} "
+                            f"{_fmt_amount(it['amount'])} 元（{it['category']}）")
+    else:
+        lines = [
+            "  %s %s %s 元（%s）" % (it["date"], it["item"], _fmt_amount(it["amount"]), it["category"])
+            for it in items
+        ]
+        lines = [
+            "  %s %s %s 元（%s）" % (it["date"], it["item"], _fmt_amount(it["amount"]), it["category"])
+            for it in items
+        ]
+        _out(items, args.json, ("已记账 %d 笔：" % len(items)) + chr(10).join(lines))
     return 0
 
 

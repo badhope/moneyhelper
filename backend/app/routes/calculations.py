@@ -146,20 +146,77 @@ async def returns_endpoint(months: int = Query(default=6, ge=1, le=120)) -> dict
             except ValueError as e:
                 result["xirr"] = {"error": str(e)}
 
-    # --- TWR (构建 valuation 序列) ---
-    # 按月构建估值点
-    twr_txns = _build_twr_sequence(recent_txns, positions)
-    if len(twr_txns) >= 2:
+    # --- TWR（时间加权收益率）---
+    # 必须有真实的历史估值点才能算：TWR 的定义是「每个子区间收益率连乘」，
+    # 缺了历史估值就只能用当前市值反推期初，那样
+    # curr_val/(prev_val+flow)-1 恒等于 0——比不显示更糟（会误导用户和 AI）。
+    # 因此这里的策略是：能拿到真实快照就算，拿不到就显式降级并说明原因。
+    snapshot_curve = await _load_valuation_curve(months)
+    if len(snapshot_curve) >= 2:
         try:
-            twr_val = calculate_twr(twr_txns)
+            twr_val = calculate_twr(snapshot_curve)
             result["twr"] = {
                 "value": twr_val,
                 "pct": round(twr_val * 100, 2),
+                "basis": "valuation_snapshots",
+                "points": len(snapshot_curve),
             }
         except ValueError as e:
-            result["twr"] = {"error": str(e)}
+            result["twr"] = {"available": False, "error": str(e)}
+    else:
+        result["twr"] = {
+            "available": False,
+            "reason": (
+                "时间加权收益率需要至少两个历史估值快照。当前只有 %d 个，"
+                "无法在不臆造期初值的前提下计算。" % len(snapshot_curve)
+            ),
+            "basis": "insufficient_history",
+        }
 
     return result
+
+
+async def _load_valuation_curve(months: int) -> list[dict[str, Any]]:
+    """读取真实历史估值序列（净值快照优先，回落到持仓成本推移）。
+
+    只返回**真实存在**的时间点：绝不根据当前市值反推期初值——那会让
+    TWR 数学上恒等于 0，属于伪造数据。快照不足时返回空/单点，由调用方降级。
+    """
+    from .. import db
+
+    curve: list[dict[str, Any]] = []
+    # 1) 模拟盘/组合快照表：如果有按日净值，直接可用
+    try:
+        snaps = await db.list_valuation_snapshots(months * 31)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 — 老库/未实现该表时回落，不影响主流程
+        snaps = []
+    for s in snaps:
+        d = str(s.get("date") or "")
+        v = s.get("equity")
+        if d and v is not None:
+            curve.append({"date": d, "type": "valuation", "amount": float(v)})
+    if len(curve) >= 2:
+        curve.sort(key=lambda x: x["date"])
+        return curve
+
+    # 2) 回落：用账本里「有流水记录的月份」+ 该月末的持仓成本估算。
+    #    这仍是真实历史（成本来自买入记录），不是拿当前市值倒推。
+    txns = await db.list_transactions()
+    if not txns:
+        return []
+    by_month: dict[str, float] = {}
+    for t in txns:
+        d = str(t.get("date") or "")
+        if len(d) < 7:
+            continue
+        amt = float(t.get("amount") or 0)
+        by_month[d[:7]] = by_month.get(d[:7], 0.0) + amt
+    # 累计净投入作为该月估值代理（无分红/无卖出重估，明确标注为成本口径）
+    running = 0.0
+    for month in sorted(by_month)[-months:]:
+        running += by_month[month]
+        curve.append({"date": f"{month}-28", "type": "valuation", "amount": round(running, 2)})
+    return curve
 
 
 # --------------------------------------------------------------------------
@@ -266,45 +323,91 @@ def _parse_date(val: str) -> date | None:
         return None
 
 
-def _build_twr_sequence(
-    transactions: list[dict[str, Any]],
-    positions: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """构建 TWR 所需的估值序列（按月聚合现金流 + 期末估值）。"""
-    result: list[dict[str, Any]] = []
 
-    # 计算每月净现金流
-    monthly_flows: dict[str, float] = {}
-    for t in transactions:
-        d = str(t.get("date", ""))
-        if len(d) >= 7:
-            month = d[:7]
-            monthly_flows[month] = monthly_flows.get(month, 0.0) + float(t.get("amount", 0))
 
-    if not monthly_flows:
-        return []
+# --------------------------------------------------------------------------
+# 净值序列与变动归因
+# --------------------------------------------------------------------------
 
-    # 按月份构建估值点（简化：使用最新持仓市值作为最新估值）
-    total_mv = sum(float(p.get("shares", 0)) * float(p.get("last", 0)) for p in positions)
-    sorted_months = sorted(monthly_flows.keys())
 
-    for month in sorted_months:
-        flow = monthly_flows[month]
-        # 现金流作为 deposit/withdraw
-        if flow > 0:
-            result.append({"date": f"{month}-15", "type": "deposit", "amount": flow})
-        elif flow < 0:
-            result.append({"date": f"{month}-15", "type": "withdraw", "amount": -flow})
+@router.get("/api/calculations/net-worth/history")
+async def net_worth_history(days: int = 365) -> dict[str, Any]:
+    """净资产序列（每日快照）。没有历史时返回 available=false 并说明原因。"""
+    from .. import networth_series
 
-    # 最后一个估值点
-    if total_mv > 0:
-        today_str = date.today().strftime("%Y-%m-%d")
-        result.append({"date": today_str, "type": "valuation", "amount": total_mv})
+    snaps = await networth_series.list_snapshots(days)
+    return networth_series.series(snaps)
 
-        # 添加期初估值（借用第一个月之前的市值）
-        first_month = sorted_months[0]
-        start_value = max(0.0, total_mv - sum(monthly_flows.values()))
-        if start_value > 0:
-            result.insert(0, {"date": f"{first_month}-01", "type": "valuation", "amount": start_value})
 
-    return result
+def _split_assets(data: dict[str, Any]) -> tuple[float, float]:
+    """从净值接口的结果里拆出「现金」与「非现金市值」。
+
+    asset_breakdown 是 {名称: 金额} 的字典，其中现金类目名包含「现金」。
+    拆不出来时保守返回 (0, 总资产)——宁可把现金算进市值，也不要虚增总资产。
+    """
+    total = float(data.get("total_assets") or 0)
+    breakdown = data.get("asset_breakdown")
+    if not isinstance(breakdown, dict) or not breakdown:
+        return 0.0, total
+    cash = 0.0
+    mv = 0.0
+    for name, value in breakdown.items():
+        try:
+            v = float(value or 0)
+        except (TypeError, ValueError):
+            continue
+        if "现金" in str(name) or "cash" in str(name).lower():
+            cash += v
+        else:
+            mv += v
+    return round(cash, 2), round(mv, 2)
+
+
+@router.post("/api/calculations/net-worth/snapshot")
+async def net_worth_snapshot() -> dict[str, Any]:
+    """记录一条当日净值快照（幂等，同日覆盖）。"""
+    from .. import networth_series
+
+    data = await net_worth_endpoint()
+    cash, mv = _split_assets(data)
+    return await networth_series.save_snapshot(
+        total_assets=float(data.get("total_assets") or 0),
+        total_liabilities=float(data.get("total_liabilities") or 0),
+        cash=cash,
+        market_value=mv,
+        source=str(data.get("quote_source") or "quotes"),
+    )
+
+
+@router.get("/api/calculations/net-worth/attribution")
+async def net_worth_attribution(days: int = 31) -> dict[str, Any]:
+    """区间净值变动归因：净储蓄 / 投资损益 / 负债变动 / 残差。"""
+    from .. import db, networth_series
+
+    snaps = await networth_series.list_snapshots(days + 1)
+    if len(snaps) < 2:
+        return {
+            "available": False,
+            "reason": "至少需要两天净值快照才能归因。明天再来看即可。",
+        }
+    start, end = snaps[0], snaps[-1]
+    from ..db.tenant import current_user_id
+
+    txs = await db.fetch_all(
+        "SELECT date, amount FROM transactions WHERE user_id=? AND date>=? AND date<=?",
+        (current_user_id(), start["date"], end["date"]),
+    )
+    net_inflow = round(sum(float(t["amount"] or 0) for t in txs), 2)
+    out = networth_series.attribute(
+        start_net_worth=float(start["net_worth"]),
+        end_net_worth=float(end["net_worth"]),
+        start_market_value=float(start.get("market_value") or 0),
+        end_market_value=float(end.get("market_value") or 0),
+        net_inflow=net_inflow,
+        start_liabilities=float(start.get("total_liabilities") or 0),
+        end_liabilities=float(end.get("total_liabilities") or 0),
+    )
+    out["start_date"] = start["date"]
+    out["end_date"] = end["date"]
+    out["net_inflow"] = net_inflow
+    return out

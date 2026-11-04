@@ -28,12 +28,15 @@ from ..broker_adapter import (
     issue_confirmation,
     trading_status,
 )
+from ..db.tenant import current_user_id
 from ..provenance import record_provenance
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
-# 适配器是进程级单例：连接 QMT/客户端是重操作，不能每个请求都重连
-_adapters: dict[str, Any] = {}
+# 适配器按「租户+券商」缓存：连接 QMT/客户端是重操作不能每请求重连，
+# 但缓存键绝不能只有券商名——此前用户 B 首次访问会直接拿到用户 A 的连接
+# （含 A 的账户、资金、持仓），属于跨租户越权。键改为 (user_id, name)。
+_adapters: dict[tuple[int, str], Any] = {}
 _lock = asyncio.Lock()
 
 
@@ -44,14 +47,15 @@ def _bad(msg: str, code: int = 400) -> JSONResponse:
 async def _get_adapter(name: str) -> Any:
     if name not in ALLOWED_BROKERS:
         raise ValueError(f"未知适配器：{name}")
-    if name not in _adapters:
+    key = (current_user_id(), name)
+    if key not in _adapters:
         credentials = await db.broker_get_secret(name)
-        _adapters[name] = build_adapter(name, credentials)
-    return _adapters[name]
+        _adapters[key] = build_adapter(name, credentials)
+    return _adapters[key]
 
 
 async def _clear_adapter(name: str) -> None:
-    adapter = _adapters.pop(name, None)
+    adapter = _adapters.pop((current_user_id(), name), None)
     if adapter is not None:
         try:
             await asyncio.to_thread(adapter.disconnect)

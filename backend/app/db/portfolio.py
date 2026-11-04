@@ -1,6 +1,8 @@
 """持仓域：持仓 CRUD/合并 + 自选股。"""
 from __future__ import annotations
 
+import math
+
 import json
 from typing import Any
 
@@ -31,14 +33,16 @@ async def add_position(p: dict[str, Any]) -> dict[str, Any]:
     }
     if not clean["symbol"]:
         raise ValueError("代码不能为空")
-    if clean["shares"] <= 0 or clean["shares"] != clean["shares"]:
-        raise ValueError("股数需大于 0")
-    if clean["cost"] < 0 or clean["cost"] != clean["cost"]:
-        raise ValueError("成本价不能为负")
-    if clean["last"] < 0 or clean["last"] != clean["last"]:
-        raise ValueError("现价不能为负")
-    if clean["fee"] < 0 or clean["fee"] != clean["fee"]:
-        raise ValueError("费用不能为负")
+    # isfinite 同时挡 NaN 与 ±Inf：Inf 会被 SQLite 原样存下，
+    # 随后 JSON 序列化（allow_nan=False）抛错，把整个持仓/总览接口打成 500。
+    if clean["shares"] <= 0 or not math.isfinite(clean["shares"]):
+        raise ValueError("股数需为大于 0 的有限数字")
+    if clean["cost"] < 0 or not math.isfinite(clean["cost"]):
+        raise ValueError("成本价需为有限数字且不能为负")
+    if clean["last"] < 0 or not math.isfinite(clean["last"]):
+        raise ValueError("现价需为有限数字且不能为负")
+    if clean["fee"] < 0 or not math.isfinite(clean["fee"]):
+        raise ValueError("费用需为有限数字且不能为负")
     uid = current_user_id()
     # 撤销快照：记录 upsert 前的状态（已存在 → 旧行 JSON，新增 → '{}'）
     existing = await (

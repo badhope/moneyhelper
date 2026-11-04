@@ -74,10 +74,19 @@ export const ChatInput = memo(
     onRemoveAttachment,
     llmConfigured,
     onOpenSettings,
+    modelName,
+    modelCatalog,
+    enabledModels,
+    onSwitchModel,
   }: ChatInputProps) => {
     const { t: tr } = useI18n();
     const { toast } = useToast();
     const fileRef = useRef<HTMLInputElement>(null);
+    // 模型快捷切换：只列「已点亮」的模型，避免下拉里一堆没 key 的选项。
+    // 设置页文案承诺过「点亮后出现在输入框下拉」，此前这个下拉根本不存在。
+    const modelOptions = (modelCatalog ?? []).filter(
+      (m) => !enabledModels?.length || enabledModels.includes(m.model),
+    );
     const [uploading, setUploading] = useState(false);
     const [focused, setFocused] = useState(false);
 
@@ -163,6 +172,26 @@ export const ChatInput = memo(
             )}
 
             <div className="flex items-end gap-1.5">
+              {/* 模型快捷切换：只在有多个已点亮模型时出现，单模型不占地方 */}
+              {onSwitchModel && modelOptions.length > 1 && (
+                <label className="mb-0.5 shrink-0" title={tr("chat.switchModel")}>
+                  <span className="sr-only">{tr("chat.switchModel")}</span>
+                  <select
+                    value={modelOptions.find((m) => m.model === modelName)?.id ?? ""}
+                    onChange={(e) => {
+                      const picked = modelOptions.find((m) => m.id === e.target.value);
+                      if (picked) void onSwitchModel(picked.base, picked.model);
+                    }}
+                    className="h-9 max-w-[10rem] cursor-pointer truncate rounded-full border border-border/70 bg-transparent px-2 text-[12px] text-foreground/75 focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {modelOptions.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label
                 className="mb-0.5 inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground/55 transition-colors hover:bg-accent hover:text-foreground"
                 title={tr("chat.attach")}

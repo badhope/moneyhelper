@@ -118,26 +118,32 @@ async def paper_trade(aid: str, payload: dict[str, Any]) -> dict[str, Any]:
     except (TypeError, ValueError) as e:
         raise HTTPException(status_code=400, detail="price/shares 非法") from e
 
-    trades = await db.get_trades(aid)
-    err = validate_trade(acc["initial_cash"], trades, side, symbol, price, shares)
-    if err:
-        raise HTTPException(status_code=400, detail=err)
-
     amount = price * shares
     fee = fee_for(side, amount)
-    trade = await db.add_trade(
-        aid,
-        {
-            "symbol": symbol,
-            "name": str(payload.get("name") or ""),
-            "side": side,
-            "price": price,
-            "shares": shares,
-            "fee": fee,
-        },
-    )
-    est = estimate(acc["initial_cash"], await db.get_trades(aid))
-    await db.save_snapshot(aid, est["equity"], est["cash"], est["market_value"])
+
+    # 读-校验-写必须在同一把写锁内完成：否则两个并发买入都能通过现金校验，
+    # 落库后现金为负、交易流水与估值不一致（排行榜/净值曲线全部失真）。
+    # 事件溯源模型的正确用法是「持锁重放→校验→插入」，而不是先读后判。
+    from ..db._core import get_write_lock
+
+    async with get_write_lock():
+        trades = await db.get_trades(aid)
+        err = validate_trade(acc["initial_cash"], trades, side, symbol, price, shares)
+        if err:
+            raise HTTPException(status_code=400, detail=err)
+        trade = await db.add_trade(
+            aid,
+            {
+                "symbol": symbol,
+                "name": str(payload.get("name") or ""),
+                "side": side,
+                "price": price,
+                "shares": shares,
+                "fee": fee,
+            },
+        )
+        est = estimate(acc["initial_cash"], await db.get_trades(aid))
+        await db.save_snapshot(aid, est["equity"], est["cash"], est["market_value"])
     return {"trade": trade, "estimate": est}
 
 

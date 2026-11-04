@@ -355,13 +355,16 @@ async def test_buy_with_quote_records_position(temp_db, monkeypatch):
     pending = await db.get_pending_action(out["pending_token"])
     assert pending is not None and pending["tool_name"] == "record_position"
     ans = await tools.TOOL_IMPL["record_position"](pending["args"])
-    assert "已记录买入" in ans
+    # seed 里已有 600519 → 走追加语义（股数累加、成本加权平均）。
+    # 覆盖语义会让「再买 100 股」把原持仓抹掉，是资金数据错误。
+    assert "已追加买入" in ans
     await db.mark_pending_action(out["pending_token"], "consumed")
     # token 一次性：二次确认失效
     assert await db.get_pending_action(out["pending_token"]) is None
-    # 确认后落库成功（record_position 按 symbol upsert，seed 已有 600519）
-    after = next(p["cost"] for p in await db.list_positions() if p["symbol"] == "600519")
-    assert after == 1250.0
+    # 确认后落库：原份额 + 100，成本为加权平均（不再是单一 1250）
+    pos = next(p for p in await db.list_positions() if p["symbol"] == "600519")
+    assert pos["shares"] > 100
+    assert pos["cost"] != 1250.0 or pos["shares"] == 100
 
 
 # ---------------------------------------------------------------------------
@@ -438,8 +441,11 @@ async def test_graph_hitl_resume_survives_memory_clear(temp_db, monkeypatch):
     agent_graph._HITL_THREADS.clear()
     ans = await agent_graph.resume_action(token, "confirm")
     assert ans is not None and ans.get("level") == "已执行"
-    after = next(p["cost"] for p in await db.list_positions() if p["symbol"] == "600519")
-    assert after == 1250.0
+    # 追加语义：seed 已有 600519，再买 100 股 → 份额增加、成本为加权平均。
+    # 断言「成本落在原成本与本次成交价之间」比断言具体数值更稳，也更贴合业务含义。
+    pos = next(p for p in await db.list_positions() if p["symbol"] == "600519")
+    assert pos["shares"] > 100
+    assert min(1250.0, 1680.0) <= pos["cost"] <= max(1250.0, 1680.0)
     # token 已消费（一次性）
     assert await agent_graph._load_pending(token) is None
 

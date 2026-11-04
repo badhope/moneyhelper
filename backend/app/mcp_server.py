@@ -647,54 +647,44 @@ async def _compute_net_worth() -> str:
 
 
 async def _compute_financial_health() -> str:
-    """计算财务健康评分（五维度 0-100）。"""
-    from .calculations.health import HealthInputs, calculate_health_score
+    """财务健康评分：**复用 analysis.health_check 的同一实现**。
 
-    # 从 DB 拿数据
+    历史问题：这里曾用 calculations.calculate_health_score（连续打分），
+    而 REST /api/calculations/health、/api/health-check 与体检页用
+    analysis.health_check（定性折算）。同一份数据 MCP 报 54/D、界面报 83/B，
+    AI 又会把 MCP 的数字当事实复述给用户——同一个产品给出两套结论。
+
+    现在只有一条口径：进 analysis，出什么就报什么。
+    """
+    from . import analysis, quotes
+
     positions = await db.list_positions()
-    txs = await db.list_transactions()
+    txns = await db.list_transactions()
     debts = await db.list_debts()
+    subs = await db.list_subscriptions()
     settings = await db.get_settings()
 
-    # 计算月度收入 / 支出
-    monthly_income = 0.0
-    monthly_expense = 0.0
-    now = datetime.now()
-    month_prefix = now.strftime("%Y-%m")
-    for t in txs:
-        if t.get("date", "").startswith(month_prefix):
-            amt = float(t.get("amount", 0))
-            if amt > 0:
-                monthly_income += amt
-            else:
-                monthly_expense += abs(amt)
+    try:
+        live = await quotes.live_quotes(positions)
+    except Exception:  # noqa: BLE001 — 行情失败退回快照价，评分仍可给
+        live = {p["symbol"]: float(p.get("last", 0)) for p in positions}
 
-    # 月度负债还款
-    monthly_debt = sum(float(d.get("monthly", 0) or 0) for d in debts)
+    market = analysis.market_view(positions, live)
+    ledger = analysis.ledger_view(txns, subs, debts, settings, positions, live)
+    flags = analysis.risk_checks(market, ledger, "zh")
+    report = analysis.health_check(market, ledger, flags, await db.list_goals(), "zh")
 
-    # 现金
-    cash = sum(
-        float(p.get("last", 0)) * float(p.get("shares", 0))
-        for p in positions if p.get("kind") == "现金"
+    return json.dumps(
+        {
+            "score": report.get("score", 0),
+            "grade": report.get("grade", "-"),
+            "summary": report.get("summary", ""),
+            "dimensions": report.get("dimensions", []),
+            "source": "analysis.health_check",
+            "note": "与 /api/calculations/health、体检页同一口径",
+        },
+        ensure_ascii=False,
     )
-
-    inputs = HealthInputs(
-        monthly_income=monthly_income,
-        monthly_expense=monthly_expense,
-        monthly_debt_payment=monthly_debt,
-        cash_balance=cash,
-        essential_monthly_expense=monthly_expense or 1.0,
-        emergency_target_months=float(settings.get("emergency_target_months", 6) or 6),
-        positions=[{"name": p.get("name", ""), "kind": p.get("kind", ""),
-                     "market_value": float(p.get("last", 0)) * float(p.get("shares", 0))}
-                    for p in positions],
-    )
-    score = calculate_health_score(inputs)
-    return json.dumps({
-        "score": score.score,
-        "grade": score.grade,
-        "breakdown": score.breakdown,
-    }, ensure_ascii=False)
 
 
 async def _compute_returns(months: int = 6) -> str:
@@ -1040,7 +1030,16 @@ def mount_to_app(app: Any, holder: dict[str, Any] | None = None) -> None:
             denied = host_guard_check(request)
             if denied is not None:
                 return JSONResponse({"error": denied}, status_code=403)
-            return await call_next(request)
+            # 租户接线：auth_gate 返回的 tenant_id 必须写进 ContextVar，
+            # 否则 MCP 工具里的 db.* 全部落到默认租户 0——多用户实例里
+            # 用户 B 拿自己的 JWT 调 MCP，读写的是用户 A 的账本（跨租户读写）。
+            from .db.tenant import reset_current_user_id, set_current_user_id
+
+            token = set_current_user_id(gate)
+            try:
+                return await call_next(request)
+            finally:
+                reset_current_user_id(token)
 
     # 路径布局：
     #   /mcp                 Streamable HTTP（默认，MCP 规范推荐；无斜杠即用）

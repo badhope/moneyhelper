@@ -36,11 +36,33 @@ from .tool_schemas import validate_tool_args
 
 # 写类工具已被确定性分支覆盖（记账/记忆/买卖/设置/备份/晨报都有前置 action/record/memory
 # 节点拦截），agent 模式只暴露读类 + 自选维护工具，防止模型在追问/分析语境里越权落库。
+#
+# 判定改为由 tool_policy 统一回答（而不是手写集合）：新增工具时不必记得
+# 同步这个集合，未知工具默认 ASK（fail-closed），不会被意外暴露给模型。
+from . import tool_policy as _policy  # noqa: E402 — 与工具表同层，避免循环导入
+
 WRITE_EXCLUDED = {
-    "record_transaction", "save_user_memory", "record_position", "sell_position",
-    "set_setting", "backup_now", "trigger_morning_report",
+    n for n in tools.TOOL_IMPL
+    if _policy.resolve(n) != _policy.READ
 }
-READ_TOOLS = [t for t in tools.TOOLS if t["function"]["name"] not in WRITE_EXCLUDED]
+# 只按「内置财务工具」过滤，不能把外部 MCP 工具误伤：
+# `mcp__search_symbol` 之类的名字不在内置表里，若按「未登记即排除」处理，
+# 所有外部只读 MCP 工具都会失效（这曾导致 test_mcp_read_tools_not_blocked 失败）。
+READ_TOOLS = [
+    t for t in tools.TOOLS
+    if _policy.resolve(t["function"]["name"]) == _policy.READ
+]
+
+
+def is_tool_excluded(name: str) -> bool:
+    """判断某工具是否应从「模型可自动执行」清单中排除。
+
+    外部 MCP 工具（mcp__ 前缀）不在内置策略表内，交给 MCP 客户端自身的
+    权限与连接状态管理，这里一律放行——否则会把用户自己接入的只读工具全部挡掉。
+    """
+    if str(name).startswith("mcp__"):
+        return False
+    return _policy.resolve(name) != _policy.READ
 # 执行层白名单：只允许模型实际调用「读类 + 自选维护」工具。写工具（记账/记忆/买卖/设置/
 # 备份/晨报）由确定性前置分支拦截，绝不暴露给模型执行，防止 prompt 注入/幻觉越权落库。
 ALLOWED_IMPL = {

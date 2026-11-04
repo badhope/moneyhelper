@@ -14,6 +14,8 @@ llm_available / invalidate 接口形态，调用方（agent_graph/service/agent�
 
 from __future__ import annotations
 
+import types
+
 import hashlib
 import json
 import os
@@ -56,7 +58,25 @@ litellm.set_verbose = False
 # 与旧 llm.py 的 _config() 同形态：返回 {key, base, model} 或 None。
 # ---------------------------------------------------------------------------
 
+# 按租户缓存模型配置：此前是进程级单例，多用户实例里第一个配置模型的人
+# 会把自己的 Key/端点"借"给所有用户——费用算他的，用户 B 的财务问题被发往
+# A 配置的第三方服务。缓存键 = current_user_id()，设置变更仍走 invalidate()。
+_cfg_by_tenant: dict[int, dict[str, Any] | None] = {}
+
+# 兼容别名：旧代码/测试直接读写 `llm._cfg`。它始终镜像「默认租户(0)」的槽，
+# 因此 `llm._cfg = {...}` 等价于给默认租户注入配置——既保留旧语义，
+# 又不会让多租户共享同一份 Key（真正的隔离在 _cfg_by_tenant）。
 _cfg: dict[str, Any] | None = None
+
+
+def _tenant_key() -> int:
+    try:
+        from .db.tenant import current_user_id
+
+        return int(current_user_id() or 0)
+    except Exception:  # noqa: BLE001 — 无租户上下文（CLI/测试）归默认租户
+        return 0
+
 
 # 供应商 prefix 映射（LiteLLM 用 "provider/model" 格式）
 _PROVIDER_PREFIX: dict[str, str] = {
@@ -71,9 +91,13 @@ _PROVIDER_PREFIX: dict[str, str] = {
 
 async def _config() -> dict[str, Any] | None:
     """读取模型配置：DB 优先，环境变量兜底。返回 None 表示未接入。"""
-    global _cfg
-    if _cfg is not None:
+    tk = _tenant_key()
+    cached = _cfg_by_tenant.get(tk)
+    if tk == 0 and _cfg is not None:
+        # 外部直接设置了 _cfg（测试/扩展）：视为默认租户的显式配置，优先采用
         return _cfg or None
+    if cached is not None:
+        return cached or None
 
     # 1) 设置中心（数据库）
     try:
@@ -97,14 +121,14 @@ async def _config() -> dict[str, Any] | None:
                 key = raw_key
         if s.get("ai_enabled") == "on" and key and model:
             provider = _detect_provider(model, base)
-            _cfg = {
+            _cfg_by_tenant[tk] = {
                 "key": key,
                 "model": model,
                 "provider": provider,
                 "base": base,
                 "litellm_model": _to_litellm_model(model, provider, base),
             }
-            return _cfg
+            return _cfg_by_tenant[tk]
     except Exception as e:
         # DB 读取失败（schema 损坏 / 磁盘满 / 加密字段不可解析）不应静默吞掉——
         # 区分"未接入模型"和"配置损坏无法定位"对排查至关重要
@@ -116,16 +140,16 @@ async def _config() -> dict[str, Any] | None:
     model = os.getenv("LLM_MODEL", "").strip()
     if key and model:
         provider = _detect_provider(model, base)
-        _cfg = {
+        _cfg_by_tenant[tk] = {
             "key": key,
             "model": model,
             "provider": provider,
             "base": base,
             "litellm_model": _to_litellm_model(model, provider, base),
         }
-        return _cfg
+        return _cfg_by_tenant[tk]
 
-    _cfg = {}
+    _cfg_by_tenant[tk] = {}  # 明确记录「本租户无配置」，避免反复查 DB
     return None
 
 
@@ -164,8 +188,9 @@ def _to_litellm_model(model: str, provider: str, base: str) -> str:
 
 
 def invalidate() -> None:
-    """设置中心修改 AI 配置后调用，使下次读取重新读取 DB。"""
+    """设置中心修改 AI 配置后调用，使下次读取重新读取 DB（清空全部租户缓存）。"""
     global _cfg
+    _cfg_by_tenant.clear()
     _cfg = None
 
 

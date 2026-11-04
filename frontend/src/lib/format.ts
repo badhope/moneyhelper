@@ -17,10 +17,19 @@ export function fmtMoney(v: number | undefined | null, signed = false, compact =
   const abs = Math.abs(v);
   const sign = v < 0 ? "-" : signed ? "+" : "";
   let body: string;
-  if (compact && abs >= 1e8) {
-    body = moneyLocale === "zh" ? `${(abs / 1e8).toFixed(2)}亿` : `${(abs / 1e9).toFixed(2)}B`;
-  } else if (compact && abs >= 1e4) {
-    body = moneyLocale === "zh" ? `${(abs / 1e4).toFixed(1)}万` : `${(abs / 1e6).toFixed(1)}M`;
+  if (compact && moneyLocale === "zh") {
+    // 中文数量级：万（1e4）/ 亿（1e8）
+    if (abs >= 1e8) body = `${(abs / 1e8).toFixed(2)}亿`;
+    else if (abs >= 1e4) body = `${(abs / 1e4).toFixed(1)}万`;
+    else body = abs.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+  } else if (compact) {
+    // 英文数量级：k（1e3）/ M（1e6）/ B（1e9）。
+    // 此前阈值沿用中文的 1e4/1e8、除数却是 1e6/1e9：12345 显示成 ¥0.0M，
+    // 英文用户看到的工资/房租/市值整体少 100 倍——直接误导决策的错误。
+    if (abs >= 1e9) body = `${(abs / 1e9).toFixed(2)}B`;
+    else if (abs >= 1e6) body = `${(abs / 1e6).toFixed(1)}M`;
+    else if (abs >= 1e3) body = `${(abs / 1e3).toFixed(1)}k`;
+    else body = abs.toLocaleString("en-US", { maximumFractionDigits: 2 });
   } else {
     body = abs.toLocaleString(moneyLocale === "zh" ? "zh-CN" : "en-US", { maximumFractionDigits: 2 });
   }

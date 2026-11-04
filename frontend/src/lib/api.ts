@@ -165,10 +165,11 @@ export async function apiStream(
           onLine(obj);
         });
         if (completed) return; // 收到终帧才算完整接收
-        // 连接正常关闭但没收到 done：视为断流，交给重试逻辑。
-        // 已经收到内容时不重放（会重复半段），但必须让调用方知道未完成。
+        // 连接正常关闭但没收到 done：一律视为断流，交给重试逻辑。
+        // 此前 got=false（一帧都没收到，例如反代超时/后端 204）时直接 return，
+        // 调用方以为成功，气泡留空并永久显示「分析中」。
         if (got) throw new Error("流式连接提前结束（未收到完成标记）");
-        return;
+        throw new Error("流式连接未返回任何数据（服务端或代理中断）");
       } catch (err) {
         if (signal?.aborted) break;
         if (err instanceof ReauthError) {

@@ -280,7 +280,12 @@ export default function App() {
                     }
                   >
                     {view !== "chat" ? (
-                      <FinancePage kind={view} onKindChange={(k) => setView(k)} />
+                      <FinancePage
+                        kind={view}
+                        onKindChange={(k) => setView(k)}
+                        onGoChat={() => setView("chat")}
+                        onGoSettings={() => setSettingsOpen(true)}
+                      />
                     ) : activeThread ? (
                       <ChatView
                         key={activeThread}
@@ -428,7 +433,7 @@ export default function App() {
           <CommandPalette
             open={cmdOpen}
             onOpenChange={setCmdOpen}
-            onNavigateChat={() => undefined}
+            onNavigateChat={() => setView("chat")}
             onNavigateFeature={openData}
             onOpenSettings={() => setSettingsOpen(true)}
             onNewSession={() => void newSession()}

@@ -655,12 +655,17 @@ async def action(state: AgentState) -> dict[str, Any]:
                         "actions": [{"tab": "holdings"}],
                     }
                 except Exception as exc:  # noqa: BLE001 — 执行失败给可读回执
-                    await db.mark_pending_action(token, "failed")
+                    # claim 已把状态改成 consumed，这里必须用「无条件置为 failed」
+                    # （mark_pending_action 带 status='pending' 条件，对已消费行是空操作）。
+                    # 否则记录停留在 consumed，用户与运维都看不出「执行失败过」。
+                    await db.force_pending_status(token, "failed")
                     result = {
                         "answer": (
-                            f"Execution failed: {type(exc).__name__}: {exc}"
+                            f"Execution failed: {type(exc).__name__}: {exc}. "
+                            "No partial write should have occurred; retry the request if needed."
                             if en
-                            else f"执行失败：{type(exc).__name__}: {exc}"
+                            else f"执行失败：{type(exc).__name__}: {exc}。"
+                            "未产生部分写入，如需重试请重新发起该操作。"
                         ),
                         "level": "失败",
                         "route": "action",

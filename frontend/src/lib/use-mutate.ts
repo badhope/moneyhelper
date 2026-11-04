@@ -44,7 +44,20 @@ export function useMutate<TArgs, TResult>(opts: UseMutateOptions<TArgs, TResult>
       const msg = e instanceof Error ? e.message : String(e);
       if (opts.silentError !== true) {
         if (opts.errorKey) {
-          const base = typeof opts.vars === "function" ? opts.vars(args, undefined as unknown as TResult) : (opts.vars ?? {});
+          // vars 的签名是 (args, result)，成功路径依赖 result 拼文案。
+          // 失败时 result 不存在，直接调用会让 vars 内部 res.xxx 抛 TypeError，
+          // toast 永远执行不到——用户点了按钮毫无反馈（"以为已保存"）。
+          // 这里包一层：vars 抛错就退回空对象，保证错误提示一定能显示。
+          let base: Record<string, unknown> = {};
+          if (typeof opts.vars === "function") {
+            try {
+              base = (opts.vars(args, undefined as unknown as TResult) ?? {}) as Record<string, unknown>;
+            } catch {
+              base = {};
+            }
+          } else if (opts.vars) {
+            base = opts.vars as Record<string, unknown>;
+          }
           toast(t(opts.errorKey, { ...base, e: msg }), "error");
         } else toast(msg, "error");
       }

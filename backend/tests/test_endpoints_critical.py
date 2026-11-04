@@ -137,10 +137,17 @@ async def test_audit_list_and_clear(client: AsyncClient) -> None:
     assert "deleted" in cleared.json()
 
 
-async def test_logs_list(client: AsyncClient) -> None:
+async def test_logs_requires_admin(client: AsyncClient) -> None:
+    """日志是进程级全局文件，含所有租户的工具参数与问题片段。
+
+    未登录（无管理员身份）必须被拒——此前任何登录用户都能读取并清空，
+    等于任意租户可窥探他人操作、销毁审计证据。
+    """
     r = await client.get("/api/logs?limit=20")
-    assert r.status_code == 200
-    assert "lines" in r.json() or isinstance(r.json(), list)
+    assert r.status_code == 401
+
+    r2 = await client.post("/api/logs/clear")
+    assert r2.status_code == 401
 
 
 # ---------------------------------------------------------------------------

@@ -95,14 +95,41 @@ export function useSessionUsage(threadId: string | null | undefined) {
   return { usage: q.data ?? null };
 }
 
-/** 数据变更后统一失效（记账 / 设置 / 问答完成时调用；语义同旧 bump()）。
- *  顺带失效 budgets / trend，避免 Dashboard 里 useQuery 的独立数据变旧。 */
+/**
+ * 一次写操作会让所有「同一份数据的派生视图」变旧。这里是单一失效入口：
+ * 漏掉任何一个 key，用户就会在同一屏看到两套矛盾数字（记一笔账后
+ * 顶部总资产更新、净值卡/健康分/收益卡仍是旧值）。
+ *
+ * 因此按「前缀」而不是逐个枚举具体查询，新增派生查询只要复用这些前缀
+ * 就自动被覆盖；同时保留 refreshAll 给需要强刷的场景。
+ */
+const DERIVED_PREFIXES: readonly (readonly unknown[])[] = [
+  queryKeys.dashboard,
+  queryKeys.sessions,
+  queryKeys.sessionUsage,
+  ["budgets"],
+  ["trend"],
+  ["calcs"],          // net-worth / health / returns / goals-progress
+  ["subscriptions"],
+  ["evaluate"],
+  ["goals"],
+  ["connect"],
+  ["paper"],
+];
+
 export function invalidateBump(): void {
   const c = getQueryClient();
-  void c.invalidateQueries({ queryKey: queryKeys.dashboard });
-  void c.invalidateQueries({ queryKey: queryKeys.sessions });
-  void c.invalidateQueries({ queryKey: ["budgets"] });
-  void c.invalidateQueries({ queryKey: ["trend"] });
+  for (const key of DERIVED_PREFIXES) {
+    void c.invalidateQueries({ queryKey: key as unknown[] });
+  }
+}
+
+/** 强刷：写操作后需要「立刻看到新数字」时用（invalidate 只是标记 stale）。 */
+export async function refetchAllFinancial(): Promise<void> {
+  const c = getQueryClient();
+  await Promise.all(
+    DERIVED_PREFIXES.map((key) => c.refetchQueries({ queryKey: key as unknown[] })),
+  );
 }
 
 /** 兼容旧 `store` 对象形状：内部转发到 TanStack Query，调用方 import { store } 不用改。 */

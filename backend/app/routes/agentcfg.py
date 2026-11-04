@@ -126,6 +126,19 @@ async def put_mcp_servers(payload: dict) -> dict:
     servers = payload.get("servers")
     if not isinstance(servers, list):
         return JSONResponse({"error": "servers 必须是数组"}, status_code=400)
+    # 保存即意味着随后会对外发起请求（refresh），所以这里也要做 SSRF 校验：
+    # 否则可以先保存内网 URL、再靠刷新触发探测，绕过 /api/mcp/test 的检查。
+    from ..netguard import SSRFBlocked, assert_public_http_url
+
+    for s in servers:
+        if not isinstance(s, dict):
+            return JSONResponse({"error": "servers 元素必须是对象"}, status_code=400)
+        u = str(s.get("url") or "").strip()
+        if u:
+            try:
+                assert_public_http_url(u)
+            except SSRFBlocked as exc:
+                return JSONResponse({"error": f"{s.get('name') or 'server'}: {exc}"}, status_code=400)
     try:
         mcp_client.save_servers(servers)
     except ValueError as exc:
@@ -144,15 +157,27 @@ async def test_mcp_server(payload: dict) -> dict:
     http：传 url；stdio：传 command + args（本地拉起进程后握手）。
     """
     from .. import mcp_client
+    from ..netguard import SSRFBlocked, assert_public_http_url
 
     url = str(payload.get("url") or "").strip()
     command = str(payload.get("command") or "").strip()
     args = payload.get("args") or []
     if not url and not command:
         return JSONResponse({"error": "请提供 url（http）或 command（stdio）"}, status_code=400)
-    if url and not url.lower().startswith(("http://", "https://")):
-        return JSONResponse({"error": "地址必须以 http:// 或 https:// 开头"}, status_code=400)
-    if command and not isinstance(args, list):
+    if url:
+        # SSRF 防护：拒绝内网/回环/云 metadata 等保留地址（含域名解析后校验）
+        try:
+            url = assert_public_http_url(url)
+        except SSRFBlocked as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+    if command:
+        # stdio MCP 会在服务器上拉起任意进程 = 命令执行能力，不开放给 API。
+        # 远程用户请用 http(s) MCP；本地 stdio 服务器由部署者在配置文件里声明。
+        return JSONResponse(
+            {"error": "stdio MCP 服务器不支持通过 API 测试（避免任意命令执行）；请使用 http(s) 地址"},
+            status_code=400,
+        )
+    if not isinstance(args, list):
         return JSONResponse({"error": "args 必须是数组"}, status_code=400)
     try:
         tools = await mcp_client.probe(url, command, [str(a) for a in args])

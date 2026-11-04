@@ -189,6 +189,7 @@ def ledger_view(
         "subscription_monthly": round(subs_total, 2),
         "subscription_annual": round(subs_total * 12, 2),
         "debt_monthly": round(debt_monthly, 2),
+        "debt_count": len(debts),
         "dti_pct": dti,
         "high_rate_debts": [d for d in debts if d["rate"] >= HIGH_RATE_DEBT],
         "emergency": {
@@ -535,7 +536,9 @@ async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict
     # M5.3：本月现金流走 SQL 聚合；流水明细只取最近 500 条 + 总数，
     # 账本十万行时不必把整库搬进内存再序列化给浏览器。
     cashflow = await db.month_cashflow(month, cats)
-    txs = await db.list_transactions()
+    # 只取本月流水做账本视图：ledger_view 内部第一步就按 month 过滤，
+    # 传全表等于把十万行搬进内存再丢掉 99%。明细用 LIMIT 单独取。
+    txs = await db.list_transactions_by_month(month)
     total_tx = await db.count_transactions()
     subs = await db.list_subscriptions()
     debts = await db.list_debts()
@@ -597,6 +600,32 @@ async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict
             "seeded": settings.get("data_note", "") == "seed",
         },
     }
+    # 每日净值快照：总览是用户每天必开的页面，在这里落一条快照最省事，
+    # 也让「净值序列 / 变动归因 / TWR」有真实历史可用。
+    # 失败绝不能影响总览——快照只是日志性质的历史记录。
+    try:
+        from . import networth_series
+
+        # 现金 = kind 为「现金」的持仓市值；其余为非现金市值。
+        # 口径与持仓页一致（现金不参与集中度但计入总资产）。
+        cash_mv = sum(
+            float(p.get("shares") or 0) * float(live.get(p["symbol"], p.get("last") or 0))
+            for p in positions
+            if p.get("kind") == "现金"
+        )
+        total_mv = float(m["total_market_value"])
+        # 负债总额：负债明细里的未还本金（不是月供）
+        total_liab = sum(float(d.get("balance") or 0) for d in debts)
+        await networth_series.save_snapshot(
+            total_assets=total_mv,
+            total_liabilities=total_liab,
+            cash=cash_mv,
+            market_value=max(0.0, total_mv - cash_mv),
+            source="eastmoney" if quotes.last_source() == "eastmoney" else "snapshot",
+        )
+    except Exception:  # noqa: BLE001 — 快照失败不影响总览
+        pass
+
     if use_cache:
         _dashboard_cache[key] = (time.monotonic(), out)
     return out
@@ -768,12 +797,24 @@ def health_check(
                 ),
             })
         elif ledger.get("debt_monthly", 0) == 0:
+            # debt_monthly=0 有两种可能：确实没负债，或用户根本没录负债。
+            # 后者给 good 等于凭空送 20 分（新用户记一笔账就能拿高分），
+            # 所以按「负债条数」区分：有明细且都还清 = good；没明细 = unknown。
+            has_debt_records = bool((ledger or {}).get("debt_count"))
             dims.append({
                 "key": "debt",
                 "title": "Debt health" if en else "负债健康",
-                "status": "good",
-                "detail": "No debt payments — clean financial structure." if en else "当前无负债月供，财务结构干净。",
-                "suggestion": "",
+                "status": "good" if has_debt_records else "unknown",
+                "detail": (
+                    ("No outstanding debt — clean structure." if en else "已录入的负债均无未还月供，结构干净。")
+                    if has_debt_records
+                    else ("No debt records found — add mortgage/card balances for a real assessment."
+                          if en else "未录入负债信息，无法评估负债健康度（有房贷/信用卡请补录）。")
+                ),
+                "suggestion": "" if has_debt_records else (
+                    "Record outstanding debts so DTI and interest cost can be assessed."
+                    if en else "补录未偿还负债，才能评估负债率与利息成本。"
+                ),
             })
 
     # 4) 应急金

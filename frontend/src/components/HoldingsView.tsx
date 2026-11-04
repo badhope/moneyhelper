@@ -13,6 +13,7 @@ import { fmtMoney, pnlClass } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PositionsTable, type PositionOps } from "@/components/PositionsTable";
 import { PositionEditDialog } from "@/components/PositionEditDialog";
+import { PositionAppendDialog } from "@/components/PositionAppendDialog";
 import { PositionContributionCard } from "@/components/dashboard/PositionContributionCard";
 import { api } from "@/lib/api";
 import { useMutate } from "@/lib/use-mutate";
@@ -31,6 +32,7 @@ export function HoldingsView({ onGoMarket }: { onGoMarket?: () => void } = {}) {
   const [kind, setKind] = useState<string>("all");
   const [editing, setEditing] = useState<Position | null>(null);
   const [deleting, setDeleting] = useState<Position | null>(null);
+  const [appending, setAppending] = useState<Position | null>(null);
 
   // 同名不同 symbol 的重复持仓（合并入口只对真有重复的 name 显示）
   const dupeNames = useMemo(() => {
@@ -73,20 +75,12 @@ export function HoldingsView({ onGoMarket }: { onGoMarket?: () => void } = {}) {
     void merge.mutateAsync(undefined);
   };
 
-  const append = useMutate<{ p: Position; payload: { shares: number; cost: number; last?: number } }, { new_shares: number }>({
-    fn: (a) =>
-      api<{ new_shares: number }>(`/api/positions/${encodeURIComponent(a.p.symbol)}/append`, {
-        method: "POST",
-        body: JSON.stringify(a.payload),
-      }),
-    key: "pos.appendDone",
-    vars: (a, res) => ({ name: a.p.name, shares: res.new_shares }),
-  });
-
   const ops: PositionOps = {
     onEdit: (p) => setEditing(p),
     onDelete: (p) => setDeleting(p),
-    onAppend: (p, payload) => void append.mutateAsync({ p, payload }),
+    // 只打开追加弹窗：股数必须由用户输入。此前这里直接把「当前全部持仓」
+    // 当新增股数提交，点一次仓位翻倍、成本被重算——误触即篡改资产数据。
+    onAppend: (p) => setAppending(p),
   };
 
   if (!dashboard) return null;
@@ -269,6 +263,17 @@ export function HoldingsView({ onGoMarket }: { onGoMarket?: () => void } = {}) {
         onOpenChange={(o) => !o && setEditing(null)}
         onDone={() => {
           setEditing(null);
+          store.bump();
+        }}
+      />
+      <PositionAppendDialog
+        position={appending}
+        open={appending !== null}
+        onOpenChange={(o) => {
+          if (!o) setAppending(null);
+        }}
+        onDone={() => {
+          setAppending(null);
           store.bump();
         }}
       />
