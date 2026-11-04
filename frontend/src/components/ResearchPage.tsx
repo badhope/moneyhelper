@@ -23,6 +23,17 @@ import {
   Undo2,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+
+import type { BacktestStrategy } from "@/lib/use-research";
+type StrategyId = BacktestStrategy;
+
+const STRATEGY_LABELS: Record<StrategyId, string> = {
+  ma_cross: "双均线(5/20)",
+  dca: "定投",
+  grid: "网格",
+  trend: "趋势跟随",
+  vol_target: "波动率目标",
+};
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -280,7 +291,7 @@ function BacktestPanel({
   result: BacktestResult | undefined;
   loading: boolean;
   unavailable: string | undefined;
-  strategy: "ma_cross" | "dca";
+  strategy: StrategyId;
   params: { fast: number; slow: number; invest_amount: number; freq_days: number };
   onParams: (p: Partial<{ fast: number; slow: number; invest_amount: number; freq_days: number }>) => void;
 }) {
@@ -431,7 +442,7 @@ export function ResearchPage() {
   const { t } = useI18n();
   const [symbol, setSymbol] = useState<string>("600519");
   const [submitted, setSubmitted] = useState<string>("600519");
-  const [strategy, setStrategy] = useState<"ma_cross" | "dca">("ma_cross");
+  const [strategy, setStrategy] = useState<StrategyId>("ma_cross");
   const [period, setPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
   const [btParams, setBtParams] = useState({ fast: 5, slow: 20, invest_amount: 1000, freq_days: 5 });
 
@@ -478,7 +489,46 @@ export function ResearchPage() {
           <Skeleton className="h-[260px] w-full" />
         </div>
       ) : analyze.data?.available === false ? (
-        <EmptyState illustration="search" title="无法分析该标的" desc={analyze.data.reason ?? "行情源不可用"} />
+        // 行情源挂了只影响「技术面」，不该把整页吞掉——策略回测是独立计算，
+        // 无实时行情也能用（离线复盘场景）。这里保留回测区块，只把技术面降级。
+        <div className="flex flex-col gap-4">
+          <EmptyState
+            illustration="search"
+            title="技术面数据不可用"
+            desc={analyze.data.reason ?? "行情源不可用"}
+          />
+          <Card className="p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <LineChart className="h-4 w-4 text-primary" />
+                策略回测
+              </div>
+              <div className="flex gap-1 rounded-lg bg-muted/40 p-1 text-xs">
+                {(Object.keys(STRATEGY_LABELS) as StrategyId[]).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStrategy(s)}
+                    className={cn(
+                      "rounded-md px-2.5 py-1 transition-colors",
+                      strategy === s ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {STRATEGY_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <BacktestPanel
+              result={backtest.data?.result}
+              loading={backtest.isLoading}
+              unavailable={backtest.data?.available === false ? backtest.data.reason : undefined}
+              strategy={strategy}
+              params={btParams}
+              onParams={(p) => setBtParams((oldState) => ({ ...oldState, ...p }))}
+            />
+          </Card>
+        </div>
       ) : tech && analyze.data ? (
         <>
           {/* 现价条 */}
@@ -623,7 +673,7 @@ export function ResearchPage() {
                 策略回测
               </div>
               <div className="flex gap-1 rounded-lg bg-muted/40 p-1 text-xs">
-                {(["ma_cross", "dca"] as const).map((s) => (
+                {(Object.keys(STRATEGY_LABELS) as StrategyId[]).map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -633,7 +683,7 @@ export function ResearchPage() {
                       strategy === s ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    {s === "ma_cross" ? "双均线(5/20)" : "定投"}
+                    {STRATEGY_LABELS[s]}
                   </button>
                 ))}
               </div>

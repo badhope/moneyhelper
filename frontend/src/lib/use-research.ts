@@ -210,9 +210,12 @@ export function useResearchAnalyze(symbol: string | null, period: "daily" | "wee
   });
 }
 
+/** 回测策略全集：必须与后端 /api/research/backtest 的 STRATEGIES 一致 */
+export type BacktestStrategy = "ma_cross" | "dca" | "grid" | "trend" | "vol_target";
+
 export function useResearchBacktest(
   symbol: string | null,
-  strategy: "ma_cross" | "dca",
+  strategy: BacktestStrategy,
   params?: { fast?: number; slow?: number; invest_amount?: number; freq_days?: number },
 ) {
   const p = params ?? {};

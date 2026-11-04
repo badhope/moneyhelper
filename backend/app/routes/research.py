@@ -26,7 +26,7 @@ from ..calculations import (
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
-STRATEGIES = ("ma_cross", "dca")
+STRATEGIES = ("ma_cross", "dca", "grid", "trend", "vol_target")
 
 
 async def _kline_points(symbol: str, period: str = "daily", limit: int = 180) -> tuple[list[dict[str, Any]], str | None]:
@@ -96,8 +96,16 @@ async def research_backtest(
 
     if strategy == "ma_cross":
         result = backtest_ma_cross(closes, dates, fast=fast, slow=slow)
-    else:
+    elif strategy == "dca":
         result = backtest_dca(closes, dates, invest_amount=invest_amount, freq_days=freq_days)
+    elif strategy == "grid":
+        result = backtest_grid(closes, dates=dates)
+    elif strategy == "trend":
+        result = backtest_trend(closes, dates=dates)
+    elif strategy == "vol_target":
+        result = backtest_vol_target(closes, dates=dates)
+    else:
+        result = None
     if result is None:
         return {"available": False, "symbol": sym, "strategy": strategy, "reason": "insufficient price history"}
 

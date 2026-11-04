@@ -317,9 +317,16 @@ async def test_concurrent_writes_do_not_lose_data(temp_db) -> None:
             "prompts", f"race{i}", {"name": f"P{i}", "content": "x"}
         )
 
-    await asyncio.gather(*[add(i) for i in range(12)])
+    results = await asyncio.gather(*[add(i) for i in range(12)], return_exceptions=True)
+    errs = [r for r in results if isinstance(r, Exception)]
     ids = {a["id"] for a in await store.list_assets("prompts")}
-    assert {f"race{i}" for i in range(12)} <= ids
+    missing = {f"race{i}" for i in range(12)} - ids
+    # 失败时把异常与丢失项都带出来——否则只有一个 AssertionError，
+    # 无法区分「锁没生效」和「写入抛异常被吞」。
+    assert not missing, (
+        f"丢失 {len(missing)} 条: {sorted(missing)}; "
+        f"gather 异常 {len(errs)} 个: {[type(e).__name__ + ': ' + str(e)[:80] for e in errs[:3]]}"
+    )
 
 
 async def test_mixed_concurrent_writes(temp_db) -> None:
