@@ -1009,16 +1009,26 @@ async def list_transactions_by_month(month: str) -> list[dict[str, Any]]:
     )
 
 
-async def list_transactions(member_id: int | None = None) -> list[dict[str, Any]]:
+async def list_transactions(
+    member_id: int | None = None, limit: int | None = None
+) -> list[dict[str, Any]]:
     """列出交易流水。
 
-    - member_id=None：返回当前租户的全部流水
+    - member_id=None：返回当前租户流水（limit 给定时只取最近 N 条）
     - member_id=0 or specific id：返回 shared=1 的流水 + 自己拥有的流水
+
+    limit 存在的意义：仪表盘要展示明细但不该拉全表；十万行账本每次刷新
+    全量加载会让首屏随行数变慢。账本视图（月度聚合）另有按月的精确查询。
     """
     from .tenant import current_user_id
 
     uid = current_user_id()
     if member_id is None:
+        if limit is not None:
+            return await fetch_all(
+                "SELECT * FROM transactions WHERE user_id=? ORDER BY date DESC, id DESC LIMIT ?",
+                (uid, max(1, int(limit))),
+            )
         return await fetch_all(
             "SELECT * FROM transactions WHERE user_id=? ORDER BY date DESC, id DESC",
             (uid,),

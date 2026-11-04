@@ -538,7 +538,10 @@ async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict
     cashflow = await db.month_cashflow(month, cats)
     # 只取本月流水做账本视图：ledger_view 内部第一步就按 month 过滤，
     # 传全表等于把十万行搬进内存再丢掉 99%。明细用 LIMIT 单独取。
+    # 账本视图只需要当月；但前端「流水明细」要能翻到历史月份，
+    # 所以明细单独取最近 N 条（不是全表，也不是只有当月）。
     txs = await db.list_transactions_by_month(month)
+    recent_txs = await db.list_transactions(limit=500)
     total_tx = await db.count_transactions()
     subs = await db.list_subscriptions()
     debts = await db.list_debts()
@@ -591,7 +594,7 @@ async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict
         "today_pnl": today_pnl,
         # 决策中心：把风险标记与目标进度收敛成可执行待办（纯函数，不新增估算口径）
         "actions": _build_actions(flags, goals, lang),
-        "transactions": txs[:500],
+        "transactions": recent_txs,
         "transactions_total": total_tx,
         "source": {
             "portfolio": "Local portfolio (SQLite)" if en else "本地组合库（SQLite）",
