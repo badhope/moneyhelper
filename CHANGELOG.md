@@ -4,6 +4,62 @@
 
 ## [Unreleased]
 
+## [4.13.3] - 2026-11-06（MCP 契约闭环：14 个工具从必炸到可用）
+
+上一轮报告列的三项遗留，本轮清掉两项半。
+
+### 1. 14 个 MCP 工具在真实调用时必炸（本轮最大收获）
+
+`tools.py` 只把 deep impl 的 **dict** 并进 TOOL_IMPL，没把**函数本体**
+re-export 进模块命名空间。agent 侧走 dict 查找所以一直正常，
+MCP 包装器却是 `xtools.tool_xxx` 属性访问——税计算、现金流预测、
+订阅扫描、异常扫描、盘前检查、券商持仓导入、发票解析、市场宽度、
+个股画像、条件单、账单归类、券商状态/预检/报单（14 个）
+在真实 MCP 调用时全部 AttributeError。
+
+修复：`globals().update({fn.__name__: fn for fn in DEEP_TOOL_IMPL.values()})`——
+用循环而非手写 import 清单，新增 deep 工具只改 tool_impl_deep 一处，
+从根上消掉「注册表加了、包装器炸了」的漂移类。
+
+**验证方式也是新的**：通过真实 MCP 协议（fastmcp Client）调用修复前必炸的
+tax_calc，确认返回税计算结果；不只是静态检查。
+
+### 2. 新增 test_tool_contract.py（58 项）
+
+- 真源对齐：TOOL_IMPL ↔ FINANCE_TOOL_NAMES ↔ TOOLS 双向一致
+- MCP 表面：62 个包装器委托的 impl 真实存在（AST 解析）、描述非空、
+  入参 schema 已登记
+- 行为探测：全量工具空参数调用——缺参允许 ValueError（可读文案），
+  不允许 KeyError/TypeError 等实现细节泄漏
+- 能力漂移：agent 注册但 MCP 未暴露的工具会被点名
+
+### 3. POST 探测升级 + 4xx 文案门禁
+
+- schema 派生最小有效 body（required + 类型默认值 + 枚举首值），
+  打进实现而非停在参数校验层
+- 新断言：所有 4xx 的错误文案必须可读（非空、非堆栈）——
+  校验拒绝是好事，但用户必须看懂为什么被拒
+
+### 4. 前端敌意输入测试（41 项）+ 3 个真实显示缺陷
+
+后端挡不住的垃圾值（历史脏数据、行情 API 返回异常）最终都流到格式化层。
+新增 format.hostile.test.ts：NaN/Infinity/-0/巨数/非法日期/越界月份全量过一遍。
+
+抓出并修复：
+- `fmtPct(-0.004)` → "-0.00%"（与后端 -0.0% 同源的事故）
+- `fmtDate(非法串)` → "Invalid Date" 直接给用户看
+- `fmtMonth("2026-13")` → "undefined 2026"
+
+### 验证
+
+后端 **1485 passed / 6 skipped / 0 failed**（+61）；前端 **170 passed**（+41）；
+tsc 零错误；真实 MCP 协议端到端调用通过。
+
+### 仍未做（下一轮）
+
+前端「组件在特定业务数据下崩溃」的渲染级覆盖（现有 20 张截图全是正常 seed）——
+需要敌意 seed 的 e2e，成本较高，单独立项。
+
 ## [4.13.2] - 2026-11-05（接线核验 + 四个真实 bug + flake 根因）
 
 对「所有做过的地方」做接线核验（不是重扫代码，而是查「用户能不能触达」），

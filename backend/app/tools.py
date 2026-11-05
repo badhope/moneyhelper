@@ -39,6 +39,15 @@ from .quotes import invalidate_quotes_cache, quote_now
 from .quotes import kline as fetch_kline
 from .tool_impl_deep import DEEP_TOOL_IMPL, DEEP_TOOL_NAMES
 
+# deep impl 的函数本体必须 re-export 进本模块命名空间：MCP 包装器以
+# xtools.tool_xxx 属性访问委托（见 mcp_server.py 的 @mcp.tool 包装器）。
+# 历史缺陷：只把 dict 并进 TOOL_IMPL 而不 re-export 函数——属性访问时
+# AttributeError，14 个 MCP 工具（券商执行/发票识别/市场宽度/条件单等）
+# 在真实调用时全部报废，而 agent 侧走 dict 查找所以测试全绿。
+# 用循环而非手写 import 清单：新增 deep 工具只改 tool_impl_deep 一处，
+# 本文件零改动，从根上消掉「注册表加了、包装器炸了」的漂移类。
+globals().update({_fn.__name__: _fn for _fn in DEEP_TOOL_IMPL.values() if callable(_fn)})
+
 _action_log = get_logger("tools.action")
 
 Emit = Callable[[dict[str, Any]], Awaitable[None]]

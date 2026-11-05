@@ -37,9 +37,14 @@ export function fmtMoney(v: number | undefined | null, signed = false, compact =
 }
 
 export function fmtPct(v: number | undefined | null, withSign = false): string {
-  if (v == null || Number.isNaN(v)) return "-";
-  const sign = v < 0 ? "" : withSign ? "+" : "";
-  return `${sign}${v.toFixed(2)}%`;
+  if (v == null || Number.isNaN(v) || !Number.isFinite(v)) return "-";
+  // -0 与「四舍五入后归零的负数」（-0.004 → "-0.00"）都按 0 显示：
+  // 负零是真实的渲染事故（回测/行情接口都给过），不是审美问题。
+  const n = v === 0 || Object.is(v, -0) ? 0 : v;
+  const rounded = Number(n.toFixed(2));
+  const safe = rounded === 0 ? 0 : rounded;
+  const sign = safe < 0 ? "" : withSign ? "+" : "";
+  return `${sign}${safe.toFixed(2)}%`;
 }
 
 /** 红涨绿跌：正值红（涨/盈），负值绿（跌/亏） */
@@ -48,17 +53,19 @@ export function pnlClass(v: number | undefined | null): string {
   return v > 0 ? "text-up" : "text-down";
 }
 
-/** 日期友好显示（随语言） */
+/** 日期友好显示（随语言）。非法/空输入回退到 "-"，绝不显示 "Invalid Date"。 */
 export function fmtDate(iso: string): string {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return "-";
   try {
-    return new Date(iso).toLocaleString(moneyLocale === "zh" ? "zh-CN" : "en-US", {
+    return d.toLocaleString(moneyLocale === "zh" ? "zh-CN" : "en-US", {
       month: "numeric",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
   } catch {
-    return iso;
+    return "-";
   }
 }
 
@@ -66,7 +73,9 @@ export function fmtDate(iso: string): string {
 export function fmtMonth(month: string): string {
   const [y, m] = month.split("-");
   const n = Number(m);
-  if (!y || Number.isNaN(n)) return month;
+  // 越界月份（"2026-13"）走原串回退：否则 names[n-1] 是 undefined，
+  // 用户看到 "undefined 2026"。
+  if (!y || Number.isNaN(n) || n < 1 || n > 12) return month;
   if (moneyLocale === "zh") return `${y}年${n}月`;
   const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${names[n - 1]} ${y}`;
