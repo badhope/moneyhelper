@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from .. import backup, db
 from ..logging_utils import get_logger as _get_logger

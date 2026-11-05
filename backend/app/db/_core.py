@@ -674,16 +674,25 @@ async def _conn() -> aiosqlite.Connection:
 # 否则两个协程的 BEGIN/SAVEPOINT 会互相干扰——CI 实测表现为
 # "cannot start a transaction within a transaction" 与
 # "no such savepoint: add_tx_batch"（另一个协程已经 RELEASE 了同名 savepoint）。
-_write_locks: dict[int, asyncio.Lock] = {}
+#
+# 用 WeakKeyDictionary 以**循环对象本身**为键，而不是 id(loop)：
+#   - id() 会在对象被回收后被复用。旧循环销毁、新循环拿到同一个 id 时，
+#     会命中一把"属于死循环"的 Lock —— 它可能处于已 acquire 状态，
+#     于是 `async with lock` 立即返回，并发保护静默失效
+#     （表现为 test_studio 的 12 并发只存下几条，且单独跑必过）。
+#   - WeakKeyDictionary 在循环被 GC 时自动移除条目，不会无限增长。
+import weakref as _weakref
+
+_write_locks: "weakref.WeakKeyDictionary[Any, asyncio.Lock]" = _weakref.WeakKeyDictionary()
 
 
 def get_write_lock() -> asyncio.Lock:
     """取当前事件循环的写事务锁。所有多语句事务都必须持它。"""
-    loop_id = id(asyncio.get_running_loop())
-    lk = _write_locks.get(loop_id)
+    loop = asyncio.get_running_loop()
+    lk = _write_locks.get(loop)
     if lk is None:
         lk = asyncio.Lock()
-        _write_locks[loop_id] = lk
+        _write_locks[loop] = lk
     return lk
 
 

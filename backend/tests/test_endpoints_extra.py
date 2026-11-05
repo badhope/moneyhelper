@@ -1,4 +1,13 @@
-"""两个新薄端点的测试：GET /api/subscriptions + GET /api/undoables + delete_memory_by_kind 辅助。"""
+"""两个新薄端点的测试：GET /api/subscriptions + GET /api/undoables + delete_memory_by_kind 辅助。
+
+为什么要绕过 TestClient 的 lifespan：`with TestClient(app)` 会跑完整 lifespan，
+其中包括 MCP 子应用的 task group 启停。全量运行时（前面已有几十个用例动过
+asyncio 循环）该 task group 偶发在退出阶段抛 ExceptionGroup，
+导致测试在 `__exit__` 里失败——断言其实已经通过了。
+
+这两个用例只验证「路由返回什么」，与 MCP 生命周期无关，
+因此直接用 httpx.ASGITransport（不触发 lifespan），既快又不受无关状态影响。
+"""
 
 from __future__ import annotations
 
@@ -8,12 +17,13 @@ from app import db
 
 @pytest.mark.anyio
 async def test_list_subscriptions_endpoint_via_app(temp_db):
-    from app import main
-    from starlette.testclient import TestClient
+    import httpx
 
-    # 注入 app 状态（main.app 的 limiter 可能启用；测试用 conftenv off）
-    with TestClient(main.app) as c:
-        r = c.get("/api/subscriptions")
+    from app import main
+
+    transport = httpx.ASGITransport(app=main.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8787") as c:
+        r = await c.get("/api/subscriptions")
         assert r.status_code == 200, r.text
         data = r.json()
         assert "subscriptions" in data
@@ -22,15 +32,16 @@ async def test_list_subscriptions_endpoint_via_app(temp_db):
 
 @pytest.mark.anyio
 async def test_undoables_endpoint_returns_snapshot_labels(temp_db):
+    import httpx
+
     from app import main
-    from starlette.testclient import TestClient
 
-    db2 = db
-    await db2.add_transaction("2026-10-05", "测试流水", "测试", -10.0)
-    await db2.add_subscription({"name": "sub1", "monthly": 30.0, "due_day": "10"})
+    await db.add_transaction("2026-10-05", "测试流水", "测试", -10.0)
+    await db.add_subscription({"name": "sub1", "monthly": 30.0, "due_day": "10"})
 
-    with TestClient(main.app) as c:
-        r = c.get("/api/undoables?limit=5")
+    transport = httpx.ASGITransport(app=main.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8787") as c:
+        r = await c.get("/api/undoables?limit=5")
         assert r.status_code == 200, r.text
         body = r.json()
         assert "items" in body

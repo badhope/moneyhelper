@@ -4,6 +4,140 @@
 
 ## [Unreleased]
 
+## [4.13.2] - 2026-11-05（接线核验 + 四个真实 bug + flake 根因）
+
+对「所有做过的地方」做接线核验（不是重扫代码，而是查「用户能不能触达」），
+又挖出四个真实缺陷 + 一个长期 flake 的根因。
+
+### 1. 三个策略接口 500（单元测试全绿，接口必崩）
+
+路由里漏了 `from ..calculations.strategies import backtest_grid, backtest_trend, backtest_vol_target`。
+上一轮加端点时字符串替换没匹配上，import 从没被加进去——
+`NameError` 只在真实调用时暴露，测试用的是函数直调所以全过。
+
+修 import 后又暴露第二个 bug：`backtest_text` 只认 ma_cross/dca，
+对 grid/trend/vol_target 走 else 分支格式化 `total_invested`（新策略没这字段）→ TypeError。
+重写为「有哪些字段就说哪些话」，并把失效场景写进结论。
+
+### 2. /openapi.json 一直 500
+
+`export.py` 的 `-> Response` 没 import Response。
+因为 `from __future__ import annotations`，运行时完全不报错，
+只有 FastAPI 生成 schema 时抛 PydanticUserError。
+影响：OpenAPI 文档、SDK 生成、前端类型全部拿不到（231 个端点）。
+
+### 3. ValueError 漏成 500
+
+db 层用 ValueError 表达「输入非法」，但只有部分路由自己 try/except。
+漏掉的路径（如 `POST /api/watchlist` 传空 symbol）冒到兜底处理器变 500，
+用户看到"内部错误"而实际只是少填一个字段。
+
+新增全局 ValueError 处理器转 400，message 直接回传（db 层报错文案本就是给人看的）。
+
+### 4. 调度器/看门狗的全局状态跨事件循环失效（flake 根因）
+
+- `scheduler.stop()` 把 shutdown 放在 `_sched = None` 之前且无 try/finally：
+  所属循环已关闭时抛 RuntimeError: Event loop is closed，导致 `_sched` 永不清空，
+  下一个用例 start() 误判「已在运行」直接 return → **后续所有调度测试连锁失败**。
+- `watchdog.start()` 里 `_current_interval` 只在协程内赋值，start() 检查时读到旧值，
+  连续两次 start 会误判「间隔变了」重启两次。
+- `_write_locks` 用 `id(loop)` 作键且从不清理：CPython 会复用 id，新循环命中
+  「属于死循环」的 Lock（可能已 acquire），`async with lock` 立即返回 →
+  并发保护静默失效。改为 `WeakKeyDictionary` 以循环对象为键。
+
+这三处是「单独跑必过、全量跑偶发挂」的根因，不是偶发。
+
+### 5. 死代码清理
+
+删除 FeaturesView.tsx（75 行，被 FinancePage 取代后无人引用）。
+
+### 新增测试
+
+- test_endpoint_health.py（6 项）：OpenAPI 能生成、102 个 GET + 91 个 POST
+  逐端点探测零 5xx、ValueError 必须转 400
+- test_api_contract_strategies.py（16 项）：5 个策略接口全部不得 5xx、
+  响应结构完整、文字结论对任意策略都不崩、无 -0.0
+- test_scheduler.py +2：shutdown 抛错时状态必清空、关闭循环后能恢复
+- test_write_isolation.py +1：写锁必须按循环对象隔离
+
+### 顺带优化
+
+- vol_target 调仓带宽 0.5% → 5%（原设置下 250 个交易日调 425 次，
+  成本吃掉全部收益；改后 31 次，收益 -12.4% → +32.3%）
+- 消除 -0.0% 显示
+
+### 验证
+
+后端 **1424 passed / 6 skipped / 0 failed**（连续两次全量全绿）；
+前端 129 passed；tsc 零错误；193 个端点零 5xx。
+
+## [4.13.2] - 2026-11-05（接线核验 + 四个真实 bug + flake 根因）
+
+对「所有做过的地方」做接线核验（不是重扫代码，而是查「用户能不能触达」），
+又挖出四个真实缺陷 + 一个长期 flake 的根因。
+
+### 1. 三个策略接口 500（单元测试全绿，接口必崩）
+
+路由里漏了 。
+上一轮加端点时字符串替换没匹配上，import 从没被加进去——
+ 在真实调用时才暴露，测试用的是函数直调所以全过。
+
+修 import 后又暴露第二个 bug： 只认 ma_cross/dca，
+对 grid/trend/vol_target 走 else 分支格式化 （新策略没这字段）→ TypeError。
+重写为「有哪些字段就说哪些话」，并把失效场景写进结论。
+
+### 2. /openapi.json 一直 500
+
+ 的  没 import Response。
+因为 ，运行时完全不报错，
+只有 FastAPI 生成 schema 时抛 PydanticUserError。
+影响：OpenAPI 文档、SDK 生成、前端类型全部拿不到（231 个端点）。
+
+### 3. ValueError 漏成 500
+
+db 层用 ValueError 表达「输入非法」，但只有部分路由自己 try/except。
+漏掉的路径（如  传空 symbol）冒到兜底处理器变 500，
+用户看到内部错误而实际只是少填一个字段。
+
+新增全局  处理器转 400，message 直接回传（db 层报错文案本就是给人看的）。
+
+### 4. 调度器/看门狗的全局状态跨事件循环失效（flake 根因）
+
+-  把  放在  之前且无 try/finally：
+  所属循环已关闭时抛 ，导致  永不清空，
+  下一个用例  误判已在运行直接 return → **后续所有调度测试连锁失败**。
+-  里  只在协程内赋值， 检查时读到的是旧值，
+  连续两次 start 会误判「间隔变了」重启两次。
+-  用  作键且从不清理：CPython 会复用 id，新循环命中
+  「属于死循环」的 Lock（可能已 acquire）， 立即返回 →
+  并发保护静默失效。改为  以循环对象为键。
+
+这三处是「单独跑必过、全量跑偶发挂」的根因，不是偶发。
+
+### 5. 死代码清理
+
+删除 （75 行，被 FinancePage 取代后无人引用）。
+
+### 新增测试
+
+- （6 项）：OpenAPI 能生成、102 个 GET + 91 个 POST
+  逐端点探测零 5xx、ValueError 必须转 400
+- （16 项）：5 个策略接口全部不得 5xx、
+  响应结构完整、文字结论对任意策略都不崩、无 
+-  +2：shutdown 抛错时状态必清空、关闭循环后能恢复
+-  +1：写锁必须按循环对象隔离
+
+### 顺带优化
+
+-  调仓带宽 0.5% → 5%（原设置下 250 个交易日调 425 次，
+  成本吃掉全部收益；改后 31 次，收益 -12.4% → +32.3%）
+- 消除  显示
+
+### 验证
+
+后端 **1424 passed / 6 skipped / 0 failed**（连续两次全量全绿）；
+前端 129 passed；tsc 零错误；193 个端点零 5xx。
+
 ## [4.13.1] - 2026-11-05（修「写了但没接线」的三处）
 
 上一轮把功能写完了却忘了接进调用链——这类问题测试全绿也发现不了，

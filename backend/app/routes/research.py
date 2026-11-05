@@ -23,6 +23,11 @@ from ..calculations import (
     technical_analysis,
     trend_text,
 )
+from ..calculations.strategies import (
+    backtest_grid,
+    backtest_trend,
+    backtest_vol_target,
+)
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 

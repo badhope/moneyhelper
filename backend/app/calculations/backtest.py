@@ -320,45 +320,94 @@ def run_backtest(
 
 
 def backtest_text(result: dict[str, Any], lang: str = "zh") -> str:
-    """把回测结果转成人类可读结论（确定性模板）。"""
+    """把回测结果转成人类可读结论（确定性模板）。
+
+    必须容忍任意策略：早期实现只认 ma_cross / dca，新增策略时走 else 分支
+    去格式化 total_invested（新策略没有该字段）→ TypeError → 接口 500。
+    现在按「有哪些字段就说哪些话」组织，缺字段不影响其它句子。
+    """
     en = lang != "zh"
     if not result:
         return "Not enough price history for a backtest." if en else "价格历史不足，无法回测。"
-    name = result["strategy"]
-    label = "DCA (periodic investing)" if name == "dca" else "MA cross-over (5/20)"
-    ret = result.get("total_return_pct")
-    bench = result.get("benchmark_return_pct")
-    mdd = result.get("max_drawdown_pct")
-    sharpe = result.get("sharpe")
+
+    name = str(result.get("strategy") or "")
+    LABELS = {
+        "ma_cross": ("MA cross-over", "双均线"),
+        "dca": ("DCA (periodic investing)", "定投"),
+        "grid": ("Grid trading", "网格"),
+        "trend": ("Trend following (Donchian + ATR)", "趋势跟随（唐奇安 + ATR）"),
+        "vol_target": ("Volatility targeting", "波动率目标"),
+        "momentum": ("Momentum rotation", "动量轮动"),
+    }
+    label = LABELS.get(name, (name or "Strategy", name or "策略"))[0 if en else 1]
+
+    def sv(key: str, suffix: str = "") -> str | None:
+        v = result.get(key)
+        return None if v is None else f"{v}{suffix}"
+
+    ret = sv("total_return_pct", "%")
+    bench = sv("benchmark_return_pct", "%")
+    mdd = sv("max_drawdown_pct", "%")
+    sharpe = sv("sharpe")
+
     if en:
-        lines = [
-            f"{label} backtest: total return {ret}% (buy-and-hold {bench}%), "
-            f"max drawdown {mdd}%, Sharpe {sharpe}."
-        ]
-        if name == "ma_cross":
+        head = f"{label} backtest: total return {ret or 'n/a'}"
+        if bench:
+            head += f" (buy-and-hold {bench})"
+        if mdd:
+            head += f", max drawdown {mdd}"
+        if sharpe:
+            head += f", Sharpe {sharpe}"
+        lines = [head + "."]
+    else:
+        head = f"{label} 回测：总收益率 {ret or '不可用'}"
+        if bench:
+            head += f"（同期买入持有 {bench}）"
+        if mdd:
+            head += f"，最大回撤 {mdd}"
+        if sharpe:
+            head += f"，夏普比率 {sharpe}"
+        lines = [head + "。"]
+
+    if name == "dca":
+        invested, final = result.get("total_invested"), result.get("final_value")
+        if invested is not None and final is not None:
             lines.append(
-                f"{result.get('trade_count')} round-trip trade(s), win rate {result.get('win_rate_pct')}%, "
-                f"profit factor {result.get('profit_factor')}."
+                f"Invested {invested:,.0f}, final value {final:,.0f}."
+                if en
+                else f"累计投入 {invested:,.0f}，期末市值 {final:,.0f}。"
             )
-        else:
+        if result.get("annualized_basis") == "xirr" and result.get("annualized_return_pct") is not None:
             lines.append(
-                f"Invested {result.get('total_invested'):,.0f}, final value {result.get('final_value'):,.0f}."
+                f"Money-weighted return (XIRR): {result['annualized_return_pct']}%."
+                if en
+                else f"资金加权收益率（XIRR）：{result['annualized_return_pct']}%。"
             )
     else:
-        lines = [
-            f"{label} 回测：总收益率 {ret}%（同期买入持有 {bench}%），"
-            f"最大回撤 {mdd}%，夏普比率 {sharpe}。"
-        ]
-        if name == "ma_cross":
+        tc = result.get("trade_count")
+        if tc is not None:
+            lines.append(f"{tc} fill(s)." if en else f"共 {tc} 笔成交。")
+        if result.get("win_rate_pct") is not None:
             lines.append(
-                f"共 {result.get('trade_count')} 次完整买卖，胜率 {result.get('win_rate_pct')}%，"
-                f"盈亏比 {result.get('profit_factor')}。"
+                f"Win rate {result['win_rate_pct']}%, profit factor {result.get('profit_factor')}."
+                if en
+                else f"胜率 {result['win_rate_pct']}%，盈亏比 {result.get('profit_factor')}。"
             )
-        else:
-            lines.append(f"累计投入 {result.get('total_invested'):,.0f}，期末市值 {result.get('final_value'):,.0f}。")
+        avg_pos = result.get("avg_position")
+        if avg_pos is not None:
+            lines.append(
+                f"Average position {avg_pos * 100:.0f}% of equity."
+                if en
+                else f"平均仓位 {avg_pos * 100:.0f}%。"
+            )
+
+    note = result.get("risk_note")
+    if note:
+        lines.append(note)
+
     lines.append(
         "Historical statistics only — not investment advice or a forecast."
         if en
         else "以上为历史统计，不构成投资建议，也不代表未来收益。"
     )
-    return "\n".join(lines)
+    return chr(10).join(lines)

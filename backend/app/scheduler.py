@@ -419,9 +419,22 @@ async def notify_settings_changed() -> None:
 
 
 async def start() -> None:
+    """启动调度器（幂等）。
+
+    注意：_sched 是进程级全局，绑定到**启动它的那个事件循环**。
+    若上一个循环已关闭而 _sched 没被清空，这里会误判"已在运行"直接 return，
+    导致调度器实际是死的但 status 说 enabled —— 表现为测试里 start 后
+    status 仍为 False，且日志里出现 "Event loop is closed"。
+    因此先做一次存活检查：循环已关闭则丢弃残留实例重新创建。
+    """
     global _sched
     if _sched is not None:
-        return
+        loop = getattr(_sched, "_eventloop", None)
+        if loop is None or not loop.is_closed():
+            return
+        # 残留实例属于已关闭的循环：它既不会触发任务，也无法安全 shutdown
+        _sched = None
+        _state["enabled"] = False
     st = await db.get_settings()
     _state["report_time"] = st.get("report_time", "08:00")
     try:
@@ -438,11 +451,22 @@ async def start() -> None:
 
 
 async def stop() -> None:
+    """停止调度器。必须保证 _sched 一定被清空。
+
+    原实现把 shutdown() 放在赋值之前且没有 try/finally：当调度器所属的
+    事件循环已关闭（测试里每个用例一个新 loop），shutdown 抛
+    RuntimeError: Event loop is closed，`_sched = None` 永远执行不到，
+    残留对象让下一个用例的 start() 直接 return —— 后续所有调度测试连锁失败。
+    清理失败不能影响"已停止"这个事实，所以放 finally。
+    """
     global _sched
-    if _sched is not None:
-        _sched.shutdown(wait=False)
-    _sched = None
+    sched, _sched = _sched, None
     _state["enabled"] = False
+    if sched is not None:
+        try:
+            sched.shutdown(wait=False)
+        except Exception as e:  # noqa: BLE001 — 循环已关闭时无法优雅关停
+            log.debug("scheduler.shutdown skipped: %s", e)
 
 
 def status() -> dict[str, Any]:

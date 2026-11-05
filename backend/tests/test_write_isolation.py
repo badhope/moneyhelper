@@ -137,3 +137,23 @@ async def _table_exists(name: str) -> bool:
         "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,)
     )
     return bool(rows)
+
+
+@pytest.mark.asyncio
+async def test_write_lock_not_shared_across_event_loops(temp_db):
+    """写锁必须按「事件循环对象」隔离，不能按 id(loop)。
+
+    回归背景：_write_locks 原用 id(loop) 作键且从不清理。CPython 会复用对象 id：
+    旧循环销毁后新循环可能拿到同一个 id，于是命中一把「属于死循环」的 Lock——
+    它可能处于已 acquire 状态，`async with lock` 立即返回，并发保护静默失效。
+    表现为 test_studio 的 12 并发只存下几条，且单独跑必过、全量跑偶发挂。
+    """
+    from app.db import _core
+
+    # 记录当前锁对象的身份
+    lk1 = _core.get_write_lock()
+    # 键必须是 loop 对象（弱引用字典），不是 int id
+    assert not isinstance(next(iter(_core._write_locks.keys())), int), (
+        "_write_locks 仍以 id(loop) 为键，存在 id 复用风险"
+    )
+    assert lk1 is _core.get_write_lock(), "同一循环内应返回同一把锁"

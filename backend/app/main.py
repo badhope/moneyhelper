@@ -206,6 +206,23 @@ async def _combined_lifespan(app_ref: FastAPI):
 app = FastAPI(title="Moneyhelper API", version=__version__, lifespan=_combined_lifespan)
 
 
+@app.exception_handler(ValueError)
+async def _value_error_handler(request: Request, exc: ValueError):
+    """把业务校验的 ValueError 统一转成 400，而不是漏成 500。
+
+    背景：db 层用 ValueError 表达「输入非法」（代码不能为空 / 金额为负 …），
+    但路由要逐个 try/except 才能转成 4xx。漏掉的路径（如 POST /api/watchlist
+    传空 symbol）就会冒到兜底处理器变成 500——用户看到"内部错误"，
+    实际只是他少填了一个字段，也没法从提示里知道该改什么。
+
+    约定：ValueError 的 message 视为**可展示给用户的文案**（现有 db 层的
+    报错文案都是这种），因此直接回传；技术细节（堆栈）仍只进日志。
+    """
+    detail = str(exc) or "请求参数不合法"
+    log.warning("bad request in %s %s: %s", request.method, request.url.path, detail)
+    return JSONResponse({"error": detail}, status_code=400)
+
+
 @app.exception_handler(Exception)
 async def _unhandled_exception_handler(request: Request, exc: Exception):
     log.exception("unhandled exception in %s %s", request.method, request.url.path)

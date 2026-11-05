@@ -190,3 +190,60 @@ async def test_notify_settings_changed_reschedules(temp_db, monkeypatch):
     assert scheduler._state["report_time"] == "22:10"
     job = scheduler._sched.jobs.get("morning_report")
     assert job is not None and job["trigger"] == "cron"
+
+@pytest.mark.asyncio
+async def test_stop_clears_state_even_if_shutdown_raises(temp_db):
+    """shutdown 抛错时 _sched 也必须被清空。
+
+    回归背景：stop() 里 `_sched.shutdown(wait=False)` 在「调度器所属事件循环
+    已关闭」时抛 RuntimeError: Event loop is closed。原实现没有 try/finally，
+    于是 `_sched = None` 执行不到 —— 残留对象让下一个用例的 start() 误判
+    "已在运行"直接 return，后续所有调度测试连锁失败（表现为
+    「单独跑全过、全量跑必挂」）。
+    """
+    await scheduler.start()
+    assert scheduler._state["enabled"] is True
+
+    # 模拟 shutdown 内部抛错（例如所属 loop 已关闭）
+    real_sched = scheduler._sched
+    assert real_sched is not None
+
+    class _Boom:
+        _eventloop = None
+
+        def shutdown(self, wait=False):  # noqa: ARG002
+            raise RuntimeError("Event loop is closed")
+
+    scheduler._sched = _Boom()  # type: ignore[assignment]
+    try:
+        await scheduler.stop()
+    finally:
+        # 无论 shutdown 是否抛错，都必须已清空
+        assert scheduler._sched is None, "stop() 抛错后 _sched 未被清空"
+        assert scheduler._state["enabled"] is False
+
+    # 再次 start 应能正常工作（不被残留实例挡住）
+    await scheduler.start()
+    try:
+        assert scheduler._state["enabled"] is True
+    finally:
+        await scheduler.stop()
+
+
+@pytest.mark.asyncio
+async def test_start_recovers_from_closed_loop(temp_db):
+    """上一个 loop 已关闭时，start() 应丢弃残留实例重建，而不是直接 return。"""
+    await scheduler.start()
+
+    class _DeadLoop:
+        def is_closed(self) -> bool:
+            return True
+
+    scheduler._sched._eventloop = _DeadLoop()  # type: ignore[attr-defined]
+    try:
+        await scheduler.start()
+        assert scheduler._state["enabled"] is True
+        # 实例应已被替换（不是原来那个）
+        assert not isinstance(getattr(scheduler._sched, "_eventloop", None), _DeadLoop)
+    finally:
+        await scheduler.stop()

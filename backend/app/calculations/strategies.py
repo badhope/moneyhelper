@@ -179,7 +179,10 @@ def run_position_backtest(
         target_value = equity_now * target
         current_value = shares * px
         delta = target_value - current_value
-        if abs(delta) > equity_now * 0.005:  # 小于 0.5% 净值不调，避免噪声交易
+        # 调仓带宽 5%：小于该幅度不动。0.5% 时波动率目标策略一天能调仓数次
+        # （实测 250 个交易日 425 笔成交），成本吃掉全部收益。5% 是业界常用的
+        # "no-trade band"，把换手压到每年数次量级。
+        if abs(delta) > equity_now * 0.05:
             if delta > 0:
                 qty = delta / (px * (1 + cost))
                 if qty > 0:
@@ -214,6 +217,16 @@ def run_position_backtest(
     }
 
 
+def _r2(v: float) -> float:
+    """保留两位小数，并把 -0.0 归一为 0.0。
+
+    不处理的话界面会显示「最大回撤 -0.0%」，看起来像渲染 bug；
+    实际是 round(-0.004, 2) == -0.0 的正常行为。
+    """
+    out = round(v, 2)
+    return 0.0 if out == 0 else out
+
+
 def _metrics(values: list[float], initial: float, cost_unused: float = 0.0) -> dict[str, Any]:
     """从净值曲线算标准指标（与 portfolio_risk 同口径）。返回 None 表示不可用。"""
     from .portfolio_risk import (
@@ -226,14 +239,14 @@ def _metrics(values: list[float], initial: float, cost_unused: float = 0.0) -> d
 
     rets = daily_returns(values)
     return {
-        "total_return_pct": round((values[-1] / initial - 1) * 100, 2) if initial else None,
+        "total_return_pct": _r2((values[-1] / initial - 1) * 100) if initial else None,
         "annualized_return_pct": (
-            round(annualized_return(values) * 100, 2)
+            _r2(annualized_return(values) * 100)
             if annualized_return(values) is not None
             else None
         ),
         "max_drawdown_pct": (
-            round(max_drawdown(values) * 100, 2) if max_drawdown(values) is not None else None
+            _r2(max_drawdown(values) * 100) if max_drawdown(values) is not None else None
         ),
         "sharpe": round(sharpe_ratio(rets), 2) if sharpe_ratio(rets) is not None else None,
         "sortino": round(sortino_ratio(rets), 2) if sortino_ratio(rets) is not None else None,
