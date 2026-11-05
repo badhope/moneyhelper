@@ -22,6 +22,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from . import db, llm, nlparse
+from .logging_utils import get_logger
+
+log = get_logger(__name__)
 
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
 
@@ -550,11 +553,24 @@ async def _build_history(
         if a:
             out.append({"role": "assistant", "content": a[:HISTORY_ANSWER_CHARS]})
     # 最后一道 token 闸：按轮次压缩只保证「轮数」有界，不保证「token」有界
-    # （单轮可能是长报告）。这里用 tiktoken 精确计量并做确定性折叠，
-    # 防止历史挤占掉本轮工具结果的位置。不调模型——构建历史必须是纯本地操作。
-    from .context import trim_messages
+    # （单轮可能是长报告）。用 tiktoken 精确计量；超预算时优先用 LLM 生成
+    # 结构化摘要（目标/事实/待办/约束），模型不可用则退回确定性摘要。
+    #
+    # 注意：这里会多一次模型调用，但只在「历史确实超预算」时发生；
+    # 常规 4 轮对话远低于阈值，不会付这个成本。用 use_llm=False 的旧实现
+    # （纯截断）曾在超长会话里丢掉关键结论，得不偿失。
+    from .context import compact_messages
 
-    return trim_messages(out, max_tokens=HISTORY_MAX_TOKENS)
+    res = await compact_messages(
+        out, max_tokens=HISTORY_MAX_TOKENS, lang="zh", use_llm=True
+    )
+    if res.get("compacted"):
+        log.info(
+            "history.compacted strategy=%s before=%s after=%s dropped=%s",
+            res.get("strategy"), res.get("before_tokens"),
+            res.get("after_tokens"), res.get("dropped"),
+        )
+    return res["messages"]
 
 
 # ---------------------------------------------------------------------------

@@ -9,6 +9,20 @@ import random
 
 import pytest
 
+import httpx as _httpx
+import pytest as _pytest
+
+from app import main as _main
+
+
+@_pytest.fixture
+async def client(temp_db):
+    """轻量 ASGI client：只测路由契约，不依赖行情。"""
+    transport = _httpx.ASGITransport(app=_main.app)
+    async with _httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8787") as ac:
+        yield ac
+
+
 from app.calculations.strategies import (
     atr,
     backtest_grid,
@@ -161,3 +175,36 @@ class TestMomentum:
 
     def test_empty_panels(self):
         assert backtest_momentum({}) is None
+
+
+class TestMomentumEndpoint:
+    """动量端点：多标的语义与单标的回测不同，参数校验必须明确。"""
+
+    @pytest.mark.asyncio
+    async def test_rejects_single_symbol(self, client):
+        r = await client.get("/api/research/momentum?symbols=600519")
+        assert r.status_code == 400
+        assert "至少" in r.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_codes(self, client):
+        r = await client.get("/api/research/momentum?symbols=abc,def")
+        assert r.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_rejects_too_many(self, client):
+        codes = ",".join(["600519"] * 7)
+        r = await client.get(f"/api/research/momentum?symbols={codes}")
+        assert r.status_code == 400
+        assert "最多" in r.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_degrades_gracefully_offline(self, client):
+        """行情不可达时应返回 available=false + 原因，不能 500。"""
+        r = await client.get("/api/research/momentum?symbols=600519,000001")
+        assert r.status_code == 200
+        data = r.json()
+        if data.get("available") is False:
+            assert data.get("reason")
+        else:
+            assert "result" in data

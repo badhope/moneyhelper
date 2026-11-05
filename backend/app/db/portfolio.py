@@ -85,8 +85,20 @@ async def delete_position(symbol: str) -> dict[str, Any]:
 
 
 async def update_position(p: dict[str, Any], symbol: str) -> dict[str, Any]:
-    """编辑指定 symbol 的持仓。fields 里缺的键保持原值；校验与 add_position 一致。"""
-    conn = await _conn()
+    """编辑指定 symbol 的持仓。fields 里缺的键保持原值；校验与 add_position 一致。
+
+    整个「读旧值 → 校验 → 写快照 → 更新」包在一个事务里（write_txn）：
+    原实现先写撤销快照再做 float() 解析，传入 "abc" 时解析抛错、事务悬空，
+    下一条无关写操作的 commit 会把这条幽灵快照一起提交。
+    """
+    from ._core import write_txn
+
+    async with write_txn() as conn:
+        return await _update_position_locked(conn, p, symbol)
+
+
+async def _update_position_locked(conn, p: dict[str, Any], symbol: str) -> dict[str, Any]:
+    """update_position 的实际写入段（调用方必须已在 write_txn 内）。"""
     uid = current_user_id()
     cur = await conn.execute(
         "SELECT name,kind,industry,shares,cost,last,buy_date,fee FROM positions"
@@ -106,12 +118,6 @@ async def update_position(p: dict[str, Any], symbol: str) -> dict[str, Any]:
         "buy_date": row[6],
         "fee": row[7],
     }
-    # 撤销快照：写入前的全量旧行，撤回时恢复
-    await _record_snapshot(
-        "position",
-        symbol,
-        json.dumps({"symbol": symbol, **old}, ensure_ascii=False, default=str),
-    )
     clean = {
         "name": str(p.get("name", old["name"])).strip() or old["name"],
         "kind": str(p.get("kind", old["kind"])).strip() or old["kind"],
@@ -122,14 +128,22 @@ async def update_position(p: dict[str, Any], symbol: str) -> dict[str, Any]:
         "buy_date": (str(p.get("buy_date", old["buy_date"] or "")).strip() or None),
         "fee": float(p.get("fee", old["fee"])),
     }
-    if clean["shares"] <= 0 or clean["shares"] != clean["shares"]:
-        raise ValueError("股数需大于 0")
-    if clean["cost"] < 0 or clean["cost"] != clean["cost"]:
-        raise ValueError("成本价不能为负")
-    if clean["last"] < 0 or clean["last"] != clean["last"]:
-        raise ValueError("现价不能为负")
-    if clean["fee"] < 0 or clean["fee"] != clean["fee"]:
-        raise ValueError("费用不能为负")
+    # 校验必须在写快照之前完成：否则校验失败时快照已落库。
+    if clean["shares"] <= 0 or not math.isfinite(clean["shares"]):
+        raise ValueError("股数需为大于 0 的有限数字")
+    if clean["cost"] < 0 or not math.isfinite(clean["cost"]):
+        raise ValueError("成本价需为有限数字且不能为负")
+    if clean["last"] < 0 or not math.isfinite(clean["last"]):
+        raise ValueError("现价需为有限数字且不能为负")
+    if clean["fee"] < 0 or not math.isfinite(clean["fee"]):
+        raise ValueError("费用需为有限数字且不能为负")
+
+    # 撤销快照：写入前的全量旧行，撤回时恢复（在校验通过后、更新前）
+    await _record_snapshot(
+        "position",
+        symbol,
+        json.dumps({"symbol": symbol, **old}, ensure_ascii=False, default=str),
+    )
     await conn.execute(
         "UPDATE positions SET name=:name, kind=:kind, industry=:industry,"
         " shares=:shares, cost=:cost, last=:last, buy_date=:buy_date, fee=:fee"
@@ -137,7 +151,6 @@ async def update_position(p: dict[str, Any], symbol: str) -> dict[str, Any]:
         {**clean, "symbol": symbol, "user_id": uid},
     )
     await _mark_user_data(conn)
-    await conn.commit()
     return {"ok": True, "symbol": symbol}
 
 

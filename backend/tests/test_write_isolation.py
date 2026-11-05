@@ -99,3 +99,41 @@ async def test_write_txn_commits_on_success(temp_db):
         )
     items = {r["item"] for r in await db.list_transactions()}
     assert "成功" in items
+
+
+@pytest.mark.asyncio
+async def test_invalid_position_update_leaves_no_ghost_snapshot(temp_db):
+    """校验失败不能留下撤销快照，且连接必须回到空闲状态。
+
+    回归背景：update_position 原实现先 _record_snapshot（INSERT，开启事务），
+    再 float("abc") 抛错——快照留在未提交事务里，下一条无关写操作的 commit()
+    会把它一起提交，产生「幽灵撤销点」。
+    """
+    await db.add_position({
+        "symbol": "600519", "name": "贵州茅台", "kind": "股票",
+        "industry": "白酒", "shares": 100, "cost": 1600, "last": 1650,
+    })
+    from app.db._core import _conn
+
+    conn = await _conn()
+    before_snapshots = await db.fetch_all(
+        "SELECT * FROM undo_snapshots WHERE entity_id=?", ("600519",)
+    ) if await _table_exists("undo_snapshots") else []
+
+    with pytest.raises((ValueError, TypeError)):
+        await db.update_position({"shares": "abc"}, "600519")
+
+    # 连接不应停留在事务中
+    assert conn.in_transaction is False, "校验失败后连接仍处于事务中"
+
+    after_snapshots = await db.fetch_all(
+        "SELECT * FROM undo_snapshots WHERE entity_id=?", ("600519",)
+    ) if await _table_exists("undo_snapshots") else []
+    assert len(after_snapshots) == len(before_snapshots), "校验失败却写入了撤销快照"
+
+
+async def _table_exists(name: str) -> bool:
+    rows = await db.fetch_all(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,)
+    )
+    return bool(rows)

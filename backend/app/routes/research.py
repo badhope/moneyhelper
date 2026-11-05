@@ -69,6 +69,78 @@ async def research_analyze(
     }
 
 
+@router.get("/api/research/momentum")
+async def research_momentum(
+    symbols: str = Query(min_length=1, max_length=200,
+                         description="逗号分隔的标的代码，2~6 个"),
+    lookback: int = Query(default=20, ge=5, le=120,
+                          description="动量回看天数（20 ≈ 一个月）"),
+    hold: int = Query(default=1, ge=1, le=3, description="持有最强的几只"),
+    limit: int = Query(default=250, ge=120, le=1000),
+) -> dict[str, Any]:
+    """跨标的动量轮动回测：在候选池里滚动持有过去 N 日最强的标的。
+
+    为什么单独一个端点：回测主接口是「单标的」语义，而动量轮动必须
+    比较多个标的的横截面强弱。硬塞进单标的接口会让参数含义失真。
+
+    诚实边界：只用价格动量（不含基本面/估值）；A 股无法做空，
+    所以当所有标的动量为负时策略空仓而不是做空最强的那只。
+    """
+    from ..calculations.strategies import backtest_momentum
+
+    raw = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    codes = [s for s in raw if s.isdigit() and len(s) == 6]
+    if len(codes) < 2:
+        raise HTTPException(status_code=400, detail="至少需要 2 个 6 位标的代码")
+    if len(codes) > 6:
+        raise HTTPException(status_code=400, detail="最多支持 6 个标的（再多就成指数了）")
+
+    # 并发拉取，避免串行等待
+    import asyncio
+
+    results = await asyncio.gather(
+        *[_kline_points(c, "daily", limit) for c in codes], return_exceptions=True
+    )
+    panels: dict[str, list[float]] = {}
+    failed: list[str] = []
+    for code, res in zip(codes, results):
+        if isinstance(res, Exception):
+            failed.append(code)
+            continue
+        points, err = res
+        if err or not points:
+            failed.append(code)
+            continue
+        closes = [float(p["close"]) for p in points if p.get("close") is not None]
+        if len(closes) >= 120:
+            panels[code] = closes
+    if len(panels) < 2:
+        return {
+            "available": False,
+            "strategy": "momentum",
+            "reason": "可用的标的不足 2 个（行情不可达或历史不足）",
+            "failed": failed,
+        }
+
+    # 对齐长度（取最短），真实实现应按日期对齐；这里明确标注近似
+    n = min(len(v) for v in panels.values())
+    panels = {k: v[-n:] for k, v in panels.items()}
+
+    result = backtest_momentum(panels, lookback=lookback, hold=hold)
+    if result is None:
+        return {"available": False, "strategy": "momentum", "reason": "历史数据不足以回测"}
+
+    return {
+        "available": True,
+        "strategy": "momentum",
+        "symbols": list(panels.keys()),
+        "failed_symbols": failed,
+        "result": result,
+        "alignment_note": "各标的按长度截齐（非严格交易日对齐），仅用于相对强弱比较。",
+        "disclaimer": "回测仅基于历史价格动量，不含基本面与交易成本以外的约束，不构成投资建议。",
+    }
+
+
 @router.get("/api/research/backtest")
 async def research_backtest(
     symbol: str = Query(min_length=1, max_length=12),
