@@ -94,16 +94,20 @@ export function PositionsTable({
           <tbody>
             {computed.map((r) => (
               <tr key={r.symbol} className="border-b border-border/60 last:border-0 hover:bg-accent/40">
-                <td className="px-2 py-1.5">
+                <td className="px-2 py-1.5 max-w-[16rem]">
                   <button
                     type="button"
-                    className="text-left group inline-flex items-center gap-1"
+                    className="text-left group inline-flex items-center gap-1 max-w-full"
                     onClick={() => setKlineSymbol(r.symbol)}
                     aria-label={tr("pos.viewK", { name: r.name })}
+                    title={r.name}
                   >
-                    <span className="font-medium text-foreground group-hover:text-primary">{r.name}</span>
-                    <span className="text-[11px] text-muted-foreground">{r.symbol}</span>
-                    <LineChart className="w-3 h-3 text-muted-foreground/50 group-hover:text-primary" />
+                    {/* 名称截断：敌意 seed 实测 10k 字符名称会把整页撑成一条巨长的列 */}
+                    <span className="font-medium text-foreground group-hover:text-primary truncate">
+                      {r.name}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground shrink-0">{r.symbol}</span>
+                    <LineChart className="w-3 h-3 text-muted-foreground/50 group-hover:text-primary shrink-0" />
                   </button>
                 </td>
                 <td className="px-2 py-1.5 text-muted-foreground">{r.kind}</td>
@@ -188,10 +192,10 @@ export function PositionsTable({
             className="block w-full cursor-pointer rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <div className="flex items-baseline justify-between gap-2">
-              <span className="min-w-0">
-                <span className="font-medium text-foreground">{r.name}</span>
-                <span className="ml-1.5 text-xs text-muted-foreground">{r.symbol}</span>
-                <span className="ml-1.5 text-xs text-muted-foreground">{r.kind}</span>
+              <span className="min-w-0 flex items-baseline gap-1.5">
+                <span className="font-medium text-foreground truncate">{r.name}</span>
+                <span className="text-xs text-muted-foreground shrink-0">{r.symbol}</span>
+                <span className="text-xs text-muted-foreground shrink-0">{r.kind}</span>
               </span>
               <span
                 className={cn(

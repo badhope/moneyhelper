@@ -4,6 +4,41 @@
 
 ## [Unreleased]
 
+## [4.13.4] - 2026-11-06（敌意 seed e2e：渲染级容错闭环）
+
+上轮报告的最后一项遗留清零。至此「写完了 ≠ 能用了」三条链路（HTTP / MCP / 渲染）全部有自动化门禁。
+
+### 新增：敌意 seed + 全页截图
+
+`backend/scripts/seed_hostile.py`：绕过应用层校验直插 41 行「现实世界会有的脏数据」——
+零/负零/万亿金额、10.8k 字符名称、emoji/RTL/零宽字符、纪元与未来日期、进度超 100%、
+巨率负债、0→巨数→0 的净值过山车。应用校验挡住的是今天新写入的垃圾，
+挡不住历史版本写入的 / CSV 导入的 / 手改库的——渲染层必须自己扛住。
+
+用现有 shots-full.mjs（10 页 × 桌面/移动双端）对敌意库跑截图：
+**零 pageerror、零 console error、零横向溢出**。
+
+### 修复：10k 字符持仓名称撑爆整页
+
+敌意截图抓到的唯一真实缺陷：持仓表格的名称单元格没有截断，
+10.8k 字符名称把整页撑成一条巨长的列（右侧面板有截断，表格没有）。
+修：`PositionsTable` 桌面表格 + 移动卡片两处名称加 `truncate`，
+标题属性保留完整名称可悬停查看。修复后同库重跑 20 张全过。
+
+其余页面（总览负净值/万亿利率/过山车净值图、记账万亿流水、模拟盘零本金）
+全部原生容错——之前的防御工作没白做。
+
+### 用法
+
+    python backend/scripts/seed_hostile.py .tmp/hostile/hostile.db
+    cd backend && MONEYHELPER_DB_PATH=<db> uvicorn app.main:app --port 8789 &
+    cd frontend && node e2e/shots-full.mjs http://localhost:8789 <outDir>
+
+### 验证
+
+前端 170 passed；tsc 零错误；build 成功；敌意截图 20/20 全过（修复前抓到 1 个缺陷）。
+后端本轮零改动（seed 脚本不进 app 包）。
+
 ## [4.13.3] - 2026-11-06（MCP 契约闭环：14 个工具从必炸到可用）
 
 上一轮报告列的三项遗留，本轮清掉两项半。
