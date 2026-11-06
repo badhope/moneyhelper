@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """工具权限策略：把「谁能执行什么」从散落的条件判断收敛成一张表。
 
 为什么需要：工具风险差异极大——`get_market_view` 只读，`record_transaction`
@@ -43,6 +42,8 @@ READONLY_TOOLS: frozenset[str] = frozenset({
     "stock_profile", "pretrade_check",
     # 只读扫描（产出建议，不落库）
     "scan_subscriptions", "scan_anomalies",
+    # 债务清偿规划（纯函数模拟，只读账本负债）
+    "debt_payoff_plan",
     # 外部只读数据
     "search_symbol", "connect_catalog", "connect_fund_nav",
     "paper_overview", "broker_status", "invoice_vision_status", "parse_invoice",

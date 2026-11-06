@@ -114,14 +114,10 @@ async def cmd_add(args: argparse.Namespace) -> int:
                             f"{_fmt_amount(it['amount'])} 元（{it['category']}）")
     else:
         lines = [
-            "  %s %s %s 元（%s）" % (it["date"], it["item"], _fmt_amount(it["amount"]), it["category"])
+            f"  {it['date']} {it['item']} {_fmt_amount(it['amount'])} 元（{it['category']}）"
             for it in items
         ]
-        lines = [
-            "  %s %s %s 元（%s）" % (it["date"], it["item"], _fmt_amount(it["amount"]), it["category"])
-            for it in items
-        ]
-        _out(items, args.json, ("已记账 %d 笔：" % len(items)) + chr(10).join(lines))
+        _out(items, args.json, f"已记账 {len(items)} 笔：" + chr(10).join(lines))
     return 0
 
 

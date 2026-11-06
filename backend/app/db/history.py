@@ -558,7 +558,7 @@ async def fork_session(thread_id: str, run_id: int) -> dict[str, Any] | None:
     await conn.execute(
         "INSERT INTO sessions(user_id,thread_id,title,created_at,updated_at)"
         " VALUES(?,?,?,?,?)",
-        (current_user_id(), new_tid, ("%s · 分支" % base_title)[:40], now, now),
+        (current_user_id(), new_tid, f"{base_title} · 分支"[:40], now, now),
     )
     for r in rows:
         await conn.execute(

@@ -137,9 +137,9 @@ async def export_report(lang: str = "zh") -> Response:
         lang=lang,
         generated_at=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M"),
     )
-    filename = "moneyhelper-report-%s.html" % datetime.now().strftime("%Y%m%d")
+    filename = f"moneyhelper-report-{datetime.now().strftime('%Y%m%d')}.html"
     return Response(
         content=html,
         media_type="text/html; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="%s"' % filename},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

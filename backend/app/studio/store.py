@@ -355,6 +355,17 @@ async def _sync_skill_schedule() -> None:
 
 async def upsert_asset(kind: str, asset_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     asset = normalize_asset(kind, asset_id, payload)
+    # 整段读-改-写必须持同一把锁。历史缺陷：这里原先在锁外先调 _clear_tombstone
+    # （自己读一次、写一次），再调 _mutate（再读一次、写一次）——两次读之间
+    # 别的并发写会插进来，于是「清墓碑」那次写回会把对方刚写入的资产整段覆盖。
+    # 表现为 12 并发时随机丢 1 条且 gather 无异常（写成功了、随后被覆盖）。
+    async with _studio_lock():
+        return await _upsert_asset_locked(kind, asset_id, asset, payload)
+
+
+async def _upsert_asset_locked(
+    kind: str, asset_id: str, asset: dict[str, Any], payload: dict[str, Any]
+) -> dict[str, Any]:
     # builtin 是「随包分发的内置资产」标记，由默认包决定，不能被编辑表单抹掉：
     # normalize_asset 只收可编辑字段，这里把既有标记补回来（否则编辑一次内置项就变成可删）。
     if kind in ("prompts", "rules", "hooks"):
@@ -364,6 +375,9 @@ async def upsert_asset(kind: str, asset_id: str, payload: dict[str, Any]) -> dic
             asset["builtin"] = True
     await _clear_tombstone(kind, asset_id)
     if kind in ("roles", "skills"):
+        # 同一把锁内完成 agent_config 的读改写：它写的是另一个 settings 键，
+        # 但同样是「读整份 → 改一个键 → 写回」，锁外执行会与并发的技能/角色
+        # 保存互相覆盖（与上面 _clear_tombstone 是同一类缺陷）。
         from .. import agent_config
 
         cfg = await agent_config.get_config()
@@ -377,7 +391,9 @@ async def upsert_asset(kind: str, asset_id: str, payload: dict[str, Any]) -> dic
         if kind == "skills":
             await _sync_skill_schedule()
         return {"id": asset_id, **bucket[asset_id]}
-    await _mutate(lambda cfg: cfg.setdefault(kind, {}).__setitem__(asset_id, asset))
+    cfg = await _read()
+    cfg.setdefault(kind, {})[asset_id] = asset
+    await _write(cfg)
     return {"id": asset_id, **asset}
 
 
@@ -403,6 +419,13 @@ async def _clear_tombstone(kind: str, asset_id: str) -> None:
 
 
 async def delete_asset(kind: str, asset_id: str, *, force: bool = False) -> bool:
+    # 整个函数持锁：roles/skills 要同时改 agent_config 与 studio 配置两处，
+    # 锁外执行会与并发的 upsert/set_enabled 互相覆盖（与 upsert_asset 同类缺陷）。
+    async with _studio_lock():
+        return await _delete_asset_locked(kind, asset_id, force=force)
+
+
+async def _delete_asset_locked(kind: str, asset_id: str, *, force: bool) -> bool:
     if kind in ("roles", "skills"):
         from .. import agent_config
 
@@ -422,20 +445,26 @@ async def delete_asset(kind: str, asset_id: str, *, force: bool = False) -> bool
         if kind == "skills":
             await _sync_skill_schedule()
         return True
-    async with _studio_lock():
-        cfg = await _read()
-        bucket = cfg.get(kind) or {}
-        if asset_id not in bucket:
-            return False
-        if bucket[asset_id].get("builtin") and not force:
-            raise ValueError("内置资产不可删除；可关闭或使用 force=true 强制删除")
-        bucket.pop(asset_id, None)
-        _add_tombstone(cfg, kind, asset_id)
-        await _write(cfg)
+    cfg = await _read()
+    bucket = cfg.get(kind) or {}
+    if asset_id not in bucket:
+        return False
+    if bucket[asset_id].get("builtin") and not force:
+        raise ValueError("内置资产不可删除；可关闭或使用 force=true 强制删除")
+    bucket.pop(asset_id, None)
+    _add_tombstone(cfg, kind, asset_id)
+    await _write(cfg)
     return True
 
 
 async def set_enabled(kind: str, asset_id: str, enabled: bool) -> dict[str, Any] | None:
+    async with _studio_lock():
+        return await _set_enabled_locked(kind, asset_id, enabled)
+
+
+async def _set_enabled_locked(
+    kind: str, asset_id: str, enabled: bool
+) -> dict[str, Any] | None:
     if kind in ("roles", "skills"):
         from .. import agent_config
 
@@ -449,14 +478,13 @@ async def set_enabled(kind: str, asset_id: str, enabled: bool) -> dict[str, Any]
         if kind == "skills":
             await _sync_skill_schedule()
         return {"id": asset_id, **bucket[asset_id]}
-    async with _studio_lock():
-        cfg = await _read()
-        bucket = cfg.setdefault(kind, {})
-        if asset_id not in bucket:
-            return None
-        bucket[asset_id]["enabled"] = bool(enabled)
-        await _write(cfg)
-        return {"id": asset_id, **bucket[asset_id]}
+    cfg = await _read()
+    bucket = cfg.setdefault(kind, {})
+    if asset_id not in bucket:
+        return None
+    bucket[asset_id]["enabled"] = bool(enabled)
+    await _write(cfg)
+    return {"id": asset_id, **bucket[asset_id]}
 
 
 def _active(assets: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:

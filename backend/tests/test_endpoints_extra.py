@@ -18,7 +18,6 @@ from app import db
 @pytest.mark.anyio
 async def test_list_subscriptions_endpoint_via_app(temp_db):
     import httpx
-
     from app import main
 
     transport = httpx.ASGITransport(app=main.app)
@@ -33,7 +32,6 @@ async def test_list_subscriptions_endpoint_via_app(temp_db):
 @pytest.mark.anyio
 async def test_undoables_endpoint_returns_snapshot_labels(temp_db):
     import httpx
-
     from app import main
 
     await db.add_transaction("2026-10-05", "测试流水", "测试", -10.0)

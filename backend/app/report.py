@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """可交互 HTML 报告：把总览数据导成单文件、离线可看、可打印的报表。
 
 为什么不用 PDF：PDF 生成要额外依赖（wkhtmltopdf/weasyprint），在用户机器上
@@ -30,12 +29,12 @@ def _money(v: Any) -> str:
         n = float(v or 0)
     except (TypeError, ValueError):
         return "—"
-    return ("{:,.2f}".format(n)).rstrip("0").rstrip(".") if n % 1 else "{:,.0f}".format(n)
+    return (f"{n:,.2f}").rstrip("0").rstrip(".") if n % 1 else f"{n:,.0f}"
 
 
 def _pct(v: Any) -> str:
     try:
-        return "%.2f%%" % float(v or 0)
+        return f"{float(v or 0):.2f}%"
     except (TypeError, ValueError):
         return "—"
 
@@ -55,9 +54,9 @@ def _bar_chart(rows: list[tuple[str, float]], width: int = 640, bar_h: int = 22)
     zero_x = name_w + pad + plot_w / 2
     scale = (plot_w / 2) / max_abs
     parts = [
-        '<svg viewBox="0 0 %d %d" width="100%%" role="img" aria-label="bar chart">' % (width, height),
-        '<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="#cbd5e1" stroke-width="1"/>'
-        % (zero_x, 0, zero_x, height),
+        f'<svg viewBox="0 0 {width} {height}" width="100%" role="img" aria-label="bar chart">',
+        f'<line x1="{zero_x:.1f}" y1="0" x2="{zero_x:.1f}" y2="{height}" '
+        'stroke="#cbd5e1" stroke-width="1"/>',
     ]
     for i, (name, val) in enumerate(rows):
         y = pad + i * bar_h
@@ -65,16 +64,16 @@ def _bar_chart(rows: list[tuple[str, float]], width: int = 640, bar_h: int = 22)
         x = zero_x if val >= 0 else zero_x - w
         color = "#dc2626" if val >= 0 else "#059669"
         parts.append(
-            '<rect x="%.1f" y="%d" width="%.1f" height="%d" rx="3" fill="%s"/>'
-            % (x, y + 6, max(w, 0.5), bar_h - 12, color)
+            f'<rect x="{x:.1f}" y="{y + 6}" width="{max(w, 0.5):.1f}" '
+            f'height="{bar_h - 12}" rx="3" fill="{color}"/>'
         )
         parts.append(
-            '<text x="%d" y="%d" font-size="11" fill="#334155" text-anchor="end">%s</text>'
-            % (name_w, y + bar_h - 6, _e(name[:18]))
+            f'<text x="{name_w}" y="{y + bar_h - 6}" font-size="11" fill="#334155" '
+            f'text-anchor="end">{_e(name[:18])}</text>'
         )
         parts.append(
-            '<text x="%d" y="%d" font-size="11" fill="#475569" text-anchor="end">%s</text>'
-            % (width - pad, y + bar_h - 6, _money(val))
+            f'<text x="{width - pad}" y="{y + bar_h - 6}" font-size="11" fill="#475569" '
+            f'text-anchor="end">{_money(val)}</text>'
         )
     parts.append("</svg>")
     return "".join(parts)
@@ -92,23 +91,22 @@ def _share_bars(rows: list[tuple[str, float]], width: int = 640, bar_h: int = 22
     plot_w = width - label_w - pad * 2 - 56
     max_pct = max(p for _, p in rows) or 1.0
     parts = [
-        '<svg viewBox="0 0 %d %d" width="100%%" role="img" aria-label="allocation chart">'
-        % (width, height)
+        f'<svg viewBox="0 0 {width} {height}" width="100%" role="img" aria-label="allocation chart">'
     ]
     for i, (name, pct) in enumerate(rows):
         y = pad + i * bar_h
         w = pct / max_pct * plot_w
         parts.append(
-            '<rect x="%d" y="%d" width="%.1f" height="%d" rx="3" fill="#0d9488" opacity="0.85"/>'
-            % (label_w + pad, y + 6, max(w, 0.5), bar_h - 12)
+            f'<rect x="{label_w + pad}" y="{y + 6}" width="{max(w, 0.5):.1f}" '
+            f'height="{bar_h - 12}" rx="3" fill="#0d9488" opacity="0.85"/>'
         )
         parts.append(
-            '<text x="%d" y="%d" font-size="11" fill="#334155" text-anchor="end">%s</text>'
-            % (label_w, y + bar_h - 6, _e(name[:20]))
+            f'<text x="{label_w}" y="{y + bar_h - 6}" font-size="11" fill="#334155" '
+            f'text-anchor="end">{_e(name[:20])}</text>'
         )
         parts.append(
-            '<text x="%.1f" y="%d" font-size="11" fill="#475569">%.1f%%</text>'
-            % (label_w + pad + w + 6, y + bar_h - 6, pct)
+            f'<text x="{label_w + pad + w + 6:.1f}" y="{y + bar_h - 6}" '
+            f'font-size="11" fill="#475569">{pct:.1f}%</text>'
         )
     parts.append("</svg>")
     return "".join(parts)
@@ -126,27 +124,27 @@ def _line_chart(points: list[float], width: int = 640, height: int = 160) -> str
     for i, v in enumerate(points):
         x = pad + i * step
         y = height - pad - (v - lo) / span * (height - pad * 2)
-        coords.append("%.1f,%.1f" % (x, y))
-    area = "M%.1f,%d L%s L%.1f,%d Z" % (
-        pad, height - pad, " L".join(coords), width - pad, height - pad)
+        coords.append(f"{x:.1f},{y:.1f}")
+    area = f"M{pad:.1f},{height - pad} L{' L'.join(coords)} L{width - pad:.1f},{height - pad} Z"
     return (
-        '<svg viewBox="0 0 %d %d" width="100%%" role="img" aria-label="line chart">'
-        '<path d="%s" fill="#0d9488" opacity="0.10"/>'
-        '<polyline points="%s" fill="none" stroke="#0d9488" stroke-width="2" stroke-linejoin="round"/>'
-        '<text x="%d" y="14" font-size="10" fill="#64748b" text-anchor="end">最高 %s</text>'
-        '<text x="%d" y="%d" font-size="10" fill="#64748b" text-anchor="end">最低 %s</text>'
+        f'<svg viewBox="0 0 {width} {height}" width="100%" role="img" aria-label="line chart">'
+        f'<path d="{area}" fill="#0d9488" opacity="0.10"/>'
+        f'<polyline points="{" ".join(coords)}" fill="none" stroke="#0d9488" '
+        'stroke-width="2" stroke-linejoin="round"/>'
+        f'<text x="{width - pad}" y="14" font-size="10" fill="#64748b" '
+        f'text-anchor="end">最高 {_money(hi)}</text>'
+        f'<text x="{width - pad}" y="{height - 2}" font-size="10" fill="#64748b" '
+        f'text-anchor="end">最低 {_money(lo)}</text>'
         "</svg>"
-        % (width, height, area, " ".join(coords), width - pad, _money(hi),
-           width - pad, height - 2, _money(lo))
     )
 
 
 def _table(headers: list[str], rows: list[list[Any]]) -> str:
-    head = "".join("<th>%s</th>" % _e(h) for h in headers)
+    head = "".join(f"<th>{_e(h)}</th>" for h in headers)
     body = "".join(
-        "<tr>%s</tr>" % "".join("<td>%s</td>" % _e(c) for c in r) for r in rows[:MAX_ROWS]
+        "<tr>{}</tr>".format("".join(f"<td>{_e(c)}</td>" for c in r)) for r in rows[:MAX_ROWS]
     )
-    return '<table><thead><tr>%s</tr></thead><tbody>%s</tbody></table>' % (head, body)
+    return f'<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
 
 
 _CSS = """
@@ -245,34 +243,32 @@ def build_report(
         "<head>",
         '<meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width,initial-scale=1">',
-        "<title>%s</title>" % _e(title),
-        "<style>%s</style>" % _CSS,
+        f"<title>{_e(title)}</title>",
+        f"<style>{_CSS}</style>",
         "</head><body><div class='wrap'>",
-        "<header><h1>%s</h1><p class='muted'>%s%s</p></header>"
-        % (_e(title), _e(t("生成于 ", "Generated ")), _e(generated_at or t("—", "—"))),
+        "<header><h1>{}</h1><p class='muted'>{}{}</p></header>".format(_e(title), _e(t("生成于 ", "Generated ")), _e(generated_at or t("—", "—"))),
     ]
 
     parts.append("<div class='kpis'>")
     for label, value in kpis:
-        parts.append("<div class='kpi'><b>%s</b><span>%s</span></div>" % (_e(value), _e(label)))
+        parts.append(f"<div class='kpi'><b>{_e(value)}</b><span>{_e(label)}</span></div>")
     parts.append("</div>")
 
     if caveats:
-        parts.append("<div class='caveat'><strong>%s</strong><ul>"
-                     % _e(t("口径说明", "How to read this")))
-        parts.append("".join("<li>%s</li>" % _e(c) for c in caveats))
+        parts.append("<div class='caveat'><strong>{}</strong><ul>".format(_e(t("口径说明", "How to read this"))))
+        parts.append("".join(f"<li>{_e(c)}</li>" for c in caveats))
         parts.append("</ul></div>")
 
     if action_rows:
-        parts.append("<h2>%s</h2>" % _e(t("现在该做什么", "What to do next")))
+        parts.append("<h2>{}</h2>".format(_e(t("现在该做什么", "What to do next"))))
         parts.append(_table([t("领域", "Area"), t("建议", "Action"), t("依据", "Why")],
                             action_rows))
 
-    parts.append("<h2>%s</h2>" % _e(t("持仓盈亏贡献", "P&L contribution")))
+    parts.append("<h2>{}</h2>".format(_e(t("持仓盈亏贡献", "P&L contribution"))))
     parts.append(_bar_chart(pnl_rows))
 
     if pos_rows:
-        parts.append("<h2>%s</h2>" % _e(t("持仓明细", "Holdings")))
+        parts.append("<h2>{}</h2>".format(_e(t("持仓明细", "Holdings"))))
         parts.append(_table([t("标的", "Instrument"), t("类型", "Kind"),
                              t("市值", "Value"), t("盈亏", "P&L"), t("收益率", "Return")],
                             pos_rows))
@@ -287,15 +283,15 @@ def build_report(
                   float(p.get("market_value") or 0) / total_mv * 100.0) for p in positions],
                 key=lambda x: x[1], reverse=True,
             )
-            parts.append("<h2>%s</h2>" % _e(t("资产占比", "Allocation share")))
+            parts.append("<h2>{}</h2>".format(_e(t("资产占比", "Allocation share"))))
             parts.append(_share_bars(share_rows))
 
     if cat_rows:
-        parts.append("<h2>%s</h2>" % _e(t("本月支出构成", "Spending by category")))
+        parts.append("<h2>{}</h2>".format(_e(t("本月支出构成", "Spending by category"))))
         parts.append(_table([t("类目", "Category"), t("金额", "Amount")], cat_rows))
 
     if accounts and accounts.get("sources"):
-        parts.append("<h2>%s</h2>" % _e(t("账户来源", "Account sources")))
+        parts.append("<h2>{}</h2>".format(_e(t("账户来源", "Account sources"))))
         parts.append(_table(
             [t("账户", "Account"), t("净值", "Net worth"),
              t("计入合计", "Counted"), t("说明", "Note")],
@@ -305,7 +301,7 @@ def build_report(
         ))
 
     parts.append(
-        "<footer>%s<br>%s</footer>" % (
+        "<footer>{}<br>{}</footer>".format(
             _e(t("本报告为单文件离线 HTML：不含外部脚本、不上传任何数据。",
                  "Single-file offline HTML: no external scripts, no data leaves your machine.")),
             _e(t("可浏览器「打印 → 另存为 PDF」得到归档版本。",

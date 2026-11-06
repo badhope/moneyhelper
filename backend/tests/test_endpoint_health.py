@@ -13,9 +13,6 @@
   - 401/403 也算通过：鉴权拒绝是正常行为，不是崩。
 """
 
-import json
-import urllib.error
-import urllib.request
 
 import pytest
 
@@ -104,7 +101,6 @@ class TestValueErrorBecomes400:
 @pytest.fixture
 async def client(temp_db):
     import httpx
-
     from app import main
 
     transport = httpx.ASGITransport(app=main.app)
@@ -144,7 +140,7 @@ def _example_value(spec: dict, schema: dict, depth: int = 0) -> object:
     if "$ref" in schema:
         return _example_value(spec, _resolve_ref(spec, schema["$ref"]), depth + 1)
 
-    if "enum" in schema and schema["enum"]:
+    if schema.get("enum"):
         return schema["enum"][0]
     if "default" in schema:
         return schema["default"]
@@ -260,4 +256,4 @@ class TestPostWithValidBodies:
                 bad.append(f"{p} -> {r.status_code} 错误信息为空: {str(payload)[:80]}")
             elif "Traceback" in msg or 'File "' in msg:
                 bad.append(f"{p} -> {r.status_code} 错误信息含堆栈: {msg[:80]}")
-        assert not bad, chr(10).join(["以下 4xx 的错误文案不合格："] + bad[:10])
+        assert not bad, chr(10).join(["以下 4xx 的错误文案不合格：", *bad[:10]])

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """决策中心：把分散在各模块的结论收敛成「今天该做什么」。
 
 为什么需要它：持仓页告诉你集中度超限、税负页告诉你可以抵扣、现金流页告诉你
@@ -57,11 +56,9 @@ def _from_flags(flags: list[dict[str, Any]], lang: str) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for flag in flags or []:
         code = str(flag.get("code") or "").upper()
-        level = str(flag.get("level") or "").lower()
         msg = str(flag.get("text") or flag.get("message") or "").strip()
         if not code or not msg:
             continue
-        urgent = level in ("high", "critical", "danger", "error")
         if code.startswith("CONCENTRATION"):
             # 集中度超限是「已经发生的偏离」，不是潜在风险：持仓已经超过阈值，
             # 因此即使 level 只是 warn 也按紧急处理——这是唯一能让用户今天就动手的信号。
@@ -144,8 +141,8 @@ def _from_goals(goals: list[dict[str, Any]], lang: str) -> list[dict[str, Any]]:
 
 def _money(v: float) -> str:
     if abs(v) >= 10000:
-        return "%.1f万" % (v / 10000)
-    return "%.0f" % v
+        return f"{v / 10000:.1f}万"
+    return f"{v:.0f}"
 
 
 def build_actions(

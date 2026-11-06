@@ -9,7 +9,6 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from .. import auth
-
 from ..logging_utils import clear_logs, read_log_lines
 from ..logging_utils import get_logger as _get_logger
 

@@ -41,6 +41,7 @@ from .cashflow import (
     detect_anomalies,
     detect_subscriptions,
 )
+from .debt_payoff import DebtItem, PayoffPlan, compare_methods, plan_payoff
 from .financial_statements import analyze_statements, compute_period_metrics
 from .forecast import forecast, forecast_text
 from .goals import GoalProgress, calculate_goal_progress
@@ -97,9 +98,11 @@ from .valuation import (
 )
 
 __all__ = [
+    "DebtItem",
     "FinancialHealthScore",
     "GoalProgress",
     "NetWorthSnapshot",
+    "PayoffPlan",
     "PayrollResult",
     "RebalancePlan",
     "RiskMetrics",
@@ -121,6 +124,7 @@ __all__ = [
     "calculate_twr",
     "calculate_xirr",
     "cashflow_forecast",
+    "compare_methods",
     "compute_dca_stats",
     "compute_fire",
     "compute_period_metrics",
@@ -142,6 +146,7 @@ __all__ = [
     "month_end_checklist",
     "next_run_date",
     "payroll",
+    "plan_payoff",
     "pre_trade_check",
     "price_limit",
     "ranking",

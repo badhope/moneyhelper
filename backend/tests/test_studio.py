@@ -329,6 +329,84 @@ async def test_concurrent_writes_do_not_lose_data(temp_db) -> None:
     )
 
 
+async def test_all_config_mutations_hold_the_lock(temp_db, monkeypatch) -> None:
+    """防回归：所有「读整份 → 改一个键 → 写回」的入口都必须在锁内完成。
+
+    历史缺陷：upsert_asset 先在锁外 _clear_tombstone（自己读一次写一次）再 _mutate
+    （再读一次写一次），两次读之间别的并发写插进来，清墓碑那次写回把对方刚写入的
+    资产整段覆盖——12 并发随机丢 1 条且 gather 无异常（写成功了、随后被覆盖）。
+    delete_asset / set_enabled 的 roles/skills 分支也有同类问题。
+
+    反证方式：用**真实的 asyncio.Lock** 替换（不是只计数的假锁），断言每个入口
+    恰好进入一次；嵌套进入会直接死锁，用 wait_for 兜底超时判失败。
+    """
+    import asyncio
+
+    async def run_under_counter(fn) -> int:
+        real = asyncio.Lock()
+        counter = {"enter": 0}
+
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def counting():
+            counter["enter"] += 1
+            async with real:
+                yield
+
+        monkeypatch.setattr(store, "_studio_lock", counting)
+        # 真锁 + 超时：嵌套进入会挂住，超时即判定为缺陷（而不是让测试永久卡住）
+        await asyncio.wait_for(fn(), timeout=10)
+        return counter["enter"]
+
+    # prompts（普通资产）
+    n = await run_under_counter(
+        lambda: store.upsert_asset("prompts", "lock-p", {"name": "P", "content": "x"})
+    )
+    assert n == 1, f"upsert_asset(prompts) 应只进锁 1 次，实际 {n}"
+
+    # skills（走 agent_config 分支，历史上锁外）
+    n = await run_under_counter(
+        lambda: store.upsert_asset("skills", "lock-s", {"name": "S", "content": "x"})
+    )
+    assert n == 1, f"upsert_asset(skills) 应只进锁 1 次，实际 {n}"
+
+    # set_enabled / delete_asset
+    n = await run_under_counter(lambda: store.set_enabled("skills", "lock-s", False))
+    assert n == 1, f"set_enabled(skills) 应只进锁 1 次，实际 {n}"
+    n = await run_under_counter(lambda: store.delete_asset("skills", "lock-s", force=True))
+    assert n == 1, f"delete_asset(skills) 应只进锁 1 次，实际 {n}"
+
+
+async def test_config_writes_never_exceed_reads(temp_db, monkeypatch) -> None:
+    """并发写时不许出现「写次数 > 读次数」：那意味着有写入不是基于新鲜快照。"""
+    import asyncio
+
+    reads = {"n": 0}
+    writes = {"n": 0}
+    real_read, real_write = store._read, store._write
+
+    async def counted_read():
+        reads["n"] += 1
+        return await real_read()
+
+    async def counted_write(cfg):
+        writes["n"] += 1
+        return await real_write(cfg)
+
+    monkeypatch.setattr(store, "_read", counted_read)
+    monkeypatch.setattr(store, "_write", counted_write)
+    await asyncio.gather(
+        *[
+            store.upsert_asset("prompts", f"par{i}", {"name": f"P{i}", "content": "x"})
+            for i in range(8)
+        ]
+    )
+    assert writes["n"] <= reads["n"], (
+        f"写 {writes['n']} 次 > 读 {reads['n']} 次：存在未基于新鲜快照的写入"
+    )
+
+
 async def test_mixed_concurrent_writes(temp_db) -> None:
     """不同类型资产的并发写共用同一份配置，也必须串行。"""
     import asyncio

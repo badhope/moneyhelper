@@ -54,7 +54,11 @@ function systemDark(): boolean {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>(() => load<ThemeMode>(KEYS.theme, "system"));
+  // 默认亮色：首次打开不做「跟随系统」猜测。
+  // 理由：这个应用的主场景是白天记账/看盘，跟随系统会让晚上系统切深色后
+  // 报表上的红涨绿跌与浅底对比度整体变暗；而用户一旦手动切换过，
+  // localStorage 会记住选择，"跟随系统"仍然是设置里可选的第三项。
+  const [theme, setThemeState] = useState<ThemeMode>(() => load<ThemeMode>(KEYS.theme, "light"));
   const [preset, setPresetState] = useState<string>(() => load<string>(KEYS.preset, DEFAULT_PRESET));
 
   const resolved: "light" | "dark" =

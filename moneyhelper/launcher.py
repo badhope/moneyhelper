@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """桌面/单文件启动器：一个可执行文件同时提供 Web UI 与后台 API。
 
 为什么需要它：Tauri 方案要求 Rust 工具链与平台 SDK，在多数机器上装不起来，
@@ -71,7 +70,15 @@ def main(argv: list[str] | None = None) -> int:
         prog="moneyhelper-desktop",
         description="Moneyhelper 桌面启动器：起本地服务并打开界面",
     )
-    parser.add_argument("--port", type=int, default=8787, help="监听端口（被占用时自动顺延）")
+    try:
+        default_port = int(os.environ.get("PORT") or 8787)
+    except ValueError:
+        # 某些平台注入 tcp://host:port 这类值；退回默认端口而不是抛堆栈
+        print(f"忽略无法解析的 PORT={os.environ.get('PORT')!r}，改用 8787", file=sys.stderr)
+        default_port = 8787
+    parser.add_argument(
+        "--port", type=int, default=default_port, help="监听端口（默认读 PORT 环境变量，被占用时自动顺延）"
+    )
     parser.add_argument("--host", default="127.0.0.1", help="监听地址（默认仅本机）")
     parser.add_argument("--no-open", action="store_true", help="不自动打开浏览器")
     parser.add_argument("--data-dir", default="", help="数据目录（默认用户级目录）")

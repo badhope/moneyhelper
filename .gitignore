@@ -18,6 +18,12 @@ backend/.env
 .env.local
 .aqg/
 
+# 测试产生的临时库（pytest 崩在中间时会留下，绝不能入库）
+backend/data.tmp_test*
+backend/data.*.db
+backend/data.*.db-*
+backend/data.*.db.pre-mt-*
+
 # 运行时数据（含个人持仓/审计链；seed 在代码里重建）
 # app/data/ 是早期路径，历史上被误跟踪，现已移出版本库
 backend/data/

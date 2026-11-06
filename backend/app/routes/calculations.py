@@ -167,8 +167,8 @@ async def returns_endpoint(months: int = Query(default=6, ge=1, le=120)) -> dict
         result["twr"] = {
             "available": False,
             "reason": (
-                "时间加权收益率需要至少两个历史估值快照。当前只有 %d 个，"
-                "无法在不臆造期初值的前提下计算。" % len(snapshot_curve)
+                f"时间加权收益率需要至少两个历史估值快照。当前只有 {len(snapshot_curve)} 个，"
+                "无法在不臆造期初值的前提下计算。"
             ),
             "basis": "insufficient_history",
         }

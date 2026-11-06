@@ -5,7 +5,6 @@
 """
 
 import pytest
-
 from app.tool_policy import (
     ASK,
     DENY,

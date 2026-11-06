@@ -115,6 +115,8 @@ const DERIVED_PREFIXES: readonly (readonly unknown[])[] = [
   ["goals"],
   ["connect"],
   ["paper"],
+  // 还债规划：负债增删改后方案必须重算（否则 staleTime 内切回来看到旧数字）
+  ["/api/finance/debts/payoff"],
 ];
 
 export function invalidateBump(): void {

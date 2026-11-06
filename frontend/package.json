@@ -1,7 +1,7 @@
 {
   "name": "moneyhelper-frontend",
   "private": true,
-  "version": "4.13.4",
+  "version": "4.14.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,9 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
-    "shots": "node e2e/responsive-shots.mjs"
+    "shots": "node e2e/responsive-shots.mjs",
+    "shots:full": "node e2e/shots-full.mjs",
+    "e2e:debts": "node e2e/debt-payoff.mjs"
   },
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",

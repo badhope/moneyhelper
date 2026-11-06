@@ -12,7 +12,6 @@
   - 回撤/夏普基于 TWR 序列（剔除新增资金），否则曲线单调上升
 """
 
-import pytest
 
 from app.calculations.backtest import backtest_dca, backtest_ma_cross
 

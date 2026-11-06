@@ -17,6 +17,7 @@ const PAGES = [
   { name: "02-overview", group: /^(每天看|Daily)$/, tab: /^(总览|Dashboard)$/ },
   { name: "03-holdings", group: /^(每天看|Daily)$/, tab: /^(持仓|Holdings)$/ },
   { name: "04-ledger", group: /^(每天看|Daily)$/, tab: /^(记账|Ledger)$/ },
+  { name: "11-debts", group: /^(每天看|Daily)$/, tab: /^(还债规划|Debt payoff)$/ },
   { name: "05-market", group: /^(判断时|Analyze)$/, tab: /^(行情|Market)$/ },
   { name: "06-strategy", group: /^(判断时|Analyze)$/, tab: /^(投资策略|Strategy)$/ },
   { name: "07-tax", group: /^(算账|Books)$/, tab: /^(公司财税|Tax)$/ },

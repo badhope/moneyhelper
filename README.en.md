@@ -1,6 +1,6 @@
-# Moneyhelper README 索引
+# Moneyhelper README index
 
-- **简体中文（主版本）：[README.zh.md](README.zh.md)**
-- **English: [README.md](README.md)**
+- **English (primary): [README.md](README.md)**
+- **简体中文: [README.zh.md](README.zh.md)**
 
-本文件仅用于兼容指向 `README.en.md` 的旧链接。
+This file only exists so old links pointing at `README.en.md` keep working.

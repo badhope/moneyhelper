@@ -4,25 +4,12 @@
 参数有依据、失效场景写清楚、数据不足时明确降级。
 """
 
-import math
 import random
 
-import pytest
-
 import httpx as _httpx
+import pytest
 import pytest as _pytest
-
 from app import main as _main
-
-
-@_pytest.fixture
-async def client(temp_db):
-    """轻量 ASGI client：只测路由契约，不依赖行情。"""
-    transport = _httpx.ASGITransport(app=_main.app)
-    async with _httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8787") as ac:
-        yield ac
-
-
 from app.calculations.strategies import (
     atr,
     backtest_grid,
@@ -33,6 +20,14 @@ from app.calculations.strategies import (
     rolling_vol,
     run_position_backtest,
 )
+
+
+@_pytest.fixture
+async def client(temp_db):
+    """轻量 ASGI client：只测路由契约，不依赖行情。"""
+    transport = _httpx.ASGITransport(app=_main.app)
+    async with _httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8787") as ac:
+        yield ac
 
 
 def _oscillating(n: int = 200, amp: float = 8.0, period: int = 40) -> list[float]:

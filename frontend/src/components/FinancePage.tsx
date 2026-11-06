@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { CandlestickChart, FileText, HeartPulse, LayoutGrid, NotebookPen, Plug, Receipt, Target, TrendingUp, Users, Wallet } from "lucide-react";
+import { CandlestickChart, CreditCard, FileText, HeartPulse, LayoutGrid, NotebookPen, Plug, Receipt, Target, TrendingUp, Users, Wallet } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { GroupedNav, type NavGroup } from "@/components/ui/grouped-nav";
 
@@ -36,8 +36,11 @@ const ConnectBody = lazy(() =>
 const TaxBody = lazy(() =>
   import("@/components/TaxPage").then((m) => ({ default: m.TaxPage })),
 );
+const DebtPayoffBody = lazy(() =>
+  import("@/components/DebtPayoffPage").then((m) => ({ default: m.DebtPayoffPage })),
+);
 
-export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax";
+export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax" | "debts";
 
 /**
  * 分组：按用户的心智模型收纳，而不是按功能清单平铺。
@@ -58,6 +61,7 @@ const GROUPS: NavGroup<DataKind>[] = [
       { key: "overview", labelKey: "nav.dashboard", icon: LayoutGrid },
       { key: "holdings", labelKey: "nav.holdings", icon: Wallet },
       { key: "ledger", labelKey: "nav.ledger", icon: NotebookPen },
+      { key: "debts", labelKey: "nav.debts", icon: CreditCard },
     ],
   },
   {
@@ -132,7 +136,7 @@ export function FinancePage({
                 onGoSettings={onGoSettings}
                 onNavigateTab={(tab) => {
                   const known: DataKind[] = ["overview", "holdings", "market", "ledger", "health",
-                    "strategy", "research", "statements", "paper", "connect", "tax"];
+                    "strategy", "research", "statements", "paper", "connect", "tax", "debts"];
                   if (known.includes(tab as DataKind)) onKindChange(tab as DataKind);
                 }}
               />
@@ -147,6 +151,7 @@ export function FinancePage({
             {kind === "market" && <MarketView />}
             {kind === "ledger" && <EntryView />}
             {kind === "health" && <HealthBody />}
+            {kind === "debts" && <DebtPayoffBody onGoLedger={() => onKindChange("ledger")} />}
           </Suspense>
         </div>
       </div>

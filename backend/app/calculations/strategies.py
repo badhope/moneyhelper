@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """策略扩展包：把「只有双均线 + 定投」扩成一组个人投资者真正会用的策略。
 
 设计要点（为什么这么组织）：
@@ -487,7 +486,6 @@ def backtest_trend(
 
     cash = initial_capital
     shares = 0.0
-    entry = 0.0
     stop = 0.0
     curve: list[float] = [initial_capital]
     trades: list[dict[str, Any]] = []
@@ -506,7 +504,6 @@ def backtest_trend(
                 qty = cash / (px * (1 + cost))
                 cash -= qty * px * (1 + cost)
                 shares = qty
-                entry = px
                 stop = px - (a * atr_mult if a else px * 0.08)
                 trades.append({"date": dates[i] if dates else i, "side": "buy",
                                "price": round(px, 4), "shares": round(qty, 4), "reason": "breakout"})
@@ -518,7 +515,6 @@ def backtest_trend(
                                "price": round(px, 4), "shares": round(shares, 4),
                                "reason": "trailing_exit"})
                 shares = 0.0
-                entry = 0.0
                 stop = 0.0
             elif a:
                 stop = max(stop, px - a * atr_mult)  # 移动止损只上移

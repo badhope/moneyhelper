@@ -142,7 +142,11 @@ export function SessionSidebar({
             : "text-foreground/80 hover:bg-foreground/[0.05]",
         )}
       >
-        <span className="min-w-0 flex-1 truncate">{s.title}</span>
+        <span className="min-w-0 flex-1 truncate">
+          {/* 后端把默认标题存成中文「新会话」（数据层不感知语言）。
+              英文界面直接显示它就是中英混排，因此按当前语言替换占位标题。 */}
+          {s.title === "新会话" ? t("sidebar.newSession") : s.title}
+        </span>
         <span className="absolute right-1 flex items-center gap-0.5 rounded-md bg-inherit pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <button
             type="button"

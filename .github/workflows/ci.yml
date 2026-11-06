@@ -23,7 +23,11 @@ jobs:
       - name: 安装依赖
         run: pip install -q -r backend/requirements.txt
       - name: 静态检查（ruff）
+        # 版本在 backend/requirements.txt 里 pin 死。ruff 每版都会扩充规则集，
+        # 不 pin 时上游发版会让 CI 在代码没变的情况下变红（2026-11-03 起连续
+        # 10 个提交就是这么挂的），门禁本身失去可复现性。
         run: |
+          python -m ruff --version
           cd backend && python -m ruff check app tests
           cd .. && python -m ruff check moneyhelper
       - name: 单元测试（pytest）

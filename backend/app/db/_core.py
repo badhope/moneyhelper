@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import shutil
 import uuid
+import weakref as _weakref
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -681,9 +682,7 @@ async def _conn() -> aiosqlite.Connection:
 #     于是 `async with lock` 立即返回，并发保护静默失效
 #     （表现为 test_studio 的 12 并发只存下几条，且单独跑必过）。
 #   - WeakKeyDictionary 在循环被 GC 时自动移除条目，不会无限增长。
-import weakref as _weakref
-
-_write_locks: "weakref.WeakKeyDictionary[Any, asyncio.Lock]" = _weakref.WeakKeyDictionary()
+_write_locks: _weakref.WeakKeyDictionary[Any, asyncio.Lock] = _weakref.WeakKeyDictionary()
 
 
 def get_write_lock() -> asyncio.Lock:

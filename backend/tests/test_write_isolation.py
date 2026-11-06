@@ -16,9 +16,9 @@
 """
 
 import asyncio
+import sqlite3
 
 import pytest
-
 from app import db
 
 
@@ -44,7 +44,7 @@ async def test_batch_insert_is_atomic_on_failure(temp_db):
         {"date": "2026-11-02", "item": "正常A", "category": "餐饮", "amount": -10.0},
         {"date": "非法日期", "item": "坏行", "category": "餐饮", "amount": -20.0},
     ]
-    with pytest.raises(Exception):
+    with pytest.raises((ValueError, sqlite3.IntegrityError)):
         await db.add_transactions_batch(bad_batch)
 
     after = len(await db.list_transactions())

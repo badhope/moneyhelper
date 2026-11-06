@@ -1,112 +1,148 @@
 # Moneyhelper
 
-**一句话记账，一个数字看清全部家底。** 自己跑在本地，不连云端。
+**An AI finance department you can audit.** Bookkeeping, portfolio risk, research, statements, tax and cash scheduling — every number computed by deterministic code, never by the model.
 
-[![Release](https://img.shields.io/badge/release-v4.13.0-0d9488)](https://github.com/badhope/moneyhelper/releases)
-[![Tests](https://img.shields.io/badge/tests-1400%2B-059669)](#验证)
+[English](README.md) · [简体中文](README.zh.md) · [Docs](docs/index.md) · [CLI](docs/cli.md) · [Deploy](docs/DEPLOY.en.md)
+
+[![CI](https://github.com/badhope/moneyhelper/actions/workflows/ci.yml/badge.svg)](https://github.com/badhope/moneyhelper/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/badhope/moneyhelper)](https://github.com/badhope/moneyhelper/releases)
+[![Tests](https://img.shields.io/badge/tests-1%2C600%2B-059669)](#verification)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-
-[English](README.en.md) · [CLI 文档](docs/CONFIG.md) · [部署](docs/DEPLOY.md)
-
----
-
-## 安装
-
-```bash
-# 方式一：桌面版（双击即用）
-下载 release 里的 Moneyhelper.exe
-
-# 方式二：Docker
-docker compose up -d          # → http://localhost:8787
-
-# 方式三：命令行
-pip install -e .
-moneyhelper add "午餐 45 打车 28"
-```
-
----
-
-## 界面
-
-| 总览 | 持仓 |
-|---|---|
-| ![总览](docs/screenshots-v4.11/desktop-02-overview.png) | ![持仓](docs/screenshots-v4.11/desktop-03-holdings.png) |
-
-| 投研 | 模拟盘 |
-|---|---|
-| ![投研](docs/screenshots-v4.11/desktop-10-research.png) | ![模拟盘](docs/screenshots-v4.11/desktop-09-paper.png) |
-
-移动端：
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-63%20tools-1A2B4A)](docs/mcp-guide.md)
 
 <p align="center">
-  <img src="docs/screenshots-v4.11/mobile-02-overview.png" width="30%" />
-  <img src="docs/screenshots-v4.11/mobile-03-holdings.png" width="30%" />
-  <img src="docs/screenshots-v4.11/mobile-09-paper.png" width="30%" />
+  <img src="docs/screenshots-v4.14/desktop-02-overview.png" width="100%" alt="Dashboard: net worth, concentration risk and prioritized actions" />
 </p>
 
 ---
 
-## 能做什么
-
-**账本**
-一句话记多笔（`午餐 45 打车 28` → 两条流水）；CSV 账单导入；加密备份。
-
-**持仓与风控**
-持仓明细、集中度与行业分布、盈亏归因、再平衡建议。
-
-**策略回测**
-5 个策略，参数与失效场景都写在结果里：
-
-| 策略 | 适合 | 失效场景 |
-|---|---|---|
-| 双均线 | 中期趋势 | 震荡市反复止损 |
-| 定投 | 长期积累 | 单边下跌仍亏损 |
-| 网格 | 区间震荡 | 单边下跌买满套牢 |
-| 趋势跟随 | 大级别趋势 | 假突破频繁 |
-| 波动率目标 | 控制回撤 | 波动率跳升滞后 |
-
-**净值追踪**
-每日快照，把「涨了」拆成 **存的 / 涨的 / 还债的** 三部分。
-
-**报告**
-单文件 HTML，离线可看、可打印 PDF。
-
-**AI 对话**
-一句话问「这个月花哪了」，走本地计算引擎，模型只负责写话。
-
----
-
-## 为什么数字可信
-
-计算层是纯函数，没有网络、没有数据库、没有随机。
-
-```
-用户提问 → 意图路由 → 工具调用 → calculations/*.py（纯函数）
-                                        ↓
-                                   数字回填 → 模型只写叙述
-```
-
-模型**没有写数字的通道**。它拿到的永远是算好的结果，只能组织语言。
-
----
-
-## 验证
+## Install
 
 ```bash
-# 后端
-cd backend && pytest -q          # 1370+ passed
-# 前端
-cd frontend && npm test          # 129 passed
-# 截图
-node frontend/e2e/shots-full.mjs  # 20 张，零溢出
+# 1) Desktop — download and run, no Python needed
+#    release assets: moneyhelper-windows-x64.exe / moneyhelper-macos-arm64 / moneyhelper-linux-x64
+
+# 2) Docker
+docker compose up -d                 # → http://localhost:8787
+
+# 3) From source
+scripts/dev.sh --prod                # venv + pip + frontend build + serve on :8788
+pip install -e . && moneyhelper add "lunch 45, taxi 28"
 ```
+
+Requires Python 3.10+ and Node 20.19+ for the source install. Data lives in a local SQLite file — no account, no telemetry, no cloud round-trip.
 
 ---
 
-## 边界
+## What it does
 
-- 不代客下单，实盘只生成交接单
-- 不给税务筹划建议，只按公式算
-- 不预测收益，回测标注假设与失效条件
+| | |
+|---|---|
+| **Ledger** | One sentence, many entries: `午餐 45 打车 28` becomes two transactions. WeChat Pay, Alipay, bank CSV, PDF statements, invoice QR codes and OCR all import natively. |
+| **Portfolio** | Positions, concentration and sector breakdown, P&L attribution, rebalance orders sized to whole lots. |
+| **Debt payoff** | Avalanche vs snowball, month-by-month amortization, debt-free date, and how much interest the extra payment actually saves. |
+| **Research** | Technical indicators, 5 backtest strategies, statistical price scenarios (trend regression, volatility bands, Monte Carlo with a fixed seed). |
+| **Statements** | Three-statement analysis: 20+ ratios, DuPont decomposition, year-over-year deltas, anomaly flags. |
+| **Tax (CN)** | VAT and surcharges, corporate income tax, cumulative withholding for individuals, payroll with social insurance and housing fund. |
+| **Cash flow** | Three-scenario forecast, subscription detection, anomaly detection via median + MAD. |
+| **Reports** | Single-file interactive HTML, offline-readable, printable to PDF. |
+| **MCP** | 63 tools over the Model Context Protocol — any MCP client can drive the ledger. |
 
-MIT License · [安全策略](SECURITY.md) · [贡献指南](CONTRIBUTING.md)
+<p align="center">
+  <img src="docs/screenshots-v4.14/desktop-11-debts.png" width="49%" alt="Debt payoff planner" />
+  <img src="docs/screenshots-v4.14/desktop-10-research.png" width="49%" alt="Research and backtesting" />
+</p>
+
+---
+
+## Why the numbers hold up
+
+The calculation layer is pure functions: no network, no database, no randomness (Monte Carlo is seeded).
+
+```
+question → intent routing → tool call → calculations/*.py (pure functions)
+                                              ↓
+                                     numbers filled in → model only writes prose
+```
+
+**The model has no channel for inventing numbers.** It receives computed values and can only phrase them. Every figure carries a provenance record, and every metric documents its formula and its failure modes in the docstring — when the sample is too small the API returns `null` with a reason rather than a plausible-looking number.
+
+Two examples of that discipline being enforced rather than claimed:
+
+- Backtests used to report `+44887% annualized` on a 62% drawdown. The curve ignored cash and compared endpoints. Fixed to hold cash in the curve, use XIRR for annualized return, and derive drawdown and Sharpe from the TWR series.
+- Health score returned 54/D over MCP and 83/B over REST for the same data. Both paths now call the same function.
+
+---
+
+## Design principles
+
+**Local by default, deployable anywhere.** SQLite on your machine; the same core runs as a desktop binary, a self-hosted server, or a container. Only de-identified structured context is sent to the model provider — the ledger itself never leaves.
+
+**Chinese bill formats are first-class.** WeChat and Alipay exports are parsed structurally, not through a generic fallback guessing at column names. Invoice QR decoding and OCR are real decoders, and both degrade with an explicit "install this" message when the optional dependency is missing.
+
+**Trading is never automated blindly.** Pre-trade checks (price limits, lot size, T+1, concentration, daily caps, duplicate orders) produce a confirmation token; live orders generate a handoff sheet. The default broker is `NullBroker` in dry-run.
+
+**Failures degrade, they don't 500.** Market data unreachable → the affected card returns `available: false` with a reason while the rest of the page keeps working. A backtest is pure computation, so it stays available even when quotes are down — which is exactly when you want to review it offline.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+  UI[React 19 + Vite] --> API[FastAPI]
+  API --> CALC[calculations<br/>pure functions]
+  API --> DB[(SQLite)]
+  API --> AGENT[LangGraph supervisor]
+  AGENT --> TOOLS[tool registry]
+  TOOLS --> CALC
+  AGENT --> LLM[LiteLLM<br/>OpenAI/Anthropic/DeepSeek/Qwen/...]
+  API --> MCP[MCP server<br/>63 tools]
+  MCP --> CALC
+```
+
+```
+backend/app/
+  calculations/    deterministic engine — no I/O, unit-testable in isolation
+  routes/          HTTP layer: parameter cleaning and assembly only
+  db/              domain-split SQLite access, migrations, undo snapshots
+  import_parsers/  WeChat / Alipay / generic CSV / PDF / invoice decoders
+  agents/          supervisor + bookkeeping + portfolio + research
+moneyhelper/       stable facade packages (core / server / cli / mcp)
+frontend/src/      React UI, lazy-loaded per section
+```
+
+Full detail: [architecture.md](docs/architecture.md) · [module-map.md](docs/module-map.md)
+
+---
+
+## Verification
+
+```bash
+cd backend  && pytest -q                              # 1,500+ passed
+cd frontend && npx vitest run && npx tsc --noEmit     # 180+ passed, zero type errors
+node frontend/e2e/shots-full.mjs http://127.0.0.1:8788  # 22 screenshots, zero overflow
+python backend/scripts/seed_hostile.py .tmp/h.db      # hostile-data render check
+```
+
+Gates that run in CI: ruff, pytest, `tsc --noEmit`, vitest, production build, mkdocs `--strict`, and a 1 MB file-size check.
+
+Three user-facing paths each have an automated gate — because a green unit test only proves the function is correct, not that the user can reach it:
+
+| Gate | What it proves |
+|---|---|
+| HTTP | every OpenAPI endpoint probed for 5xx; 4xx responses must carry readable text, not a stack trace |
+| MCP | tool surface matches the registry, and a real protocol call succeeds via the SDK client |
+| Render | seeded hostile data (10.8k-char names, ±Infinity, epoch dates) renders with zero page errors and zero overflow |
+
+---
+
+## Boundaries
+
+- Does not place live trades; generates a handoff sheet and requires confirmation.
+- Does not give tax-planning advice; applies published formulas and labels the result as an estimate.
+- Does not predict returns; backtests state their assumptions and failure conditions.
+- Optional features (OCR, PDF parsing, broker SDKs) degrade with an install hint rather than failing silently.
+
+MIT License · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)

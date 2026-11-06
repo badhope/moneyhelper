@@ -293,6 +293,23 @@ class InvoiceVisionIn(_In):
     pass
 
 
+class DebtPayoffPlanIn(_In):
+    """债务清偿规划：雪崩法（按利率）与雪球法（按余额），逐月摊还模拟。"""
+
+    extra_payment: float = Field(
+        0, description="每月除最低月供外额外还款额，可省略（默认 0 = 只按最低月供）"
+    )
+    method: Literal["avalanche", "snowball", "custom"] = Field(
+        "avalanche", description="avalanche 按利率从高到低（省利息最多）/ snowball 按余额从小到大"
+    )
+    custom_order: str = Field(
+        "", description="method=custom 时的债务名称顺序，逗号分隔，可省略"
+    )
+    compare: bool = Field(
+        False, description="true 时同时返回两种方法的对比与利息差额，可省略（默认 false）"
+    )
+
+
 class GetUserMemoryIn(_In):
     query: str = Field("", description="检索关键词（可选）：返回与该话题相关的记忆")
     kind: str = Field(
@@ -493,6 +510,8 @@ TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     "broker_preview_order": BrokerPreviewIn,
     "broker_submit_order": BrokerSubmitIn,
     "invoice_vision_status": InvoiceVisionIn,
+    # 债务清偿规划（v4.14）
+    "debt_payoff_plan": DebtPayoffPlanIn,
     # 财务写入
     "record_transaction": RecordTransactionIn,
     "save_user_memory": SaveUserMemoryIn,

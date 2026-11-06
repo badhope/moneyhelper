@@ -30,6 +30,19 @@ if FRONTEND_DIST.is_dir():
     # PyInstaller 环境下读 sys._MEIPASS/static（历史约定）。
     datas.append((str(FRONTEND_DIST), "static"))
 
+# 后端的非 .py 数据文件必须随包分发：PyInstaller 只收集导入到的模块代码，
+# 不会自动带上 package 目录里的 .json/.md。历史上漏收 default_studio.json，
+# 导致打包版每次启动刷 30 行 "studio.default_pack_broken: No such file"，
+# Studio 的内置角色/技能/约束全部缺失（服务能起，功能是空的）。
+_backend_app = BACKEND / "app"
+if _backend_app.is_dir():
+    for pattern in ("**/*.json", "**/*.md"):
+        for f in _backend_app.glob(pattern):
+            if "__pycache__" in f.parts:
+                continue
+            # 目标路径保持相对 backend/ 的结构，模块内 __file__ 才能找到同目录文件
+            datas.append((str(f), str(f.parent.relative_to(BACKEND))))
+
 # litellm 在 import 时读取自带的 model_prices_and_context_window_backup.json，
 # 该文件不是 .py，PyInstaller 默认不收 → 打包后启动即 FileNotFoundError。
 # 用官方 collect_data_files 把整个包的数据文件带上。

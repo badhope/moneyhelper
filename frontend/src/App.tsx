@@ -33,7 +33,7 @@ const DepartmentPanel = lazy(() =>
   import("@/components/DepartmentPanel").then((m) => ({ default: m.DepartmentPanel })),
 );
 
-export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax";
+export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax" | "debts";
 
 export default function App() {
   const { t } = useI18n();

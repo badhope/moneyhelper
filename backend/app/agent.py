@@ -31,8 +31,6 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from . import agent_config, db, llm, mcp_client, tools
-from .observability import timed
-from .tool_schemas import validate_tool_args
 
 # 写类工具已被确定性分支覆盖（记账/记忆/买卖/设置/备份/晨报都有前置 action/record/memory
 # 节点拦截），agent 模式只暴露读类 + 自选维护工具，防止模型在追问/分析语境里越权落库。
@@ -40,6 +38,8 @@ from .tool_schemas import validate_tool_args
 # 判定改为由 tool_policy 统一回答（而不是手写集合）：新增工具时不必记得
 # 同步这个集合，未知工具默认 ASK（fail-closed），不会被意外暴露给模型。
 from . import tool_policy as _policy  # noqa: E402 — 与工具表同层，避免循环导入
+from .observability import timed
+from .tool_schemas import validate_tool_args
 
 WRITE_EXCLUDED = {
     n for n in tools.TOOL_IMPL

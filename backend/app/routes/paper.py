@@ -180,8 +180,8 @@ async def bridge_plan(payload: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="symbol 必填")
     try:
         capital = max(1000.0, float(payload.get("capital") or 100000.0))
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="capital 非法")
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="capital 非法") from exc
     strategy = str(payload.get("strategy") or "ma_cross")
 
     data = await quotes.kline(symbol, "daily", 750)

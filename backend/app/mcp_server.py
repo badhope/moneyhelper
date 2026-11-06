@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime
 from typing import Any
 
 from starlette.routing import BaseRoute
@@ -526,6 +525,22 @@ async def scan_subscriptions() -> str:
 async def scan_anomalies(lookback_days: int = 180) -> str:
     """异常扣款检测：中位数 + MAD 判离群，输出异常倍数与建议。"""
     return await xtools.tool_scan_anomalies({"lookback_days": lookback_days})
+
+
+@mcp.tool()
+async def debt_payoff_plan(
+    extra_payment: float = 0,
+    method: str = "avalanche",
+    compare: bool = False,
+) -> str:
+    """债务清偿规划：逐月摊还模拟，给出还清顺序、月数、总利息与可省利息。
+
+    method: avalanche（按利率从高到低，省利息最多）/ snowball（按余额从小到大）。
+    compare=true 同时返回两种方法的对比。数据来自账本已有负债记录。
+    """
+    return await xtools.tool_debt_payoff_plan(
+        {"extra_payment": extra_payment, "method": method, "compare": compare}
+    )
 
 
 @mcp.tool()

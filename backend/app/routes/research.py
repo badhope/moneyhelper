@@ -108,7 +108,7 @@ async def research_momentum(
     )
     panels: dict[str, list[float]] = {}
     failed: list[str] = []
-    for code, res in zip(codes, results):
+    for code, res in zip(codes, results, strict=True):
         if isinstance(res, Exception):
             failed.append(code)
             continue

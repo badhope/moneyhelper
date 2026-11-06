@@ -39,7 +39,7 @@ def test_foreign_currency_is_not_converted():
         lang="zh",
     )
     assert r["total_net_worth"] == 100000, "USD 不得被当成 CNY 相加"
-    usd = [s for s in r["sources"] if s.get("currency") == "USD"][0]
+    usd = next(s for s in r["sources"] if s.get("currency") == "USD")
     assert usd["counted"] is False
     assert any("USD" in c for c in r["caveats"])
 

@@ -19,10 +19,8 @@ import ast
 from pathlib import Path
 
 import pytest
-
 from app import quotes as quotes_mod
 from app import tools
-
 
 # ---------------------------------------------------------------------------
 # 离线环境：行情相关入口全部换成快速失败 mock（复用 test_tools 的思路，

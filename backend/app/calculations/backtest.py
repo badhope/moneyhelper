@@ -261,7 +261,7 @@ def backtest_dca(
 
         base_day = date(2026, 1, 1)
         flows: list[tuple[date, float]] = []
-        for k, i in enumerate(range(0, len(closes), freq_days)):
+        for i in range(0, len(closes), freq_days):
             if closes[i] > 0:
                 flows.append((base_day + timedelta(days=i), -invest_amount))
         if flows and final_equity > 0:

@@ -6,7 +6,6 @@
 """
 
 import pytest
-
 from app.context import (
     compact_messages,
     count_messages_tokens,

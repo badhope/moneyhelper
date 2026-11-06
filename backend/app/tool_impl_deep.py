@@ -105,6 +105,49 @@ async def tool_scan_subscriptions(_args: dict[str, Any]) -> str:
     return json.dumps(out, ensure_ascii=False, default=str)
 
 
+async def tool_debt_payoff_plan(args: dict[str, Any]) -> str:
+    """债务清偿规划：按账本负债做逐月摊还模拟，给出还清顺序、月数、总利息与可省利息。"""
+    from .calculations import compare_methods, plan_payoff
+
+    debts = []
+    for r in await db.list_debts():
+        name = str(r.get("name") or "").strip()
+        if not name:
+            continue
+        debts.append(
+            {
+                "name": name,
+                "balance": float(r.get("balance") or 0),
+                "rate": float(r.get("rate") or 0),
+                "min_payment": float(r.get("monthly") or 0),
+            }
+        )
+    if not debts:
+        return json.dumps(
+            {
+                "available": False,
+                "reason": "账本里还没有负债记录，先让用户录入欠款本金、年利率与月供",
+            },
+            ensure_ascii=False,
+        )
+    extra = float(args.get("extra_payment") or 0)
+    method = str(args.get("method") or "avalanche").lower()
+    if args.get("compare"):
+        return json.dumps(compare_methods(debts, extra), ensure_ascii=False, default=str)
+    order = [x.strip() for x in str(args.get("custom_order") or "").split(",") if x.strip()]
+    plan = plan_payoff(
+        debts,
+        extra_payment=extra,
+        method=method,  # type: ignore[arg-type]
+        custom_order=order or None,
+        include_schedule=False,
+    )
+    out = plan.to_dict(include_schedule=False)
+    out["available"] = True
+    out["debts"] = debts
+    return json.dumps(out, ensure_ascii=False, default=str)
+
+
 async def tool_scan_anomalies(args: dict[str, Any]) -> str:
     """异常扣款检测：中位数 + MAD 判离群，输出异常倍数与建议。"""
     out = detect_anomalies(
@@ -265,6 +308,11 @@ DEEP_TOOL_NAMES: tuple[tuple[str, str], ...] = (
         "tax_calc",
         "税负测算：增值税及附加（一般/简易计税）、企业所得税（标准/高新/小微）、个税（累计预扣法）、"
         "工资五险一金核算、综合税负率。适合「算一下这个月要交多少税」「税后工资多少」「公司税负多少」。",
+    ),
+    (
+        "debt_payoff_plan",
+        "债务清偿规划：按账本负债做逐月摊还模拟，对比雪崩法（按利率，省利息最多）与雪球法（按余额），"
+        "输出还清顺序、几个月还清、总利息、相比只付最低月供能省多少。适合「先还哪笔」「多久能还清」「多还 2000 能省多少」。",
     ),
     (
         "cashflow_forecast",
@@ -430,4 +478,5 @@ DEEP_TOOL_IMPL = {
     "broker_preview_order": tool_broker_preview_order,
     "broker_submit_order": tool_broker_submit_order,
     "invoice_vision_status": tool_invoice_vision_status,
+    "debt_payoff_plan": tool_debt_payoff_plan,
 }
