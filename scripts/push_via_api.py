@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import json
 import os
 import subprocess
 import sys
@@ -89,6 +88,15 @@ class GH:
         payload = {"content": base64.b64encode(content).decode("ascii"), "encoding": "base64"}
         return self.req("POST", "/git/blobs", json=payload)["sha"]
 
+    def get_tree(self, sha: str) -> dict[str, str]:
+        """远端 tree 的 path -> blob sha 映射（recursive，单仓库 690 文件一次拿全）。"""
+        data = self.req("GET", f"/git/trees/{sha}?recursive=1")
+        return {
+            e["path"]: e["sha"]
+            for e in data.get("tree", [])
+            if e.get("type") == "blob"
+        }
+
     def create_tree(self, entries: list[dict], base_tree: str | None = None) -> str:
         payload: dict = {"tree": entries}
         if base_tree:
@@ -133,6 +141,11 @@ class GH:
                 raise
 
 
+def head_tree_sha(cwd: str = ".") -> str:
+    """本地 HEAD 的 tree sha（内容级验收用）。"""
+    return sh("git", "rev-parse", "HEAD^{tree}", cwd=cwd).strip()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True, help="owner/name")
@@ -141,6 +154,11 @@ def main() -> int:
     ap.add_argument("--tag", default="")
     ap.add_argument("--token-env", default="GH_BADHOPE_TOKEN")
     ap.add_argument("--message-file", default="")
+    ap.add_argument(
+        "--incremental",
+        action="store_true",
+        help="对比远端 tree，只上传有变化的 blob（推荐；需要远端已存在分支）",
+    )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -151,11 +169,11 @@ def main() -> int:
 
     owner, name = args.repo.split("/", 1)
     head_sha = sh("git", "rev-parse", "HEAD", cwd=args.path).strip()
-    msg = (
-        open(args.message_file, encoding="utf-8").read()
-        if args.message_file
-        else sh("git", "log", "-1", "--pretty=%B", cwd=args.path)
-    )
+    if args.message_file:
+        with open(args.message_file, encoding="utf-8") as fh:
+            msg = fh.read()
+    else:
+        msg = sh("git", "log", "-1", "--pretty=%B", cwd=args.path)
     files = list_files(args.path)
     print(f"local HEAD {head_sha[:8]}, {len(files)} files")
 
@@ -168,17 +186,47 @@ def main() -> int:
         print("dry-run: would upload", len(files), "blobs")
         return 0
 
+    # 0) 增量模式：对比远端 tree，只上传内容有变化的 blob。
+    #    690 文件全量 × 3 镜像 ≈ 2000+ 次 API 调用，容易撞 secondary rate limit；
+    #    远端 tree 与本地某个历史树一致时，差异通常只有几十个文件。
+    remote_tree_sha = ""
+    remote_files: dict[str, str] = {}
+    if args.incremental and ref:
+        head_commit = gh.req("GET", f"/commits/{ref['object']['sha']}")
+        remote_tree_sha = head_commit["commit"]["tree"]["sha"]
+        remote_files = gh.get_tree(remote_tree_sha)
+        local_map = {p: s for _m, s, p in files}
+        removed = [p for p in remote_files if p not in local_map]
+        unchanged = sum(1 for p, s in remote_files.items() if local_map.get(p) == s)
+        print(
+            f"incremental: remote tree {remote_tree_sha[:8]}, "
+            f"{unchanged} unchanged, {len(files) - unchanged} to upload, {len(removed)} removed"
+        )
+
     # 1) blobs（逐个，串行分批）
     entries = []
-    for i, (mode, sha, path) in enumerate(files, 1):
+    upload_count = 0
+    for _i, (mode, sha, path) in enumerate(files, 1):
+        if args.incremental and remote_files.get(path) == sha:
+            continue  # 内容没变，blob 已在远端
         blob_sha = gh.create_blob(blob_bytes(args.path, sha))
         entry = {"path": path, "mode": "100755" if mode == "100755" else "100644", "type": "blob", "sha": blob_sha}
         entries.append(entry)
-        if i % BATCH_LIMIT == 0 or i == len(files):
-            print(f"  blobs {i}/{len(files)}")
+        upload_count += 1
+        if upload_count % BATCH_LIMIT == 0:
+            print(f"  blobs {upload_count}/{len(files)}")
+
+    # 远端有、本地没有的文件 = 删除（sha=None 让 base_tree 里的旧条目失效）
+    if args.incremental and ref:
+        local_paths = {p for _m, _s, p in files}
+        for path in remote_files:
+            if path not in local_paths:
+                entries.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
 
     # 2) tree / commit / ref
-    tree_sha = gh.create_tree(entries)
+    tree_sha = gh.create_tree(
+        entries, base_tree=remote_tree_sha if args.incremental and ref else None
+    )
     print("tree", tree_sha[:8])
     commit_sha = gh.create_commit(msg, tree_sha, parents)
     print("commit", commit_sha[:8])
@@ -187,6 +235,13 @@ def main() -> int:
     else:
         gh.create_ref(owner, name, f"refs/heads/{args.branch}", commit_sha)
     print(f"pushed {args.branch} -> {commit_sha[:8]}")
+
+    # 校验：新 commit 的 tree 必须与本地 HEAD tree 一致（内容级验收）
+    made = gh.req("GET", f"/commits/{commit_sha}")
+    if made["commit"]["tree"]["sha"] != head_tree_sha(args.path):
+        print("ERROR: remote tree mismatch!", file=sys.stderr)
+        return 1
+    print("tree verified == local HEAD tree")
 
     if args.tag:
         gh.create_tag(owner, name, args.tag, commit_sha, f"Moneyhelper {args.tag}")
