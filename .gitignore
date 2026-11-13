@@ -1,6 +1,9 @@
 # 依赖与产物
 backend/.venv/
 .venv/
+# 项目内隔离工具链与缓存（不随仓库分发）
+.tools/
+.cache/
 # 文档站构建产物
 site/
 # Python 打包产物

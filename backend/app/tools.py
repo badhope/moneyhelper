@@ -27,6 +27,7 @@ from .calculations import (
     fee_for,
     ranking,
     run_backtest,
+    series_from_points,
     team_summary,
     technical_analysis,
     trend_text,
@@ -312,6 +313,8 @@ async def tool_research_backtest(args: dict[str, Any]) -> str:
     try:
         fast = max(2, min(int(args.get("fast") or 5), 60))
         slow = max(5, min(int(args.get("slow") or 20), 120))
+        if fast >= slow:
+            return "回测参数非法：fast 必须小于 slow"
         invest_amount = max(1.0, float(args.get("invest_amount") or 1000.0))
         freq_days = max(1, min(int(args.get("freq_days") or 5), 60))
     except (TypeError, ValueError):
@@ -320,8 +323,7 @@ async def tool_research_backtest(args: dict[str, Any]) -> str:
     if not data:
         return f"无法获取 {symbol} 的行情（可能不是 A 股/ETF 代码，或行情源不可用）"
     points = data["points"]
-    closes = [float(p["close"]) for p in points if p.get("close") is not None]
-    dates = [p.get("date", "") for p in points]
+    closes, dates = series_from_points(points)
     if len(closes) < 60:
         return f"{symbol} 历史数据不足 60 根，无法回测"
     result = (
@@ -395,8 +397,7 @@ async def tool_research_forecast(args: dict[str, Any]) -> str:
     data = await fetch_kline(symbol, period, 750)
     if not data:
         return f"无法获取 {symbol} 的行情（可能不是 A 股/ETF 代码，或行情源不可用）"
-    closes = [float(p["close"]) for p in data["points"] if p.get("close") is not None]
-    dates = [p.get("date", "") for p in data["points"]]
+    closes, dates = series_from_points(data["points"])
     if len(closes) < 30:
         return f"{symbol} 历史数据不足 30 根，无法给出统计预测"
     from .calculations import forecast, forecast_text
@@ -1071,6 +1072,10 @@ async def tool_backup_now(_args: dict[str, Any], lang: str = "zh") -> dict[str, 
 
     path = BACKUP_DIR / f"moneyhelper-backup-{_dt.datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
+    # 纵深防御：备份只允许落在数据目录内，不能因为路径常量被改就写到别处
+    from .pathguard import assert_within
+
+    assert_within(path, BACKUP_DIR.parent, operation="写备份到")
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
     if lang != "zh":
         answer = (

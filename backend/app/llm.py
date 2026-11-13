@@ -196,6 +196,12 @@ async def llm_available() -> bool:
     return await _config() is not None
 
 
+async def configured_model_name() -> str:
+    """当前租户配置的模型名（未配置时返回空串）。用于评测/审计展示真实来源。"""
+    cfg = await _config()
+    return str((cfg or {}).get("model") or "").strip()
+
+
 # ---------------------------------------------------------------------------
 # 兼容接口（调用方 agent_graph / service / agent 零改动）
 # ---------------------------------------------------------------------------

@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
-from .. import agent_config, llm
+from .. import agent_config, auth, llm
 from ..logging_utils import get_logger
 from ..studio import (
     commands,
@@ -315,7 +315,11 @@ async def studio_market_list() -> dict:
 
 
 @router.post("/api/studio/market/install")
-async def studio_market_install(payload: dict) -> dict:
+async def studio_market_install(
+    payload: dict,
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
+    """市场安装会写实例级 mcp.json（含可执行命令），必须实例管理员。"""
     bad = await _require_admin()
     if bad:
         return bad
@@ -329,7 +333,9 @@ async def studio_market_install(payload: dict) -> dict:
 
 
 @router.post("/api/studio/market/install-recommended")
-async def studio_market_install_recommended() -> dict:
+async def studio_market_install_recommended(
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
     bad = await _require_admin()
     if bad:
         return bad
@@ -368,8 +374,15 @@ async def studio_permissions() -> dict:
 
 
 @router.put("/api/studio/permissions")
-async def studio_set_permissions(payload: dict) -> dict:
-    """权限变更必须留痕：谁在什么时候把权限从 X 改成了 Y。"""
+async def studio_set_permissions(
+    payload: dict,
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
+    """权限变更必须留痕：谁在什么时候把权限从 X 改成了 Y。
+
+    必须实例管理员：这是「程序能不能改自己」的总闸，普通租户不能自行升到
+    open 再借市场安装写全局 mcp.json（历史漏洞 M-1）。
+    """
     perms, errors = store.validate_permissions(payload or {})
     if errors:
         return _err("; ".join(errors))
@@ -650,7 +663,10 @@ async def studio_toggle(kind: str, asset_id: str, payload: dict) -> dict:
     if bad:
         return bad
     enabled = bool((payload or {}).get("enabled", True))
-    updated = await store.set_enabled(kind, asset_id, enabled)
+    try:
+        updated = await store.set_enabled(kind, asset_id, enabled)
+    except PermissionError as exc:
+        return _err(str(exc), 403)
     if updated is None:
         return _err(f"资产不存在：{asset_id}", 404)
     return {"ok": True, "asset": updated}

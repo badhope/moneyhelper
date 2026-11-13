@@ -191,7 +191,7 @@ async def test_seed_default_bundle_once(temp_db, tmp_path, monkeypatch) -> None:
     from app.studio import installer
 
     monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
-    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    mcp_client._discover_cache.clear()
     mcp_client._servers.clear()
     first = await installer.seed_default_bundle()
     assert first["seeded"] is True and first["assets"] >= 25
@@ -292,7 +292,7 @@ async def test_backup_includes_mcp_servers(temp_db, tmp_path, monkeypatch) -> No
     from app.db import backup
 
     monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
-    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    mcp_client._discover_cache.clear()
     mcp_client._servers.clear()
     mcp_client.save_servers(
         [{"name": "s1", "url": "https://user:tok@example.com/mcp", "enabled": False}]
@@ -484,7 +484,10 @@ async def test_backup_masks_mcp_env_secrets(temp_db, tmp_path, monkeypatch) -> N
     from app.db import backup
 
     monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
-    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    # 本用例验证的是 stdio 配置的 env 打码/恢复，需显式打开 API/备份写入开关；
+    # 默认关闭是安全边界，见 test_mcp_stdio_guard.py。
+    monkeypatch.setenv("MONEYHELPER_ALLOW_STDIO_MCP", "1")
+    mcp_client._discover_cache.clear()
     mcp_client._servers.clear()
     mcp_client.save_servers(
         [
@@ -525,7 +528,7 @@ async def test_repair_mcp_config_restores_missing_servers(temp_db, tmp_path, mon
     from app.studio import installer
 
     monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
-    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    mcp_client._discover_cache.clear()
     mcp_client._servers.clear()
     await installer.seed_default_bundle()
     before = {s["name"] for s in mcp_client.list_servers()}
@@ -545,7 +548,7 @@ async def test_repair_does_not_resurrect_uninstalled(temp_db, tmp_path, monkeypa
     from app.studio import installer
 
     monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
-    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    mcp_client._discover_cache.clear()
     mcp_client._servers.clear()
     await installer.seed_default_bundle()
     await installer.uninstall_market("mcp-fetch")

@@ -122,7 +122,9 @@ async def test_attachment_rejects_empty(client: AsyncClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_audit_list_and_clear(client: AsyncClient) -> None:
+async def test_audit_list_and_clear(client: AsyncClient, monkeypatch) -> None:
+    # 审计默认只追加；清空是开发/测试逃生口，需显式打开
+    monkeypatch.setenv("MONEYHELPER_ALLOW_AUDIT_CLEAR", "1")
     # 触发一次写操作以产生审计记录（middleware 记录 WRITE）
     await client.post(
         "/api/transactions",
@@ -140,14 +142,33 @@ async def test_audit_list_and_clear(client: AsyncClient) -> None:
 async def test_logs_requires_admin(client: AsyncClient) -> None:
     """日志是进程级全局文件，含所有租户的工具参数与问题片段。
 
-    未登录（无管理员身份）必须被拒——此前任何登录用户都能读取并清空，
+    普通用户必须被拒——此前任何登录用户都能读取并清空，
     等于任意租户可窥探他人操作、销毁审计证据。
-    """
-    r = await client.get("/api/logs?limit=20")
-    assert r.status_code == 401
 
-    r2 = await client.post("/api/logs/clear")
-    assert r2.status_code == 401
+    本机无账号模式是特例：没有 JWT，但它就是实例所有者，
+    require_instance_admin 放行（否则设置页「日志」一打开就弹口令框）。
+    """
+    # 本机无账号模式：放行
+    r = await client.get("/api/logs?limit=20")
+    assert r.status_code == 200
+
+    # 建立账号体系后，普通用户被拒
+    from app import auth, db
+
+    conn = await db._conn()
+    await conn.execute(
+        "INSERT INTO users(username, password_hash, display_name, role, created_at)"
+        " VALUES('log-user','x','log-user','user',datetime('now'))"
+    )
+    await conn.commit()
+    user = await db.user_get_by_username("log-user")
+    assert user is not None
+    token = auth._make_jwt(user)
+    headers = {"Authorization": f"Bearer {token}"}
+    r2 = await client.get("/api/logs?limit=20", headers=headers)
+    assert r2.status_code == 403
+    r3 = await client.post("/api/logs/clear", headers=headers)
+    assert r3.status_code == 403
 
 
 # ---------------------------------------------------------------------------

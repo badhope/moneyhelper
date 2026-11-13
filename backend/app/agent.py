@@ -549,6 +549,22 @@ async def run_agent(    question: str,
             # （记账/下单/改设置）。mcp__ 前缀是唯一入口，这里按去掉前缀后的名字比对，
             # 命中 WRITE_EXCLUDED 一律拒绝——否则模型可借 MCP 绕过确定性写分支。
             if mcp_hit is not None:
+                # 只读边界：MCP 规范没有统一的"工具名 = 语义"约定，必须看服务器
+                # 声明的 annotations.readOnlyHint。未声明/未发现的一律拒绝，
+                # 防止外部服务器用任意名字暴露转账、写入等副作用。
+                if not mcp_client.is_tool_exposed(name):
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": (
+                                "该外部工具未声明为只读（readOnlyHint），已按安全策略拒绝。"
+                                "如确需使用，请在服务端显式设置 "
+                                "MONEYHELPER_MCP_EXTERNAL_TOOLS=all 并自行承担风险。"
+                            ),
+                        }
+                    )
+                    continue
                 bare = name.removeprefix("mcp__")
                 if bare in WRITE_EXCLUDED or name in WRITE_EXCLUDED:
                     messages.append(

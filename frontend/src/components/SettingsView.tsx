@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Award, BookOpen, Brain, BrainCog, FileText, GitCompareArrows, KeyRound, Lock, Package, Plug, Shield, Users, Newspaper, PiggyBank, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UserCog, Wallet, Wand2,
+  Award, BookOpen, Brain, BrainCog, Building2, ChevronDown, FileText, GitCompareArrows, KeyRound, Lock, Package, Plug, Shield, Users, Newspaper, PiggyBank, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UserCog, Wallet, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboard } from "@/lib/store";
@@ -20,6 +20,7 @@ import { LogsSection } from "@/components/settings/LogsSection";
 import { AuditSection } from "@/components/settings/AuditSection";
 import { ProvenanceSection } from "@/components/settings/ProvenanceSection";
 import { FamilySection } from "@/components/settings/FamilySection";
+import { OrgSection } from "@/components/settings/OrgSection";
 import { Button } from "@/components/ui/button";
 import { PluginsSection } from "@/components/settings/PluginsSection";
 import { PromptSection } from "@/components/settings/PromptSection";
@@ -55,11 +56,12 @@ const SECTIONS: { id: SectionId; labelKey: string; icon: typeof Wallet }[] = [
   { id: "audit", labelKey: "settings.navAudit", icon: ShieldCheck },
   { id: "provenance", labelKey: "settings.navProvenance", icon: GitCompareArrows },
   { id: "family", labelKey: "settings.navFamily", icon: Users },
+  { id: "org", labelKey: "settings.navOrg", icon: Building2 },
   { id: "eval", labelKey: "settings.navEval", icon: Award },
 ];
 
 const SECTION_GROUPS: { key: string; ids: SectionId[] }[] = [
-  { key: "settings.groupGeneral", ids: ["prefs", "rules", "budget", "family"] },
+  { key: "settings.groupGeneral", ids: ["prefs", "rules", "budget", "family", "org"] },
   { key: "settings.groupAi", ids: ["ai", "knowledge", "report", "memory"] },
   {
     key: "settings.groupStudio",
@@ -83,6 +85,20 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
 
   // active tab 状态很小，直接放组件内即可
   const [active, setActive] = useState<SectionId>("prefs");
+  // 二级导航：分组可展开/收起，默认只展开当前分区所在组。
+  // 用「已展开集合」而不是单个 openGroup：点开另一组时不应把当前组关掉
+  // （单个 state + effect 同步会在重渲染时把用户刚点开的组重置回去）。
+  const activeGroupId =
+    SECTION_GROUPS.find((g) => g.ids.includes(active))?.key ?? SECTION_GROUPS[0].key;
+  const [openGroups, setOpenGroups] = useState<string[]>([activeGroupId]);
+  useEffect(() => {
+    // 切到某个分区时，确保它所在组是展开的；只增不减。
+    setOpenGroups((prev) => (prev.includes(activeGroupId) ? prev : [...prev, activeGroupId]));
+  }, [activeGroupId]);
+  const toggleGroup = (key: string) =>
+    setOpenGroups((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
   if (!bootstrap) {
     return <div className="p-8 text-center text-sm text-muted-foreground">{t("settings.loading")}</div>;
   }
@@ -112,12 +128,32 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
 
   return (
     <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-      {/* 手机：横向分段条（滚动），当前段高亮。一次只显示一段内容，
-          不再把 13 个入口折叠成三层——那需要两次点击才能到达目标页。 */}
+      {/* 手机：两级导航。先选分组，再选分区；不再把 24 个入口塞进一条横向滚动条。 */}
       {!isDesktop && (
-        <div className="shrink-0 overflow-x-auto border-b border-border/70 scroll-thin">
-          <div className="flex min-w-max gap-1 px-3 py-2">
-            {SECTIONS.map((s) => {
+        <div className="shrink-0 border-b border-border/70">
+          <div className="flex gap-1 overflow-x-auto px-3 pt-2 scroll-thin">
+            {SECTION_GROUPS.map((g) => {
+              const on = openGroups.includes(g.key);
+              return (
+                <button
+                  key={g.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleGroup(g.key)}
+                  className={cn(
+                    "shrink-0 rounded-full px-3 py-1 text-[12px] transition-colors",
+                    on
+                      ? "bg-foreground/[0.07] font-medium text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {t(g.key)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex gap-1 overflow-x-auto px-3 py-2 scroll-thin">
+            {SECTIONS.filter((s) => SECTION_GROUPS.find((g) => openGroups.includes(g.key))?.ids.includes(s.id)).map((s) => {
               const Icon = s.icon;
               const on = active === s.id;
               return (
@@ -151,12 +187,21 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
           {SECTION_GROUPS.map((g) => {
             const ids = new Set<SectionId>(g.ids);
             const items = SECTIONS.filter((s) => ids.has(s.id));
+            const open = openGroups.includes(g.key);
             return (
-              <div key={g.key} className="mb-2">
-                <div className="px-3 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {t(g.key)}
-                </div>
-                <div className="space-y-0.5">{items.map(sectionButton)}</div>
+              <div key={g.key} className="mb-1">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(g.key)}
+                  aria-expanded={open}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span>{t(g.key)}</span>
+                  <ChevronDown
+                    className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")}
+                  />
+                </button>
+                {open && <div className="space-y-0.5">{items.map(sectionButton)}</div>}
               </div>
             );
           })}
@@ -280,6 +325,8 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
         {active === "provenance" && <ProvenanceSection />}
 
         {active === "family" && <FamilySection />}
+
+        {active === "org" && <OrgSection />}
 
         {active === "eval" && <EvalSection />}
 

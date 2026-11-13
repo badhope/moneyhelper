@@ -18,6 +18,7 @@ import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import {
   ChevronDown, ChevronUp, Copy, Download, Loader2, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { copyText } from "@/lib/clipboard";
 import { Badge } from "@/components/ui/badge";
 import { SummaryBlock } from "@/components/SummaryBlock";
 import { FinanceBlocks, type FinanceCardData } from "@/components/chat/FinanceBlocks";
@@ -210,7 +211,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
             type="button"
             aria-label="copy code"
             title="copy"
-            onClick={() => void navigator.clipboard?.writeText(code)}
+            onClick={() => copyText(code)}
             className="p-0.5 text-muted-foreground hover:text-foreground"
           >
             <Copy className="w-3 h-3" />

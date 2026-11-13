@@ -100,15 +100,27 @@ def log_path() -> Path:
 
 
 def read_log_lines(limit: int = 200) -> list[str]:
-    """读取日志文件最近 limit 行（从尾部），供 /api/logs 接口使用。"""
+    """读取日志文件最近 limit 行（从尾部），供 /api/logs 接口使用。
+
+    尾部随机读在两种情况下会抛 OSError，都必须降级为空列表而不是往上冒：
+    1. 文件在 seek 之后被清空/轮转（clear_logs 会 truncate 到 0 字节），
+       此时读偏移越过 EOF；
+    2. 底层文件系统不支持这种随机读——FUSE / 网络盘 / 对象存储挂载会返回
+       EINVAL（Errno 22）而不是像本地 ext4 那样返回 b""。
+    日志尾部读不出来只是"看不到历史"，不是故障：让它冒到路由层会把
+    /api/logs、看门狗一键自检、/api/studio/diagnostics 全部打成 500（实测）。
+    """
     if not _LOG_FILE.exists():
         return []
-    with open(_LOG_FILE, "rb") as f:
-        f.seek(0, 2)
-        size = f.tell()
-        # 读最后 200KB 足够覆盖 200 行
-        f.seek(max(0, size - 200 * 1024))
-        data = f.read().decode("utf-8", errors="replace")
+    try:
+        with open(_LOG_FILE, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            # 读最后 200KB 足够覆盖 200 行
+            f.seek(max(0, size - 200 * 1024))
+            data = f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return []
     lines = data.splitlines()
     return lines[-limit:]
 

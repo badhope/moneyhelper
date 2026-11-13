@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import date
 
+from charset_normalizer import from_bytes
+
 # ---------------------------------------------------------------------------
 # 纯数据：解析产物
 # ---------------------------------------------------------------------------
@@ -100,38 +102,86 @@ def _parse_date(v: str) -> str | None:
 def _parse_amount(v: str) -> float | None:
     """从字符串提取第一个合法数字金额。
 
-    - 支持千分位逗号：1,234.56
-    - 支持人民币符号 / 前导 +/-
-    - 找不到 → None
+    支持：
+    - 千分位逗号：`1,234.56`
+    - 货币符号 / 空格 / 全角逗号：`¥100.00`、`￥1,234.56`
+    - 前导或**尾随**负号：`-100.00`、`100.00-`（部分银行导出用尾随减号）
+    - **会计负数**：`(1,234.56)`、`（1,234.56）`
+    - 欧式小数逗号：`1.234,56`（同时出现 . 和 , 时，靠后的那个才是小数点）
+
+    找不到 → None。
+
+    符号不能丢：旧实现只认前导负号，`(1,234.56)` 会解析成 **+1234.56**，
+    银行对账单里一笔支出导入后变成收入，账目直接反了且不报错。
     """
     import re
 
-    if not v:
+    if v is None:
         return None
-    # 剥掉货币符号 / 空格，保留数字 / 点 / 逗号 / 负号
-    cleaned = re.sub(r"[¥￥\s]", "", v.strip())
-    m = re.search(r"[+-]?\d[\d,]*\.?\d*", cleaned)
+    core = re.sub(r"[¥￥$\s]", "", str(v).strip())
+    if not core:
+        return None
+
+    negative = False
+    # 会计负数：整串被括号包住
+    if (core.startswith("(") and core.endswith(")")) or (
+        core.startswith("（") and core.endswith("）")
+    ):
+        negative = True
+        core = core[1:-1].strip()
+
+    # 千分位 vs 小数点：两者同时出现时，位置靠后的那个是小数点
+    if "," in core and "." in core:
+        if core.rfind(",") > core.rfind("."):
+            core = core.replace(".", "").replace(",", ".")
+        else:
+            core = core.replace(",", "")
+    elif "," in core:
+        if re.fullmatch(r"[+-]?\d+,\d{1,2}", core):
+            core = core.replace(",", ".")   # 12,34 → 12.34
+        else:
+            core = core.replace(",", "")    # 1,234 → 1234
+
+    # 尾随负号（先摘掉，否则会干扰数字正则）
+    if core.endswith("-"):
+        negative = True
+        core = core[:-1]
+
+    m = re.search(r"[+-]?\d*\.?\d+", core)
     if not m:
         return None
     try:
-        return float(m.group(0).replace(",", ""))
+        value = float(m.group(0))
     except ValueError:
         return None
+    return -abs(value) if negative else value
 
 
 def _detect_encoding(raw: bytes) -> str:
-    """检测字节流的编码：优先 UTF-8，失败则回退 GBK。
+    """检测字节流的编码：优先 UTF-8/GBK，其余交给 charset-normalizer。
 
-    不依赖 chardet（零外部依赖），对账单 CSV 足够。
-    若两种都失败则抛出 CSVEncodingError。
+    UTF-8 与 GBK 是微信/支付宝/银行导出的绝大多数情况，先显式尝试可保证
+    同一份文件得到稳定的编码名（GBK 文件不会被误报成 GB18030）。未被这两种
+    覆盖的编码（UTF-16、BIG5 等）再交给成熟探测库，最后回退 GB18030。
     """
-    for enc in ("utf-8-sig", "utf-8", "gbk", "gb18030"):
+    for enc in ("utf-8-sig", "utf-8", "gbk"):
         try:
             raw.decode(enc)
             return enc
         except (UnicodeDecodeError, LookupError):
             continue
-    raise CSVEncodingError("无法识别文件编码（需为 UTF-8 或 GBK）")
+    try:
+        match = from_bytes(raw).best()
+        if match is not None and match.encoding:
+            raw.decode(match.encoding)
+            return match.encoding
+    except Exception:  # noqa: BLE001 — 探测失败时继续走 GB18030 兜底
+        pass
+    try:
+        raw.decode("gb18030")
+        return "gb18030"
+    except (UnicodeDecodeError, LookupError):
+        raise CSVEncodingError("无法识别文件编码（需为 UTF-8 或 GBK）") from None
 
 
 # ---------------------------------------------------------------------------

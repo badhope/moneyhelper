@@ -26,6 +26,8 @@ from . import agent_config, auth, db, llm, scheduler, vault
 from .logging_utils import get_logger as _get_logger
 from .middleware import setup as setup_middleware
 from .routes import (
+    authz_router,
+    banking_router,
     budgets_router,
     calculations_router,
     connect_deep_router,
@@ -34,14 +36,19 @@ from .routes import (
     debts_subs_router,
     evaluation_router,
     execute_router,
+    expenses_router,
     family_router,
     finance_tax_router,
+    gl_router,
     goals_router,
     import_router,
     ledger_router,
+    longtask_router,
     market_router,
     members_router,
+    org_router,
     paper_router,
+    procurement_router,
     provenance_router,
     qa_router,
     research_router,
@@ -239,6 +246,7 @@ setup_middleware(app)
 # ---------------------------------------------------------------------------
 
 app.include_router(budgets_router)
+app.include_router(banking_router)
 app.include_router(settings_router)
 app.include_router(goals_router)
 app.include_router(debts_subs_router)
@@ -248,7 +256,11 @@ app.include_router(calculations_router)
 app.include_router(connect_router)
 app.include_router(connect_deep_router)
 app.include_router(finance_tax_router)
+app.include_router(gl_router)
 app.include_router(execute_router)
+app.include_router(expenses_router)
+app.include_router(procurement_router)
+app.include_router(longtask_router)
 app.include_router(strategy_router)
 app.include_router(studio_router)
 app.include_router(evaluation_router)
@@ -256,6 +268,8 @@ app.include_router(import_router)
 app.include_router(paper_router)
 app.include_router(provenance_router)
 app.include_router(members_router)
+app.include_router(org_router)
+app.include_router(authz_router)
 app.include_router(family_router)
 app.include_router(qa_router)
 app.include_router(ledger_router)

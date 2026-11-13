@@ -19,20 +19,39 @@ from contextvars import ContextVar
 LOCAL_USER_ID = 0
 
 _current_user_id: ContextVar[int] = ContextVar("moneyhelper_user_id", default=LOCAL_USER_ID)
+# 企业底座切片 2：显式的租户上下文。个人租户 id == user_id，本机为 0；
+# 未来企业成员可通过 resolve_tenant_id() 映射到非 user_id 的租户。
+# 现有账本仍读 current_user_id()，只有新组织域使用 current_tenant_id()。
+_current_tenant_id: ContextVar[int] = ContextVar(
+    "moneyhelper_tenant_id", default=LOCAL_USER_ID
+)
 
 
 def current_user_id() -> int:
-    """当前租户 id（0 = 本机默认租户）。"""
+    """当前用户 id（0 = 本机默认租户）。"""
     return _current_user_id.get()
 
 
 def set_current_user_id(user_id: int) -> object:
-    """设置当前租户，返回可用于还原的 token。"""
+    """设置当前用户，返回可用于还原的 token。"""
     return _current_user_id.set(int(user_id or LOCAL_USER_ID))
 
 
 def reset_current_user_id(token: object) -> None:
     _current_user_id.reset(token)  # type: ignore[arg-type]
+
+
+def current_tenant_id() -> int:
+    """当前请求所属租户 id（组织域使用；0 = 本机账本）。"""
+    return _current_tenant_id.get()
+
+
+def set_current_tenant_id(tenant_id: int) -> object:
+    return _current_tenant_id.set(int(tenant_id or LOCAL_USER_ID))
+
+
+def reset_current_tenant_id(token: object) -> None:
+    _current_tenant_id.reset(token)  # type: ignore[arg-type]
 
 
 class use_user:
@@ -41,12 +60,18 @@ class use_user:
     def __init__(self, user_id: int) -> None:
         self.user_id = int(user_id or LOCAL_USER_ID)
         self._token: object | None = None
+        self._tenant_token: object | None = None
 
     def __enter__(self) -> int:
         self._token = set_current_user_id(self.user_id)
+        # 个人租户 id == user_id；显式设置避免后台任务读到上一个请求的租户。
+        self._tenant_token = set_current_tenant_id(self.user_id)
         return self.user_id
 
     def __exit__(self, *exc: object) -> None:
+        if self._tenant_token is not None:
+            reset_current_tenant_id(self._tenant_token)
         if self._token is not None:
             reset_current_user_id(self._token)
+        self._tenant_token = None
         self._token = None

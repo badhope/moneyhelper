@@ -1,5 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { fmtMoney, fmtPct, pnlClass, setMoneyLocale, getMoneyLocale } from "./format";
+import { fmtDate, fmtDay, fmtMonth, fmtMoney, fmtPct, pnlClass, setMoneyLocale, getMoneyLocale } from "./format";
+
+describe("fmtDate / fmtMonth", () => {
+  it("fmtDate 带年份，跨年记录不会只剩月日", () => {
+    setMoneyLocale("zh");
+    const s = fmtDate("2024-01-02T03:04:00Z");
+    expect(s).toContain("2024");
+    expect(s).not.toContain("Invalid Date");
+  });
+
+  it("fmtDate 非法输入回退短横线", () => {
+    expect(fmtDate("not-a-date")).toBe("-");
+    expect(fmtDate("")).toBe("-");
+  });
+
+  it("fmtMonth 正常月份与越界月份", () => {
+    setMoneyLocale("zh");
+    expect(fmtMonth("2026-09")).toContain("2026");
+    expect(fmtMonth("2026-09")).toContain("9月");
+    setMoneyLocale("en");
+    expect(fmtMonth("2026-09")).toBe("Sep 2026");
+    expect(fmtMonth("2026-13")).toBe("2026-13");
+  });
+});
 
 describe("pnlClass", () => {
   it("正值返回 text-up（红涨）", () => {
@@ -113,5 +136,22 @@ describe("fmtMoney en compact scales", () => {
     expect(fmtMoney(15000, false, true)).toBe("¥1.5万");
     expect(fmtMoney(150_000_000, false, true)).toBe("¥1.50亿");
     setMoneyLocale("en");
+  });
+});
+
+describe("fmtDay", () => {
+  it("日期字符串不显示伪造的时分", () => {
+    setMoneyLocale("zh");
+    expect(fmtDay("2026-11-10")).toBe("2026/11/10");
+    setMoneyLocale("en");
+    expect(fmtDay("2026-11-10")).toBe("Nov 10, 2026");
+  });
+
+  it("空值回退为 -", () => {
+    expect(fmtDay("")).toBe("-");
+  });
+
+  it("带时分的 ISO 交给 fmtDate（仍可读）", () => {
+    expect(fmtDay("2024-01-02T03:04:00Z")).toContain("2024");
   });
 });

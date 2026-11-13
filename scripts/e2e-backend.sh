@@ -9,7 +9,13 @@ BACKEND="$ROOT/backend"
 
 # 优先用项目 venv；缺则回退到系统 python（未装 requirements 时给明白的提示）
 # Windows 的 venv 在 Scripts/，且解释器名是 python.exe（没有 python3）
-if [ -x "$BACKEND/.venv/bin/python" ]; then
+# 本项目 venv 在仓库根 .venv（不是 backend/.venv），两处都要探测；
+# 只找 backend/.venv 会静默回退到系统 Python，报出与项目无关的"uvicorn 未安装"。
+if [ -x "$ROOT/.venv/Scripts/python.exe" ]; then
+  PY="$ROOT/.venv/Scripts/python.exe"
+elif [ -x "$ROOT/.venv/bin/python" ]; then
+  PY="$ROOT/.venv/bin/python"
+elif [ -x "$BACKEND/.venv/bin/python" ]; then
   PY="$BACKEND/.venv/bin/python"
 elif [ -x "$BACKEND/.venv/Scripts/python.exe" ]; then
   PY="$BACKEND/.venv/Scripts/python.exe"

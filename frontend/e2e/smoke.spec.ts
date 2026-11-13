@@ -84,16 +84,26 @@ test.describe("应用启动 & 冒烟", () => {
     await page.getByRole("button", { name: "设置" }).first().click();
 
     // 一键建议型：点「生成建议」；Agent 区是"先描述再生成"型：入口为「AI 生成」
-    const expectAi = async (section: string, entry: RegExp) => {
+    // 设置面板有入场动画：必须等分组按钮真正可见后再判断 aria-expanded，
+    // 否则 isVisible() 会在首帧返回 false，后续点击全部落空。
+    const openGroup = async (group: string) => {
+      const groupBtn = page.getByRole("button", { name: group, exact: true }).first();
+      await groupBtn.waitFor({ state: "visible", timeout: 10_000 });
+      const expanded = await groupBtn.getAttribute("aria-expanded");
+      if (expanded !== "true") await groupBtn.click();
+      await expect(groupBtn).toHaveAttribute("aria-expanded", "true");
+    };
+    const expectAi = async (group: string, section: string, entry: RegExp) => {
+      await openGroup(group);
       await page.getByText(section, { exact: true }).first().click();
       await expect(page.getByRole("button", { name: entry }).first()).toBeVisible({ timeout: 10_000 });
     };
 
-    await expectAi("预算", /生成建议/);
-    await expectAi("账本规则", /生成建议/);
-    await expectAi("每日晨报", /生成建议/);
-    await expectAi("长期记忆", /生成建议/);
-    await expectAi("技能（Skill）", /AI 一键生成/);
+    await expectAi("基础设置", "预算", /生成建议/);
+    await expectAi("基础设置", "账本规则", /生成建议/);
+    await expectAi("AI 与自动化", "每日晨报", /生成建议/);
+    await expectAi("AI 与自动化", "长期记忆", /生成建议/);
+    await expectAi("Agent 能力", "技能（Skill）", /AI 一键生成/);
   });
 
   test("技能定时动作：配置时间/星期并立即触发（结果回显）", async ({ page, request }) => {
@@ -114,6 +124,11 @@ test.describe("应用启动 & 冒烟", () => {
     try {
       await page.goto("/");
       await page.getByRole("button", { name: "设置" }).first().click();
+      // 设置页两级导航：技能在「Agent 能力」分组；等入场动画结束再点
+      const agentGroup = page.getByRole("button", { name: "Agent 能力", exact: true }).first();
+      await agentGroup.waitFor({ state: "visible", timeout: 10_000 });
+      if ((await agentGroup.getAttribute("aria-expanded")) !== "true") await agentGroup.click();
+      await expect(agentGroup).toHaveAttribute("aria-expanded", "true");
       await page.getByText("技能（Skill）", { exact: true }).first().click();
 
       // 动作徽标显示 周几 + 时间；「立即触发」按钮（aria-label 带技能名）可用

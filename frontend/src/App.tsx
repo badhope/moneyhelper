@@ -33,7 +33,7 @@ const DepartmentPanel = lazy(() =>
   import("@/components/DepartmentPanel").then((m) => ({ default: m.DepartmentPanel })),
 );
 
-export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax" | "debts";
+export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax" | "debts" | "gl" | "expenses" | "procurement" | "longtask" | "bank";
 
 export default function App() {
   const { t } = useI18n();
@@ -70,6 +70,8 @@ export default function App() {
 
   const [userCount, setUserCount] = useState<number | null>(null);
   const [authed, setAuthed] = useState<boolean>(!!getToken());
+  // 切片 7b：切换工作租户后自增，用来重建财务工作区、强制企业域重新取数
+  const [tenantEpoch, setTenantEpoch] = useState(0);
 
   useEffect(() => {
     if (getToken()) return;
@@ -188,7 +190,7 @@ export default function App() {
       setSettingsOpen(true);
       return;
     }
-    const valid: DataKind[] = ["overview", "holdings", "market", "ledger", "health", "strategy", "research", "statements", "paper", "connect", "tax"];
+    const valid: DataKind[] = ["overview", "holdings", "market", "ledger", "health", "strategy", "research", "statements", "paper", "connect", "tax", "debts", "gl", "expenses", "procurement", "longtask", "bank"];
     const k = (valid as string[]).includes(kind) ? (kind as DataKind) : "overview";
     setView(k);
   }, []);
@@ -268,6 +270,7 @@ export default function App() {
                 onOpenSettings={() => setSettingsOpen(true)}
                 onOpenNav={() => setMobileNavOpen(true)}
                 onBackToChat={view !== "chat" ? () => setView("chat") : undefined}
+                onTenantChanged={() => setTenantEpoch((n) => n + 1)}
               />
 
               <main className="flex min-h-0 flex-1 pb-[calc(3.25rem+env(safe-area-inset-bottom))] md:pb-0">
@@ -281,6 +284,9 @@ export default function App() {
                   >
                     {view !== "chat" ? (
                       <FinancePage
+                        // 切换工作租户后整棵子树重建：企业域的所有页签都要重新取数，
+                        // 逐个页签手动刷新既漏又慢；重建的代价只是回到默认标签页。
+                        key={`${view}-${tenantEpoch}`}
                         kind={view}
                         onKindChange={(k) => setView(k)}
                         onGoChat={() => setView("chat")}

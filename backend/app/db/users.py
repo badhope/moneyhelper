@@ -8,6 +8,7 @@ from ._core import (
     _conn,
     fetch_all,
 )
+from .org import ensure_personal_tenant
 
 # --------------------------------------------------------------------------
 # 用户体系（多租户基础）
@@ -51,8 +52,12 @@ async def user_create(
         "VALUES(?,?,?,?,?)",
         (username, pw_hash, display_name or username, role, now),
     )
+    uid = int(cur.lastrowid)
+    # 企业底座影子模型：每个用户同步拥有个人租户与 owner 成员资格。
+    # 不改变现有鉴权；仅让组织 API 从第一天起就有完整事实。
+    await ensure_personal_tenant(conn, uid, username, display_name or username, now)
     await conn.commit()
-    return cur.lastrowid
+    return uid
 
 
 async def user_get_by_username(username: str) -> dict[str, Any] | None:
@@ -91,8 +96,14 @@ async def user_update_last_login(uid: int) -> None:
 
 
 async def user_count() -> int:
+    """实例内账号总数（含已停用）。
+
+    不能用 `disabled=0` 过滤：如果全部账号都被停用，计数会变成 0，鉴权闸会
+    误判为"尚未启用账号体系"并放行本机模式，等于停用账号反而打开了后门。
+    登录页/鉴权闸需要的是"是否存在账号体系"，不是"有多少活跃账号"。
+    """
     conn = await _conn()
-    cur = await conn.execute("SELECT COUNT(*) AS n FROM users WHERE disabled=0")
+    cur = await conn.execute("SELECT COUNT(*) AS n FROM users")
     row = await cur.fetchone()
     return int(row["n"]) if row else 0
 

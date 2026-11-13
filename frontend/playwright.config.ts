@@ -33,7 +33,18 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      // 默认仍是 Playwright 自带 Chromium；网络下载受限的机器可设
+      // PLAYWRIGHT_CHANNEL=msedge / chrome 复用本机已安装浏览器，
+      // 避免"下载失败 → 全部用例误报失败"。
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(process.env.PLAYWRIGHT_CHANNEL
+          ? { channel: process.env.PLAYWRIGHT_CHANNEL }
+          : {}),
+      },
+    },
   ],
   webServer: [
     {
@@ -51,6 +62,12 @@ export default defineConfig({
         // 关限流：整轮 e2e 从同一 IP 在 1 分钟内发出 200+ 请求，会撞上默认 200/分钟的上限，
         // 表现为每轮随机某个用例失败（视用例执行顺序而定），极易误判为功能回归。
         MONEYHELPER_DISABLE_RATE_LIMIT: "1",
+        // 强制清空模型配置：e2e 断言的是确定性模板路径（"确定性兜底即可产生回答"）。
+        // 若继承开发者 shell 里的 LLM_API_KEY，用例会真的去调模型（一次 30-60s），
+        // 表现为随机超时失败——这是测试隔离问题，不是产品缺陷。
+        LLM_API_KEY: "",
+        LLM_BASE_URL: "",
+        LLM_MODEL: "",
       },
     },
     {

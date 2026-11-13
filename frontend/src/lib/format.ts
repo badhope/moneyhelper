@@ -53,19 +53,41 @@ export function pnlClass(v: number | undefined | null): string {
   return v > 0 ? "text-up" : "text-down";
 }
 
-/** 日期友好显示（随语言）。非法/空输入回退到 "-"，绝不显示 "Invalid Date"。 */
+/** 日期友好显示（随语言）。非法/空输入回退到 "-"，绝不显示 "Invalid Date"。
+ *  必须带年份：审计/溯源/消息列表里跨年记录只显示月日会造成误读。 */
 export function fmtDate(iso: string): string {
   const d = iso ? new Date(iso) : null;
   if (!d || Number.isNaN(d.getTime())) return "-";
   try {
-    return d.toLocaleString(moneyLocale === "zh" ? "zh-CN" : "en-US", {
+    return new Intl.DateTimeFormat(moneyLocale === "zh" ? "zh-CN" : "en-US", {
+      year: "numeric",
       month: "numeric",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-    });
+    }).format(d);
   } catch {
     return "-";
+  }
+}
+
+/** 纯日期显示（随语言）：只用于本来就是"某一天"的字段（采购日、发票日、到期日）。
+ *  不能复用 fmtDate：它带时分，而 "2026-11-10" 会被解析成 UTC 零点，
+ *  在东八区显示成 08:00，看起来像有具体时间。 */
+export function fmtDay(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || "").trim());
+  if (!m) return iso ? fmtDate(iso) : "-";
+  const [, y, mo, d] = m;
+  if (moneyLocale === "zh") return `${y}/${Number(mo)}/${Number(d)}`;
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d))));
+  } catch {
+    return `${y}-${mo}-${d}`;
   }
 }
 
@@ -73,12 +95,17 @@ export function fmtDate(iso: string): string {
 export function fmtMonth(month: string): string {
   const [y, m] = month.split("-");
   const n = Number(m);
-  // 越界月份（"2026-13"）走原串回退：否则 names[n-1] 是 undefined，
-  // 用户看到 "undefined 2026"。
+  // 越界月份（"2026-13"）走原串回退：否则日期构造会滚到下一年，
+  // 用户看到 "2027年1月" 而不是原始输入。
   if (!y || Number.isNaN(n) || n < 1 || n > 12) return month;
-  if (moneyLocale === "zh") return `${y}年${n}月`;
-  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${names[n - 1]} ${y}`;
+  const d = new Date(Number(y), n - 1, 1);
+  if (Number.isNaN(d.getTime())) return month;
+  return new Intl.DateTimeFormat(
+    moneyLocale === "zh" ? "zh-CN" : "en-US",
+    moneyLocale === "zh"
+      ? { year: "numeric", month: "long" }
+      : { year: "numeric", month: "short" },
+  ).format(d);
 }
 
 /** token 数量显示：1234 -> "1.2k"，保持窄栏不换行（harness 上下文仪表用）。 */

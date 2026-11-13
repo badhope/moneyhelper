@@ -62,8 +62,10 @@ class _MCPHandler(BaseHTTPRequestHandler):
         elif method == "tools/list":
             self._reply(payload, {"tools": [
                 {"name": "echo", "description": "回显文本",
+                 "annotations": {"readOnlyHint": True},
                  "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
                 {"name": "add", "description": "两个数相加",
+                 "annotations": {"readOnlyHint": True},
                  "inputSchema": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]}},
             ]})
         elif method == "tools/call":
@@ -185,7 +187,7 @@ async def moneyhelper_mcp_up(tmp_path, monkeypatch):
         mcp_client._servers.clear()
 
 
-async def test_self_mcp_end_to_end(moneyhelper_mcp_up, temp_db) -> None:
+async def test_self_mcp_end_to_end(moneyhelper_mcp_up, temp_db, monkeypatch) -> None:
     """Moneyhelper 自己的 MCP Server 走 Streamable HTTP 的完整验收（M2.2）。
 
     三件事一次做完，合并成一个测试是刻意为之：
@@ -201,6 +203,9 @@ async def test_self_mcp_end_to_end(moneyhelper_mcp_up, temp_db) -> None:
     """
     from app import tool_schemas as ts
 
+    # 本用例验收的是 MCP Server 的原始工具面（含写工具），而 agent 侧默认只
+    # 暴露 readOnlyHint=true 的工具；这里显式打开全量模式再比较。
+    monkeypatch.setenv("MONEYHELPER_MCP_EXTERNAL_TOOLS", "all")
     await mcp_client.refresh()
     schemas = await mcp_client.refresh()
     by_name = {s["function"]["name"].removeprefix("mcp__"): s["function"] for s in schemas}

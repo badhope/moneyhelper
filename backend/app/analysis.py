@@ -9,9 +9,10 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from datetime import datetime
 from typing import Any
+
+from cachetools import TTLCache
 
 from . import db, quotes
 from .calculations import decisions as _decisions
@@ -28,7 +29,9 @@ HIGH_RATE_DEBT = 0.08
 # 读全表流水、算风控、打两次外部行情。10 秒内的重复请求应该复用同一份快照。
 # 为什么不长：行情会变，用户改完持仓立刻刷新必须看到新数字。
 _DASHBOARD_TTL_SECONDS = 10.0
-_dashboard_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_dashboard_cache: TTLCache[str, dict[str, Any]] = TTLCache(
+    maxsize=64, ttl=_DASHBOARD_TTL_SECONDS
+)
 
 
 def _month_prefix() -> str:
@@ -238,7 +241,7 @@ def risk_checks(
                     "text": (
                         f"{b['name']} {b.get('investable_pct') or b['pct']}% of investable assets — above the {conc.get('threshold_pct')}% single-position cap"
                         if en
-                        else f"{b['name']} 占比 {b.get('investable_pct') or b['pct']}% 超过 {conc.get('threshold_pct')}% 单一持仓阈值"
+                        else f"{b['name']} 占持仓 {b.get('investable_pct') or b['pct']}% 超过 {conc.get('threshold_pct')}% 单一持仓阈值"
                     ),
                 }
             )
@@ -250,7 +253,7 @@ def risk_checks(
                     "text": (
                         f"{b['industry']} industry {b.get('investable_pct') or b['pct']}% of investable assets — above the {conc.get('threshold_pct')}% cap"
                         if en
-                        else f"{b['industry']} 行业占比 {b.get('investable_pct') or b['pct']}% 超过 {conc.get('threshold_pct')}% 阈值"
+                        else f"{b['industry']} 行业占持仓 {b.get('investable_pct') or b['pct']}% 超过 {conc.get('threshold_pct')}% 阈值"
                     ),
                 }
             )
@@ -509,8 +512,8 @@ async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict
     key = f"{getattr(db_core, 'DB_PATH', '')}:{current_user_id()}:{lang}"
     if use_cache:
         hit = _dashboard_cache.get(key)
-        if hit and time.monotonic() - hit[0] < _DASHBOARD_TTL_SECONDS:
-            return hit[1]
+        if hit is not None:
+            return hit
 
     en = lang != "zh"
     positions = await db.list_positions()
@@ -630,7 +633,7 @@ async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict
         pass
 
     if use_cache:
-        _dashboard_cache[key] = (time.monotonic(), out)
+        _dashboard_cache[key] = out
     return out
 
 

@@ -281,7 +281,10 @@ async def execute(intent: dict[str, Any], lang: str = "zh") -> dict[str, Any]:
             return {"ok": False, "answer": str(exc)}
         return {"ok": True, "answer": f"已删除{kind_label}「{hit.get('name')}」。"}
     enabled = op == "enable"
-    updated = await store.set_enabled(kind, str(hit["id"]), enabled)
+    try:
+        updated = await store.set_enabled(kind, str(hit["id"]), enabled)
+    except PermissionError as exc:
+        return {"ok": False, "answer": str(exc)}
     if updated is None:
         return {"ok": False, "answer": f"{kind_label}「{target}」更新失败。"}
     return {

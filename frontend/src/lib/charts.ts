@@ -148,24 +148,34 @@ export function useEChart(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 数据/配置变化：只 setOption，不重建实例。
+    // 数据/配置变化：只 setOption，不重建实例。
   //
   // 关键：调用方常见写法是「数据没来 → return null；数据来了才渲染容器」。
   // 那种情况下挂载 effect 跑过一次、ref 是 null 就退出，之后再也不会初始化——
   // 图表的 div 有了，画布却永远是空的。这里在 ref 为空但容器已经出现时补一次 init。
   useEffect(() => {
     if (!option) return;
-    loadEcharts()
+    // 必须先等模块注册完成再 setOption：treemap/radar 未注册时 echarts 只打
+    // "Series X is used but not imported" 警告，随后布局读到 undefined.x 直接抛错
+    // （切页瞬间可见）。挂载 effect 里的预加载不一定先完成——两个 effect 并行。
+    const ready =
+      modules && modules.length
+        ? Promise.all([loadEcharts(), ensureChartModules(modules)]).then(([core]) => core)
+        : loadEcharts();
+    ready
       .then((core) => {
         const el = ref.current;
         if (!el) return;
         let inst = core.getInstanceByDom(el);
         if (!inst) {
-          // 容器晚于首次挂载出现：补初始化
           inst = core.init(el);
           inst.setOption(option, { notMerge: true });
           return;
         }
+        // 容器尺寸为 0 时不要 setOption：treemap 等布局在 0 尺寸下会
+        // 读 undefined.x 直接抛错（切页瞬间的隐藏容器就会触发）。
+        // 尺寸恢复后由 ResizeObserver 重放最新 option。
+        if (el.clientWidth === 0 || el.clientHeight === 0) return;
         inst.resize();
         inst.setOption(option, { notMerge: true });
       })

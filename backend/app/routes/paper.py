@@ -172,7 +172,7 @@ async def bridge_plan(payload: dict[str, Any]) -> dict[str, Any]:
     回测用真实日线（quotes.kline），结果直接交给 bridge.plan_from_backtest。
     """
     from .. import quotes
-    from ..calculations.backtest import run_backtest
+    from ..calculations.backtest import run_backtest, series_from_points
     from ..calculations.bridge import plan_from_backtest
 
     symbol = str(payload.get("symbol") or "").strip()
@@ -188,8 +188,7 @@ async def bridge_plan(payload: dict[str, Any]) -> dict[str, Any]:
     if not data or not data.get("points"):
         return {"ok": False, "error": f"无法获取 {symbol} 的行情（可能非 A 股/ETF 或行情源不可用）"}
     points = data["points"]
-    closes = [float(p["close"]) for p in points if p.get("close") is not None]
-    dates = [p.get("date", "") for p in points]
+    closes, dates = series_from_points(points)
     if len(closes) < 60:
         return {"ok": False, "error": f"{symbol} 历史数据不足 60 根，无法回测"}
 
@@ -198,6 +197,10 @@ async def bridge_plan(payload: dict[str, Any]) -> dict[str, Any]:
         slow = max(5, min(int(payload.get("slow") or 20), 120))
     except (TypeError, ValueError):
         fast, slow = 5, 20
+    if strategy == "ma_cross" and fast >= slow:
+        # 快线周期不小于慢线时，"多头排列"判据反向，结果会是一份看起来正常
+        # 但语义相反的报告；宁可明确拒绝。
+        return {"ok": False, "error": "fast 必须小于 slow"}
     result = (
         run_backtest(closes, dates, "ma_cross", fast=fast, slow=slow)
         if strategy == "ma_cross"
@@ -220,7 +223,7 @@ async def bridge_track(payload: dict[str, Any]) -> dict[str, Any]:
     两条曲线按较短长度对齐（重叠区间），偏差口径见 calculations/bridge。
     """
     from .. import quotes
-    from ..calculations.backtest import run_backtest
+    from ..calculations.backtest import run_backtest, series_from_points
     from ..calculations.bridge import tracking_report
 
     aid = str(payload.get("account_id") or "").strip()
@@ -240,8 +243,7 @@ async def bridge_track(payload: dict[str, Any]) -> dict[str, Any]:
     if not data or not data.get("points"):
         return {"ok": False, "error": f"无法获取 {symbol} 行情"}
     points = data["points"]
-    closes = [float(p["close"]) for p in points if p.get("close") is not None]
-    dates = [p.get("date", "") for p in points]
+    closes, dates = series_from_points(points)
     if len(closes) < 60:
         return {"ok": False, "error": f"{symbol} 历史数据不足"}
 

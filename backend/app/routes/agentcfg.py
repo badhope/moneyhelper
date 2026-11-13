@@ -6,9 +6,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from .. import auth
 from ..logging_utils import get_logger as _get_logger
 
 log = _get_logger(__name__)
@@ -31,8 +32,14 @@ async def get_agent_config() -> dict:
 
 
 @router.post("/api/agent-config")
-async def update_agent_config(payload: dict) -> dict:
+async def update_agent_config(
+    payload: dict,
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
     """更新 agent 配置。
+
+    必须实例管理员：角色指令与 skill 动作会进入系统提示并按定时任务自动执行，
+    等于「持久化改写程序行为」。普通租户不能写（历史漏洞 B5）。
 
     保存时：非法定时动作剔除并回报 warnings；随后同步技能调度任务
     （同步失败不影响保存本身——保存是数据、排程是运行时，各自独立可恢复）。
@@ -60,7 +67,10 @@ async def update_agent_config(payload: dict) -> dict:
 
 
 @router.post("/api/skills/{skill_id}/run")
-async def run_skill_now(skill_id: str) -> dict:
+async def run_skill_now(
+    skill_id: str,
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
     """立即触发一次技能动作（与定时触发同一实现）：走问答管线并归档，不进会话列表。"""
     from .. import scheduler as sched_mod
 
@@ -105,7 +115,9 @@ async def generate_agent_config(payload: dict) -> dict:
 
 
 @router.get("/api/mcp/servers")
-async def list_mcp_servers() -> dict:
+async def list_mcp_servers(
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
     """当前配置的 MCP 服务器 + 已发现工具数。
 
     凭据打码：URL 里的 user:token 会替换成 ***，避免在设置页明文回显。
@@ -119,13 +131,31 @@ async def list_mcp_servers() -> dict:
 
 
 @router.put("/api/mcp/servers")
-async def put_mcp_servers(payload: dict) -> dict:
+async def put_mcp_servers(
+    payload: dict,
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
     """保存 MCP 服务器列表。保存后立即尝试发现工具，失败只回报不阻断。"""
     from .. import mcp_client
 
     servers = payload.get("servers")
     if not isinstance(servers, list):
         return JSONResponse({"error": "servers 必须是数组"}, status_code=400)
+    # stdio 服务器会让服务端拉起任意本地进程 = 命令执行能力。默认只允许部署者
+    # 手改 data/mcp.json 声明；通过 API 写入必须显式打开 MCP_ALLOW_STDIO_CONFIG，
+    # 且实例应只对可信管理员开放（否则任一登录租户都能影响整个实例）。
+    if not mcp_client.stdio_config_allowed():
+        for s in servers:
+            if isinstance(s, dict) and str(s.get("command") or "").strip():
+                return JSONResponse(
+                    {
+                        "error": (
+                            "stdio MCP 服务器不支持通过 API 保存（避免任意命令执行）；"
+                            "请使用 http(s) 地址，或由部署者手动编辑 data/mcp.json"
+                        )
+                    },
+                    status_code=400,
+                )
     # 保存即意味着随后会对外发起请求（refresh），所以这里也要做 SSRF 校验：
     # 否则可以先保存内网 URL、再靠刷新触发探测，绕过 /api/mcp/test 的检查。
     from ..netguard import SSRFBlocked, assert_public_http_url
@@ -151,7 +181,10 @@ async def put_mcp_servers(payload: dict) -> dict:
 
 
 @router.post("/api/mcp/test")
-async def test_mcp_server(payload: dict) -> dict:
+async def test_mcp_server(
+    payload: dict,
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
     """测试单台服务器连通性：握手 + list_tools，返回工具名列表。
 
     http：传 url；stdio：传 command + args（本地拉起进程后握手）。
@@ -187,7 +220,10 @@ async def test_mcp_server(payload: dict) -> dict:
 
 
 @router.post("/api/mcp/servers/bulk-toggle")
-async def bulk_toggle_mcp(payload: dict) -> dict:
+async def bulk_toggle_mcp(
+    payload: dict,
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
     """批量启用/停用（「一键启用全部」/「全部停用」）。"""
     from .. import mcp_client
 
@@ -205,7 +241,11 @@ async def bulk_toggle_mcp(payload: dict) -> dict:
 
 
 @router.post("/api/mcp/servers/{name}/toggle")
-async def toggle_mcp_server(name: str, payload: dict) -> dict:
+async def toggle_mcp_server(
+    name: str,
+    payload: dict,
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
     """启用/停用某台 MCP 服务器（保留配置，不参与发现）。"""
     from .. import mcp_client
 

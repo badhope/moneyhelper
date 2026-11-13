@@ -42,8 +42,8 @@ async def add_transactions_batch(
             datetime.strptime(d, "%Y-%m-%d")
         except ValueError:
             raise ValueError(f"第 {i + 1} 条不是有效日历日：{d!r}") from None
-        if amt == 0 or amt != amt:
-            raise ValueError(f"第 {i + 1} 条金额不能为 0 或 NaN")
+        if amt == 0 or not math.isfinite(amt):
+            raise ValueError(f"第 {i + 1} 条金额不能为 0、NaN 或无穷")
         cleaned.append(
             {
                 "date": d,
@@ -269,8 +269,8 @@ async def update_transaction(
         raise ValueError(f"日期不是有效日历日：{d!r}") from None
     if not it:
         it = "未命名"
-    if amt == 0 or amt != amt:
-        raise ValueError("金额不能为 0 或 NaN")
+    if amt == 0 or not math.isfinite(amt):
+        raise ValueError("金额不能为 0、NaN 或无穷")
 
     await conn.execute(
         "UPDATE transactions SET date=?,item=?,category=?,amount=?,owner_id=?,is_shared=?"

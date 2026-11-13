@@ -129,9 +129,20 @@ def judge(question: Question, answer: str) -> tuple[bool, str]:
     return False, f"未知判据类型 {exp.kind}"
 
 
-def score_answers(answers: dict[str, str], category: str = "") -> dict[str, Any]:
-    """对一批回答判分。answers: {question_id: answer}。"""
+def score_answers(
+    answers: dict[str, str],
+    category: str = "",
+    *,
+    only_ids: set[str] | None = None,
+) -> dict[str, Any]:
+    """对一批回答判分。answers: {question_id: answer}。
+
+    only_ids 用于"只跑前 N 题"的调试模式：分母必须只算实际跑过的题，
+    否则 3 题全对也会显示成 3/50 = 6%，把部分运行伪装成低分。
+    """
     pool = [q for q in QUESTIONS if not category or q.category == category]
+    if only_ids is not None:
+        pool = [q for q in pool if q.id in only_ids]
     details = []
     earned = 0
     total = 0
@@ -219,12 +230,11 @@ async def evaluate_model(
         except Exception as exc:  # noqa: BLE001 — 单题失败不应中断整轮评测
             failures.append(f"{q.id}: {type(exc).__name__}: {exc}")
             answers[q.id] = ""
-    result = score_answers(answers, category="")
-    # 只保留本次实际跑过的题
-    ran = {q.id for q in pool}
-    result["details"] = [d for d in result["details"] if d["id"] in ran]
+    result = score_answers(answers, category="", only_ids={q.id for q in pool})
     result["scored"] = True
-    result["model"] = model or "default"
+    # 显示真实模型名：空 model 表示"用设置里的默认模型"，回填配置中的模型名，
+    # 否则排行榜与 UI 都只看到无意义的 "default"。
+    result["model"] = model or await llm.configured_model_name() or "default"
     result["duration_seconds"] = round(time.time() - started, 1)
     if failures:
         result["failures"] = failures[:10]

@@ -213,12 +213,30 @@ export function useResearchAnalyze(symbol: string | null, period: "daily" | "wee
 /** 回测策略全集：必须与后端 /api/research/backtest 的 STRATEGIES 一致 */
 export type BacktestStrategy = "ma_cross" | "dca" | "grid" | "trend" | "vol_target";
 
+/** 回测参数是否可用（与后端 /api/research/backtest 的校验口径一致）。
+ *
+ * fast >= slow 时后端返回 400：快线周期不小于慢线，「多头排列」判据反向，
+ * 跑出来的是一份格式完整但语义相反的报告。这种请求不该发出去。
+ * 单独导出是为了可测——纯函数，不需要挂 QueryClient。
+ */
+export function isBacktestParamsValid(
+  strategy: BacktestStrategy,
+  params: { fast?: number; slow?: number; invest_amount?: number; freq_days?: number },
+): boolean {
+  if (strategy !== "ma_cross") return true;
+  const fast = params.fast ?? 5;
+  const slow = params.slow ?? 20;
+  return fast >= 2 && slow >= 2 && fast < slow;
+}
+
 export function useResearchBacktest(
   symbol: string | null,
   strategy: BacktestStrategy,
   params?: { fast?: number; slow?: number; invest_amount?: number; freq_days?: number },
 ) {
   const p = params ?? {};
+  // 参数非法时不发请求：保持上一次结果，等用户改回合法值再重新回测。
+  const maParamsInvalid = !isBacktestParamsValid(strategy, p);
   return useQuery({
     queryKey: ["research-backtest", symbol, strategy, p.fast ?? 5, p.slow ?? 20, p.invest_amount ?? 1000, p.freq_days ?? 5],
     queryFn: () => {
@@ -229,7 +247,7 @@ export function useResearchBacktest(
       if (p.freq_days != null && strategy === "dca") qs.set("freq_days", String(p.freq_days));
       return api<BacktestResponse>(`/api/research/backtest?${qs.toString()}`);
     },
-    enabled: !!symbol,
+    enabled: !!symbol && !maParamsInvalid,
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });

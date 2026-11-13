@@ -20,6 +20,7 @@ from ..calculations import (
     backtest_text,
     forecast,
     forecast_text,
+    series_from_points,
     technical_analysis,
     trend_text,
 )
@@ -162,12 +163,15 @@ async def research_backtest(
         raise HTTPException(status_code=400, detail="symbol must be a 6-digit A-share code")
     if strategy not in STRATEGIES:
         raise HTTPException(status_code=400, detail=f"strategy must be one of {STRATEGIES}")
+    # fast 必须严格小于 slow：反过来时"多头排列"条件反了，跑出来的仍是
+    # 一份格式完整的报告，但策略语义已经是均值回归——静默错，比报错更糟。
+    if strategy == "ma_cross" and fast >= slow:
+        raise HTTPException(status_code=400, detail="fast must be smaller than slow")
 
     points, err = await _kline_points(sym, "daily", limit)
     if err:
         return {"available": False, "symbol": sym, "strategy": strategy, "reason": err}
-    closes = [float(p["close"]) for p in points if p.get("close") is not None]
-    dates = [p.get("date", "") for p in points]
+    closes, dates = series_from_points(points)
     if len(closes) < 60:
         return {"available": False, "symbol": sym, "strategy": strategy, "reason": "insufficient price history"}
 
@@ -233,8 +237,7 @@ async def research_forecast(
     points, err = await _kline_points(sym, period, 750)
     if err:
         return {"available": False, "symbol": sym, "reason": err}
-    closes = [float(p["close"]) for p in points if p.get("close") is not None]
-    dates = [p.get("date", "") for p in points]
+    closes, dates = series_from_points(points)
     if len(closes) < 30:
         return {"available": False, "symbol": sym, "reason": "insufficient price history (<30 bars)"}
 

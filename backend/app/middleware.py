@@ -136,6 +136,10 @@ async def auth_gate(request: Request) -> JSONResponse | int:
 
     tenant_id = _resolve_tenant(request)
     shared = verify_api_token(request)
+    # JWT 签名有效不代表账号仍然可用：停用/删除账号的旧令牌必须在总闸失效。
+    # 此前只有 require_user 查用户状态，导致大量无该依赖的路由仍可访问。
+    if tenant_id != LOCAL_USER_ID and not await _user_is_active(tenant_id):
+        return JSONResponse({"error": "账号不存在或已停用"}, status_code=401)
     needs_login = (
         tenant_id == LOCAL_USER_ID
         and shared is None
@@ -159,6 +163,10 @@ async def api_auth(request: Request, call_next):
         return gate
     tenant_id = gate
 
+    # 审计中间件在 call_next 之后写日志，此时 ContextVar 已被重置；
+    # 把租户 id 留在 request.state，供审计归属使用。
+    request.state.tenant_id = tenant_id
+
     # 审计归属：把本请求解析到的操作者写进 ContextVar，后续 record_provenance
     # 不传 username 时自动归属该用户（此前各路由硬编码 "system"，审计链全失真）。
     actor = _resolve_actor(request, key)
@@ -170,13 +178,28 @@ async def api_auth(request: Request, call_next):
     # 租户隔离：JWT 用户决定这一请求读写哪份数据。
     # 无 JWT 时保持默认租户 0（本机单用户模式）；共享口令模式下同样归 0——
     # 一个实例仍然是一个账本。
-    from .db.tenant import reset_current_user_id, set_current_user_id
+    from .db.org import resolve_tenant_id
+    from .db.tenant import (
+        reset_current_tenant_id,
+        reset_current_user_id,
+        set_current_tenant_id,
+        set_current_user_id,
+    )
 
-    token = set_current_user_id(tenant_id)
+    user_token = set_current_user_id(tenant_id)
     try:
-        return await call_next(request)
+        # 组织域使用显式 tenant_id；个人租户 id == user_id，现有账本仍读 user_id。
+        try:
+            org_tenant_id = await resolve_tenant_id(tenant_id)
+        except Exception:  # noqa: BLE001 — 映射失败保持旧行为，不放大成 500
+            org_tenant_id = tenant_id
+        tenant_token = set_current_tenant_id(org_tenant_id)
+        try:
+            return await call_next(request)
+        finally:
+            reset_current_tenant_id(tenant_token)
     finally:
-        reset_current_user_id(token)
+        reset_current_user_id(user_token)
 
 
 async def _has_registered_users() -> bool:
@@ -187,6 +210,17 @@ async def _has_registered_users() -> bool:
         return await db.user_count() > 0
     except Exception:  # noqa: BLE001 — 查询失败时宁可要求登录
         return True
+
+
+async def _user_is_active(user_id: int) -> bool:
+    """JWT 指向的账号仍存在且未停用；查询失败按不可用处理（fail-closed）。"""
+    try:
+        from . import db
+
+        user = await db.user_get(user_id)
+        return bool(user) and not user.get("disabled")
+    except Exception:  # noqa: BLE001 — 无法确认就拒绝
+        return False
 
 
 def _resolve_tenant(request: Request) -> int:
@@ -215,8 +249,6 @@ def _resolve_actor(request: Request, api_token: str) -> str:
     无口令模式（单机自用）统一记 "local"：真实使用人就是本机用户，
     记 "system" 会让审计链看起来像程序自动执行的。
     """
-    if not api_token:
-        return "local"
     shared = verify_api_token(request)
     if shared:
         return str(shared.get("username") or "local")
@@ -442,7 +474,6 @@ def metrics_body() -> Response:
 AUDIT_SKIP_PREFIXES = (
     "/api/health",
     "/api/metrics",
-    "/api/audit",
     "/api/bootstrap",
     "/api/dashboard",
     "/api/quotes",
@@ -462,14 +493,18 @@ async def audit_logger(request: Request, call_next):
         return resp
     duration_ms = int((time.monotonic() - started) * 1000)
     try:
-        actor = (request.client.host if request.client else "") or ""
+        # 审计归属使用稳定身份（共享口令用户名 / JWT 用户 id / local），
+        # 而不是客户端 IP——IP 会变、会共享，无法回答"是谁做的"。
+        actor = _resolve_actor(request, os.getenv("API_TOKEN", "").strip()) or (
+            (request.client.host if request.client else "") or ""
+        )
         action = None
         # 敏感读：导出/设置/口令
         if method == "GET" and path in AUDIT_SENSITIVE_READ:
             action = "READ_SENSITIVE"
         elif method != "GET" and not path.startswith(AUDIT_SKIP_PREFIXES):
             action = "WRITE"
-        elif resp.status_code == 401:
+        elif resp.status_code in (401, 403):
             action = "AUTH"
         if action:
             await db.add_audit_log(
@@ -480,6 +515,7 @@ async def audit_logger(request: Request, call_next):
                 actor=actor,
                 detail=f"{method} {path}",
                 duration_ms=duration_ms,
+                user_id=int(getattr(request.state, "tenant_id", 0) or 0),
             )
     except Exception:  # noqa: BLE001 — 审计失败不影响请求
         pass

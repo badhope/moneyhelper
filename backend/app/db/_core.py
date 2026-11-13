@@ -50,12 +50,19 @@ def data_dir() -> Path:
     历史坑：默认值原先是 `backend/app/data`，而 Docker 卷挂的是
     `backend/data` —— 容器内账本写在卷外，重建即丢。统一到一处后，
     本地与容器看到的是同一个目录语义。
+
+    覆盖值不允许指向程序自身目录（源码 / .git / 依赖清单）：否则一个环境变量
+    就能让整个应用把数据写进源码树。最高权限需显式
+    MONEYHELPER_ALLOW_SYSTEM_ACCESS=1。
     """
     raw = getenv("MONEYHELPER_DATA_DIR").strip()
     if raw:
         path = Path(raw).expanduser()
         if not path.is_absolute():
             path = (Path.cwd() / path).resolve()
+        from ..pathguard import assert_not_protected
+
+        assert_not_protected(path, operation="把数据目录指向")
     else:
         path = Path(__file__).resolve().parent.parent.parent / "data"
     path.mkdir(parents=True, exist_ok=True)
@@ -74,6 +81,9 @@ def _resolve_db_path() -> Path:
     path = Path(raw).expanduser()
     if not path.is_absolute():
         path = (Path.cwd() / path).resolve()
+    from ..pathguard import assert_not_protected
+
+    assert_not_protected(path, operation="把数据库放到")
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -205,6 +215,10 @@ async def init_db() -> None:
     await _db.executescript(SCHEMA)
     await _migrate_add_columns()
     await _migrate_multitenant()
+    # 企业组织影子模型：只回填事实，不改现有 user_id 鉴权/账本解析。
+    from .org import backfill_org_shadow
+
+    await backfill_org_shadow(_db)
     # 全新库（settings 表为空）不再自动种示例：空账本起步，用户自己记账/加持仓。
     # 老库即使用户清空了数据也绝不重置；示例数据只能显式导入（设置页/演示 API）。
     await _ensure_defaults()
@@ -248,6 +262,15 @@ async def _migrate_add_columns() -> None:
         "user_memory": {"last_used": "TEXT NOT NULL DEFAULT ''"},
         # 知识库：附件可标记为「入库」，问答时按 BM25 检索其片段
         "attachments": {"indexed": "INTEGER NOT NULL DEFAULT 0"},
+        # 审计哈希链：旧库补列；历史行没有哈希，验链时作为 legacy 前缀跳过
+        "audit_logs": {
+            "prev_hash": "TEXT NOT NULL DEFAULT ''",
+            "entry_hash": "TEXT NOT NULL DEFAULT ''",
+        },
+        # 切片 7b：用户显式选择的工作租户（全局租户切换）
+        "users": {"active_tenant_id": "INTEGER"},
+        # 切片 8：付款可关联报销单或应付单；应付付款生成付款凭证草稿
+        "payments": {"payable_id": "INTEGER", "gl_entry_id": "INTEGER"},
     }
     # transactions 表：新增 owner_id（交易归属成员）与 is_shared（是否共享）
     tx_cols = await _db.execute("PRAGMA table_info(transactions)")
@@ -267,6 +290,19 @@ async def _migrate_add_columns() -> None:
         for col, decl in adds.items():
             if col not in existing:
                 await _db.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+
+    # 付款唯一性按来源拆分：报销付款 claim_id>0；应付付款 payable_id 非空。
+    # 旧库原索引是全表 UNIQUE(tenant_id,claim_id)，必须替换成部分索引，
+    # 否则所有应付付款都会以 claim_id=0 互相冲突。
+    await _db.execute("DROP INDEX IF EXISTS idx_payment_tenant_claim")
+    await _db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_tenant_claim"
+        " ON payments(tenant_id, claim_id) WHERE claim_id > 0"
+    )
+    await _db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_tenant_payable"
+        " ON payments(tenant_id, payable_id) WHERE payable_id IS NOT NULL"
+    )
 
 
 # 需要按租户隔离的表。四张"业务字段作主键"的表要重建（复合主键），
