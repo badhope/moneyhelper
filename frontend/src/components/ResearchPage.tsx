@@ -358,7 +358,12 @@ function BacktestPanel({
                 min={2}
                 max={60}
                 value={params.fast}
-                onChange={(e) => onParams({ fast: Math.max(2, Math.min(60, Number(e.target.value) || 2)) })}
+                onChange={(e) => {
+                  // 快线必须严格小于慢线：调大 fast 时把 slow 一起抬上去，
+                  // 否则会撞后端 400（旧行为是照跑一份语义相反的报告）。
+                  const fast = Math.max(2, Math.min(60, Number(e.target.value) || 2));
+                  onParams({ fast, slow: Math.max(params.slow, fast + 1) });
+                }}
                 className="w-14 rounded-md border border-border/70 bg-background px-1.5 py-1 text-center tabular-nums outline-none focus:border-primary"
               />
             </label>
@@ -369,7 +374,10 @@ function BacktestPanel({
                 min={5}
                 max={120}
                 value={params.slow}
-                onChange={(e) => onParams({ slow: Math.max(5, Math.min(120, Number(e.target.value) || 5)) })}
+                onChange={(e) => {
+                  const slow = Math.max(5, Math.min(120, Number(e.target.value) || 5));
+                  onParams({ slow, fast: Math.min(params.fast, slow - 1) });
+                }}
                 className="w-14 rounded-md border border-border/70 bg-background px-1.5 py-1 text-center tabular-nums outline-none focus:border-primary"
               />
             </label>

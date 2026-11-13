@@ -46,8 +46,14 @@ export interface PayrollResult {
   employee_total: number;
   employer_total: number;
   taxable_income: number;
+  /** 累计口径应预扣税额（months>1 时覆盖整个期间，不是单月） */
   income_tax: number;
+  /** 当月应预扣税额：months>1 且未传已预扣时，与 income_tax 不同 */
+  current_month_tax?: number;
+  /** 单月实发 */
   net_pay: number;
+  /** months 个月的合计实发（months=1 时等于 net_pay） */
+  period_net_pay?: number;
   employer_cost: number;
   notes: string[];
   disclaimer: string;

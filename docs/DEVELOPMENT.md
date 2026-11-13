@@ -5,6 +5,14 @@
 ## 提交前检查
 
 ```bash
+./scripts/verify-all.sh                        # 一条命令：ruff + 后端全量 + 前端单测 + 构建
+./scripts/verify-all.sh --with-e2e             # 再加 Playwright E2E（31 例）
+./scripts/verify-all.sh --with-e2e --with-live # 再加真实模型验收（需 LLM_API_KEY）
+```
+
+单独跑：
+
+```bash
 ./scripts/lint.sh                      # ruff（app/tests + moneyhelper 两处，与 CI 一致）
 cd backend && .venv/bin/python -m pytest tests -q
 cd frontend && npx tsc --noEmit && npx vitest run
@@ -12,6 +20,10 @@ cd frontend && npx tsc --noEmit && npx vitest run
 
 `scripts/lint.sh` 存在的意义：CI 查两处（`backend/app`+`tests` 与根目录 `moneyhelper/`），
 本地只跑一处会漏。历史上漏过一次，CI 才报出来。
+
+E2E 说明：Playwright 的 Chromium 下载受限时，设 `PLAYWRIGHT_CHANNEL=msedge`
+复用本机 Edge。E2E 后端会强制清空 `LLM_*` 环境变量，保证断言走确定性模板路径，
+不因开发者本机配置了模型而随机超时。
 
 ## 0. 一次跑通（10 分钟）
 

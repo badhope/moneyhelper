@@ -48,6 +48,53 @@ def _sma(values: list[float], window: int) -> list[float | None]:
     return out
 
 
+def series_from_points(points: list[dict[str, Any]]) -> tuple[list[float], list[str]]:
+    """K 线点集 → (closes, dates)，两者严格等长同序。
+
+    所有"取 closes 再单独取 dates"的调用点都应改用它：分开写必然在遇到
+    脏数据时错位一格（closes 过滤了、dates 没过滤），而且不会报错。
+    """
+    pairs = [(p.get("date", ""), p.get("close")) for p in points]
+    closes: list[float] = []
+    dates: list[str] = []
+    for d, c in pairs:
+        try:
+            v = float(c)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            continue
+        if not (v > 0):
+            continue
+        closes.append(v)
+        dates.append(str(d))
+    return closes, dates
+
+
+def prepare_series(
+    closes: list[float], dates: list[str] | None = None
+) -> tuple[list[float], list[str] | None]:
+    """价格序列清洗：剔除非正价格，**并同步剔除对应的日期**。
+
+    两条不变量，违反任何一条都会产生"看起来对其实错位"的结果：
+    1. closes 与 dates 必须等长同序——只过滤 closes 不过滤 dates，
+       曲线日期轴与净值轴错开一格，trade["date"] 也会指向错误的那一天；
+    2. closes[0] > 0——买入持有基准是 closes[-1]/closes[0]，
+       停牌/退市/脏数据留下的 0 会让整个回测接口抛 ZeroDivisionError（实测 500）。
+    """
+    out_closes: list[float] = []
+    out_dates: list[str] | None = [] if dates is not None else None
+    for i, c in enumerate(closes):
+        try:
+            v = float(c)
+        except (TypeError, ValueError):
+            continue
+        if not (v > 0) or v != v or v == float("inf"):
+            continue
+        out_closes.append(v)
+        if out_dates is not None and dates is not None:
+            out_dates.append(str(dates[i]) if i < len(dates) else "")
+    return out_closes, out_dates
+
+
 def _position_size(close: float, equity: float, cost: float) -> tuple[float, float]:
     """按净值全仓买入（含成本）：返回 (买入数量, 扣成本后剩余现金)。"""
     afford = equity / (1.0 + cost)
@@ -68,7 +115,14 @@ def backtest_ma_cross(
 
     口径：MA_fast 上穿 MA_slow 的次日开盘全仓买入、下穿次日开盘清仓（简化为收盘触发、
     次日收盘执行）；不做日内优化，避免幸存者偏差式的好看数字。
+
+    fast 必须严格小于 slow：两者反过来时"多头排列"变成均值回归条件，
+    跑出来的仍是一份看起来正常的报告，但策略含义已经完全反了（静默错，最难发现）。
+    这里直接拒绝，让调用方给出 400 而不是一个错的答案。
     """
+    if fast < 2 or slow < 2 or fast >= slow:
+        raise ValueError(f"均线参数非法：fast({fast}) 必须 >= 2 且严格小于 slow({slow})")
+    closes, dates = prepare_series(closes, dates)
     if len(closes) < max(MA_CROSS_MIN_DAYS, slow * 3):
         return None
     fast_ma = _sma(closes, fast)
@@ -141,7 +195,12 @@ def backtest_ma_cross(
     win_rate = round(len(wins) / len(rounds) * 100, 1) if rounds else None
     avg_win = sum(wins) / len(wins) if wins else 0.0
     avg_loss = abs(sum(losses) / len(losses)) if losses else 0.0
-    profit_factor = round((sum(wins) / (sum(losses) if losses else 0.0)), 2) if (wins and losses) else None
+    # 盈亏比 = 总盈利 / |总亏损|。losses 存的是负收益率，分母必须取绝对值：
+    # 旧写法直接除 sum(losses)，算出的是**负数**（实测胜率 80%、
+    # 平均盈利 5.74% / 平均亏损 12.62% 的组合报出 profit_factor = -1.82），
+    # 前端原样展示成"盈亏比 -1.82"，读起来像策略在稳定亏钱。
+    gross_loss = abs(sum(losses))
+    profit_factor = round(sum(wins) / gross_loss, 2) if (wins and gross_loss > 0) else None
 
     returns = daily_returns(equity_curve)
     total_ret = final_equity / initial_capital - 1.0
@@ -188,11 +247,15 @@ def backtest_dca(
 
     基准为「期初一次性买入持有」。期末净值 = Σ 各笔投入的份额 × 期末价 + 剩余现金。
     """
-    if len(closes) < DCA_MIN_DAYS or invest_amount <= 0 or freq_days < 1:
+    if invest_amount <= 0 or freq_days < 1:
+        return None
+    closes, dates = prepare_series(closes, dates)
+    if len(closes) < DCA_MIN_DAYS:
         return None
 
     shares_total = 0.0
     invested = 0.0
+    buy_count = 0
     last_px = closes[-1]
     for i in range(0, len(closes), freq_days):
         px = closes[i]
@@ -201,6 +264,7 @@ def backtest_dca(
         buy_shares = invest_amount / (px * (1.0 + cost))
         shares_total += buy_shares
         invested += invest_amount
+        buy_count += 1
     final_value = shares_total * last_px
     final_equity = final_value
 
@@ -279,9 +343,10 @@ def backtest_dca(
         },
         "total_invested": round(invested, 2),
         "final_value": round(final_value, 2),
-        # 定投的交易次数 = 实际买入笔数（每次投入算一笔），与其它策略字段对齐，
-        # 否则前端表格在切换策略时会因缺字段而显示空白。
-        "trade_count": len(range(0, len(closes), freq_days)),
+        # 定投的交易次数 = **实际成交的买入笔数**。
+        # 旧写法用 len(range(...)) 数的是"计划投入次数"，遇到被跳过的
+        # 非正价格日会虚报笔数，与 total_invested/invest_amount 对不上。
+        "trade_count": buy_count,
         "round_count": 0,
         "open_position": shares_total > 0,
         "total_return_pct": round(total_ret * 100, 2) if total_ret is not None else None,

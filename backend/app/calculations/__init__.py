@@ -35,7 +35,14 @@ v4.5 新增（财务部门级深化）：
 参考：FinRobot 设计哲学 — "所有数值计算必须纯代码确定性执行，LLM 只做叙述解读"。
 """
 
-from .backtest import backtest_dca, backtest_ma_cross, backtest_text, run_backtest
+from .backtest import (
+    backtest_dca,
+    backtest_ma_cross,
+    backtest_text,
+    prepare_series,
+    run_backtest,
+    series_from_points,
+)
 from .cashflow import (
     cashflow_forecast,
     detect_anomalies,
@@ -148,11 +155,13 @@ __all__ = [
     "payroll",
     "plan_payoff",
     "pre_trade_check",
+    "prepare_series",
     "price_limit",
     "ranking",
     "rebalance_orders",
     "round_lots",
     "run_backtest",
+    "series_from_points",
     "sharpe_ratio",
     "simulate",
     "sortino_ratio",

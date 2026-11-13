@@ -2,7 +2,7 @@
 // 真实浏览器截图：遍历主要页面，产出 PNG 供人工与视觉门禁核对。
 // 用法：node e2e/shots-full.mjs [baseUrl] [outDir]
 //
-// 导航是两级结构：先点组（每天看/判断时/算账/接入），再点该组下的子项。
+// 导航是两级结构：先点组（每天看/判断时/业务/账务/接入），再点该组下的子项。
 // 移动端没有顶栏组条，改走底部 TabBar（总览入口）。
 import { chromium } from "playwright";
 import fs from "node:fs";
@@ -20,10 +20,10 @@ const PAGES = [
   { name: "11-debts", group: /^(每天看|Daily)$/, tab: /^(还债规划|Debt payoff)$/ },
   { name: "05-market", group: /^(判断时|Analyze)$/, tab: /^(行情|Market)$/ },
   { name: "06-strategy", group: /^(判断时|Analyze)$/, tab: /^(投资策略|Strategy)$/ },
-  { name: "07-tax", group: /^(算账|Books)$/, tab: /^(公司财税|Tax)$/ },
+  { name: "07-tax", group: /^(账务|Accounting)$/, tab: /^(公司财税|Tax)$/ },
   // 新增：此前从未纳入截图的三个主功能页（也是 i18n 覆盖的重点）
-  { name: "08-statements", group: /^(算账|Books)$/, tab: /^(财报|Statements)$/ },
-  { name: "09-paper", group: /^(算账|Books)$/, tab: /^(模拟盘|Paper)$/ },
+  { name: "08-statements", group: /^(账务|Accounting)$/, tab: /^(财报|Statements)$/ },
+  { name: "09-paper", group: /^(账务|Accounting)$/, tab: /^(模拟盘|Paper)$/ },
   { name: "10-research", group: /^(判断时|Analyze)$/, tab: /^(投研|Research)$/ },
 ];
 

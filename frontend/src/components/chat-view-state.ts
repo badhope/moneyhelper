@@ -3,6 +3,7 @@ import { apiStream, deleteAttachment, uploadAttachment } from "@/lib/api";
 import { useStreamingMutate } from "@/lib/use-streaming-mutate";
 import { store, useDashboard, useBootstrap, useSessionUsage } from "@/lib/store";
 import { BRAND } from "@/lib/brand";
+import { copyText } from "@/lib/clipboard";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import type { AgentToolStep, AgentPlanStep } from "@/lib/types";
@@ -187,7 +188,7 @@ export function useChatView({
     const md = buildExportMd(m, tr);
     try {
       if (action === "copy") {
-        await navigator.clipboard.writeText(md);
+        if (!copyText(md)) throw new Error("clipboard unavailable");
         toast(tr("chat.copied"), "ok");
       } else {
         const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });

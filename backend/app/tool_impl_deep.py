@@ -62,7 +62,9 @@ async def tool_tax_calc(args: dict[str, Any]) -> str:
                 "employee_total": res.employee_total,
                 "employer_total": res.employer_total,
                 "income_tax": res.income_tax,
+                "current_month_tax": res.current_month_tax,
                 "net_pay": res.net_pay,
+                "period_net_pay": res.period_net_pay,
                 "employer_cost": res.employer_cost,
                 "notes": res.notes,
             }

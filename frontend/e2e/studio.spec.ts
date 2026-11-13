@@ -9,9 +9,14 @@ import { test, expect } from "@playwright/test";
 
 const API = "http://127.0.0.1:8788";
 
+/** 设置页两级导航：先展开目标分区所在分组，再点分区。 */
 async function openSettings(page: import("@playwright/test").Page, section: string) {
   await page.goto("/");
   await page.getByRole("button", { name: "设置" }).first().click();
+  const group = page.getByRole("button", { name: "Agent 能力", exact: true }).first();
+  await group.waitFor({ state: "visible", timeout: 10_000 });
+  if ((await group.getAttribute("aria-expanded")) !== "true") await group.click();
+  await expect(group).toHaveAttribute("aria-expanded", "true");
   await page.getByRole("button", { name: section, exact: true }).first().click();
 }
 
@@ -26,6 +31,10 @@ test.describe("Agent Studio", () => {
   test("设置页出现全部 Studio 分区且默认非空", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "设置" }).first().click();
+    const group = page.getByRole("button", { name: "Agent 能力", exact: true }).first();
+    await group.waitFor({ state: "visible", timeout: 10_000 });
+    if ((await group.getAttribute("aria-expanded")) !== "true") await group.click();
+    await expect(group).toHaveAttribute("aria-expanded", "true");
     for (const label of ["角色（Agent）", "技能（Skill）", "插件市场", "约束（Rules）", "Hook 钩子", "权限", "内置工具"]) {
       await expect(page.getByRole("button", { name: label, exact: true }).first()).toBeVisible();
     }

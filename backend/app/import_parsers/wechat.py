@@ -68,7 +68,10 @@ class WeChatParser(TransactionParser):
 
         try:
             reader = csv.reader(io.StringIO(csv_text))
-            rows = [r for r in reader if r]
+            # 不过滤空行：报错里的行号必须与用户看到的原始文件一一对应。
+            # 旧实现先 filter 掉空行、再手工 +1 累加行号，两处偏差叠加，
+            # 「第 N 行日期无效」会指向错误的行（用户按行号去查，查到的是别的交易）。
+            rows = list(reader)
         except Exception as exc:
             result.errors.append(f"CSV 解析失败：{exc}")
             return result
@@ -111,11 +114,19 @@ class WeChatParser(TransactionParser):
         pi = col_idx.get("支付方式", -1)
         ri = col_idx.get("备注", -1)
 
-        skip_count = 0
-        row_num = header_idx + 2  # 原始行号（用于错误报告）
+        if ti < 0:
+            # 没有「收/支」列就无法判断每笔的正负号。旧实现让每行都落到
+            # type_val == "" 的跳过分支：导入"成功"、0 笔、0 条错误，
+            # 用户以为账单是空的。必须显式失败。
+            result.errors.append(
+                f"缺少「收/支」列，无法判断收入/支出方向，实际表头：{columns}"
+            )
+            return result
 
-        for row in data_rows:
-            row_num += 1
+        skip_count = 0
+        unknown_direction = 0
+
+        for row_num, row in enumerate(data_rows, start=header_idx + 2):
 
             # 跳过汇总行 / 空行 / 尾巴
             joined = "".join(c.strip() for c in row)
@@ -153,7 +164,9 @@ class WeChatParser(TransactionParser):
             elif "支出" in type_val:
                 amount = -abs(amount)
             else:
-                # 无法识别的方向（不计收支 / 未知类型）跳过
+                # 无法识别的方向：跳过并计数。整批都落在这里通常意味着
+                # 传进来的不是账单明细（或表头被改过），必须回话，不能静默。
+                unknown_direction += 1
                 skip_count += 1
                 continue
 
@@ -177,6 +190,10 @@ class WeChatParser(TransactionParser):
                 )
             )
 
+        if unknown_direction:
+            result.errors.append(
+                f"{unknown_direction} 行的「收/支」值无法识别（既非收入也非支出），已跳过"
+            )
         result.skipped = skip_count
         result.recalc_totals()
         return result

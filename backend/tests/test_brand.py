@@ -16,6 +16,8 @@ REPO = Path(__file__).resolve().parents[2]
 SKIP_DIRS = {
     ".git",
     ".venv",
+    ".tools",
+    ".cache",
     "node_modules",
     "site",
     "dist",

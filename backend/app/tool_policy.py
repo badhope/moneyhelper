@@ -46,7 +46,7 @@ READONLY_TOOLS: frozenset[str] = frozenset({
     "debt_payoff_plan",
     # 外部只读数据
     "search_symbol", "connect_catalog", "connect_fund_nav",
-    "paper_overview", "broker_status", "invoice_vision_status", "parse_invoice",
+    "paper_overview", "broker_status", "invoice_vision_status",
 })
 
 # 显式拒绝：这些工具不存在也不该被模型幻想调用
@@ -66,6 +66,9 @@ DEFAULT_RULES: list[tuple[str, str]] = [
 HARD_ASK = frozenset({
     "backup_now", "connect_order", "connect_sync", "sell_position",
     "paper_trade", "paper_open", "record_position", "trigger_morning_report",
+    # parse_invoice 会写 invoices 表：不是只读。误标为 READ 时模型可无确认
+    # 批量写库（历史漏洞 M-4），这里固定为必须确认。
+    "parse_invoice",
 })
 
 

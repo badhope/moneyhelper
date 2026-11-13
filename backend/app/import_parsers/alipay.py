@@ -67,7 +67,8 @@ class AlipayParser(TransactionParser):
 
         try:
             reader = csv.reader(io.StringIO(csv_text))
-            rows = [r for r in reader if r]
+            # 不过滤空行：行号必须与原始文件一一对应（见 wechat.py 同名注释）
+            rows = list(reader)
         except Exception as exc:
             result.errors.append(f"CSV 解析失败：{exc}")
             return result
@@ -125,11 +126,17 @@ class AlipayParser(TransactionParser):
         pi = col_idx.get("收/付款方式", -1)
         ri = col_idx.get("备注", -1)
 
-        skip_count = 0
-        row_num = header_idx + 2
+        if ti < 0:
+            # 缺「收/支」列时每行都会落进空值跳过分支：导入"成功"但 0 笔、0 错误。
+            result.errors.append(
+                f"缺少「收/支」列，无法判断收入/支出方向，实际表头：{columns}"
+            )
+            return result
 
-        for row in data_rows:
-            row_num += 1
+        skip_count = 0
+        unknown_direction = 0
+
+        for row_num, row in enumerate(data_rows, start=header_idx + 2):
 
             joined = "".join(c.strip() for c in row)
             # 跳过空行 / 备注尾巴
@@ -166,7 +173,8 @@ class AlipayParser(TransactionParser):
             elif "支出" in type_val:
                 amount = -abs(amount)
             else:
-                # 无法识别的方向跳过
+                # 无法识别的方向：跳过并计数，最后回话，不静默吞掉
+                unknown_direction += 1
                 skip_count += 1
                 continue
 
@@ -197,6 +205,10 @@ class AlipayParser(TransactionParser):
                 )
             )
 
+        if unknown_direction:
+            result.errors.append(
+                f"{unknown_direction} 行的「收/支」值无法识别（既非收入也非支出），已跳过"
+            )
         result.skipped = skip_count
         result.recalc_totals()
         return result

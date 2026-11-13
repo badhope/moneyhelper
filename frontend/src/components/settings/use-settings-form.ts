@@ -36,6 +36,7 @@ type SectionId =
   | "audit"
   | "provenance"
   | "family"
+  | "org"
   | "eval";
 
 export function useSettingsForm() {

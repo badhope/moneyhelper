@@ -113,7 +113,9 @@ class GenericCSVParser(TransactionParser):
 
         try:
             reader = csv.reader(io.StringIO(csv_text))
-            rows = [r for r in reader if r]  # 过滤 None
+            # 不过滤空行：`enumerate(data_rows, start=2)` 报出的行号才是
+            # 用户文件里的真实行号（过滤后整体前移，报错会指向别的交易）。
+            rows = list(reader)
         except Exception as exc:
             result.errors.append(f"CSV 解析失败：{exc}")
             return result
@@ -169,7 +171,10 @@ class GenericCSVParser(TransactionParser):
 
             if 0 <= ai < len(row):
                 amt = _parse_amount(row[ai])
-                if amt is not None:
+                # 金额为 0 视为"这一列本行没值"，继续尝试借贷分列：
+                # 银行对账单常见「金额列恒为 0 + 借方/贷方分列」的排版，
+                # 旧实现在这里就认定 has_amount，往账本里塞一堆 0 元流水。
+                if amt is not None and amt != 0:
                     amount = amt
                     has_amount = True
 
@@ -185,8 +190,8 @@ class GenericCSVParser(TransactionParser):
                     has_amount = True
 
             if not has_amount:
-                label = row[si] if si >= 0 and si < len(row) else ""
-                result.errors.append(f"第 {idx} 行：金额无法解析（{label or row}）")
+                label = row[si] if 0 <= si < len(row) else ""
+                result.errors.append(f"第 {idx} 行：金额无法解析或为 0（{label or row}）")
                 skip_count += 1
                 continue
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import * as Tabs from "@radix-ui/react-tabs";
 import { ChevronDown } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -69,36 +70,36 @@ export function GroupedNav<T extends string>({
           })}
         </div>
 
-        {/* 当前组的子项：图标 + 文案，滑块指示激活态 */}
+        {/* 当前组的子项：图标 + 文案，滑块指示激活态。
+            Radix Tabs 提供方向键/Home/End、aria-controls 与单一 Tab 停靠点；
+            组选择行仍是普通按钮（它是导航，不是同一组 tab）。 */}
         {shown && (
-          <div
-            role="tablist"
-            aria-label={t(shown.labelKey)}
-            className="flex items-center gap-0.5 overflow-x-auto scroll-thin"
-          >
-            {shown.items.map((item) => {
-              const Icon = item.icon;
-              const active = item.key === value;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => onChange(item.key)}
-                  className={cn(
-                    "relative flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors",
-                    active
-                      ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {t(item.labelKey)}
-                </button>
-              );
-            })}
-          </div>
+          <Tabs.Root value={value} onValueChange={(v) => onChange(v as T)}>
+            <Tabs.List
+              aria-label={t(shown.labelKey)}
+              className="flex items-center gap-0.5 overflow-x-auto scroll-thin"
+            >
+              {shown.items.map((item) => {
+                const Icon = item.icon;
+                const active = item.key === value;
+                return (
+                  <Tabs.Trigger
+                    key={item.key}
+                    value={item.key}
+                    className={cn(
+                      "relative flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors",
+                      active
+                        ? "bg-primary/10 font-medium text-primary"
+                        : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {t(item.labelKey)}
+                  </Tabs.Trigger>
+                );
+              })}
+            </Tabs.List>
+          </Tabs.Root>
         )}
       </div>
     </div>

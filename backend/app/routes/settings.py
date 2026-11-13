@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from .. import analysis, db, llm, scheduler, vault
+from .. import analysis, auth, db, llm, scheduler, vault
 from ..quotes import invalidate_quotes_cache
 
 
@@ -55,6 +55,10 @@ FREE_TEXT_KEYS = ("report_focus", "custom_system_prompt")
 # 模型点亮：逗号分隔的模型名白名单（P0 模型点亮），列表直存但做目录校验
 MODEL_LIST_KEYS = ("enabled_models",)
 AI_KEY_MAX_LEN = 2000
+# 会改变「程序自身行为/去向」的设置：系统提示词、模型端点。
+# 这些必须有实例管理员权限，否则任何已认证租户都能持久化改写助手行为
+# 或把请求指向自己的端点（历史漏洞 B6）。
+SECURITY_SENSITIVE_KEYS = frozenset({"custom_system_prompt", "ai_base_url", "ai_model"})
 NUMERIC_RANGES: dict[str, tuple[float, float]] = {
     "monthly_income": (0, 1e12),
     "emergency_target_months": (0, 120),
@@ -72,10 +76,33 @@ async def get_settings() -> dict:
 
 
 @router.put("/api/settings")
-async def put_settings(payload: dict) -> dict:
+async def put_settings(
+    payload: dict,
+    user: dict | None = Depends(auth.get_current_user),
+) -> dict:
     updates = (payload or {}).get("settings")
     if not isinstance(updates, dict) or not updates:
         return JSONResponse({"error": "settings 对象必填"}, status_code=400)
+
+    # 系统提示词 / 模型端点会改变程序行为与数据去向：要求实例管理员。
+    # 权限点字典只管企业财务域，这里用实例管理员边界（与 MCP 配置/备份恢复同口径）。
+    sensitive = SECURITY_SENSITIVE_KEYS & set(updates)
+    if sensitive:
+        # 直接单元调用时 user 是 Depends 占位符（没有请求上下文）；按本机模式处理，
+        # 由 require_instance_admin 自己判断"实例内是否已有账号"。
+        effective_user = user if isinstance(user, dict) else None
+        try:
+            await auth.require_instance_admin(effective_user)
+        except HTTPException:
+            return JSONResponse(
+                {
+                    "error": (
+                        "修改系统提示词或模型端点是实例管理员操作："
+                        f"（涉及 {', '.join(sorted(sensitive))}）"
+                    )
+                },
+                status_code=403,
+            )
 
     applied: dict[str, str] = {}
     errors: list[str] = []

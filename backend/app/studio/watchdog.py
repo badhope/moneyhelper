@@ -39,7 +39,13 @@ def status() -> dict[str, Any]:
 
 
 def _scan_logs(limit: int = 400) -> list[str]:
-    lines = read_log_lines(limit)
+    # 扫日志失败不该让"一键自检"整个 500：监控自身的故障必须降级成一条发现项，
+    # 而不是变成被监控对象的崩溃（read_log_lines 已自行兜底 OSError，这里是第二道）。
+    try:
+        lines = read_log_lines(limit)
+    except Exception as exc:  # noqa: BLE001 — 见上，监控路径不允许向外抛
+        log.warning("studio.watchdog log scan failed: %s", exc)
+        return []
     out: list[str] = []
     for line in lines:
         if any(m in line for m in _ERROR_MARKERS):

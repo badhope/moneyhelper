@@ -6,10 +6,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from .. import backup, db
+from .. import auth, backup, db
 from ..logging_utils import get_logger as _get_logger
 from .settings import _mask_secret
 
@@ -38,7 +38,10 @@ async def export_data(passphrase: str | None = None) -> dict:
 
 
 @router.post("/api/import/backup")
-async def import_backup(payload: dict) -> dict:
+async def import_backup(
+    payload: dict,
+    _admin: dict = Depends(auth.require_instance_admin),
+) -> dict:
     """从 /api/export 的 JSON 恢复全量数据（AI Key 除外，需重新填写）。
 
     加密备份包（encrypted=true）必须携带 passphrase 字段，口令错误会拒绝并回滚。

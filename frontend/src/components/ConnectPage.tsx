@@ -57,6 +57,7 @@ import {
   StockProfileCard,
 } from "@/components/ConnectDeepPanels";
 import { useI18n } from "@/lib/i18n";
+import { copyText } from "@/lib/clipboard";
 import { useToast } from "@/lib/toast";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -534,8 +535,7 @@ export function ConnectPage() {
                   type="button"
                   aria-label={t("connect.copy")}
                   onClick={() => {
-                    void navigator.clipboard?.writeText(pairInfo.code ?? "");
-                    toast(t("connect.copied"), "ok");
+                    if (copyText(pairInfo.code ?? "")) toast(t("connect.copied"), "ok");
                   }}
                   className="text-muted-foreground hover:text-foreground"
                 >
@@ -558,8 +558,7 @@ export function ConnectPage() {
               <button
                 type="button"
                 onClick={() => {
-                  void navigator.clipboard?.writeText(pairInfo.bookmarklet ?? "");
-                  toast(t("connect.bookmarkletCopied"), "ok");
+                  if (copyText(pairInfo.bookmarklet ?? "")) toast(t("connect.bookmarkletCopied"), "ok");
                 }}
                 className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-[12px] hover:bg-accent"
               >

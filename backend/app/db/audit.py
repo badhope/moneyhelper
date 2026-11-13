@@ -1,6 +1,8 @@
 """审计与附件域：审计日志 + 附件元数据。"""
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime
 from typing import Any
 
@@ -17,6 +19,27 @@ from .tenant import current_user_id
 # --------------------------------------------------------------------------
 
 
+def _entry_hash(
+    prev_hash: str,
+    *,
+    ts: str,
+    action: str,
+    method: str,
+    path: str,
+    status: int,
+    actor: str,
+    detail: str,
+    duration_ms: int,
+) -> str:
+    """计算审计条目的 SHA-256；字段顺序固定，跨版本必须保持一致。"""
+    payload = json.dumps(
+        [ts, action, method, path, status, actor, detail, duration_ms],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256((prev_hash + payload).encode("utf-8")).hexdigest()
+
+
 async def add_audit_log(
     action: str,
     method: str,
@@ -25,27 +48,62 @@ async def add_audit_log(
     actor: str = "",
     detail: str = "",
     duration_ms: int = 0,
+    user_id: int | None = None,
 ) -> dict[str, Any]:
-    """写一条审计日志。action: WRITE / READ_SENSITIVE / AUTH。"""
+    """写一条审计日志。action: WRITE / READ_SENSITIVE / AUTH。
+
+    user_id 显式传入时优先使用：中间件在 call_next 之后写审计时，请求级的
+    租户 ContextVar 可能已经被重置为 0，不能依赖 current_user_id()。
+    """
     conn = await _conn()
     now = datetime.now().astimezone().isoformat(timespec="seconds")
+    uid = current_user_id() if user_id is None else int(user_id)
+    ts_s = now
+    action_s = str(action)[:20]
+    method_s = str(method)[:8]
+    path_s = str(path)[:200]
+    status_i = int(status or 0)
+    actor_s = str(actor)[:64]
+    detail_s = str(detail)[:500]
+    duration_i = int(duration_ms or 0)
     # SAVEPOINT 隔离：审计是旁路数据，不能把调用方未完成的事务一并 commit
     # （专家评审 P0-9 实测：批量入账失败时审计的 commit 会把前两条落库）。
     await conn.execute("SAVEPOINT audit_write")
     try:
+        cur = await conn.execute(
+            "SELECT entry_hash FROM audit_logs"
+            " WHERE user_id=? AND entry_hash<>'' ORDER BY id DESC LIMIT 1",
+            (uid,),
+        )
+        row = await cur.fetchone()
+        prev_hash = str(row["entry_hash"]) if row else ""
+        entry_hash = _entry_hash(
+            prev_hash,
+            ts=ts_s,
+            action=action_s,
+            method=method_s,
+            path=path_s,
+            status=status_i,
+            actor=actor_s,
+            detail=detail_s,
+            duration_ms=duration_i,
+        )
         await conn.execute(
-            "INSERT INTO audit_logs(user_id,ts,action,method,path,status,actor,detail,duration_ms)"
-            " VALUES(?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO audit_logs(user_id,ts,action,method,path,status,actor,detail,"
+            "duration_ms,prev_hash,entry_hash)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
             (
-                current_user_id(),
-                now,
-                str(action)[:20],
-                str(method)[:8],
-                str(path)[:200],
-                int(status or 0),
-                str(actor)[:64],
-                str(detail)[:500],
-                int(duration_ms or 0),
+                uid,
+                ts_s,
+                action_s,
+                method_s,
+                path_s,
+                status_i,
+                actor_s,
+                detail_s,
+                duration_i,
+                prev_hash,
+                entry_hash,
             ),
         )
         await conn.execute("RELEASE audit_write")
@@ -84,6 +142,66 @@ async def clear_audit_logs() -> dict[str, Any]:
     )
     await conn.commit()
     return {"ok": True, "deleted": cur.rowcount or 0}
+
+
+async def verify_audit_chain(user_id: int | None = None) -> dict[str, Any]:
+    """校验当前租户的审计哈希链。
+
+    返回 {ok, checked, legacy_rows, head, broken_at?, reason?}。
+    旧库历史行没有 entry_hash，作为 legacy 前缀跳过；从第一条有哈希的记录起
+    逐条验证 prev_hash 与重算哈希。任何字段被改动、插入或删除中间行都会在
+    断点处被检出。注意：没有外部锚点时，删除末尾记录无法被本函数发现——
+    企业部署应把 head 定期写入独立存储/WORM 日志。
+    """
+    uid = current_user_id() if user_id is None else int(user_id)
+    rows = await fetch_all(
+        "SELECT id,ts,action,method,path,status,actor,detail,duration_ms,"
+        "prev_hash,entry_hash FROM audit_logs WHERE user_id=? ORDER BY id",
+        (uid,),
+    )
+    prev = ""
+    checked = 0
+    legacy = 0
+    for r in rows:
+        entry_hash = str(r.get("entry_hash") or "")
+        if not entry_hash:
+            legacy += 1
+            continue
+        expected = _entry_hash(
+            prev,
+            ts=str(r.get("ts") or ""),
+            action=str(r.get("action") or ""),
+            method=str(r.get("method") or ""),
+            path=str(r.get("path") or ""),
+            status=int(r.get("status") or 0),
+            actor=str(r.get("actor") or ""),
+            detail=str(r.get("detail") or ""),
+            duration_ms=int(r.get("duration_ms") or 0),
+        )
+        if str(r.get("prev_hash") or "") != prev:
+            return {
+                "ok": False,
+                "checked": checked,
+                "legacy_rows": legacy,
+                "broken_at": int(r.get("id") or 0),
+                "reason": "prev_hash 与上一条不一致（可能删除或插入了记录）",
+            }
+        if entry_hash != expected:
+            return {
+                "ok": False,
+                "checked": checked,
+                "legacy_rows": legacy,
+                "broken_at": int(r.get("id") or 0),
+                "reason": "entry_hash 与内容重算不一致（记录被修改）",
+            }
+        prev = entry_hash
+        checked += 1
+    return {
+        "ok": True,
+        "checked": checked,
+        "legacy_rows": legacy,
+        "head": prev,
+    }
 
 
 # --------------------------------------------------------------------------

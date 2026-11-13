@@ -249,3 +249,43 @@ def test_score_answers_empty_bank_category():
     r = score_answers({}, category="nonexistent")
     assert r["question_count"] == 0
     assert r["score_pct"] == 0
+
+
+def test_score_answers_only_ids_uses_run_subset_as_denominator():
+    """调试模式只跑 N 题时，分母必须只算这 N 题。
+
+    回归：曾把 3 题全对显示成 3/50 = 6.1%，看起来像模型很差。
+    """
+    r = score_answers(
+        {"P01": "昨天 32 元 交通", "P02": "共2笔：咖啡28、打车32"},
+        only_ids={"P01", "P02"},
+    )
+    assert r["question_count"] == 2
+    assert r["passed"] == 2
+    assert r["weight_total"] == _q("P01").weight + _q("P02").weight
+    assert r["score_pct"] == pytest.approx(100.0)
+    assert {d["id"] for d in r["details"]} == {"P01", "P02"}
+
+
+def test_partial_eval_reports_actual_model_name(monkeypatch):
+    """空 model 参数 = 用设置里的默认模型；结果里应显示真实模型名，而不是 "default"。"""
+    import asyncio
+
+    from app import llm, model_eval
+
+    async def fake_chat(messages, *, model=None, temperature=0.0, timeout=60.0):
+        return "10000元"
+
+    async def fake_available():
+        return True
+
+    async def fake_name():
+        return "spark-x2.6-4b"
+
+    monkeypatch.setattr(llm, "litellm_chat", fake_chat)
+    monkeypatch.setattr(llm, "llm_available", fake_available)
+    monkeypatch.setattr(llm, "configured_model_name", fake_name)
+    result = asyncio.run(model_eval.evaluate_model(max_questions=1))
+    assert result["scored"] is True
+    assert result["question_count"] == 1
+    assert result["model"] == "spark-x2.6-4b"

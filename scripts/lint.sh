@@ -5,7 +5,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Windows 的 venv 在 Scripts/，Unix 在 bin/：按存在性选择
-if [ -x "$ROOT/backend/.venv/bin/python" ]; then
+# 本项目 venv 在仓库根 .venv（不是 backend/.venv），两处都要探测。
+if [ -x "$ROOT/.venv/Scripts/python.exe" ]; then
+  PY="$ROOT/.venv/Scripts/python.exe"
+elif [ -x "$ROOT/.venv/bin/python" ]; then
+  PY="$ROOT/.venv/bin/python"
+elif [ -x "$ROOT/backend/.venv/bin/python" ]; then
   PY="$ROOT/backend/.venv/bin/python"
 elif [ -x "$ROOT/backend/.venv/Scripts/python.exe" ]; then
   PY="$ROOT/backend/.venv/Scripts/python.exe"

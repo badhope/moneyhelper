@@ -27,13 +27,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 import httpx
+from cachetools import TTLCache
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
@@ -48,18 +49,85 @@ _log = get_logger("mcp")
 _DISCOVER_TTL_S = 30.0
 # 缓存键包含配置路径 + 服务器列表指纹：换配置/换测试临时文件时自动失效，
 # 不能只用 TTL（测试里连续切换 mcp.json 会读到上一个用例的结果）。
-_discover_cache: tuple[float, str, list[dict[str, Any]]] | None = None
+_discover_cache: TTLCache[str, list[dict[str, Any]]] = TTLCache(
+    maxsize=8, ttl=_DISCOVER_TTL_S
+)
 # 失败退避：某台服务器刚刚失败过，30 分钟内不再重试（否则每轮问答都要等超时）。
-# 值形如 {server_name: (monotonic_ts, error)}。启用/停用/保存配置会清空。
-_discovery_failures: dict[str, tuple[float, str]] = {}
-_FAILURE_TTL_S = 1800.0
+# 启用/停用/保存配置会清空。
+_discovery_failures: TTLCache[str, str] = TTLCache(maxsize=64, ttl=1800.0)
 _DISCOVER_CONCURRENCY = 4
 
 MCP_CFG = Path(__file__).resolve().parent.parent / "data" / "mcp.json"
 TIMEOUT = 15.0
 
+
+def _assert_stdio_cwd_safe(entry: dict[str, Any]) -> None:
+    """stdio 命令的 cwd / args 不得指向程序自身目录。
+
+    即使部署者允许 stdio，也不应该让第三方 MCP 直接以仓库为工作目录运行——
+    那等于把源码和 .git 交给对方的读写能力（mcp-filesystem / mcp-git 都接受
+    cwd 或 --repository 参数）。
+    """
+    from .pathguard import assert_not_protected, system_access_allowed
+
+    if system_access_allowed():
+        return
+    candidates = [str(entry.get("cwd") or "")]
+    candidates += [str(a) for a in (entry.get("args") or [])]
+    for value in candidates:
+        value = value.strip()
+        if not value or value.startswith("-"):
+            continue
+        assert_not_protected(value, operation="把 MCP 工作目录指向")
+
+
+def stdio_config_allowed() -> bool:
+    """是否允许通过 API/备份恢复写入 stdio 服务器配置。
+
+    默认关闭：stdio 会在服务端执行任意命令，只应由部署者手改配置文件声明。
+    本地可信部署可显式设置 MONEYHELPER_ALLOW_STDIO_MCP=1 打开。
+    """
+    from .compat_env import getenv
+
+    return getenv("MONEYHELPER_ALLOW_STDIO_MCP", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def external_tools_mode() -> str:
+    """外部 MCP 工具暴露模式。
+
+    - readonly（默认）：只暴露声明了 `readOnlyHint=true` 的工具；
+    - all：兼容旧行为，暴露全部工具（只应在完全可信的服务器上使用）。
+    """
+    value = os.getenv("MONEYHELPER_MCP_EXTERNAL_TOOLS", "").strip().lower()
+    return "all" if value == "all" else "readonly"
+
+
+def _is_readonly_tool(tool: Any) -> bool:
+    """MCP 工具是否显式声明只读。
+
+    不能按名字猜（`get_` / `search_` 都可能藏着写副作用）。MCP 规范里的
+    ToolAnnotations.readOnlyHint 是服务器给出的唯一机器可读承诺；没有就按
+    不可信处理（fail-closed）。
+    """
+    annotations = getattr(tool, "annotations", None)
+    return bool(annotations is not None and getattr(annotations, "readOnlyHint", False) is True)
+
+
+def is_tool_exposed(full_name: str) -> bool:
+    """该外部工具是否允许进入模型工具面/被执行。"""
+    if external_tools_mode() == "all":
+        return True
+    return _readonly_tools.get(str(full_name), False)
+
 # 进程内工具注册表：server_name -> [tool names]（供 resolve_mcp_tool 解析归属）
 _servers: dict[str, list[str]] = {}
+# 外部工具是否声明只读（MCP ToolAnnotations.readOnlyHint）。未声明 = 不可信。
+_readonly_tools: dict[str, bool] = {}
 
 
 def _load_config(include_disabled: bool = False) -> list[dict[str, Any]]:
@@ -114,7 +182,6 @@ def save_servers(servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     校验：name 非空且唯一；http 服务器需 http(s) 地址；stdio 服务器需 command；
     最多 20 台。保存后清空发现缓存，下一次问答会重新拉工具清单。
     """
-    global _discover_cache
     cleaned: list[dict[str, Any]] = []
     seen: set[str] = set()
     for s in servers or []:
@@ -136,6 +203,15 @@ def save_servers(servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if url:
             entry["url"] = url
         else:
+            # stdio 会在服务端拉起任意命令：默认只允许写入「停用」条目
+            # （启动预装/MCP 市场需要登记），启用必须显式配置
+            # MONEYHELPER_ALLOW_STDIO_MCP=1。否则市场安装 + toggle 就能绕过
+            # PUT /api/mcp/servers 的 stdio 门禁。
+            if bool(s.get("enabled", True)) and not stdio_config_allowed():
+                raise ValueError(
+                    f"服务器「{name}」是 stdio（可执行本地命令），"
+                    "默认禁止启用；需要启用请由部署者设置 MONEYHELPER_ALLOW_STDIO_MCP=1"
+                )
             entry["command"] = command
             args = s.get("args") or []
             if not isinstance(args, list):
@@ -143,6 +219,7 @@ def save_servers(servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
             entry["args"] = [str(a)[:200] for a in args][:20]
             if isinstance(s.get("env"), dict):
                 entry["env"] = {str(k)[:60]: str(v)[:500] for k, v in s["env"].items()}
+            _assert_stdio_cwd_safe(entry)
         cleaned.append(entry)
         if len(cleaned) >= 20:
             break
@@ -150,8 +227,9 @@ def save_servers(servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     MCP_CFG.write_text(
         json.dumps({"servers": cleaned}, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    _discover_cache = None
+    _discover_cache.clear()
     _discovery_failures.clear()
+    _readonly_tools.clear()
     return cleaned
 
 
@@ -161,6 +239,11 @@ def set_server_enabled(name: str, enabled: bool) -> list[dict[str, Any]]:
     found = False
     for s in servers:
         if str(s.get("name") or "") == name:
+            if enabled and str(s.get("command") or "").strip() and not stdio_config_allowed():
+                raise ValueError(
+                    f"服务器「{name}」是 stdio（可执行本地命令），默认禁止启用；"
+                    "需要启用请由部署者设置 MONEYHELPER_ALLOW_STDIO_MCP=1"
+                )
             s["enabled"] = bool(enabled)
             found = True
     if not found:
@@ -206,6 +289,12 @@ async def _open_session(server: dict[str, Any] | str) -> AsyncIterator[ClientSes
         finally:
             await http.aclose()
         return
+    # 执行前再校验一次：配置文件可能被其他途径写入（备份恢复、手改）。
+    if not stdio_config_allowed():
+        raise ValueError(
+            "stdio 型 MCP 默认禁止执行；请由部署者设置 MONEYHELPER_ALLOW_STDIO_MCP=1"
+        )
+    _assert_stdio_cwd_safe(server)
     params = StdioServerParameters(
         command=str(server.get("command") or ""),
         args=[str(a) for a in (server.get("args") or [])],
@@ -251,6 +340,9 @@ async def _discover(server: dict[str, Any]) -> list[Any]:
         resp = await session.list_tools()
     tools = list(resp.tools)
     _servers[name] = [f"mcp__{t.name}" for t in tools]
+    _readonly_tools.update(
+        {f"mcp__{t.name}": _is_readonly_tool(t) for t in tools}
+    )
     return tools
 
 
@@ -272,46 +364,46 @@ async def refresh(force: bool = False) -> list[dict[str, Any]]:
     结果带 30s TTL 缓存：发现过程包含逐台服务器的握手与 list_tools 往返，
     每轮问答都重做会显著拉长首 token 时间。force=True 可强制刷新。
     """
-    global _discover_cache
-    now = time.monotonic()
     config = _load_config()
     key = f"{MCP_CFG}|{json.dumps(config, sort_keys=True, ensure_ascii=False)}"
-    if not force and _discover_cache is not None:
-        ts, cached_key, cached = _discover_cache
-        if cached_key == key and now - ts < _DISCOVER_TTL_S:
+    if not force:
+        cached = _discover_cache.get(key)
+        if cached is not None:
             return cached
     # 并发发现：串行时一台离线服务器的 15s 超时会叠加成 N×15s，直接拖垮首 token。
     sem = asyncio.Semaphore(_DISCOVER_CONCURRENCY)
     results: list[list[dict[str, Any]]] = []
+    expose_all = external_tools_mode() == "all"
 
     async def _one(server: dict[str, Any]) -> list[dict[str, Any]]:
         name = str(server.get("name") or "")
-        failed_at = _discovery_failures.get(name)
-        if failed_at and now - failed_at[0] < _FAILURE_TTL_S and not force:
+        if not force and name in _discovery_failures:
             return []
         async with sem:
             try:
+                discovered = await _discover(server)
+                if not expose_all:
+                    # 未声明只读的外部工具不进入模型工具面：名字无法证明副作用。
+                    discovered = [t for t in discovered if _is_readonly_tool(t)]
                 schemas = [
-                    sc
-                    for sc in (_make_schema(t) for t in await _discover(server))
-                    if sc
+                    sc for sc in (_make_schema(t) for t in discovered) if sc
                 ]
                 _discovery_failures.pop(name, None)
                 return schemas
             except Exception as exc:  # noqa: BLE001 — 单台失败不影响其它
-                _discovery_failures[name] = (time.monotonic(), f"{type(exc).__name__}: {exc}")
+                _discovery_failures[name] = f"{type(exc).__name__}: {exc}"
                 _log.warning("mcp discover %s failed: %s", name, exc)
                 return []
 
     results = await asyncio.gather(*[_one(s) for s in config]) if config else []
     out: list[dict[str, Any]] = [sc for group in results for sc in group]
-    _discover_cache = (now, key, out)
+    _discover_cache[key] = out
     return out
 
 
 def failure_status() -> dict[str, str]:
     """最近失败过的服务器（设置页展示「为什么没有工具」）。"""
-    return {name: err for name, (_ts, err) in _discovery_failures.items()}
+    return dict(_discovery_failures)
 
 
 async def call_mcp_tool(server_name: str, tool_name: str, args: dict[str, Any]) -> str:

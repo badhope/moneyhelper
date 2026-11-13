@@ -5,6 +5,7 @@ import { BrandLogo, BRAND } from "@/lib/brand";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import type { BootstrapData } from "@/lib/types";
+import { TenantSwitcher } from "@/components/TenantSwitcher";
 
 /**
  * 主区顶栏（ChatGPT 式）：高度 48px、无分割线。
@@ -20,6 +21,7 @@ export function TopBar({
   modelCatalog,
   enabledModels,
   onSwitchModel,
+  onTenantChanged,
 }: {
   onOpenSettings?: () => void;
   /** 移动端：打开左侧导航抽屉（会话列表/新建/部门/收件箱） */
@@ -31,6 +33,8 @@ export function TopBar({
   modelCatalog?: BootstrapData["model_catalog"];
   enabledModels?: string[];
   onSwitchModel?: (base: string, model: string) => void;
+  /** 切换工作租户后回调（切片 7b）：用于刷新企业域数据 */
+  onTenantChanged?: () => void;
 }) {
   const { resolved, setTheme } = useTheme();
   const { lang, setLang, t } = useI18n();
@@ -62,6 +66,9 @@ export function TopBar({
           <BrandLogo size={22} />
           <span className="truncate text-sm font-semibold">{BRAND.name}</span>
         </span>
+
+        {/* 全局租户切换（切片 7b）：只有一个租户时不渲染 */}
+        <TenantSwitcher onChanged={onTenantChanged} />
 
         {modelName ? (
           <label className="relative hidden min-w-0 items-center gap-1 rounded-lg px-2 py-1.5 text-[15px] font-medium text-foreground/85 transition-colors hover:bg-accent md:inline-flex">

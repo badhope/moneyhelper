@@ -172,10 +172,13 @@ def _simulate(
     collect_schedule: bool,
     *,
     reallocate_freed: bool = True,
-) -> tuple[int, float, float, list[MonthRow], list[dict[str, Any]], list[str], bool]:
+) -> tuple[int, float, float, list[MonthRow], list[dict[str, Any]], list[str], list[dict[str, Any]], bool]:
     """逐月摊还模拟。
 
-    返回 (月数, 总利息, 总还款, 明细, 里程碑, 警告, 是否真正还清)。
+    返回 (月数, 总利息, 总还款, 明细, 里程碑, 警告文案, 警告代码, 是否真正还清)。
+    警告文案与代码成对产生：前端只认 code 去查 i18n，文案给 MCP/CLI/日志。
+    两者必须在同一个地方同时写入，否则会出现「文案说 50 年没还清、
+    code 却是 negative_amortization」这种前端译文与后端结论互相矛盾的输出（实测）。
 
     reallocate_freed=False 用于「只付最低月供」对照基线：结清一笔后不再把它的
     月供转投到别的债，此时还款总额恒定，排序对结果没有影响。
@@ -188,10 +191,13 @@ def _simulate(
     schedule: list[MonthRow] = []
     milestones: list[dict[str, Any]] = []
     warnings: list[str] = []
+    warning_codes: list[dict[str, Any]] = []
     cleared = False
+    # 起始就欠着的债（balance > 0）。只有这些债结清后，它的月供才算"释放出来"。
+    initially_outstanding = set(outstanding)
 
     if not outstanding:
-        return 0, 0.0, 0.0, schedule, milestones, warnings, True
+        return 0, 0.0, 0.0, schedule, milestones, warnings, warning_codes, True
 
     month_no = 0
     while outstanding and month_no < MAX_MONTHS:
@@ -202,7 +208,17 @@ def _simulate(
         # 只在 reallocate_freed 时为真：对照基线要的是「只付最低」。
         freed = 0.0
         if reallocate_freed:
-            freed = sum(pay for name, pay in min_by_name.items() if name not in outstanding)
+            # 只统计"一开始就欠着、现在已结清"的债。
+            # 旧写法遍历 min_by_name 全集，于是 balance=0 的债（用户填进来的
+            # 已结清车贷/已销卡）从第 1 个月起就把它的月供当成可支配现金灌进
+            # 还款池：实测一笔 balance=0、月供 2000 的条目让 1 万元 18% 信用卡
+            # 从 47 个月还清变成 5 个月，而 monthly_budget 仍显示 300——
+            # 既凭空多出不存在的钱，又与自身声明的预算自相矛盾。
+            freed = sum(
+                min_by_name[name]
+                for name in initially_outstanding
+                if name not in outstanding
+            )
         budget_left = _cents(extra + freed)
 
         month_interest: dict[str, float] = {}
@@ -271,6 +287,7 @@ def _simulate(
             warnings.append(
                 "月供总额不足以覆盖利息（负摊还），该计划无法还清，请提高月供或额外还款额"
             )
+            warning_codes.append({"code": "negative_amortization"})
             break
 
     else:
@@ -279,11 +296,12 @@ def _simulate(
                 f"模拟 {MAX_MONTHS} 个月（50 年）仍未还清，通常是月供低于利息；"
                 "请提高月供或额外还款额"
             )
+            warning_codes.append({"code": "not_cleared_in_horizon"})
 
     if month_no < MAX_MONTHS and not outstanding and not warnings:
         cleared = True
 
-    return month_no, total_interest, total_paid, schedule, milestones, warnings, cleared
+    return month_no, total_interest, total_paid, schedule, milestones, warnings, warning_codes, cleared
 
 
 def _ym(year: int, month: int, offset: int) -> str:
@@ -375,14 +393,14 @@ def plan_payoff(
     m0 = start_month or today.month
 
     ordered = _order(items, method, custom_order)
-    months, interest, paid, schedule, milestones, warnings, cleared = _simulate(
+    months, interest, paid, schedule, milestones, warnings, warning_codes, cleared = _simulate(
         items, ordered, float(extra_payment), y0, m0, include_schedule
     )
 
     # 对照基线：只付最低月供，且不把释放出来的额度再投出去。
     # reallocate_freed=False 保证同一个数字与排序方法无关（否则 avalanche 与
     # snowball 会给出两个不同的「只付最低月供」总额，自证口径不成立）。
-    _, base_interest, _, _, _, base_warn, base_cleared = _simulate(
+    _, base_interest, _, _, _, base_warn, _base_codes, base_cleared = _simulate(
         items, ordered, 0.0, y0, m0, collect_schedule=False, reallocate_freed=False
     )
 
@@ -429,10 +447,12 @@ def plan_payoff(
         milestones=milestones,
         warnings=warnings,
         notes=notes,
-        warning_codes=[{"code": "negative_amortization"}] if warnings else [],
+        warning_codes=warning_codes,
         note_codes=note_codes,
     )
     if not warnings and not cleared:
+        # 刚好在第 MAX_MONTHS 个月还清时 cleared 仍为 False（口径：不含边界），
+        # 这里补一条同 code 的警告，保证「没有还清」永远有可读原因。
         plan.warnings.append("计划未能在 50 年内还清，请检查月供与额外还款额")
         plan.warning_codes = [{"code": "not_cleared_in_horizon"}]
     if cleared and float(extra_payment) <= 0 and not plan.warnings:

@@ -342,11 +342,19 @@ function IitPanel() {
 function PayrollPanel() {
   const { t } = useI18n();
   const calc = useCalcPayroll();
-  const [f, setF] = useState({ gross: "30000", special: "2000" });
+  const [f, setF] = useState({ gross: "30000", special: "2000", months: "1" });
   const [res, setRes] = useState<PayrollResult | null>(null);
+  // months>1 时后端返回的 income_tax 是累计口径，net_pay 仍是单月实发，
+  // period_net_pay 才是这 N 个月的合计实发——三个数必须分开摆，
+  // 否则"实发"卡片看起来像被多扣了几个月的税。
+  const payload = () => ({
+    gross_salary: Number(f.gross),
+    special_additional: Number(f.special),
+    months: Math.max(1, Math.min(12, Number(f.months) || 1)),
+  });
   useEffect(() => {
     void calc
-      .mutateAsync({ gross_salary: Number(f.gross), special_additional: Number(f.special) })
+      .mutateAsync(payload())
       .then(setRes)
       .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -356,13 +364,14 @@ function PayrollPanel() {
       <div className="space-y-2">
         <Field label={t("tax.grossSalary")} value={f.gross} onChange={(v) => setF({ ...f, gross: v })} />
         <Field label={t("tax.special")} value={f.special} onChange={(v) => setF({ ...f, special: v })} />
+        <Field label={t("tax.months")} value={f.months} onChange={(v) => setF({ ...f, months: v })} />
         <Button
           size="sm"
           className="w-full"
           disabled={calc.isPending}
           onClick={() =>
             void calc
-              .mutateAsync({ gross_salary: Number(f.gross), special_additional: Number(f.special) })
+              .mutateAsync(payload())
               .then(setRes)
               .catch(() => undefined)
           }
@@ -380,6 +389,11 @@ function PayrollPanel() {
                 { label: t("tax.employeeTotal"), value: fmtMoney(res.employee_total) },
                 { label: t("tax.income_tax"), value: fmtMoney(res.income_tax) },
                 { label: t("tax.netPay"), value: fmtMoney(res.net_pay), tone: "text-foreground" },
+                // income_tax 是累计口径：months>1 时把"期间实发合计"一并给出，
+                // 否则用户看到的实发只对应一个月，而税对应 N 个月。
+                ...(payload().months > 1 && res.period_net_pay != null
+                  ? [{ label: t("tax.periodNetPay"), value: fmtMoney(res.period_net_pay) }]
+                  : []),
                 { label: t("tax.employerTotal"), value: fmtMoney(res.employer_total) },
                 { label: t("tax.employerCost"), value: fmtMoney(res.employer_cost) },
               ]}

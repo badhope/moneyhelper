@@ -12,17 +12,15 @@
 
 from __future__ import annotations
 
+import math
 from datetime import date
 from typing import Any
 
-# XIRR 牛顿迭代参数
-_XIRR_MAX_ITER = 100
-_XIRR_TOLERANCE = 1e-6
-_XIRR_INITIAL_GUESS = 0.1
+from pyxirr import xirr as _pyxirr_xirr
 
 
 def calculate_xirr(cashflows: list[tuple[date, float]]) -> float:
-    """使用牛顿迭代法计算 XIRR（不规则现金流内部收益率）。
+    """计算 XIRR（不规则现金流内部收益率）。
 
     Args:
         cashflows: [(日期, 金额), ...]
@@ -32,11 +30,12 @@ def calculate_xirr(cashflows: list[tuple[date, float]]) -> float:
         年化内部收益率（小数形式，如 0.08 = 8%）
 
     Raises:
-        ValueError: 现金流少于 2 条 / 全部同号 / 非法输入
+        ValueError: 现金流少于 2 条 / 全部同号 / 非法输入 / 无解
 
     Algorithm:
-        牛顿法求解 sum(cf_i / (1+r)^((d_i - d_0)/365)) = 0
-        导数 = sum(cf_i * (-(d_i - d_0)/365) / (1+r)^((d_i - d_0)/365 + 1))
+        使用 pyxirr（Rust 实现，维护活跃）求解
+        sum(cf_i / (1+r)^((d_i - d_0)/365)) = 0。
+        多根、不收敛与极端值由库处理；本函数只保留输入校验与 ValueError 契约。
     """
     if len(cashflows) < 2:
         raise ValueError("XIRR 计算至少需要 2 条现金流")
@@ -46,7 +45,6 @@ def calculate_xirr(cashflows: list[tuple[date, float]]) -> float:
         if not isinstance(d, date):
             raise ValueError(f"现金流日期必须为 datetime.date 类型，got {type(d).__name__}")
 
-    # 按日期排序
     cfs = sorted(cashflows, key=lambda x: x[0])
 
     # 必须同时存在流入和流出
@@ -55,71 +53,18 @@ def calculate_xirr(cashflows: list[tuple[date, float]]) -> float:
     if not (has_positive and has_negative):
         raise ValueError("XIRR 计算要求现金流同时包含流入（正）和流出（负），全部同号无解")
 
-    base_date = cfs[0][0]
+    try:
+        result = _pyxirr_xirr(
+            [d for d, _cf in cfs],
+            [cf for _d, cf in cfs],
+            guess=0.1,
+        )
+    except Exception as exc:  # noqa: BLE001 — 统一转换为本模块的 ValueError 契约
+        raise ValueError(f"XIRR 迭代未收敛，请检查现金流是否合理：{exc}") from exc
 
-    def _years(d: date) -> float:
-        delta = d - base_date
-        return delta.days / 365.0
-
-    def _npv(rate: float) -> float:
-        """计算给定折现率下的净现值。"""
-        if rate <= -1.0:
-            return float("inf")
-        total = 0.0
-        for d, cf in cfs:
-            t = _years(d)
-            total += cf / ((1.0 + rate) ** t)
-        return total
-
-    def _dnpv(rate: float) -> float:
-        """NPV 对 r 的导数。"""
-        if rate <= -1.0:
-            return float("-inf")
-        total = 0.0
-        for d, cf in cfs:
-            t = _years(d)
-            # d/dr [cf / (1+r)^t] = -t * cf / (1+r)^(t+1)
-            total += -t * cf / ((1.0 + rate) ** (t + 1))
-        return total
-
-    rate = _XIRR_INITIAL_GUESS
-
-    for _ in range(_XIRR_MAX_ITER):
-        npv_val = _npv(rate)
-        dnpv_val = _dnpv(rate)
-
-        if abs(dnpv_val) < 1e-12:
-            # 导数接近零，无法继续牛顿迭代，改用二分法回退
-            break
-
-        new_rate = rate - npv_val / dnpv_val
-
-        if abs(new_rate - rate) < _XIRR_TOLERANCE:
-            return round(new_rate, 6)
-
-        rate = new_rate
-
-        # 防止发散：限制在合理范围内
-        if rate < -0.99:
-            rate = -0.5
-        elif rate > 1e6:
-            rate = 1.0
-
-    # 回退：二分法
-    lo, hi = -0.99, 10.0
-    for _ in range(_XIRR_MAX_ITER):
-        mid = (lo + hi) / 2.0
-        npv_mid = _npv(mid)
-        if abs(npv_mid) < _XIRR_TOLERANCE:
-            return round(mid, 6)
-        if _npv(lo) * npv_mid < 0:
-            hi = mid
-        else:
-            lo = mid
-        if hi - lo < _XIRR_TOLERANCE:
-            return round((lo + hi) / 2.0, 6)
-
-    raise ValueError("XIRR 迭代未收敛，请检查现金流是否合理")
+    if result is None or not math.isfinite(result):
+        raise ValueError("XIRR 迭代未收敛，请检查现金流是否合理")
+    return round(float(result), 6)
 
 
 def calculate_twr(transactions: list[dict[str, Any]]) -> float:

@@ -23,7 +23,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
+
+
+def _round(value: float, ndigits: int = 2) -> float:
+    """金额/税率的四舍五入（ROUND_HALF_UP）。
+
+    中国税务实务按四舍五入到分；Python 内置 round() 是银行家舍入
+    （round(2.675, 2) == 2.67），在税额边界会产生分位差异。这里统一走
+    Decimal(str(value))，避免二进制浮点尾差，并显式指定舍入模式。
+    """
+    quant = Decimal("1").scaleb(-ndigits)
+    return float(Decimal(str(value)).quantize(quant, rounding=ROUND_HALF_UP))
 
 # ---------------------------------------------------------------------------
 # 增值税
@@ -68,6 +80,13 @@ def vat(
             "output_vat": 0.0,
             "input_vat": 0.0,
             "vat_payable": 0.0,
+            # 结构与计税分支保持一致：消费方（MCP / 报表导出 / 前端明细行）
+            # 不必为"免征"单独写一条分支，少一处 KeyError 的来源。
+            "surcharge_detail": {
+                "city_construction": 0.0,
+                "education": 0.0,
+                "local_education": 0.0,
+            },
             "surcharge": 0.0,
             "total": 0.0,
             "note": f"销售额 {sales:.2f} 未超过免征阈值 {exempt_threshold:.2f}",
@@ -76,32 +95,32 @@ def vat(
     if simple:
         if simple_rate not in VAT_SIMPLE_RATES:
             raise ValueError(f"简易计税征收率只能是 {VAT_SIMPLE_RATES}")
-        output_vat = round(sales * simple_rate, 2)
+        output_vat = _round(sales * simple_rate, 2)
         input_vat = 0.0
         payable = output_vat
         method = f"simple@{simple_rate:.0%}"
     else:
         if rate not in VAT_GENERAL_RATES:
             raise ValueError(f"一般计税税率只能是 {VAT_GENERAL_RATES}")
-        output_vat = round(sales * rate, 2)
-        input_vat = round(purchases * rate, 2)
-        payable = max(0.0, round(output_vat - input_vat, 2))
+        output_vat = _round(sales * rate, 2)
+        input_vat = _round(purchases * rate, 2)
+        payable = max(0.0, _round(output_vat - input_vat, 2))
         method = f"general@{rate:.0%}"
 
     city_rate = SURCHARGE_RATES[location]
-    surcharge = round(payable * (city_rate + EDU_SURCHARGE + LOCAL_EDU_SURCHARGE), 2)
+    surcharge = _round(payable * (city_rate + EDU_SURCHARGE + LOCAL_EDU_SURCHARGE), 2)
     return {
         "method": method,
         "output_vat": output_vat,
         "input_vat": input_vat,
         "vat_payable": payable,
         "surcharge_detail": {
-            "city_construction": round(payable * city_rate, 2),
-            "education": round(payable * EDU_SURCHARGE, 2),
-            "local_education": round(payable * LOCAL_EDU_SURCHARGE, 2),
+            "city_construction": _round(payable * city_rate, 2),
+            "education": _round(payable * EDU_SURCHARGE, 2),
+            "local_education": _round(payable * LOCAL_EDU_SURCHARGE, 2),
         },
         "surcharge": surcharge,
-        "total": round(payable + surcharge, 2),
+        "total": _round(payable + surcharge, 2),
         "note": "进项大于销项时留抵下期，本次按 0 申报"
         if (not simple and output_vat < input_vat)
         else "",
@@ -150,16 +169,16 @@ def corporate_income_tax(
         effective_category = "standard"
         note = f"应纳税所得额 {taxable:,.2f} 超过 300 万，不再适用小微优惠，按 25% 计"
     rate = CIT_RATES[effective_category]
-    tax = round(taxable * rate, 2)
+    tax = _round(taxable * rate, 2)
     return {
-        "accounting_profit": round(accounting_profit, 2),
-        "taxable_income": round(taxable, 2),
-        "loss_used": round(min(max(0.0, loss_carryforward), max(0.0, accounting_profit)), 2),
+        "accounting_profit": _round(accounting_profit, 2),
+        "taxable_income": _round(taxable, 2),
+        "loss_used": _round(min(max(0.0, loss_carryforward), max(0.0, accounting_profit)), 2),
         "rate": rate,
         "category": effective_category,
         "tax_payable": tax,
-        "net_profit": round(accounting_profit - tax, 2),
-        "effective_rate": round(tax / taxable, 4) if taxable > 0 else 0.0,
+        "net_profit": _round(accounting_profit - tax, 2),
+        "effective_rate": _round(tax / taxable, 4) if taxable > 0 else 0.0,
         "note": note,
     }
 
@@ -188,8 +207,8 @@ def _iit_annual(taxable: float) -> float:
         return 0.0
     for idx, (_low, high, rate) in enumerate(IIT_BRACKETS):
         if taxable <= high:
-            return round(taxable * rate - IIT_QUICK_DEDUCTION[idx], 2)
-    return round(taxable * 0.45 - IIT_QUICK_DEDUCTION[-1], 2)
+            return _round(taxable * rate - IIT_QUICK_DEDUCTION[idx], 2)
+    return _round(taxable * 0.45 - IIT_QUICK_DEDUCTION[-1], 2)
 
 
 def individual_income_tax(
@@ -223,20 +242,20 @@ def individual_income_tax(
     other = other_deductions * months
     taxable = max(0.0, gross - basic - social - fund - special - other)
     cumulative_tax = _iit_annual(taxable)
-    current = max(0.0, round(cumulative_tax - max(0.0, already_withheld), 2))
+    current = max(0.0, _round(cumulative_tax - max(0.0, already_withheld), 2))
     return {
         "months": months,
-        "cumulative_income": round(gross, 2),
-        "cumulative_threshold": round(basic, 2),
-        "cumulative_social": round(social, 2),
-        "cumulative_housing_fund": round(fund, 2),
-        "cumulative_special_additional": round(special, 2),
-        "cumulative_other": round(other, 2),
-        "taxable_income": round(taxable, 2),
+        "cumulative_income": _round(gross, 2),
+        "cumulative_threshold": _round(basic, 2),
+        "cumulative_social": _round(social, 2),
+        "cumulative_housing_fund": _round(fund, 2),
+        "cumulative_special_additional": _round(special, 2),
+        "cumulative_other": _round(other, 2),
+        "taxable_income": _round(taxable, 2),
         "cumulative_tax": cumulative_tax,
-        "already_withheld": round(already_withheld, 2),
+        "already_withheld": _round(already_withheld, 2),
         "current_withholding": current,
-        "effective_rate": round(cumulative_tax / gross, 4) if gross > 0 else 0.0,
+        "effective_rate": _round(cumulative_tax / gross, 4) if gross > 0 else 0.0,
     }
 
 
@@ -268,6 +287,10 @@ class PayrollResult:
     income_tax: float
     net_pay: float
     employer_cost: float
+    # months>1 时 income_tax 是累计口径，这两个字段把"单月"与"期间"分开，
+    # 避免把 N 个月的税减在 1 个月的工资上（见 payroll() 内注释）。
+    current_month_tax: float = 0.0
+    period_net_pay: float = 0.0
     notes: list[str] = field(default_factory=list)
 
 
@@ -280,6 +303,8 @@ def payroll(
     employer_rates: dict[str, float] | None = None,
     base_min: float = 3_500.0,
     base_max: float = 35_000.0,
+    housing_base_min: float | None = None,
+    housing_base_max: float | None = None,
     special_additional: float = 0.0,
     other_deductions: float = 0.0,
     already_withheld: float = 0.0,
@@ -288,39 +313,56 @@ def payroll(
     """月度工资核算：应发 → 五险一金 → 个税 → 实发；并给出企业总成本。
 
     缴费基数默认等于应发工资，并按 [base_min, base_max] 钳制（各地上下限差异大，
-    调用方可直接传入本地口径）。公积金基数可单独指定（常见上限高于社保）。
+    调用方可直接传入本地口径）。公积金基数可单独指定，且上下限独立
+    （housing_base_min / housing_base_max，默认沿用社保口径）——
+    公积金上限普遍高于社保，共用一个 base_max 会把用户显式传入的
+    高基数悄悄压回去（旧实现：传 housing_base=50000、base_max=35000，
+    结果按 35000 计，只在 notes 里留一句钳制提示）。
+
+    months > 1 时 income_tax 是**累计口径**（累计应预扣 − 已预扣），
+    net_pay 始终是**单月实发**，period_net_pay 才是这 months 个月的合计实发。
     """
     if gross_salary < 0:
         raise ValueError("应发工资不能为负")
+    if base_min > base_max:
+        # 区间反了会让 min(max(...)) 静默退化成 base_max，
+        # 基数与提示文案互相矛盾（实测提示"钳制为 3500"而区间写的是 [35000, 3500]）。
+        raise ValueError(f"缴费基数下限不能大于上限（base_min={base_min} > base_max={base_max}）")
+    h_min = base_min if housing_base_min is None else float(housing_base_min)
+    h_max = base_max if housing_base_max is None else float(housing_base_max)
+    if h_min > h_max:
+        raise ValueError(
+            f"公积金基数下限不能大于上限（housing_base_min={h_min} > housing_base_max={h_max}）"
+        )
     er = {**DEFAULT_EMPLOYEE_RATES, **(employee_rates or {})}
     cr = {**DEFAULT_EMPLOYER_RATES, **(employer_rates or {})}
 
     s_base = min(max(float(social_base if social_base is not None else gross_salary), base_min), base_max)
-    h_base = min(max(float(housing_base if housing_base is not None else gross_salary), base_min), base_max)
+    h_base = min(max(float(housing_base if housing_base is not None else gross_salary), h_min), h_max)
     notes: list[str] = []
     if (social_base is not None and float(social_base) != s_base) or (
         social_base is None and gross_salary != s_base
     ):
         notes.append(f"社保基数按 [{base_min:.0f}, {base_max:.0f}] 钳制为 {s_base:.2f}")
     if housing_base is not None and float(housing_base) != h_base:
-        notes.append(f"公积金基数钳制为 {h_base:.2f}")
+        notes.append(f"公积金基数按 [{h_min:.0f}, {h_max:.0f}] 钳制为 {h_base:.2f}")
 
     employee = {
-        "pension": round(s_base * er["pension"], 2),
-        "medical": round(s_base * er["medical"], 2),
-        "unemployment": round(s_base * er["unemployment"], 2),
-        "housing_fund": round(h_base * er["housing_fund"], 2),
+        "pension": _round(s_base * er["pension"], 2),
+        "medical": _round(s_base * er["medical"], 2),
+        "unemployment": _round(s_base * er["unemployment"], 2),
+        "housing_fund": _round(h_base * er["housing_fund"], 2),
     }
     employer = {
-        "pension": round(s_base * cr["pension"], 2),
-        "medical": round(s_base * cr["medical"], 2),
-        "unemployment": round(s_base * cr["unemployment"], 2),
-        "injury": round(s_base * cr["injury"], 2),
-        "maternity": round(s_base * cr["maternity"], 2),
-        "housing_fund": round(h_base * cr["housing_fund"], 2),
+        "pension": _round(s_base * cr["pension"], 2),
+        "medical": _round(s_base * cr["medical"], 2),
+        "unemployment": _round(s_base * cr["unemployment"], 2),
+        "injury": _round(s_base * cr["injury"], 2),
+        "maternity": _round(s_base * cr["maternity"], 2),
+        "housing_fund": _round(h_base * cr["housing_fund"], 2),
     }
-    employee_total = round(sum(employee.values()), 2)
-    employer_total = round(sum(employer.values()), 2)
+    employee_total = _round(sum(employee.values()), 2)
+    employer_total = _round(sum(employer.values()), 2)
 
     tax = individual_income_tax(
         monthly_salary=gross_salary,
@@ -332,17 +374,44 @@ def payroll(
         already_withheld=already_withheld,
     )
     income_tax = tax["current_withholding"]
-    net_pay = round(gross_salary - employee_total - income_tax, 2)
+    # net_pay 是"单月实发"，而 income_tax 在 months>1 时覆盖整个累计期间。
+    # 旧实现把 N 个月的税减在 1 个月的工资上：月薪 3 万、months=3、
+    # already_withheld=0 时 income_tax=2955（三个月累计），net_pay 报 20295，
+    # 而该月正确实发是 21425 —— 前端「实发工资」卡片直接少了一个月的税，
+    # 且没有任何字段说明这是累计口径。
+    if months > 1 and max(0.0, already_withheld) <= 0.0:
+        prev = individual_income_tax(
+            monthly_salary=gross_salary,
+            months=months - 1,
+            social_insurance=employee["pension"] + employee["medical"] + employee["unemployment"],
+            housing_fund=employee["housing_fund"],
+            special_additional=special_additional,
+            other_deductions=other_deductions,
+        )
+        current_month_tax = max(0.0, _round(tax["cumulative_tax"] - prev["cumulative_tax"], 2))
+        notes.append(
+            f"months={months}：income_tax 为累计应预扣（{income_tax:,.2f}），"
+            f"net_pay 按当月应预扣 {current_month_tax:,.2f} 计算，"
+            f"期间合计实发见 period_net_pay"
+        )
+    else:
+        current_month_tax = income_tax
+    net_pay = _round(gross_salary - employee_total - current_month_tax, 2)
+    period_net_pay = _round(
+        gross_salary * months - employee_total * months - income_tax, 2
+    )
     return PayrollResult(
-        gross=round(gross_salary, 2),
+        gross=_round(gross_salary, 2),
         employee=employee,
         employer=employer,
         employee_total=employee_total,
         employer_total=employer_total,
         taxable_income=tax["taxable_income"],
         income_tax=income_tax,
+        current_month_tax=current_month_tax,
         net_pay=net_pay,
-        employer_cost=round(gross_salary + employer_total, 2),
+        period_net_pay=period_net_pay,
+        employer_cost=_round(gross_salary + employer_total, 2),
         notes=notes,
     )
 
@@ -374,6 +443,11 @@ def month_end_checklist(month: str, *, completed: list[str] | None = None) -> di
     """
     if not month or len(month) != 7 or month[4] != "-":
         raise ValueError("month 需为 YYYY-MM")
+    # 只校验长度和分隔符会放过 "2026-13" / "2026-00"：清单照样生成，
+    # 但那条记录挂在一个不存在的月份上，之后按月查询永远查不到。
+    yy, mm = month[:4], month[5:]
+    if not (yy.isdigit() and mm.isdigit()) or not 1 <= int(mm) <= 12:
+        raise ValueError(f"month 不是合法年月：{month}（需为 YYYY-MM，月份 01-12）")
     done = set(completed or [])
     items = [
         {**item, "done": item["id"] in done}
@@ -385,7 +459,7 @@ def month_end_checklist(month: str, *, completed: list[str] | None = None) -> di
         "items": items,
         "done": done_count,
         "total": len(items),
-        "progress_pct": round(done_count / len(items) * 100, 1),
+        "progress_pct": _round(done_count / len(items) * 100, 1),
         "disclaimer": "清单为通用流程模板，具体科目与申报口径以主管税务机关及企业会计政策为准。",
     }
 
@@ -415,12 +489,12 @@ def tax_summary(
         category=cit_category,
     )
     annual_payroll = payroll_gross * payroll_months
-    total_tax = round(v["total"] + cit["tax_payable"], 2)
+    total_tax = _round(v["total"] + cit["tax_payable"], 2)
     return {
         "vat": v,
         "cit": cit,
-        "annual_payroll_cost": round(annual_payroll, 2),
+        "annual_payroll_cost": _round(annual_payroll, 2),
         "total_tax": total_tax,
-        "tax_burden_pct": round(total_tax / revenue * 100, 2) if revenue > 0 else 0.0,
+        "tax_burden_pct": _round(total_tax / revenue * 100, 2) if revenue > 0 else 0.0,
         "disclaimer": "测算结果不构成税务意见；优惠资格、税前扣除凭证与地方附加比例需按实际确认。",
     }

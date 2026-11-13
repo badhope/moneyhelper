@@ -592,4 +592,847 @@ export const deleteMemberLoan = (id: number) =>
   api<{ ok: boolean }>(`/api/members/loans/${id}`, { method: "DELETE" });
 export const memberSummaries = () =>
   api<{ members: MemberSummary[] }>("/api/members/summary").then((r) => r.members);
+
+// ---------------------------------------------------------------------------
+// 企业组织（切片 1-3）：租户、部门、岗位、成员
+// ---------------------------------------------------------------------------
+
+export interface OrgTenant {
+  id: number;
+  name: string;
+  kind: string; // local / personal / enterprise
+  status: string;
+  role?: string;
+  /** 是否为当前正在工作的租户（切片 7b 全局切换） */
+  active?: boolean;
+}
+
+export interface OrgDepartment {
+  id: number;
+  tenant_id: number;
+  name: string;
+  parent_id: number | null;
+  code: string;
+  status: string;
+  created_at: string;
+}
+
+export interface OrgPosition {
+  id: number;
+  tenant_id: number;
+  department_id: number | null;
+  name: string;
+  code: string;
+  role_hint: string;
+  status: string;
+  created_at: string;
+}
+
+export interface OrgMember {
+  id: number;
+  tenant_id: number;
+  user_id: number;
+  role: string;
+  department_id: number | null;
+  position_id: number | null;
+  status: string;
+  created_at: string;
+  username?: string;
+  display_name?: string;
+  disabled?: number;
+}
+
+export interface OrgOverview {
+  tenant: OrgTenant | null;
+  departments: OrgDepartment[];
+  positions: OrgPosition[];
+  members: OrgMember[];
+  counts: {
+    departments: number;
+    positions: number;
+    members: number;
+    active_members: number;
+  };
+}
+
+const orgQuery = (tenantId?: number) =>
+  tenantId == null ? "" : `?tenant_id=${encodeURIComponent(String(tenantId))}`;
+
+export const listOrgTenants = () =>
+  api<{ tenants: OrgTenant[] }>("/api/org/tenants").then((r) => r.tenants);
+
+// ---------------------------------------------------------------------------
+// 全局租户切换（切片 7b）
+// ---------------------------------------------------------------------------
+
+export interface ActiveTenantInfo {
+  active_tenant_id: number;
+  /** 是否为用户显式选择（false = 走默认映射） */
+  explicit?: boolean;
+  tenant: OrgTenant | null;
+  scope_note?: string;
+}
+
+export const getActiveTenant = () => api<ActiveTenantInfo>("/api/org/active-tenant");
+
+/** 当前用户在当前工作租户里拥有的权限点（切片 7a：前端按它隐藏写操作入口）。 */
+export interface MyCapabilities {
+  tenant_id: number;
+  role: string;
+  permissions: string[];
+}
+
+export const getMyCapabilities = () => api<MyCapabilities>("/api/org/capabilities");
+
+export const switchActiveTenant = (tenantId: number) =>
+  api<{
+    ok: boolean;
+    active_tenant_id: number;
+    tenant: OrgTenant | null;
+    tenants: OrgTenant[];
+  }>("/api/org/active-tenant", {
+    method: "POST",
+    body: JSON.stringify({ tenant_id: tenantId }),
+  });
+
+export const getOrgOverview = (tenantId?: number) =>
+  api<OrgOverview>(`/api/org/overview${orgQuery(tenantId)}`);
+
+export const createOrgDepartment = (
+  body: { name: string; code?: string; parent_id?: number | null },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; department: OrgDepartment }>(
+    `/api/org/departments${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+export const updateOrgDepartment = (
+  id: number,
+  body: Record<string, unknown>,
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; department: OrgDepartment }>(
+    `/api/org/departments/${id}${orgQuery(tenantId)}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+
+export const deleteOrgDepartment = (id: number, tenantId?: number) =>
+  api<{ ok: boolean }>(`/api/org/departments/${id}${orgQuery(tenantId)}`, {
+    method: "DELETE",
+  });
+
+export const createOrgPosition = (
+  body: {
+    name: string;
+    code?: string;
+    department_id?: number | null;
+    role_hint?: string;
+  },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; position: OrgPosition }>(
+    `/api/org/positions${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+export const updateOrgPosition = (
+  id: number,
+  body: Record<string, unknown>,
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; position: OrgPosition }>(
+    `/api/org/positions/${id}${orgQuery(tenantId)}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+
+export const deleteOrgPosition = (id: number, tenantId?: number) =>
+  api<{ ok: boolean }>(`/api/org/positions/${id}${orgQuery(tenantId)}`, {
+    method: "DELETE",
+  });
+
+export const addOrgMember = (
+  body: {
+    user_id: number;
+    role?: string;
+    department_id?: number | null;
+    position_id?: number | null;
+  },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; member: OrgMember }>(`/api/org/members${orgQuery(tenantId)}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const updateOrgMember = (
+  userId: number,
+  body: Record<string, unknown>,
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; member: OrgMember }>(
+    `/api/org/members/${userId}${orgQuery(tenantId)}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+
+export const removeOrgMember = (userId: number, tenantId?: number) =>
+  api<{ ok: boolean }>(`/api/org/members/${userId}${orgQuery(tenantId)}`, {
+    method: "DELETE",
+  });
+
+// ---------------------------------------------------------------------------
+// 复式总账（切片 4-5）
+// ---------------------------------------------------------------------------
+
+export interface GlAccount {
+  id: number;
+  tenant_id: number;
+  code: string;
+  name: string;
+  type: string;
+  parent_id: number | null;
+  is_active: boolean;
+  normal_balance: string;
+  created_at: string;
+}
+
+export interface GlPeriod {
+  id: number;
+  tenant_id: number;
+  year: number;
+  month: number;
+  start_date: string;
+  end_date: string;
+  status: string;
+  created_at: string;
+  closed_at: string;
+  posted_entries?: number;
+  draft_entries?: number;
+}
+
+export interface GlEntryLine {
+  id: number;
+  tenant_id: number;
+  entry_id: number;
+  line_no: number;
+  account_id: number;
+  debit_cents: number;
+  credit_cents: number;
+  debit: number;
+  credit: number;
+  memo: string;
+}
+
+export interface GlEntry {
+  id: number;
+  tenant_id: number;
+  entry_no: string;
+  entry_date: string;
+  period_id: number;
+  description: string;
+  status: string;
+  source: string;
+  reversal_of: number | null;
+  created_by: number | null;
+  created_at: string;
+  posted_at: string;
+  debit?: number;
+  credit?: number;
+  debit_cents?: number;
+  credit_cents?: number;
+  lines?: GlEntryLine[];
+}
+
+export interface GlTrialItem {
+  account_id: number;
+  code: string;
+  name: string;
+  type: string;
+  normal_balance: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  debit_cents: number;
+  credit_cents: number;
+}
+
+export interface GlTrialBalance {
+  period: GlPeriod;
+  items: GlTrialItem[];
+  total_debit: number;
+  total_credit: number;
+  total_debit_cents: number;
+  total_credit_cents: number;
+  balanced: boolean;
+}
+
+export const listGlAccounts = () =>
+  api<{ accounts: GlAccount[] }>("/api/gl/accounts").then((r) => r.accounts);
+
+export const createGlAccount = (body: {
+  code: string;
+  name: string;
+  type: string;
+  parent_id?: number | null;
+}) =>
+  api<{ ok: boolean; account: GlAccount }>("/api/gl/accounts", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const listGlPeriods = () =>
+  api<{ periods: GlPeriod[] }>("/api/gl/periods").then((r) => r.periods);
+
+export const createGlPeriod = (body: { year: number; month: number }) =>
+  api<{ ok: boolean; period: GlPeriod }>("/api/gl/periods", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const closeGlPeriod = (id: number) =>
+  api<{ ok: boolean; period: GlPeriod }>(`/api/gl/periods/${id}/close`, {
+    method: "POST",
+  });
+
+export const listGlEntries = (periodId?: number, limit = 200) =>
+  api<{ entries: GlEntry[] }>(
+    `/api/gl/entries?limit=${limit}${periodId ? `&period_id=${periodId}` : ""}`,
+  ).then((r) => r.entries);
+
+export const getGlEntry = (id: number) => api<GlEntry>(`/api/gl/entries/${id}`);
+
+export const createGlEntry = (body: {
+  entry_date: string;
+  description: string;
+  lines: { account_id: number; debit: number; credit: number; memo?: string }[];
+}) =>
+  api<{ ok: boolean; entry: GlEntry }>("/api/gl/entries", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const postGlEntry = (id: number) =>
+  api<{ ok: boolean; entry: GlEntry }>(`/api/gl/entries/${id}/post`, {
+    method: "POST",
+  });
+
+export const deleteGlEntry = (id: number) =>
+  api<{ ok: boolean }>(`/api/gl/entries/${id}`, { method: "DELETE" });
+
+export const reverseGlEntry = (id: number, body: { entry_date?: string; description?: string } = {}) =>
+  api<{ ok: boolean; entry: GlEntry }>(`/api/gl/entries/${id}/reverse`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const getGlTrialBalance = (periodId: number) =>
+  api<GlTrialBalance>(`/api/gl/trial-balance?period_id=${periodId}`);
+
+// ---------------------------------------------------------------------------
+// 报销单（切片 5b）
+// ---------------------------------------------------------------------------
+
+export interface ExpenseClaim {
+  id: number;
+  tenant_id: number;
+  claim_no: string;
+  title: string;
+  applicant_user_id: number;
+  applicant_name?: string;
+  department_id: number | null;
+  amount: number;
+  amount_cents: number;
+  category: string;
+  expense_account_id: number;
+  expense_account_code?: string;
+  expense_account_name?: string;
+  credit_account_id: number;
+  credit_account_code?: string;
+  credit_account_name?: string;
+  invoice_ref: string;
+  attachment_name: string;
+  status: string; // draft / submitted / approving / approved / rejected
+  approved_by: number | null;
+  approver_name?: string;
+  approved_at: string;
+  rejected_reason: string;
+  gl_entry_id: number | null;
+  gl_entry_no?: string;
+  gl_status?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const listExpenseClaims = (tenantId?: number, status?: string) => {
+  const q = new URLSearchParams();
+  if (tenantId != null) q.set("tenant_id", String(tenantId));
+  if (status) q.set("status", status);
+  const suffix = q.toString() ? `?${q.toString()}` : "";
+  return api<{ claims: ExpenseClaim[] }>(`/api/expenses${suffix}`).then(
+    (r) => r.claims,
+  );
+};
+
+export const createExpenseClaim = (
+  body: {
+    title: string;
+    amount: number;
+    category?: string;
+    expense_account_id: number;
+    credit_account_id: number;
+    invoice_ref?: string;
+    attachment_name?: string;
+  },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; claim: ExpenseClaim }>(
+    `/api/expenses${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+export const submitExpenseClaim = (id: number, tenantId?: number) =>
+  api<{ ok: boolean; claim: ExpenseClaim }>(
+    `/api/expenses/${id}/submit${orgQuery(tenantId)}`,
+    { method: "POST" },
+  );
+
+export const approveExpenseClaim = (
+  id: number,
+  body: { entry_date?: string } = {},
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; claim: ExpenseClaim }>(
+    `/api/expenses/${id}/approve${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+export const rejectExpenseClaim = (
+  id: number,
+  reason: string,
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; claim: ExpenseClaim }>(
+    `/api/expenses/${id}/reject${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
+
+// ---------------------------------------------------------------------------
+// 付款与银行流水（切片 6）
+// ---------------------------------------------------------------------------
+
+export interface Payment {
+  id: number;
+  tenant_id: number;
+  payment_no: string;
+  claim_id: number;
+  claim_no?: string;
+  claim_title?: string;
+  payable_id?: number | null;
+  payable_no?: string;
+  invoice_no?: string;
+  gl_entry_id?: number | null;
+  gl_entry_no?: string;
+  gl_status?: string;
+  amount_cents: number;
+  amount: number;
+  payee: string;
+  bank_account_id: number;
+  bank_account_code?: string;
+  bank_account_name?: string;
+  method: string;
+  status: string;
+  paid_at: string;
+  note: string;
+}
+
+export interface BankTransaction {
+  id: number;
+  tenant_id: number;
+  bank_account_id: number;
+  bank_account_code?: string;
+  bank_account_name?: string;
+  txn_date: string;
+  direction: "in" | "out";
+  amount_cents: number;
+  amount: number;
+  counterparty: string;
+  memo: string;
+  bank_ref: string;
+  status: string; // unmatched / matched / ignored
+  payment_id: number | null;
+  payment_no?: string;
+  matched_at: string;
+}
+
+export interface BankSummary {
+  payments_count: number;
+  payments_total: number;
+  payments_total_cents: number;
+  bank_in_total: number;
+  bank_out_total: number;
+  unmatched_count: number;
+  unmatched_out_total: number;
+  matched_count: number;
+  balanced: boolean;
+}
+
+export const listPayments = (tenantId?: number) =>
+  api<{ payments: Payment[] }>(`/api/payments${orgQuery(tenantId)}`).then(
+    (r) => r.payments,
+  );
+
+export const createPayment = (
+  body: { claim_id: number; bank_account_id: number; note?: string },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; payment: Payment }>(`/api/payments${orgQuery(tenantId)}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const listBankTransactions = (
+  tenantId?: number,
+  status?: string,
+  bankAccountId?: number,
+) => {
+  const q = new URLSearchParams();
+  if (tenantId != null) q.set("tenant_id", String(tenantId));
+  if (status) q.set("status", status);
+  if (bankAccountId != null) q.set("bank_account_id", String(bankAccountId));
+  const suffix = q.toString() ? `?${q.toString()}` : "";
+  return api<{ transactions: BankTransaction[] }>(
+    `/api/bank/transactions${suffix}`,
+  ).then((r) => r.transactions);
+};
+
+export const createBankTransaction = (
+  body: {
+    bank_account_id: number;
+    txn_date: string;
+    direction: string;
+    amount: number;
+    counterparty?: string;
+    memo?: string;
+    bank_ref?: string;
+  },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; transaction: BankTransaction }>(
+    `/api/bank/transactions${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+export const importBankCsv = (
+  body: { bank_account_id: number; csv: string },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; imported: number }>(`/api/bank/import${orgQuery(tenantId)}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const matchBankTransaction = (
+  id: number,
+  paymentId: number,
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; transaction: BankTransaction }>(
+    `/api/bank/transactions/${id}/match${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify({ payment_id: paymentId }) },
+  );
+
+export const unmatchBankTransaction = (id: number, tenantId?: number) =>
+  api<{ ok: boolean; transaction: BankTransaction }>(
+    `/api/bank/transactions/${id}/unmatch${orgQuery(tenantId)}`,
+    { method: "POST" },
+  );
+
+export const getBankSummary = (tenantId?: number, bankAccountId?: number) => {
+  const q = new URLSearchParams();
+  if (tenantId != null) q.set("tenant_id", String(tenantId));
+  if (bankAccountId != null) q.set("bank_account_id", String(bankAccountId));
+  const suffix = q.toString() ? `?${q.toString()}` : "";
+  return api<BankSummary>(`/api/bank/summary${suffix}`);
+};
+
+export interface BankReconciliation {
+  id: number;
+  tenant_id: number;
+  bank_account_id: number;
+  bank_account_code?: string;
+  bank_account_name?: string;
+  period_id: number;
+  year?: number;
+  month?: number;
+  start_date?: string;
+  end_date?: string;
+  statement_balance: number;
+  book_balance: number;
+  difference: number;
+  status: string;
+  note: string;
+  created_by: number;
+  created_at: string;
+  closed_by: number | null;
+  closed_at: string;
+}
+
+export const listBankReconciliations = (tenantId?: number) =>
+  api<{ reconciliations: BankReconciliation[] }>(
+    `/api/bank/reconciliations${orgQuery(tenantId)}`,
+  ).then((r) => r.reconciliations);
+
+export const createBankReconciliation = (
+  body: {
+    bank_account_id: number;
+    period_id: number;
+    statement_balance: number;
+    note?: string;
+  },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; reconciliation: BankReconciliation }>(
+    `/api/bank/reconciliations${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+export const closeBankReconciliation = (id: number, tenantId?: number) =>
+  api<{ ok: boolean; reconciliation: BankReconciliation }>(
+    `/api/bank/reconciliations/${id}/close${orgQuery(tenantId)}`,
+    { method: "POST" },
+  );
+
+// ---------------------------------------------------------------------------
+// 采购与应付（切片 8）
+// ---------------------------------------------------------------------------
+
+export interface Vendor {
+  id: number;
+  tenant_id: number;
+  code: string;
+  name: string;
+  tax_no: string;
+  contact: string;
+  phone: string;
+  status: string;
+  created_at: string;
+}
+
+export interface PurchaseOrder {
+  id: number;
+  tenant_id: number;
+  po_no: string;
+  vendor_id: number;
+  vendor_code?: string;
+  vendor_name?: string;
+  order_date: string;
+  expected_date: string;
+  amount_cents: number;
+  amount: number;
+  description: string;
+  status: string; // draft / submitted / approved / cancelled
+  approved_by: number | null;
+  approved_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Payable {
+  id: number;
+  tenant_id: number;
+  payable_no: string;
+  vendor_id: number;
+  vendor_code?: string;
+  vendor_name?: string;
+  po_id: number | null;
+  po_no?: string;
+  invoice_no: string;
+  invoice_date: string;
+  due_date: string;
+  amount_cents: number;
+  amount: number;
+  tax_cents: number;
+  tax: number;
+  expense_account_id: number;
+  payable_account_id: number;
+  status: string; // draft / submitted / approving / approved / paid
+  gl_entry_id: number | null;
+  gl_entry_no?: string;
+  gl_status?: string;
+  payment_id: number | null;
+  payment_no?: string;
+  approved_by: number | null;
+  approved_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const listVendors = (tenantId?: number) =>
+  api<{ vendors: Vendor[] }>(`/api/procurement/vendors${orgQuery(tenantId)}`).then(
+    (r) => r.vendors,
+  );
+
+export const createVendor = (
+  body: { code: string; name: string; tax_no?: string; contact?: string; phone?: string },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; vendor: Vendor }>(
+    `/api/procurement/vendors${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+export const listPurchaseOrders = (tenantId?: number) =>
+  api<{ orders: PurchaseOrder[] }>(
+    `/api/procurement/orders${orgQuery(tenantId)}`,
+  ).then((r) => r.orders);
+
+export const createPurchaseOrder = (
+  body: {
+    vendor_id: number;
+    order_date: string;
+    expected_date?: string;
+    amount: number;
+    description?: string;
+  },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; order: PurchaseOrder }>(
+    `/api/procurement/orders${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+export const submitPurchaseOrder = (id: number, tenantId?: number) =>
+  api<{ ok: boolean; order: PurchaseOrder }>(
+    `/api/procurement/orders/${id}/submit${orgQuery(tenantId)}`,
+    { method: "POST" },
+  );
+
+export const approvePurchaseOrder = (id: number, tenantId?: number) =>
+  api<{ ok: boolean; order: PurchaseOrder }>(
+    `/api/procurement/orders/${id}/approve${orgQuery(tenantId)}`,
+    { method: "POST" },
+  );
+
+export const listPayables = (tenantId?: number) =>
+  api<{ payables: Payable[] }>(
+    `/api/procurement/payables${orgQuery(tenantId)}`,
+  ).then((r) => r.payables);
+
+export const createPayable = (
+  body: {
+    vendor_id: number;
+    po_id?: number | null;
+    invoice_no?: string;
+    invoice_date: string;
+    due_date?: string;
+    amount: number;
+    tax?: number;
+    expense_account_id: number;
+    payable_account_id: number;
+  },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; payable: Payable }>(
+    `/api/procurement/payables${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+export const submitPayable = (id: number, tenantId?: number) =>
+  api<{ ok: boolean; payable: Payable }>(
+    `/api/procurement/payables/${id}/submit${orgQuery(tenantId)}`,
+    { method: "POST" },
+  );
+
+export const approvePayable = (id: number, tenantId?: number) =>
+  api<{ ok: boolean; payable: Payable }>(
+    `/api/procurement/payables/${id}/approve${orgQuery(tenantId)}`,
+    { method: "POST" },
+  );
+
+export const payPayable = (
+  id: number,
+  body: { bank_account_id: number; note?: string },
+  tenantId?: number,
+) =>
+  api<{ ok: boolean; payable: Payable }>(
+    `/api/procurement/payables/${id}/pay${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+// ---------------------------------------------------------------------------
+// 长任务（切片 10）：分段执行 + 产物落盘
+// ---------------------------------------------------------------------------
+
+export interface LongTaskStage {
+  index: number;
+  name: string;
+  instruction: string;
+  status: string; // pending/running/done/failed/skipped
+  chars: number;
+  file: string;
+  error: string;
+  started_at: string;
+  finished_at: string;
+}
+
+export interface LongTask {
+  id: string;
+  kind: string;
+  title: string;
+  brief: string;
+  status: string; // pending/running/done/failed/cancelled
+  created_at: string;
+  updated_at: string;
+  stages: LongTaskStage[];
+}
+
+export interface LongTaskSummary {
+  id: string;
+  kind: string;
+  title: string;
+  status: string;
+  done: number;
+  total: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const listLongTaskTemplates = () =>
+  api<{ templates: { id: string; label: string; stages: string[] }[] }>(
+    "/api/longtasks/templates",
+  ).then((r) => r.templates);
+
+export const listLongTasks = () =>
+  api<{ tasks: LongTaskSummary[] }>("/api/longtasks").then((r) => r.tasks);
+
+export const createLongTask = (body: {
+  kind: string;
+  title: string;
+  brief: string;
+  stages?: string[];
+}) =>
+  api<{ ok: boolean; task: LongTask }>("/api/longtasks", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const runLongTask = (id: string, maxStages?: number) =>
+  api<{ ok: boolean; task: LongTask }>(`/api/longtasks/${id}/run`, {
+    method: "POST",
+    body: JSON.stringify(maxStages ? { max_stages: maxStages } : {}),
+  });
+
+export const cancelLongTask = (id: string) =>
+  api<{ ok: boolean; task: LongTask }>(`/api/longtasks/${id}/cancel`, {
+    method: "POST",
+  });
+
+export const getLongTask = (id: string) =>
+  api<LongTask>(`/api/longtasks/${id}`);
+
+export const readLongTaskStage = (id: string, index: number) =>
+  api<{ task_id: string; index: number; content: string }>(
+    `/api/longtasks/${id}/stages/${index}`,
+  ).then((r) => r.content);
+
 export const familySummary = () => api<FamilySummary>("/api/family/summary");

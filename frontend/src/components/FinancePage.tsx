@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { CandlestickChart, CreditCard, FileText, HeartPulse, LayoutGrid, NotebookPen, Plug, Receipt, Target, TrendingUp, Users, Wallet } from "lucide-react";
+import { BookOpenCheck, CandlestickChart, ClipboardList, CreditCard, FileText, HeartPulse, Landmark, LayoutGrid, NotebookPen, Package, Plug, Receipt, Target, TrendingUp, Users, Wallet } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { GroupedNav, type NavGroup } from "@/components/ui/grouped-nav";
 
@@ -39,8 +39,25 @@ const TaxBody = lazy(() =>
 const DebtPayoffBody = lazy(() =>
   import("@/components/DebtPayoffPage").then((m) => ({ default: m.DebtPayoffPage })),
 );
+const GlBody = lazy(() =>
+  import("@/components/GlPage").then((m) => ({ default: m.GlPage })),
+);
+const ExpensesBody = lazy(() =>
+  import("@/components/ExpensesPage").then((m) => ({ default: m.ExpensesPage })),
+);
+const BankBody = lazy(() =>
+  import("@/components/BankPage").then((m) => ({ default: m.BankPage })),
+);
+const LongTaskBody = lazy(() =>
+  import("@/components/LongTaskPage").then((m) => ({ default: m.LongTaskPage })),
+);
+const ProcurementBody = lazy(() =>
+  import("@/components/ProcurementPage").then((m) => ({
+    default: m.ProcurementPage,
+  })),
+);
 
-export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax" | "debts";
+export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax" | "debts" | "gl" | "expenses" | "bank" | "procurement" | "longtask";
 
 /**
  * 分组：按用户的心智模型收纳，而不是按功能清单平铺。
@@ -78,6 +95,17 @@ const GROUPS: NavGroup<DataKind>[] = [
     id: "books",
     labelKey: "nav.groupBooks",
     items: [
+      { key: "expenses", labelKey: "nav.expenses", icon: ClipboardList },
+      { key: "procurement", labelKey: "nav.procurement", icon: Package },
+      { key: "longtask", labelKey: "nav.longtask", icon: FileText },
+    ],
+  },
+  {
+    id: "ledger",
+    labelKey: "nav.groupLedger",
+    items: [
+      { key: "gl", labelKey: "nav.gl", icon: BookOpenCheck },
+      { key: "bank", labelKey: "nav.bank", icon: Landmark },
       { key: "statements", labelKey: "nav.statements", icon: FileText },
       { key: "tax", labelKey: "nav.tax", icon: Receipt },
       { key: "paper", labelKey: "nav.paper", icon: Users },
@@ -136,7 +164,7 @@ export function FinancePage({
                 onGoSettings={onGoSettings}
                 onNavigateTab={(tab) => {
                   const known: DataKind[] = ["overview", "holdings", "market", "ledger", "health",
-                    "strategy", "research", "statements", "paper", "connect", "tax", "debts"];
+                    "strategy", "research", "statements", "paper", "connect", "tax", "debts", "gl", "expenses", "bank", "procurement", "longtask"];
                   if (known.includes(tab as DataKind)) onKindChange(tab as DataKind);
                 }}
               />
@@ -146,6 +174,11 @@ export function FinancePage({
             {kind === "tax" && <TaxBody />}
             {kind === "research" && <ResearchBody />}
             {kind === "statements" && <StatementsBody />}
+            {kind === "gl" && <GlBody />}
+            {kind === "expenses" && <ExpensesBody />}
+            {kind === "procurement" && <ProcurementBody />}
+            {kind === "longtask" && <LongTaskBody />}
+            {kind === "bank" && <BankBody />}
             {kind === "paper" && <PaperBody />}
             {kind === "strategy" && <StrategyBody />}
             {kind === "market" && <MarketView />}

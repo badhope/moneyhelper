@@ -264,6 +264,19 @@ def _benchmark(closes: list[float], initial_capital: float) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _benchmark_curve(closes: list[float], initial_capital: float) -> list[float]:
+    """买入持有基准曲线。closes[0] <= 0 时返回等长零序列而不是崩。
+
+    `_benchmark()` 已经用 `if closes[0] > 0` 挡过首价为 0 的情况，但曲线这三处
+    仍是裸除：首根为 0（停牌/脏数据）时 _benchmark 返回 None、曲线却抛
+    ZeroDivisionError，整个策略接口 500。两处口径必须一致。
+    """
+    base = closes[0] if closes and closes[0] > 0 else 0.0
+    if base <= 0:
+        return [0.0] * len(closes)
+    return [round(c / base * initial_capital, 2) for c in closes]
+
+
 def backtest_grid(
     closes: list[float],
     *,
@@ -349,7 +362,7 @@ def backtest_grid(
         "curve": {
             "dates": dates or list(range(n)),
             "strategy": curve,
-            "benchmark": [round(c / closes[0] * initial_capital, 2) for c in closes],
+            "benchmark": _benchmark_curve(closes, initial_capital),
         },
     }
 
@@ -535,7 +548,7 @@ def backtest_trend(
         "curve": {
             "dates": dates or list(range(n)),
             "strategy": curve,
-            "benchmark": [round(c / closes[0] * initial_capital, 2) for c in closes],
+            "benchmark": _benchmark_curve(closes, initial_capital),
         },
     }
 
@@ -600,6 +613,6 @@ def backtest_vol_target(
         "curve": {
             "dates": dates or list(range(n)),
             "strategy": res["curve"],
-            "benchmark": [round(c / closes[0] * initial_capital, 2) for c in closes],
+            "benchmark": _benchmark_curve(closes, initial_capital),
         },
     }

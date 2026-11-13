@@ -1,19 +1,15 @@
 # Moneyhelper
 
-**An AI finance department you can audit.** Bookkeeping, portfolio risk, research, statements, tax and cash scheduling — every number computed by deterministic code, never by the model.
+**An auditable AI finance department.** Bookkeeping, enterprise ledger, procurement/payables, expense claims, bank reconciliation, portfolio risk, statements and tax — every number is computed by deterministic code; the model only writes prose.
 
 [English](README.md) · [简体中文](README.zh.md) · [Docs](docs/index.md) · [CLI](docs/cli.md) · [Deploy](docs/DEPLOY.en.md)
 
 [![CI](https://github.com/badhope/moneyhelper/actions/workflows/ci.yml/badge.svg)](https://github.com/badhope/moneyhelper/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/badhope/moneyhelper)](https://github.com/badhope/moneyhelper/releases)
-[![Tests](https://img.shields.io/badge/tests-1%2C600%2B-059669)](#verification)
+[![Tests](https://img.shields.io/badge/tests-1%2C700%2B-059669)](#verification)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-63%20tools-1A2B4A)](docs/mcp-guide.md)
-
-<p align="center">
-  <img src="docs/screenshots-v4.14/desktop-02-overview.png" width="100%" alt="Dashboard: net worth, concentration risk and prioritized actions" />
-</p>
 
 ---
 
@@ -37,28 +33,23 @@ Requires Python 3.10+ and Node 20.19+ for the source install. Data lives in a lo
 
 ## What it does
 
-| | |
+| Area | Capability |
 |---|---|
-| **Ledger** | One sentence, many entries: `午餐 45 打车 28` becomes two transactions. WeChat Pay, Alipay, bank CSV, PDF statements, invoice QR codes and OCR all import natively. |
-| **Portfolio** | Positions, concentration and sector breakdown, P&L attribution, rebalance orders sized to whole lots. |
-| **Debt payoff** | Avalanche vs snowball, month-by-month amortization, debt-free date, and how much interest the extra payment actually saves. |
-| **Research** | Technical indicators, 5 backtest strategies, statistical price scenarios (trend regression, volatility bands, Monte Carlo with a fixed seed). |
-| **Statements** | Three-statement analysis: 20+ ratios, DuPont decomposition, year-over-year deltas, anomaly flags. |
-| **Tax (CN)** | VAT and surcharges, corporate income tax, cumulative withholding for individuals, payroll with social insurance and housing fund. |
-| **Cash flow** | Three-scenario forecast, subscription detection, anomaly detection via median + MAD. |
-| **Reports** | Single-file interactive HTML, offline-readable, printable to PDF. |
-| **MCP** | 63 tools over the Model Context Protocol — any MCP client can drive the ledger. |
-
-<p align="center">
-  <img src="docs/screenshots-v4.14/desktop-11-debts.png" width="49%" alt="Debt payoff planner" />
-  <img src="docs/screenshots-v4.14/desktop-10-research.png" width="49%" alt="Research and backtesting" />
-</p>
+| **Enterprise foundation** | Tenants, departments, positions, memberships; tenant-scoped permissions with a role → permission dictionary. |
+| **Double-entry ledger** | Chart of accounts, accounting periods, journal entries and lines in integer cents, draft → post → reverse, trial balance, period lock. |
+| **Expense claims** | Draft → submit → approve; applicant ≠ approver in enterprise tenants; approval creates a voucher draft. |
+| **Procurement / payables** | Vendor → purchase order → payable → payment. PO approval grants the purchase; payable approval creates the voucher; payment creates the bank-side voucher. |
+| **Bank reconciliation** | Payment records, manual/CSV bank statements, match/unmatch by account + amount + direction, statement vs book balance, sign-off gates. |
+| **Personal ledger** | One sentence, many entries: `午餐 45 打车 28` becomes two transactions. WeChat Pay, Alipay, bank CSV, PDF statements, invoice QR and OCR import natively. |
+| **Portfolio & research** | Positions, concentration, P&L attribution, rebalance orders, technical indicators, 5 backtest strategies, seeded Monte Carlo scenarios. |
+| **Statements & tax (CN)** | Three-statement analysis with 20+ ratios and DuPont decomposition; VAT, corporate income tax, cumulative withholding, payroll with social insurance. |
+| **Reports & MCP** | Single-file offline HTML reports; 63 tools exposed over the Model Context Protocol. |
 
 ---
 
 ## Why the numbers hold up
 
-The calculation layer is pure functions: no network, no database, no randomness (Monte Carlo is seeded).
+The calculation layer is pure functions: no network, no database, no unseeded randomness.
 
 ```
 question → intent routing → tool call → calculations/*.py (pure functions)
@@ -66,24 +57,49 @@ question → intent routing → tool call → calculations/*.py (pure functions)
                                      numbers filled in → model only writes prose
 ```
 
-**The model has no channel for inventing numbers.** It receives computed values and can only phrase them. Every figure carries a provenance record, and every metric documents its formula and its failure modes in the docstring — when the sample is too small the API returns `null` with a reason rather than a plausible-looking number.
+**The model has no channel for inventing numbers.** It receives computed values and can only phrase them. Every figure carries a provenance record; every metric documents its formula and failure modes — when a sample is too small the API returns `null` with a reason instead of a plausible-looking number.
 
-Two examples of that discipline being enforced rather than claimed:
-
-- Backtests used to report `+44887% annualized` on a 62% drawdown. The curve ignored cash and compared endpoints. Fixed to hold cash in the curve, use XIRR for annualized return, and derive drawdown and Sharpe from the TWR series.
-- Health score returned 54/D over MCP and 83/B over REST for the same data. Both paths now call the same function.
+Regression tests assert observable output (values, dates, codes, series lengths), not implementation details. When RSI(14) returned `0.00` for a 60-day straight uptrend and fired a "deeply oversold" signal, the fix came with a test that fails on the old behavior.
 
 ---
 
-## Design principles
+## Permissions & safety
 
-**Local by default, deployable anywhere.** SQLite on your machine; the same core runs as a desktop binary, a self-hosted server, or a container. Only de-identified structured context is sent to the model provider — the ledger itself never leaves.
+This is a local-first application, and it is built so that **the program cannot rewrite itself by accident**:
 
-**Chinese bill formats are first-class.** WeChat and Alipay exports are parsed structurally, not through a generic fallback guessing at column names. Invoice QR decoding and OCR are real decoders, and both degrade with an explicit "install this" message when the optional dependency is missing.
+- **Instance-admin boundary.** Changing Studio permission modes, agent roles/skills, system prompts, model endpoints, MCP servers and backup restore requires the instance administrator. Tenant members cannot escalate themselves to "open".
+- **Protected program directories.** A path guard refuses to point the data directory or database at source code, `.git`, dependency manifests or startup scripts. Overriding it requires an explicit `MONEYHELPER_ALLOW_SYSTEM_ACCESS=1`.
+- **stdio MCP is off by default.** Market installs may register a command entry, but enabling or spawning it requires `MONEYHELPER_ALLOW_STDIO_MCP=1`; working directories inside the source tree are rejected.
+- **Backup restore is narrow.** Only user preferences are restored from a backup; permission modes, prompts, model endpoints and API keys are never written back, and MCP URLs are re-validated against SSRF rules.
+- **Safety hooks cannot be disabled.** The built-in hooks that block shell/file-write tools and audit write operations are protected from disable and delete.
+- **Live trading is never automatic.** Pre-trade checks produce a confirmation token; live orders generate a handoff sheet. The default broker is `NullBroker` in dry-run.
 
-**Trading is never automated blindly.** Pre-trade checks (price limits, lot size, T+1, concentration, daily caps, duplicate orders) produce a confirmation token; live orders generate a handoff sheet. The default broker is `NullBroker` in dry-run.
+---
 
-**Failures degrade, they don't 500.** Market data unreachable → the affected card returns `available: false` with a reason while the rest of the page keeps working. A backtest is pure computation, so it stays available even when quotes are down — which is exactly when you want to review it offline.
+## Verification
+
+```bash
+bash scripts/verify-all.sh                        # ruff + backend + frontend + build
+bash scripts/verify-all.sh --with-e2e             # + 31 Playwright UI flows
+bash scripts/verify-all.sh --with-e2e --with-live # + real-model acceptance (LLM_API_KEY)
+```
+
+Current results:
+
+| Layer | Result |
+|---|---|
+| Backend | `1717 passed, 0 skipped` |
+| Frontend | `195 passed`, production build clean |
+| Browser E2E | `31 passed` — bookkeeping, chat, settings, Studio, tenant switch, procurement → payment |
+| Real model | 50-question finance eval `46/50` (91.5%), function calling and multi-turn verified |
+
+Three user-facing paths each have an automated gate — a green unit test proves the function is correct, not that the user can reach it:
+
+| Gate | What it proves |
+|---|---|
+| HTTP | every OpenAPI endpoint probed for 5xx; 4xx responses carry readable text, not a stack trace |
+| MCP | tool surface matches the registry, and a real protocol call succeeds via the SDK client |
+| Render | seeded hostile data (10.8k-char names, ±Infinity, epoch dates) renders with zero page errors and zero overflow |
 
 ---
 
@@ -114,27 +130,6 @@ frontend/src/      React UI, lazy-loaded per section
 ```
 
 Full detail: [architecture.md](docs/architecture.md) · [module-map.md](docs/module-map.md)
-
----
-
-## Verification
-
-```bash
-cd backend  && pytest -q                              # 1,500+ passed
-cd frontend && npx vitest run && npx tsc --noEmit     # 180+ passed, zero type errors
-node frontend/e2e/shots-full.mjs http://127.0.0.1:8788  # 22 screenshots, zero overflow
-python backend/scripts/seed_hostile.py .tmp/h.db      # hostile-data render check
-```
-
-Gates that run in CI: ruff, pytest, `tsc --noEmit`, vitest, production build, mkdocs `--strict`, and a 1 MB file-size check.
-
-Three user-facing paths each have an automated gate — because a green unit test only proves the function is correct, not that the user can reach it:
-
-| Gate | What it proves |
-|---|---|
-| HTTP | every OpenAPI endpoint probed for 5xx; 4xx responses must carry readable text, not a stack trace |
-| MCP | tool surface matches the registry, and a real protocol call succeeds via the SDK client |
-| Render | seeded hostile data (10.8k-char names, ±Infinity, epoch dates) renders with zero page errors and zero overflow |
 
 ---
 

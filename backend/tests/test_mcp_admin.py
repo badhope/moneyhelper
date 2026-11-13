@@ -17,7 +17,8 @@ def cfg(tmp_path, monkeypatch):
     """把配置指向临时文件，避免污染仓库内的 data/mcp.json。"""
     p = tmp_path / "mcp.json"
     monkeypatch.setattr(mcp_client, "MCP_CFG", p)
-    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    mcp_client._discover_cache.clear()
+    mcp_client._discovery_failures.clear()
     mcp_client._servers.clear()
     yield p
     mcp_client._servers.clear()
@@ -70,11 +71,11 @@ def test_redact_url_without_credentials() -> None:
     assert mcp_client.redact_url("https://example.com/mcp") == "https://example.com/mcp"
 
 
-def test_save_clears_discover_cache(cfg, monkeypatch) -> None:
+def test_save_clears_discover_cache(cfg) -> None:
     """保存后必须让发现缓存失效，否则新工具要等 30s 才可见。"""
-    monkeypatch.setattr(mcp_client, "_discover_cache", (0.0, "stale", []))
+    mcp_client._discover_cache["stale"] = []
     mcp_client.save_servers([{"name": "a", "url": "https://a.example/mcp"}])
-    assert mcp_client._discover_cache is None
+    assert len(mcp_client._discover_cache) == 0
 
 
 def test_broken_config_returns_empty(cfg) -> None:
@@ -97,11 +98,17 @@ def test_enabled_flag_roundtrip(cfg) -> None:
 
 
 def test_stdio_entry_saved_and_loaded(cfg) -> None:
+    # stdio 默认只允许登记为「停用」；启用必须显式允许（防止命令执行后门）
     mcp_client.save_servers(
-        [{"name": "local", "command": "npx", "args": ["-y", "pkg"], "enabled": True}]
+        [{"name": "local", "command": "npx", "args": ["-y", "pkg"], "enabled": False}]
     )
-    entry = mcp_client._load_config()[0]
+    entry = mcp_client._load_config(include_disabled=True)[0]
     assert entry["command"] == "npx" and entry["args"] == ["-y", "pkg"]
+    assert entry["enabled"] is False
+    with pytest.raises(ValueError, match="MONEYHELPER_ALLOW_STDIO_MCP"):
+        mcp_client.save_servers(
+            [{"name": "local", "command": "npx", "args": ["-y", "pkg"], "enabled": True}]
+        )
 
 
 def test_stdio_requires_command(cfg) -> None:

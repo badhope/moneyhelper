@@ -110,7 +110,7 @@ async def test_market_install_mcp_defaults(client, tmp_path, monkeypatch) -> Non
     from app import mcp_client
 
     monkeypatch.setattr(mcp_client, "MCP_CFG", tmp_path / "mcp.json")
-    monkeypatch.setattr(mcp_client, "_discover_cache", None)
+    mcp_client._discover_cache.clear()
     mcp_client._servers.clear()
     r = await client.post("/api/studio/market/install", json={"id": "mcp-deepwiki"})
     assert r.json()["ok"] is True
@@ -122,8 +122,16 @@ async def test_market_install_mcp_defaults(client, tmp_path, monkeypatch) -> Non
     servers2 = {s["name"]: s for s in (await client.get("/api/mcp/servers")).json()["servers"]}
     assert servers2["fetch"]["enabled"] is False
 
+    # stdio（可执行本地命令）默认禁止启用：市场安装 + toggle 不能绕过门禁。
     r3 = await client.post("/api/mcp/servers/fetch/toggle", json={"enabled": True})
-    assert r3.json()["ok"] is True
+    body = r3.json()
+    assert body.get("ok") is not True
+    assert "MONEYHELPER_ALLOW_STDIO_MCP" in str(body)
+
+    # 部署者显式允许后才可启用
+    monkeypatch.setenv("MONEYHELPER_ALLOW_STDIO_MCP", "1")
+    r4 = await client.post("/api/mcp/servers/fetch/toggle", json={"enabled": True})
+    assert r4.json()["ok"] is True
 
 
 async def test_studio_prompt_reaches_agent_system(temp_db, monkeypatch) -> None:

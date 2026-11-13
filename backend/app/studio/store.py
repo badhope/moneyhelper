@@ -34,6 +34,15 @@ CORE_LOCKED = (
     "destructive_confirm",
 )
 
+# 内置安全 Hook：拦截命令执行/文件写入、审计写操作。
+# 这些是「程序不能被自己关掉」的底线，删除与停用都必须拒绝；
+# 它们不是用户资产，用户只能看，不能改。
+BUILTIN_PROTECTED_HOOKS = (
+    "block_shell_tools",
+    "block_file_write_tools",
+    "audit_write_tools",
+)
+
 DEFAULT_STUDIO: dict[str, Any] = {
     "version": "1.0",
     "permissions": {
@@ -86,7 +95,9 @@ def _merge_defaults(cfg: dict[str, Any]) -> tuple[dict[str, Any], bool]:
             perms[k] = v
             changed = True
     if perms.get("mode") not in PERMISSION_MODES:
-        perms["mode"] = "open"
+        # fail-closed：非法/缺失的权限模式回落到「标准」，绝不静默升到「全面放开」。
+        # 旧实现回落 open，等于配置损坏时自动放宽权限。
+        perms["mode"] = "standard"
         changed = True
     removed = out.setdefault("removed", {})
     for kind in ("prompts", "rules", "hooks", "roles", "skills"):
@@ -210,18 +221,25 @@ async def cli_admin_allowed() -> bool:
 def validate_permissions(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     errors: list[str] = []
     out = dict(payload or {})
-    mode = str(out.get("mode") or "open")
-    if mode not in PERMISSION_MODES:
-        errors.append(f"权限模式只能是 {'/'.join(PERMISSION_MODES)}")
+    # 只有显式传 mode 才校验/写回。缺失 mode 时不能补成 "open"：
+    # 只改一个布尔开关不应该顺手把整体权限放开（历史漏洞 M-1/B2）。
+    if "mode" in out:
+        mode = str(out.get("mode") or "")
+        if mode not in PERMISSION_MODES:
+            errors.append(f"权限模式只能是 {'/'.join(PERMISSION_MODES)}")
+        elif mode != "open":
+            # 非全面放开 = 不允许任何程序化写入：对话、CLI、URL 安装一律关闭。
+            # 之前只关前两个，URL 安装仍开着，等于留了一个绕过权限的后门。
+            out["allow_chat_admin"] = False
+            out["allow_cli_admin"] = False
+            out["allow_remote_install"] = False
     for key in ("allow_chat_admin", "allow_cli_admin", "allow_remote_install"):
         if key in out and not isinstance(out[key], bool):
             errors.append(f"{key} 必须是布尔值")
-    if mode != "open":
-        # 非全面放开 = 不允许任何程序化写入：对话、CLI、URL 安装一律关闭。
-        # 之前只关前两个，URL 安装仍开着，等于留了一个绕过权限的后门。
-        out["allow_chat_admin"] = False
-        out["allow_cli_admin"] = False
-        out["allow_remote_install"] = False
+    # 单独把 allow_chat_admin 打开、但当前模式不是 open 的请求必须拒绝：
+    # 否则标准模式下只要 POST 一个 true 就恢复对话改配置能力。
+    if out.get("allow_chat_admin") is True and "mode" not in out:
+        errors.append("开启对话管理权限必须同时显式提交 mode=open")
     return out, errors
 
 
@@ -482,6 +500,9 @@ async def _set_enabled_locked(
     bucket = cfg.setdefault(kind, {})
     if asset_id not in bucket:
         return None
+    # 内置安全 Hook 不允许停用：否则一句「停用 Hook」就能关掉命令执行拦截。
+    if kind == "hooks" and not enabled and asset_id in BUILTIN_PROTECTED_HOOKS:
+        raise PermissionError("内置安全 Hook 不可停用（命令执行/文件写入拦截是安全底线）")
     bucket[asset_id]["enabled"] = bool(enabled)
     await _write(cfg)
     return {"id": asset_id, **bucket[asset_id]}
