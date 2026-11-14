@@ -32,15 +32,37 @@ def _github_api_url(url: str) -> str | None:
 
 
 async def fetch_remote_text(url: str) -> tuple[str, str]:
-    """抓取远程文件，返回 (filename, text)。GitHub blob 走 contents API（raw 域名常被墙）。"""
+    """抓取远程文件，返回 (filename, text)。GitHub blob 走 contents API（raw 域名常被墙）。
+
+    重定向安全：不自动跟随。SSRF 校验发生在调用方（只查首跳 URL），
+    若这里 follow_redirects=True，攻击者控制的公网地址可以 302 到
+    169.254.169.254 / 10.x 绕过校验。改为手动跟随，每一跳都重新校验，
+    上限 3 跳。
+    """
+    from ..netguard import assert_public_http_url
+
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise ValueError("URL 必须以 http:// 或 https:// 开头")
     api = _github_api_url(url)
     target = api or url
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "moneyhelper-studio"}
-    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
-        resp = await client.get(target, headers=headers)
+    async with httpx.AsyncClient(timeout=20.0, follow_redirects=False) as client:
+        current = target
+        for _hop in range(4):
+            # 每一跳都做完整校验（含 DNS 解析）。GitHub API 本身是公网域名，
+            # 不需要为它开后门；跳过解析反而给了「解析到内网」的绕过口子。
+            assert_public_http_url(current)
+            resp = await client.get(current, headers=headers)
+            if resp.is_redirect:
+                location = resp.headers.get("location") or ""
+                if not location:
+                    raise ValueError("下载失败：重定向缺少 Location")
+                current = str(httpx.URL(current).join(location))
+                continue
+            break
+        else:
+            raise ValueError("下载失败：重定向次数过多")
         if resp.status_code >= 400:
             raise ValueError(f"下载失败：HTTP {resp.status_code}")
         if len(resp.content) > MAX_REMOTE_BYTES:

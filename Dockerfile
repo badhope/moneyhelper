@@ -32,11 +32,18 @@ COPY --from=deps /venv /venv
 COPY --from=web /app/frontend/dist /app/frontend/dist
 COPY backend/ /app/backend/
 
-# 非 root 运行（安全最佳实践）：建 xia 用户，应用文件与数据目录归其所有
+# 非 root 运行（安全最佳实践）：建 xia 用户，只把「运行期可写」的目录给它。
+#
+# 关键：不能 chown -R /app。源码与前端产物对运行进程应当只读——
+# 一旦进程被注入任意写原语，可写源码就等于可持久化后门；
+# 配合本仓库的 pathguard（MONEYHELPER_ALLOW_SYSTEM_ACCESS 默认关闭），
+# 形成「代码只读 + 数据可写」的双层边界。
 RUN useradd --create-home --uid 1000 --user-group xia \
-    && mkdir -p /app/backend/data \
-    && chown -R xia:xia /app \
-    && chmod -R a+rX /app
+    && mkdir -p /app/backend/data /app/backend/logs \
+    && chown -R root:root /app \
+    && chown -R xia:xia /app/backend/data /app/backend/logs \
+    && chmod -R a+rX /app \
+    && chmod -R u+w /app/backend/data /app/backend/logs
 
 WORKDIR /app/backend
 # 数据目录持久化（SQLite + 备份 + LangGraph checkpoint），容器重启不丢数据。

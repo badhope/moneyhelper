@@ -101,7 +101,7 @@ bash scripts/verify-all.sh --with-e2e --with-live # + 真实模型验收（需 L
 
 | 层次 | 结果 |
 |---|---|
-| 后端 | `1717 passed, 0 skipped` |
+| 后端 | `1719 passed, 0 skipped` |
 | 前端 | `195 passed`，生产构建通过 |
 | 浏览器 E2E | `33 passed` —— 记账、问答、设置（24 个分区）、Studio、租户切换、采购 → 付款、全部财务页 |
 | 真实模型 | 50 题财务题库 `46/50`（91.5%），function calling 与多轮追问通过 |
