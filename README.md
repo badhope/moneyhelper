@@ -101,7 +101,7 @@ Current results:
 
 | Layer | Result |
 |---|---|
-| Backend | `1717 passed, 0 skipped` |
+| Backend | `1719 passed, 0 skipped` |
 | Frontend | `195 passed`, production build clean |
 | Browser E2E | `33 passed` — bookkeeping, chat, settings (24 sections), Studio, tenant switch, procurement → payment, all finance pages |
 | Real model | 50-question finance eval `46/50` (91.5%), function calling and multi-turn verified |

@@ -57,6 +57,17 @@
 - 新增 E2E：设置 24 分区逐个点开、财务 16 页逐个点开，断言零页面异常
   ——导航重构后"某页不可达"这类只有用户才会发现的问题有了门禁。
 
+### 安全加固（续）：远程安装重定向 SSRF
+
+- `fetch_remote_text` 原用 `follow_redirects=True`：SSRF 校验只查首跳 URL，
+  攻击者控制的公网地址可 302 到 `169.254.169.254` / 内网段绕过检查。
+  改为手动跟随、每跳重新 `assert_public_http_url`（含 DNS），上限 3 跳。
+- 新增 `backend/tests/test_remote_install_ssrf.py`（2 项）：重定向到内网必须在
+  校验处被拒且不发出第二跳；非 http(s) scheme 直接拒绝。
+- Dockerfile：运行用户不再拥有源码目录（原 `chown -R xia:xia /app`），
+  仅 `backend/data` 与 `backend/logs` 可写，源码/前端产物归 root 只读。
+  本机无 Docker，镜像构建未验证（已在路线图标注）。
+
 ### 工具链：发版与推送
 
 - `scripts/release.sh` 不再硬编码 `python3`：Windows 没有该命令，脚本会在改完文件后
