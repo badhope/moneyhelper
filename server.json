@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.github.badhope/moneyhelper",
-  "description": "Local-first AI finance department: bookkeeping, portfolio risk, research, statements, tax estimates, cash scheduling. Every number computed deterministically and auditable.",
-  "version": "4.15.1",
+  "description": "Local-first AI finance department: enterprise tenants, double-entry GL, expenses, procurement/payables, bank reconciliation, portfolio risk, statements and tax estimates. Every number computed deterministically and auditable.",
+  "version": "4.16.0",
   "repository": {
     "url": "https://github.com/badhope/moneyhelper",
     "source": "github"
@@ -12,7 +12,7 @@
     {
       "registryType": "pypi",
       "identifier": "moneyhelper",
-      "version": "4.15.1",
+      "version": "4.16.0",
       "transport": {
         "type": "stdio",
         "command": "python",

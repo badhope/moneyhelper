@@ -2,7 +2,12 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [4.16.0] - 2026-11-14
+
+### 摘要
+
+企业化切片 8-10：采购/应付闭环、代理安全边界（程序不能自己改掉）、长任务引擎；
+财务工作区导航重构为「业务 / 账务」两层；测试门禁补齐到 1717 + 195 + 33 且零跳过。
 
 ### 企业化切片 10：长任务引擎（分段执行 + 断点续跑 + 产物落盘）
 
@@ -51,6 +56,14 @@
   `fmtDay` 纯日期字段不再显示伪造的 08:00。
 - 新增 E2E：设置 24 分区逐个点开、财务 16 页逐个点开，断言零页面异常
   ——导航重构后"某页不可达"这类只有用户才会发现的问题有了门禁。
+
+### 工具链：发版与推送
+
+- `scripts/release.sh` 不再硬编码 `python3`：Windows 没有该命令，脚本会在改完文件后
+  中断在 commit 一步（实测）。现优先用项目 venv，再按 `python3 → python → py` 探测。
+- `scripts/push_via_api.py` 新增 `--incremental`：对比远端 tree 只上传变化 blob
+  （690 文件全量 ×3 镜像易撞 secondary rate limit；实测增量后每次 152 个），
+  推送后校验远端 tree == 本地 HEAD tree，不一致立即报错。
 
 ### 测试门禁：跳过清零 + E2E/真实模型验收
 
@@ -2088,3 +2101,8 @@ StatementsPage / PaperTradingPage / ResearchPage 合计迁移 **135 处**中文�
 ## [0.5.0] - 2026-09
 
 - 预算、记账、CSV 导入、PWA、会话搜索、AI 问答、品牌系统
+
+## [Unreleased]
+
+（暂无未发布变更）
+

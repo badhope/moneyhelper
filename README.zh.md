@@ -11,6 +11,18 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-63%20tools-1A2B4A)](docs/mcp-guide.md)
 
+<p align="center">
+  <img src="docs/screenshots-v4.16/desktop-01-overview.jpg" width="100%" alt="总览：净资产、集中度风险与按紧急度排序的待办" />
+</p>
+<p align="center">
+  <img src="docs/screenshots-v4.16/desktop-02-procurement.jpg" width="49%" alt="采购与应付：供应商 → 采购单 → 应付单 → 付款" />
+  <img src="docs/screenshots-v4.16/desktop-03-longtask.jpg" width="49%" alt="长任务：分段执行，产物可续跑" />
+</p>
+<p align="center">
+  <img src="docs/screenshots-v4.16/desktop-04-gl.jpg" width="49%" alt="复式总账：凭证、期间、试算表" />
+  <img src="docs/screenshots-v4.16/desktop-05-settings.jpg" width="49%" alt="设置：两级分组导航" />
+</p>
+
 ---
 
 ## 安装
@@ -43,6 +55,7 @@ pip install -e . && moneyhelper add "午餐 45 打车 28"
 | **个人记账** | 一句话多笔：`午餐 45 打车 28` 自动拆成两笔。微信、支付宝、银行 CSV、PDF 对账单、发票二维码与 OCR 原生解析。 |
 | **持仓与投研** | 持仓、集中度、盈亏归因、再平衡下单量；技术指标、5 种回测策略、固定种子蒙特卡洛。 |
 | **财报与税负（CN）** | 三表分析 20+ 指标与杜邦分解；增值税、企业所得税、个税累计预扣、含社保公积金的工资表。 |
+| **长任务** | 一次回答装不下的大活儿：小说、网页程序、Word 报告、论文、程序开发。每阶段落盘、可续跑、可逐段查看。 |
 | **报表与 MCP** | 单文件离线 HTML 报告；63 个工具通过 Model Context Protocol 暴露。 |
 
 ---
@@ -80,7 +93,7 @@ pip install -e . && moneyhelper add "午餐 45 打车 28"
 
 ```bash
 bash scripts/verify-all.sh                        # ruff + 后端 + 前端 + 构建
-bash scripts/verify-all.sh --with-e2e             # + 31 条 Playwright 界面流程
+bash scripts/verify-all.sh --with-e2e             # + 33 条 Playwright 界面流程
 bash scripts/verify-all.sh --with-e2e --with-live # + 真实模型验收（需 LLM_API_KEY）
 ```
 
@@ -90,7 +103,7 @@ bash scripts/verify-all.sh --with-e2e --with-live # + 真实模型验收（需 L
 |---|---|
 | 后端 | `1717 passed, 0 skipped` |
 | 前端 | `195 passed`，生产构建通过 |
-| 浏览器 E2E | `31 passed` —— 记账、问答、设置、Studio、租户切换、采购 → 付款 |
+| 浏览器 E2E | `33 passed` —— 记账、问答、设置（24 个分区）、Studio、租户切换、采购 → 付款、全部财务页 |
 | 真实模型 | 50 题财务题库 `46/50`（91.5%），function calling 与多轮追问通过 |
 
 三条用户链路各有自动化门禁——单测全绿只证明函数对，证明不了用户够得着：

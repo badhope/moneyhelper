@@ -38,6 +38,19 @@ die()  { printf '\033[1;31m错误:\033[0m %s\n' "$*" >&2; exit 1; }
 # ---------------------------------------------------------------------------
 [ -f backend/app/version.py ] || die "找不到 backend/app/version.py（版本单一真源）"
 
+# Python 解释器：Windows 没有 python3，优先项目 venv，再按 python3 → python → py 探测。
+# 旧实现直接写 python3，在 Windows 上必然 "command not found"（实测缺陷）。
+PY=""
+for cand in ".venv/Scripts/python.exe" ".venv/bin/python" "backend/.venv/Scripts/python.exe" "backend/.venv/bin/python"; do
+  if [ -x "$cand" ]; then PY="$cand"; break; fi
+done
+if [ -z "$PY" ]; then
+  for cand in python3 python py; do
+    if command -v "$cand" >/dev/null 2>&1; then PY="$(command -v "$cand")"; break; fi
+  done
+fi
+[ -n "$PY" ] || die "找不到 Python 解释器（需要 3.10+）"
+
 if [ -n "$(git status --porcelain)" ]; then
   if [ "$DRY_RUN" -eq 1 ]; then
     warn "工作区有未提交改动；--dry-run 只做预演，不会改动任何文件"
@@ -121,7 +134,7 @@ fi
 # 执行：改版本号 + 写 CHANGELOG + 提交 + 打 tag
 # ---------------------------------------------------------------------------
 say "更新版本号（单一真源 + 派生文件）"
-python3 - "$CURRENT" "$NEXT" <<'PY'
+"$PY" - "$CURRENT" "$NEXT" <<'PY'
 import pathlib
 import re
 import sys
@@ -152,7 +165,7 @@ print(f"version.py / pyproject.toml / package.json → {nxt}")
 PY
 
 say "写入 CHANGELOG"
-python3 - "$ENTRY" <<'PY'
+"$PY" - "$ENTRY" <<'PY'
 import pathlib
 import sys
 
