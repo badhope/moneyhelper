@@ -96,7 +96,7 @@ This is a local-first application, and it is built so that **the program cannot 
 
 ```bash
 bash scripts/verify-all.sh                        # ruff + backend + frontend + build
-bash scripts/verify-all.sh --with-e2e             # + 33 Playwright UI flows
+bash scripts/verify-all.sh --with-e2e             # + 55 Playwright UI flows
 bash scripts/verify-all.sh --with-e2e --with-live # + real-model acceptance (LLM_API_KEY)
 ```
 
@@ -106,7 +106,7 @@ Current results:
 |---|---|
 | Backend | `1719 passed, 0 skipped` |
 | Frontend | `195 passed`, production build clean |
-| Browser E2E | `33 passed` — bookkeeping, chat, settings (24 sections), Studio, tenant switch, procurement → payment, all finance pages |
+| Browser E2E | `55 passed` — bookkeeping, chat, settings (24 sections, 22 of them configured end-to-end), Studio, tenant switch, procurement → payment, all finance pages |
 | Real model | 50-question finance eval `46/50` (91.5%), function calling and multi-turn verified |
 
 Three user-facing paths each have an automated gate — a green unit test proves the function is correct, not that the user can reach it:

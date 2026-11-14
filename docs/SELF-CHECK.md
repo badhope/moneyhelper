@@ -170,6 +170,23 @@
 - 客户端断开不会停服务端执行：重复触发会造成多任务并发写同一目录，
   排障时以 `task.json.updated_at` 与后端进程为准，必要时重启后端清场。
 
+### 容器验证（CI 实跑，本机不允许装容器）
+
+开发机 `docker`/`podman` 均不可用，WSL2 与 Hyper-V 均 Disabled，所以容器验证放在
+GitHub Actions 的 `docker` job 里真跑（7 步全 success）：
+
+| 检查 | 结果 |
+|---|---|
+| `docker build` | 成功 |
+| 运行用户非 root | `xia` |
+| 源码目录对运行用户只读 | `touch /app/backend/app/x` 失败（符合预期） |
+| 数据目录可写 | 成功 |
+| 测试依赖未进镜像 | `import cv2` 失败（符合预期，运行时不依赖） |
+| 容器健康检查 | `/api/health` 200 |
+| 前端静态资源 | `/` 200 |
+| 本轮新增 API | `/api/longtasks/templates`、`/api/procurement/vendors`、`/api/org/capabilities` 均 200 |
+| 数据卷持久化 | 写入流水 → 重启容器 → 数据仍在 |
+
 ## 3. 真实 API 案例
 
 在演示实例上执行，结果如下：
@@ -196,7 +213,7 @@
 
 - 后端：`1697 passed, 0 skipped`（2026-11-13，补齐 qrcode/reportlab/opencv 后无跳过）。
 - 前端：`195 passed`，生产构建通过。
-- Playwright E2E：`33 passed`（含采购/应付全链路、设置 24 分区、财务 16 页遍历），
+- Playwright E2E：`55 passed`（含采购/应付全链路、设置 24 分区可达 + 22 项配置级验证、财务 16 页遍历），
   `PLAYWRIGHT_CHANNEL=msedge` 复用本机 Edge（Chromium 下载受限时）。
 - 统一门禁 `scripts/verify-all.sh`：ruff + 后端全量 + 前端单测 + 构建各层独立失败即停；
   `--with-e2e`/`--with-live` 追加 E2E 与真实模型验收。

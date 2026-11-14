@@ -68,6 +68,34 @@
   仅 `backend/data` 与 `backend/logs` 可写，源码/前端产物归 root 只读。
   本机无 Docker，镜像构建未验证（已在路线图标注）。
 
+### 测试：设置页从「能打开」升级为「真的配置过」
+
+- 新增 `frontend/e2e/settings-write.spec.ts`（10 项）：偏好项逐个
+  「改 → 刷新验证持久化 → 改回」。覆盖高对比度 / 语音提问 / 语音播报 /
+  字号档位 / 涨跌颜色 / 默认首页 / 主题模式 / 主题色，以及账本假设四项批量保存
+  与「非法值被后端拒绝而不是静默接受」。
+- 新增 `frontend/e2e/settings-agent.spec.ts`（12 项）：Agent 能力与数据与安全的
+  真实操作——资产 CRUD、内置安全 Hook 不可停用、权限模式切到标准后写操作 403、
+  stdio MCP 写入被拒、插件市场 42 条目、导出 / 日志 / 审计链 / 溯源 / 口令模式 / 评测题库。
+- E2E 总数 33 → **55**。之前只断言「分区能打开且渲染非空」，现在断言状态真的变了。
+
+### 修复：设置页 43 个 label 与控件无关联
+
+- 测试写 `getByLabel("名称")` 时定位不到，才发现设置页所有 `<label>` 都没有
+  `htmlFor`：读屏软件读不出字段名，鼠标点 label 也无法聚焦对应控件。
+- 补齐 37 处 label ↔ 控件关联（`htmlFor` + `id`）；`AssetManager` 的
+  text/number 分支还漏了 `id`（只有 textarea/select 有），一并修掉。
+
+### 容器验证：本机不允许装容器，改在 CI 里真跑
+
+- 本机 `docker`/`podman` 均不可用，WSL2 与 Hyper-V 均 Disabled（启用需重启，
+  与「不影响其他程序」的约束冲突）。改为 CI 新增 `docker` job：
+  真 `docker build` → 检查运行用户非 root、**源码目录对运行用户只读**、
+  数据目录可写、测试依赖未进镜像 → 起容器查健康 / 前端 / 本轮新增 API →
+  写入数据 → 重启容器 → 验证数据卷持久化 → 清理。
+- 该 job 已在 GitHub Actions 实跑通过（7 步全 success），
+  这是 Dockerfile 权限收窄改动的**首次真实验证**。
+
 ### 发行：Windows 安装包（本轮新增）
 
 - 之前只有 PyInstaller 免安装单文件，用户拿到 exe 要自己建目录、没有开始菜单入口、

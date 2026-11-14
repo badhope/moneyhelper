@@ -96,7 +96,7 @@ pip install -e . && moneyhelper add "午餐 45 打车 28"
 
 ```bash
 bash scripts/verify-all.sh                        # ruff + 后端 + 前端 + 构建
-bash scripts/verify-all.sh --with-e2e             # + 33 条 Playwright 界面流程
+bash scripts/verify-all.sh --with-e2e             # + 55 条 Playwright 界面流程
 bash scripts/verify-all.sh --with-e2e --with-live # + 真实模型验收（需 LLM_API_KEY）
 ```
 
@@ -106,7 +106,7 @@ bash scripts/verify-all.sh --with-e2e --with-live # + 真实模型验收（需 L
 |---|---|
 | 后端 | `1719 passed, 0 skipped` |
 | 前端 | `195 passed`，生产构建通过 |
-| 浏览器 E2E | `33 passed` —— 记账、问答、设置（24 个分区）、Studio、租户切换、采购 → 付款、全部财务页 |
+| 浏览器 E2E | `55 passed` —— 记账、问答、设置（24 个分区，其中 22 项做了配置级验证）、Studio、租户切换、采购 → 付款、全部财务页 |
 | 真实模型 | 50 题财务题库 `46/50`（91.5%），function calling 与多轮追问通过 |
 
 三条用户链路各有自动化门禁——单测全绿只证明函数对，证明不了用户够得着：
