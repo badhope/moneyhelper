@@ -98,8 +98,8 @@ export function MemorySection() {
     <Section title={t("settings.navMemory")} icon={<BrainCog className="w-4 h-4 text-muted-foreground" />} desc={t("settings.memDesc")}>
       <div className="flex items-end gap-2">
         <div className="flex-1">
-          <label className={labelCls}>{t("settings.memNew")}</label>
-          <input
+          <label className={labelCls} htmlFor="memorysect-1">{t("settings.memNew")}</label>
+          <input id="memorysect-1"
             className={inputCls}
             value={text}
             onChange={(e) => setText(e.target.value)}

@@ -80,12 +80,12 @@ export function BudgetSection() {
     <Section title={t("settings.navBudget")} desc={t("settings.budgetDesc")}>
       <div className="space-y-3">
         <div>
-          <label className={labelCls}>{t("settings.budgetTotal")}</label>
-          <input className={inputCls} type="number" min="0" value={budgetTotal} onChange={(e) => setBudgetTotal(e.target.value)} placeholder={t("settings.budgetTotalPh")} />
+          <label className={labelCls} htmlFor="budgetsect-1">{t("settings.budgetTotal")}</label>
+          <input id="budgetsect-1" className={inputCls} type="number" min="0" value={budgetTotal} onChange={(e) => setBudgetTotal(e.target.value)} placeholder={t("settings.budgetTotalPh")} />
         </div>
         <div>
-          <label className={labelCls}>{t("settings.budgetCats")}</label>
-          <textarea
+          <label className={labelCls} htmlFor="budgetsect-2">{t("settings.budgetCats")}</label>
+          <textarea id="budgetsect-2"
             className={`${inputCls} min-h-24`}
             value={budgetCats}
             onChange={(e) => setBudgetCats(e.target.value)}

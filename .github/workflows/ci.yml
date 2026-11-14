@@ -76,3 +76,87 @@ jobs:
         run: |
           pip install -q -r docs/requirements.txt
           mkdocs build --strict
+
+  docker:
+    # 容器构建与运行验证。
+    #
+    # 为什么必须有这一环：本机（开发机）不允许安装容器运行时，
+    # Dockerfile 的改动（非 root、源码只读、数据目录可写）如果没人真构建过，
+    # 就只是"看起来对"。这里在 CI 里真构建、真起容器、真查健康、真验数据卷。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 构建镜像
+        run: docker build -t moneyhelper:ci .
+
+      - name: 检查镜像内的权限边界
+        run: |
+          set -euo pipefail
+          # 1) 运行用户不是 root
+          USER_IN_IMAGE=$(docker run --rm --entrypoint id moneyhelper:ci -un)
+          echo "runtime user: $USER_IN_IMAGE"
+          test "$USER_IN_IMAGE" = "xia" || { echo "::error::容器不是以 xia 运行"; exit 1; }
+
+          # 2) 源码只读：xia 不能写 backend/app
+          if docker run --rm --entrypoint sh moneyhelper:ci -c 'touch /app/backend/app/x 2>/dev/null'; then
+            echo "::error::运行用户可以写源码目录"; exit 1
+          fi
+          echo "源码目录对运行用户只读"
+
+          # 3) 数据目录可写
+          docker run --rm --entrypoint sh moneyhelper:ci -c 'touch /app/backend/data/.probe && rm /app/backend/data/.probe'
+          echo "数据目录可写"
+
+          # 4) 测试依赖没被打进镜像（体积与攻击面）
+          docker run --rm --entrypoint sh moneyhelper:ci -c '! python -c "import cv2"' 
+          echo "测试依赖未进入镜像"
+
+      - name: 起容器并验证健康检查与数据卷
+        run: |
+          set -euo pipefail
+          docker volume create mh-ci-data
+          docker run -d --name mh-ci             -p 8787:8787             -e MONEYHELPER_DISABLE_RATE_LIMIT=1             -v mh-ci-data:/app/backend/data             moneyhelper:ci
+
+          ok=0
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8787/api/health >/dev/null 2>&1; then ok=1; break; fi
+            sleep 2
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::容器健康检查失败"
+            docker logs --tail 60 mh-ci
+            exit 1
+          fi
+          echo "health: $(curl -fsS http://127.0.0.1:8787/api/health)"
+
+          # 前端静态资源由同一容器提供
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/)" = "200"
+
+          # 本轮新增能力在容器里也在
+          for path in /api/longtasks/templates /api/procurement/vendors /api/org/capabilities; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8787$path")
+            test "$code" = "200" || { echo "::error::$path -> $code"; exit 1; }
+          done
+          echo "新增 API 在容器内可用"
+
+      - name: 数据卷持久化（重启后数据还在）
+        run: |
+          set -euo pipefail
+          # 写入一条数据 → 重启容器 → 仍能读到
+          curl -fsS -X POST http://127.0.0.1:8787/api/transactions             -H 'Content-Type: application/json'             -d '{"date":"2026-11-14","item":"ci-container-probe","category":"餐饮","amount":-1}' >/dev/null
+          docker restart mh-ci >/dev/null
+          for i in $(seq 1 40); do
+            curl -fsS --max-time 3 http://127.0.0.1:8787/api/health >/dev/null 2>&1 && break
+            sleep 2
+          done
+          found=$(curl -fsS http://127.0.0.1:8787/api/transactions | grep -c "ci-container-probe" || true)
+          test "$found" -ge 1 || { echo "::error::重启后数据丢失"; docker logs --tail 40 mh-ci; exit 1; }
+          echo "数据卷持久化正常"
+
+      - name: 清理
+        if: always()
+        run: |
+          docker rm -f mh-ci || true
+          docker volume rm mh-ci-data || true
+          docker image rm moneyhelper:ci || true

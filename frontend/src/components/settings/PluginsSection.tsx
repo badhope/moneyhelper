@@ -171,8 +171,8 @@ export function PluginsSection() {
 
         <div className="grid gap-2 sm:grid-cols-[10rem_minmax(0,1fr)]">
           <div>
-            <label className={labelCls}>{t("plugins.name")}</label>
-            <input
+            <label className={labelCls} htmlFor="pluginssec-1">{t("plugins.name")}</label>
+            <input id="pluginssec-1"
               className={inputCls}
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -182,8 +182,8 @@ export function PluginsSection() {
           </div>
           {transport === "http" ? (
             <div>
-              <label className={labelCls}>{t("plugins.url")}</label>
-              <input
+              <label className={labelCls} htmlFor="pluginssec-2">{t("plugins.url")}</label>
+              <input id="pluginssec-2"
                 className={inputCls}
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
@@ -194,8 +194,8 @@ export function PluginsSection() {
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>{t("plugins.command")}</label>
-                <input
+                <label className={labelCls} htmlFor="pluginssec-3">{t("plugins.command")}</label>
+                <input id="pluginssec-3"
                   className={inputCls}
                   value={command}
                   onChange={(e) => setCommand(e.target.value)}
@@ -204,8 +204,8 @@ export function PluginsSection() {
                 />
               </div>
               <div>
-                <label className={labelCls}>{t("plugins.args")}</label>
-                <input
+                <label className={labelCls} htmlFor="pluginssec-4">{t("plugins.args")}</label>
+                <input id="pluginssec-4"
                   className={inputCls}
                   value={args}
                   onChange={(e) => setArgs(e.target.value)}

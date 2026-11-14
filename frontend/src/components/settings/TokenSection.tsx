@@ -63,8 +63,8 @@ export function TokenSection() {
 
       <div className="flex items-end gap-2">
         <div className="min-w-0 flex-1">
-          <label className={labelCls}>{t("settings.tokenInput")}</label>
-          <input
+          <label className={labelCls} htmlFor="tokensecti-1">{t("settings.tokenInput")}</label>
+          <input id="tokensecti-1"
             className={inputCls}
             type="password"
             value={tokenInput}

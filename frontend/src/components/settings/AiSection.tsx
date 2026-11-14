@@ -99,8 +99,8 @@ export function AiSection({
         </Row>
         <AlertBanner tone="warn" className="text-xs">{t("settings.aiPrivacy")}</AlertBanner>
         <div>
-          <label className={labelCls}>{t("settings.aiBaseUrl")} <span className="text-xs opacity-70">（{t("settings.aiBaseOptional")}）</span></label>
-          <input
+          <label className={labelCls} htmlFor="aisection-1">{t("settings.aiBaseUrl")} <span className="text-xs opacity-70">（{t("settings.aiBaseOptional")}）</span></label>
+          <input id="aisection-1"
             className={inputCls}
             value={form.ai_base_url ?? ""}
             onChange={(e) => onField("ai_base_url", e.target.value)}
@@ -109,8 +109,8 @@ export function AiSection({
           />
         </div>
         <div>
-          <label className={labelCls}>{t("settings.aiKey")} <span className="text-xs opacity-70">（{t("settings.aiKeyHint")}）</span></label>
-          <input
+          <label className={labelCls} htmlFor="aisection-2">{t("settings.aiKey")} <span className="text-xs opacity-70">（{t("settings.aiKeyHint")}）</span></label>
+          <input id="aisection-2"
             className={inputCls}
             type="password"
             value={form.ai_api_key === "********" ? "" : (form.ai_api_key ?? "")}
@@ -121,8 +121,8 @@ export function AiSection({
           />
         </div>
         <div>
-          <label className={labelCls}>{t("settings.aiModel")} <span className="text-xs opacity-70">（{t("settings.aiModelOptional")}）</span></label>
-          <input
+          <label className={labelCls} htmlFor="aisection-3">{t("settings.aiModel")} <span className="text-xs opacity-70">（{t("settings.aiModelOptional")}）</span></label>
+          <input id="aisection-3"
             className={inputCls}
             value={form.ai_model ?? ""}
             onChange={(e) => onField("ai_model", e.target.value)}

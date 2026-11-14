@@ -87,8 +87,8 @@ export function ProvenanceSection() {
     >
       <div className="@container mb-2 flex flex-wrap items-end gap-2">
         <div className="min-w-[140px] flex-1">
-          <label className={labelCls}>{t("settings.provenanceType")}</label>
-          <select
+          <label className={labelCls} htmlFor="provenance-1">{t("settings.provenanceType")}</label>
+          <select id="provenance-1"
             className={inputCls}
             value={entityType}
             onChange={(e) => setEntityType(e.target.value)}
@@ -102,8 +102,8 @@ export function ProvenanceSection() {
           </select>
         </div>
         <div className="min-w-[140px] flex-1">
-          <label className={labelCls}>{t("settings.provenanceId")}</label>
-          <input
+          <label className={labelCls} htmlFor="provenance-2">{t("settings.provenanceId")}</label>
+          <input id="provenance-2"
             className={inputCls}
             value={entityId}
             onChange={(e) => setEntityId(e.target.value)}

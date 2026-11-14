@@ -35,20 +35,20 @@ export function RulesSection({
     <Section title={t("settings.navRules")} icon={<Wallet className="w-4 h-4 text-muted-foreground" />} desc={t("settings.rulesDesc")}>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>{t("settings.monthlyIncome")}</label>
-          <input className={inputCls} type="number" value={form.monthly_income ?? ""} onChange={(e) => onField("monthly_income", e.target.value)} />
+          <label className={labelCls} htmlFor="rulessecti-1">{t("settings.monthlyIncome")}</label>
+          <input id="rulessecti-1" className={inputCls} type="number" value={form.monthly_income ?? ""} onChange={(e) => onField("monthly_income", e.target.value)} />
         </div>
         <div>
-          <label className={labelCls}>{t("settings.emergencyTarget")}</label>
-          <input className={inputCls} type="number" value={form.emergency_target_months ?? ""} onChange={(e) => onField("emergency_target_months", e.target.value)} />
+          <label className={labelCls} htmlFor="rulessecti-2">{t("settings.emergencyTarget")}</label>
+          <input id="rulessecti-2" className={inputCls} type="number" value={form.emergency_target_months ?? ""} onChange={(e) => onField("emergency_target_months", e.target.value)} />
         </div>
         <div className="col-span-2">
-          <label className={labelCls}>{t("settings.essentialCats")}</label>
-          <input className={inputCls} value={form.essential_categories ?? ""} onChange={(e) => onField("essential_categories", e.target.value)} placeholder={t("settings.essentialPh")} />
+          <label className={labelCls} htmlFor="rulessecti-3">{t("settings.essentialCats")}</label>
+          <input id="rulessecti-3" className={inputCls} value={form.essential_categories ?? ""} onChange={(e) => onField("essential_categories", e.target.value)} placeholder={t("settings.essentialPh")} />
         </div>
         <div>
-          <label className={labelCls}>{t("settings.savingsGoal")}</label>
-          <input className={inputCls} type="number" value={form.savings_goal ?? "20"} onChange={(e) => onField("savings_goal", e.target.value)} />
+          <label className={labelCls} htmlFor="rulessecti-4">{t("settings.savingsGoal")}</label>
+          <input id="rulessecti-4" className={inputCls} type="number" value={form.savings_goal ?? "20"} onChange={(e) => onField("savings_goal", e.target.value)} />
         </div>
       </div>
 

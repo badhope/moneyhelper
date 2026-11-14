@@ -193,8 +193,8 @@ export function FamilySection() {
       {/* 添加成员 */}
       <div className="@container flex flex-wrap items-end gap-2">
         <div className="min-w-[120px] flex-1">
-          <label className={labelCls}>{t("family.name")}</label>
-          <input
+          <label className={labelCls} htmlFor="familysect-1">{t("family.name")}</label>
+          <input id="familysect-1"
             className={inputCls}
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -203,8 +203,8 @@ export function FamilySection() {
           />
         </div>
         <div className="min-w-[100px]">
-          <label className={labelCls}>{t("family.role")}</label>
-          <select
+          <label className={labelCls} htmlFor="familysect-2">{t("family.role")}</label>
+          <select id="familysect-2"
             className={inputCls}
             value={role}
             onChange={(e) => setRole(e.target.value as FamilyMember["role"])}
@@ -281,8 +281,8 @@ export function FamilySection() {
 
           <div className="@container flex flex-wrap items-end gap-2">
             <div className="min-w-[90px]">
-              <label className={labelCls}>{t("family.from")}</label>
-              <select
+              <label className={labelCls} htmlFor="familysect-3">{t("family.from")}</label>
+              <select id="familysect-3"
                 className={inputCls}
                 value={loan.from}
                 onChange={(e) => setLoan((v) => ({ ...v, from: e.target.value }))}
@@ -296,8 +296,8 @@ export function FamilySection() {
               </select>
             </div>
             <div className="min-w-[90px]">
-              <label className={labelCls}>{t("family.to")}</label>
-              <select
+              <label className={labelCls} htmlFor="familysect-4">{t("family.to")}</label>
+              <select id="familysect-4"
                 className={inputCls}
                 value={loan.to}
                 onChange={(e) => setLoan((v) => ({ ...v, to: e.target.value }))}
@@ -311,8 +311,8 @@ export function FamilySection() {
               </select>
             </div>
             <div className="min-w-[90px]">
-              <label className={labelCls}>{t("family.amount")}</label>
-              <input
+              <label className={labelCls} htmlFor="familysect-5">{t("family.amount")}</label>
+              <input id="familysect-5"
                 className={inputCls}
                 type="number"
                 min="0"
@@ -321,8 +321,8 @@ export function FamilySection() {
               />
             </div>
             <div className="min-w-[110px] flex-1">
-              <label className={labelCls}>{t("family.note")}</label>
-              <input
+              <label className={labelCls} htmlFor="familysect-6">{t("family.note")}</label>
+              <input id="familysect-6"
                 className={inputCls}
                 value={loan.note}
                 onChange={(e) => setLoan((v) => ({ ...v, note: e.target.value }))}

@@ -64,8 +64,8 @@ export function ReportSection({
     <Section title={t("settings.navReport")} icon={<Newspaper className="w-4 h-4 text-muted-foreground" />}>
       <div className="flex items-end gap-2">
         <div className="w-36">
-          <label className={labelCls}>{t("settings.reportTime")}</label>
-          <input className={inputCls} type="time" value={form.report_time ?? "08:00"} onChange={(e) => onField("report_time", e.target.value)} />
+          <label className={labelCls} htmlFor="reportsect-1">{t("settings.reportTime")}</label>
+          <input id="reportsect-1" className={inputCls} type="time" value={form.report_time ?? "08:00"} onChange={(e) => onField("report_time", e.target.value)} />
         </div>
         <Button variant="outline" size="sm" onClick={() => generate.mutate(undefined)} disabled={generate.isPending}>
           <RefreshCw className="w-3.5 h-3.5" /> {t("settings.reportGenerate")}
@@ -78,9 +78,10 @@ export function ReportSection({
 
       {/* 关注点：写进 report_focus，晨报生成时会重点结合这一点 */}
       <div className="mt-3">
-        <label className={labelCls}>{t("settings.reportFocus")}</label>
+        <label className={labelCls} htmlFor="report-focus">{t("settings.reportFocus")}</label>
         <div className="flex items-start gap-2">
           <input
+            id="report-focus"
             className={inputCls}
             value={form.report_focus ?? ""}
             onChange={(e) => onField("report_focus", e.target.value)}

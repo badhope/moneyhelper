@@ -300,8 +300,8 @@ export function OrgSection() {
       >
         <div className="flex flex-col gap-2 @sm:flex-row @sm:items-end @sm:justify-between">
           <div className="min-w-0 flex-1">
-            <label className={labelCls}>{t("org.tenant")}</label>
-            <select
+            <label className={labelCls} htmlFor="orgsection-1">{t("org.tenant")}</label>
+            <select id="orgsection-1"
               className={inputCls}
               value={tenantId ?? ""}
               onChange={(e) => setTenantId(e.target.value ? Number(e.target.value) : null)}
@@ -353,8 +353,8 @@ export function OrgSection() {
         {canWrite ? (
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <div className="w-40">
-              <label className={labelCls}>{t("org.name")}</label>
-              <input
+              <label className={labelCls} htmlFor="orgsection-2">{t("org.name")}</label>
+              <input id="orgsection-2"
                 className={inputCls}
                 value={deptForm.name}
                 onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
@@ -362,8 +362,8 @@ export function OrgSection() {
               />
             </div>
             <div className="w-24">
-              <label className={labelCls}>{t("org.code")}</label>
-              <input
+              <label className={labelCls} htmlFor="orgsection-3">{t("org.code")}</label>
+              <input id="orgsection-3"
                 className={inputCls}
                 value={deptForm.code}
                 onChange={(e) => setDeptForm({ ...deptForm, code: e.target.value })}
@@ -371,8 +371,8 @@ export function OrgSection() {
               />
             </div>
             <div className="w-36">
-              <label className={labelCls}>{t("org.parent")}</label>
-              <select
+              <label className={labelCls} htmlFor="orgsection-4">{t("org.parent")}</label>
+              <select id="orgsection-4"
                 className={inputCls}
                 value={deptForm.parent_id}
                 onChange={(e) => setDeptForm({ ...deptForm, parent_id: e.target.value })}
@@ -474,8 +474,8 @@ export function OrgSection() {
         {canWrite ? (
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <div className="w-40">
-              <label className={labelCls}>{t("org.name")}</label>
-              <input
+              <label className={labelCls} htmlFor="orgsection-5">{t("org.name")}</label>
+              <input id="orgsection-5"
                 className={inputCls}
                 value={posForm.name}
                 onChange={(e) => setPosForm({ ...posForm, name: e.target.value })}
@@ -483,8 +483,8 @@ export function OrgSection() {
               />
             </div>
             <div className="w-40">
-              <label className={labelCls}>{t("org.department")}</label>
-              <select
+              <label className={labelCls} htmlFor="orgsection-6">{t("org.department")}</label>
+              <select id="orgsection-6"
                 className={inputCls}
                 value={posForm.department_id}
                 onChange={(e) =>
@@ -498,8 +498,8 @@ export function OrgSection() {
               </select>
             </div>
             <div className="w-28">
-              <label className={labelCls}>{t("org.roleHint")}</label>
-              <input
+              <label className={labelCls} htmlFor="orgsection-7">{t("org.roleHint")}</label>
+              <input id="orgsection-7"
                 className={inputCls}
                 value={posForm.role_hint}
                 onChange={(e) => setPosForm({ ...posForm, role_hint: e.target.value })}
@@ -602,8 +602,8 @@ export function OrgSection() {
         {canWrite ? (
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <div className="w-28">
-              <label className={labelCls}>{t("org.userId")}</label>
-              <input
+              <label className={labelCls} htmlFor="orgsection-8">{t("org.userId")}</label>
+              <input id="orgsection-8"
                 className={inputCls}
                 inputMode="numeric"
                 value={memberForm.user_id}
@@ -614,8 +614,8 @@ export function OrgSection() {
               />
             </div>
             <div className="w-32">
-              <label className={labelCls}>{t("org.role")}</label>
-              <select
+              <label className={labelCls} htmlFor="orgsection-9">{t("org.role")}</label>
+              <select id="orgsection-9"
                 className={inputCls}
                 value={memberForm.role}
                 onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })}
@@ -628,8 +628,8 @@ export function OrgSection() {
               </select>
             </div>
             <div className="w-36">
-              <label className={labelCls}>{t("org.department")}</label>
-              <select
+              <label className={labelCls} htmlFor="orgsection-10">{t("org.department")}</label>
+              <select id="orgsection-10"
                 className={inputCls}
                 value={memberForm.department_id}
                 onChange={(e) =>
@@ -643,8 +643,8 @@ export function OrgSection() {
               </select>
             </div>
             <div className="w-36">
-              <label className={labelCls}>{t("org.position")}</label>
-              <select
+              <label className={labelCls} htmlFor="orgsection-11">{t("org.position")}</label>
+              <select id="orgsection-11"
                 className={inputCls}
                 value={memberForm.position_id}
                 onChange={(e) =>

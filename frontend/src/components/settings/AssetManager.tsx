@@ -568,9 +568,12 @@ export function AssetManager({
             <div className="grid gap-2 sm:grid-cols-2">
               {fields.map((f) => (
                 <div key={String(f.key)} className={f.type === "textarea" ? "sm:col-span-2" : ""}>
-                  <label className={labelCls}>{t(f.labelKey)}</label>
+                  <label className={labelCls} htmlFor={`asset-${String(f.key)}`}>
+                    {t(f.labelKey)}
+                  </label>
                   {f.type === "textarea" ? (
                     <textarea
+                      id={`asset-${String(f.key)}`}
                       className={`${inputCls} text-xs`}
                       rows={f.rows ?? 4}
                       value={draft[f.key as string] ?? ""}
@@ -578,6 +581,7 @@ export function AssetManager({
                     />
                   ) : f.type === "select" ? (
                     <select
+                      id={`asset-${String(f.key)}`}
                       className={inputCls}
                       value={draft[f.key as string] ?? ""}
                       onChange={(e) => setDraft((d) => ({ ...d, [f.key as string]: e.target.value }))}
@@ -590,6 +594,7 @@ export function AssetManager({
                     </select>
                   ) : (
                     <input
+                      id={`asset-${String(f.key)}`}
                       type={f.type === "number" ? "number" : "text"}
                       className={inputCls}
                       value={draft[f.key as string] ?? ""}
