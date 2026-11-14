@@ -27,14 +27,17 @@
 
 ## Install
 
-```bash
-# 1) Desktop — download and run, no Python needed
-#    release assets: moneyhelper-windows-x64.exe / moneyhelper-macos-arm64 / moneyhelper-linux-x64
+| Platform | Artifact | Notes |
+|---|---|---|
+| **Windows** (recommended) | `Moneyhelper-Setup-<version>.exe` | Installer. Per-user (no admin prompt), Start Menu + Desktop shortcuts, uninstall from Apps & Features. Data in `%LOCALAPPDATA%\Moneyhelper`, kept on uninstall. |
+| **Windows** (portable) | `moneyhelper-windows-x64.exe` | Single file, no install. Double-click to run. |
+| **macOS arm64 / Linux x64** | `moneyhelper-macos-arm64` / `moneyhelper-linux-x64` | Single-file binaries. No installer yet — make executable and run. |
 
-# 2) Docker
+```bash
+# Docker
 docker compose up -d                 # → http://localhost:8787
 
-# 3) From source
+# From source
 scripts/dev.sh --prod                # venv + pip + frontend build + serve on :8788
 pip install -e . && moneyhelper add "lunch 45, taxi 28"
 ```

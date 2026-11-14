@@ -16,6 +16,7 @@ RUN npm run build
 # ---------- 阶段 2：后端依赖 ----------
 FROM python:3.12-slim AS deps
 WORKDIR /app
+# 只装运行时依赖：测试依赖在 requirements-dev.txt（opencv 111MB 等），不进镜像
 COPY backend/requirements.txt ./
 RUN python -m venv /venv \
     && /venv/bin/pip install --no-cache-dir -r requirements.txt

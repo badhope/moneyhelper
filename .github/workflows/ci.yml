@@ -19,9 +19,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
-      - name: 安装依赖
-        run: pip install -q -r backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+      - name: 安装依赖（运行时 + 开发）
+        run: pip install -q -r backend/requirements.txt -r backend/requirements-dev.txt
       - name: 静态检查（ruff）
         # 版本在 backend/requirements.txt 里 pin 死。ruff 每版都会扩充规则集，
         # 不 pin 时上游发版会让 CI 在代码没变的情况下变红（2026-11-03 起连续

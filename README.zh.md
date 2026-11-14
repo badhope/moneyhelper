@@ -27,14 +27,17 @@
 
 ## 安装
 
-```bash
-# 1) 桌面版 —— 下载即用，无需 Python
-#    release 资产：moneyhelper-windows-x64.exe / moneyhelper-macos-arm64 / moneyhelper-linux-x64
+| 平台 | 产物 | 说明 |
+|---|---|---|
+| **Windows**（推荐） | `Moneyhelper-Setup-<版本>.exe` | 安装包。每用户安装（不弹 UAC），自动建开始菜单与桌面快捷方式，可从「应用和功能」卸载。数据在 `%LOCALAPPDATA%\Moneyhelper`，卸载默认保留。 |
+| **Windows**（免安装） | `moneyhelper-windows-x64.exe` | 单文件，双击即用。 |
+| **macOS arm64 / Linux x64** | `moneyhelper-macos-arm64` / `moneyhelper-linux-x64` | 单文件二进制，暂无安装器；加执行权限后直接运行。 |
 
-# 2) Docker
+```bash
+# Docker
 docker compose up -d                 # → http://localhost:8787
 
-# 3) 源码
+# 源码
 scripts/dev.sh --prod                # venv + pip + 前端构建 + 8788 端口起服务
 pip install -e . && moneyhelper add "午餐 45 打车 28"
 ```

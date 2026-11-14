@@ -30,7 +30,8 @@ E2E 说明：Playwright 的 Chromium 下载受限时，设 `PLAYWRIGHT_CHANNEL=m
 ```bash
 # 0.1 后端
 cd backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # 含 pytest / ruff / pytest-cov
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+# requirements.txt = 运行时；requirements-dev.txt = pytest / ruff / PyInstaller / 测试用图像库
 .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8788
 # 浏览器打开 http://127.0.0.1:8788（源码模式请先 cd frontend && npm run build）
 

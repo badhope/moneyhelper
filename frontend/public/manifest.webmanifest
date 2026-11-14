@@ -1,7 +1,7 @@
 {
-  "name": "Moneyhelper · 个人理财智能体",
+  "name": "Moneyhelper · AI 财务部门",
   "short_name": "Moneyhelper",
-  "description": "开源免费、本地优先的个人理财智能体。一句话记账、组合持仓管理、自选行情、财务体检。",
+  "description": "本地优先的 AI 财务部门：个人记账、企业总账、报销、采购应付、银行对账、持仓风控与税负测算。数字由确定性代码计算。",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

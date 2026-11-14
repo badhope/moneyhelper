@@ -68,6 +68,38 @@
   仅 `backend/data` 与 `backend/logs` 可写，源码/前端产物归 root 只读。
   本机无 Docker，镜像构建未验证（已在路线图标注）。
 
+### 发行：Windows 安装包（本轮新增）
+
+- 之前只有 PyInstaller 免安装单文件，用户拿到 exe 要自己建目录、没有开始菜单入口、
+  没有卸载程序。新增 `installer/moneyhelper.nsi`（NSIS 3）：
+  每用户安装到 `%LOCALAPPDATA%\Programs\Moneyhelper`（不弹 UAC）、
+  开始菜单 + 桌面快捷方式、注册表卸载项、静默安装 `/S` 可用。
+- **数据与程序分离**：数据在 `%LOCALAPPDATA%\Moneyhelper`，卸载默认保留；
+  交互卸载才询问是否删除（静默卸载一律保留，避免批量部署误删账本）。
+- 安装/卸载已实测：静默装 → 从安装位置启动 → 健康检查 + 采购全链路 + 长任务守卫
+  → 静默卸 → 目录/快捷方式/注册表全部清理、数据保留。
+- 新增 `scripts/build-installer.sh`：前端 → PyInstaller → NSIS 一条命令，
+  全部使用项目内工具链（NSIS 便携版下载到 `.tools/nsis/`，不改系统）。
+- CI `desktop.yml` 接入：tag 推送时 Windows job 额外产出安装包，
+  并在 CI 内跑「静默装 → 健康检查 → 静默卸」冒烟；Release 同时附安装包与免安装单文件。
+
+### 修复：发行产物白背 100+ MB 测试依赖
+
+- `requirements.txt` 里混着 `opencv-python-headless`（cv2 单目录 **111 MB**）、
+  `reportlab`、`qrcode` 三个**测试专用**依赖，而 desktop workflow 直接
+  `pip install -r requirements.txt` → 每个 EXE/Docker 镜像都白背这些体积。
+- 拆出 `backend/requirements-dev.txt`（含 `-r requirements.txt` + 测试与 PyInstaller）；
+  CI/dev.sh/start.bat/one-click.sh 改为装两个文件；Docker 与 desktop 只装运行时。
+- `moneyhelper.spec` 显式 `excludes` 掉 cv2/reportlab/qrcode/pyzbar——运行时只有
+  发票识别会 try-import，缺失时按「能力不可用」降级（已实现的路径）。
+
+### 同步：PWA 与 Tauri 配置口径
+
+- `manifest.webmanifest` 名称/描述仍是「个人理财智能体」，改为「AI 财务部门」
+  并覆盖企业域能力；`sw.js` 缓存版本号更新（否则老用户升级后仍加载旧前端）。
+- `desktop/src-tauri/tauri.conf.json` 与 `desktop/package.json` 版本从 **4.8.0**
+  对齐到 4.16.0（配置漂移，与代码差 8 个 minor）。
+
 ### 工具链：发版与推送
 
 - `scripts/release.sh` 不再硬编码 `python3`：Windows 没有该命令，脚本会在改完文件后

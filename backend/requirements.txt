@@ -39,16 +39,8 @@ bcrypt>=4,<6                    # 密码哈希（直接调用，不用已停更�
 charset-normalizer>=3.3,<4      # 非常见账单编码探测（UTF-16/BIG5 等）
 casbin>=1.43,<2                 # 权限策略引擎（切片 7a 影子模式；缺失时影子降级、业务不受影响）
 
-# --- 测试 / 静态检查（开发）---
-pytest>=8.0,<9
-pytest-timeout>=2,<3            # 全局超时：防止依赖外网的用例挂起
-pytest-cov>=5,<7
-pytest-asyncio>=0.24,<1
-pytest-xdist>=3.5,<4            # 并行测试（CI 提速）
-qrcode[pil]>=8,<9               # 测试：二维码图片生成（缺失时用例 skip）
-reportlab>=4.2,<5               # 测试：PDF 导出（缺失时用例 skip）
-opencv-python-headless>=4.10,<5 # 测试：发票二维码解码（无本地 zbar 依赖）
-# 静态检查：pin 到具体版本。ruff 的规则集随版本扩充，`>=0.8` 会让 CI 在
-# 上游发版后突然变红（2026-11-03 起连续 10 个提交 CI 因新增规则失败，
-# 而代码本身没退化）。同版本也保证本地与 CI 结论一致。
-ruff==0.17.3
+# --- 测试 / 静态检查已移到 requirements-dev.txt ---
+# 为什么拆开：桌面 EXE（PyInstaller）与 Docker 镜像只需要运行时依赖。
+# 测试依赖里有 opencv（cv2 单目录 111 MB）、reportlab、qrcode，
+# 混在这里会让每个发行产物白背 100+ MB。
+# 开发/CI 安装：pip install -r requirements.txt -r requirements-dev.txt

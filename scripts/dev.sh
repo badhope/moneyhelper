@@ -74,7 +74,7 @@ VPY="$(venv_py)"
 [ -n "$VPY" ] || { echo "✗ 虚拟环境创建失败"; exit 1; }
 if ! "$VPY" -c "import fastapi, uvicorn, aiosqlite, fastmcp" >/dev/null 2>&1; then
   echo "== 安装后端依赖 =="
-  "$VPY" -m pip install -q --disable-pip-version-check -r "$BACKEND/requirements.txt"
+  "$VPY" -m pip install -q --disable-pip-version-check -r "$BACKEND/requirements.txt" -r "$BACKEND/requirements-dev.txt"
 fi
 
 # ---- 前端依赖 --------------------------------------------------------------

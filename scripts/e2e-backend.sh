@@ -29,7 +29,7 @@ else
 fi
 
 if ! "$PY" -c "import uvicorn" 2>/dev/null; then
-  echo "[e2e] uvicorn 未安装，请先在 backend 执行: $PY -m pip install -r requirements.txt" >&2
+  echo "[e2e] uvicorn 未安装，请先在 backend 执行: $PY -m pip install -r requirements.txt -r requirements-dev.txt" >&2
   exit 7
 fi
 
