@@ -32,13 +32,13 @@ E2E 说明：Playwright 的 Chromium 下载受限时，设 `PLAYWRIGHT_CHANNEL=m
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # 含 pytest / ruff / pytest-cov
 .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8788
-# 浏览器打开 http://127.0.0.1:8788 （生产模式前端已构建进 dist？没有则先 build）
+# 浏览器打开 http://127.0.0.1:8788（源码模式请先 cd frontend && npm run build）
 
 # 0.2 前端（另一个终端）
 cd frontend && npm install && npm run dev     # http://127.0.0.1:5198
 
 # 0.3 测试与覆盖率
-cd backend && .venv/bin/python -m pytest tests -q --cov=app          # 基线 75%+，182 用例
+cd backend && python -m pytest tests -q --cov=app                    # 1717 用例，0 skipped
 cd backend && .venv/bin/python -m ruff check app tests               # lint
 ```
 

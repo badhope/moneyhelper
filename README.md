@@ -11,6 +11,18 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-63%20tools-1A2B4A)](docs/mcp-guide.md)
 
+<p align="center">
+  <img src="docs/screenshots-v4.16/desktop-01-overview.jpg" width="100%" alt="Dashboard: net worth, concentration risk and prioritized actions" />
+</p>
+<p align="center">
+  <img src="docs/screenshots-v4.16/desktop-02-procurement.jpg" width="49%" alt="Procurement and payables: vendor to purchase order to payable to payment" />
+  <img src="docs/screenshots-v4.16/desktop-03-longtask.jpg" width="49%" alt="Long tasks: staged execution with resumable artifacts" />
+</p>
+<p align="center">
+  <img src="docs/screenshots-v4.16/desktop-04-gl.jpg" width="49%" alt="Double-entry ledger: journals, periods, trial balance" />
+  <img src="docs/screenshots-v4.16/desktop-05-settings.jpg" width="49%" alt="Settings: two-level grouped navigation" />
+</p>
+
 ---
 
 ## Install
@@ -43,6 +55,7 @@ Requires Python 3.10+ and Node 20.19+ for the source install. Data lives in a lo
 | **Personal ledger** | One sentence, many entries: `午餐 45 打车 28` becomes two transactions. WeChat Pay, Alipay, bank CSV, PDF statements, invoice QR and OCR import natively. |
 | **Portfolio & research** | Positions, concentration, P&L attribution, rebalance orders, technical indicators, 5 backtest strategies, seeded Monte Carlo scenarios. |
 | **Statements & tax (CN)** | Three-statement analysis with 20+ ratios and DuPont decomposition; VAT, corporate income tax, cumulative withholding, payroll with social insurance. |
+| **Long tasks** | Staged execution for work that does not fit one answer: novel, web app, Word report, paper, program. Each stage is persisted, resumable, and inspectable. |
 | **Reports & MCP** | Single-file offline HTML reports; 63 tools exposed over the Model Context Protocol. |
 
 ---
@@ -80,7 +93,7 @@ This is a local-first application, and it is built so that **the program cannot 
 
 ```bash
 bash scripts/verify-all.sh                        # ruff + backend + frontend + build
-bash scripts/verify-all.sh --with-e2e             # + 31 Playwright UI flows
+bash scripts/verify-all.sh --with-e2e             # + 33 Playwright UI flows
 bash scripts/verify-all.sh --with-e2e --with-live # + real-model acceptance (LLM_API_KEY)
 ```
 
@@ -90,7 +103,7 @@ Current results:
 |---|---|
 | Backend | `1717 passed, 0 skipped` |
 | Frontend | `195 passed`, production build clean |
-| Browser E2E | `31 passed` — bookkeeping, chat, settings, Studio, tenant switch, procurement → payment |
+| Browser E2E | `33 passed` — bookkeeping, chat, settings (24 sections), Studio, tenant switch, procurement → payment, all finance pages |
 | Real model | 50-question finance eval `46/50` (91.5%), function calling and multi-turn verified |
 
 Three user-facing paths each have an automated gate — a green unit test proves the function is correct, not that the user can reach it:

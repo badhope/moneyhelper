@@ -196,7 +196,7 @@
 
 - 后端：`1697 passed, 0 skipped`（2026-11-13，补齐 qrcode/reportlab/opencv 后无跳过）。
 - 前端：`195 passed`，生产构建通过。
-- Playwright E2E：`31 passed`（含新增采购/应付全链路），
+- Playwright E2E：`33 passed`（含采购/应付全链路、设置 24 分区、财务 16 页遍历），
   `PLAYWRIGHT_CHANNEL=msedge` 复用本机 Edge（Chromium 下载受限时）。
 - 统一门禁 `scripts/verify-all.sh`：ruff + 后端全量 + 前端单测 + 构建各层独立失败即停；
   `--with-e2e`/`--with-live` 追加 E2E 与真实模型验收。
