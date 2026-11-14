@@ -127,7 +127,7 @@ VPY="$(venv_py)"
 if ! "$VPY" -c "import fastapi, uvicorn, aiosqlite" >/dev/null 2>&1; then
   say "安装后端依赖（国内镜像）"
   "$VPY" -m pip install -q -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    -r "$BACKEND/requirements.txt"
+    -r "$BACKEND/requirements.txt" \n    -r "$BACKEND/requirements-dev.txt"
 fi
 
 if [ ! -d "$FRONTEND/node_modules" ]; then

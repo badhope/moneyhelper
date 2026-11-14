@@ -27,6 +27,15 @@ _DATA_DIR.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("MONEYHELPER_DATA_DIR", str(_DATA_DIR))
 
 
+def _version() -> str:
+    try:
+        from app.version import __version__
+
+        return f"v{__version__}"
+    except Exception:  # noqa: BLE001 — 版本读取失败不该阻止启动
+        return ""
+
+
 def _safe_console() -> None:
     """让控制台能输出中文。
 
@@ -63,7 +72,7 @@ def main():
 
     _safe_console()
     print("=" * 50)
-    print("  Moneyhelper — 对话优先的个人理财 Agent")
+    print(f"  Moneyhelper {_version()} — AI 财务部门")
     print("=" * 50)
     print(f"  地址：http://{host}:{port}")
     print(f"  数据目录：{_DATA_DIR}")

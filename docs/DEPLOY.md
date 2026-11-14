@@ -6,6 +6,33 @@
 - **文件名大小写**：仓库内不再存在仅大小写不同的同名文件（`ARCHITECTURE-detail.md` / `architecture.md`），Windows 克隆不会出现"已修改"假象。
 - **路径**：数据库与备份路径全部经 `Path` 处理，支持 Windows 盘符、UNC 与 Linux 绝对路径；`MONEYHELPER_DB_PATH` 为相对路径时按启动目录解析。
 
+# 桌面安装包（Windows）
+
+从 Release 下载 `Moneyhelper-Setup-<版本>.exe` 双击安装：
+
+| 项 | 值 |
+|---|---|
+| 安装位置 | `%LOCALAPPDATA%\Programs\Moneyhelper`（每用户，不需要管理员） |
+| 数据目录 | `%LOCALAPPDATA%\Moneyhelper`（账本/备份/配置） |
+| 快捷方式 | 开始菜单 + 桌面 |
+| 卸载 | 「设置 → 应用 → 已安装的应用」，或开始菜单里的卸载项 |
+| 卸载时数据 | **默认保留**（账本是用户资产）；交互卸载会询问是否一并删除 |
+| 端口 | 8788，被占用时启动前设 `PORT=其他端口` |
+| 静默安装 | `Moneyhelper-Setup-x.y.z.exe /S` |
+
+免安装版：下载 `moneyhelper-windows-x64.exe` 双击即可，不留安装痕迹。
+
+自行构建（全项目内工具链，不动系统）：
+
+```bash
+bash scripts/build-installer.sh          # 前端 + PyInstaller + NSIS
+bash scripts/build-installer.sh --skip-exe   # 只重打安装包
+```
+
+产物在 `backend/dist/`：`moneyhelper.exe`（免安装）与 `Moneyhelper-Setup-<版本>.exe`（安装包）。
+
+---
+
 # 部署配置指南
 
 > 适用版本：2026-10 收尾版（空库首启 · 对话中枢 · 本地加密备份）。部署前建议先看根目录 `README.zh.md`（中文版）/ `README.md`（English）的快速开始。

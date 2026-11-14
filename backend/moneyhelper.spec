@@ -136,6 +136,13 @@ a = Analysis(
         "tkinter",
         "matplotlib",
         "pytest",
+        # 测试专用（requirements-dev.txt）：opencv 单目录 111MB、reportlab、qrcode。
+        # 运行时只有发票识别会 try-import cv2/PIL，缺失时按「能力不可用」降级，
+        # 属于已实现的优雅降级路径，不该让发行包背这 100+ MB。
+        "cv2",
+        "reportlab",
+        "qrcode",
+        "pyzbar",
     ],
     noarchive=False,
 )

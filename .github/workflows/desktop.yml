@@ -66,6 +66,8 @@ jobs:
         working-directory: backend
         run: |
           python -m pip install --upgrade pip
+          # 只装运行时依赖 + PyInstaller。测试依赖（opencv 111MB / reportlab /
+          # qrcode）在 requirements-dev.txt，不进发行产物。
           python -m pip install -r requirements.txt pyinstaller
 
       - name: 打包单文件
@@ -100,11 +102,65 @@ jobs:
           fi
           echo "产物启动正常"
 
+      - name: 安装 NSIS（仅 Windows，用于打安装包）
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # NSIS 在 Windows runner 上通常预装；缺失时用 choco 补，避免静默跳过安装包。
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+            choco install nsis -y --no-progress
+          }
+          if (-not (Test-Path $makensis)) { throw "NSIS 安装失败" }
+
+      - name: 构建 Windows 安装包
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -m1 '^__version__' backend/app/version.py | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "version=$VERSION"
+          "/c/Program Files (x86)/NSIS/makensis.exe" \
+            -DVERSION="$VERSION" \
+            -DSRCEXE='..\backend\dist\moneyhelper.exe' \
+            installer/moneyhelper.nsi
+          ls -lh backend/dist/Moneyhelper-Setup-*.exe
+
+      - name: 安装包冒烟（静默装 → 健康检查 → 静默卸）
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SETUP=$(ls backend/dist/Moneyhelper-Setup-*.exe | head -1)
+          "$SETUP" //S
+          INSTALLED="$LOCALAPPDATA/Programs/Moneyhelper/moneyhelper.exe"
+          for i in $(seq 1 30); do [ -f "$INSTALLED" ] && break; sleep 2; done
+          if [ ! -f "$INSTALLED" ]; then echo "::error::安装后找不到程序"; exit 1; fi
+          echo "安装成功：$INSTALLED"
+
+          MONEYHELPER_DATA_DIR="$RUNNER_TEMP/mh-data" PORT=8791 MONEYHELPER_NO_BROWSER=1 \
+            "$INSTALLED" > "$RUNNER_TEMP/app.log" 2>&1 &
+          ok=0
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8791/api/health >/dev/null 2>&1; then ok=1; break; fi
+            sleep 2
+          done
+          taskkill //F //IM moneyhelper.exe >/dev/null 2>&1 || true
+          if [ "$ok" != "1" ]; then echo "::error::安装版未能启动"; tail -40 "$RUNNER_TEMP/app.log"; exit 1; fi
+          echo "安装版启动正常"
+
+          "$LOCALAPPDATA/Programs/Moneyhelper/uninstall.exe" //S
+          sleep 20
+          if [ -f "$INSTALLED" ]; then echo "::error::卸载后程序仍存在"; exit 1; fi
+          echo "卸载清理正常"
+
       - name: 上传 artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: backend/dist/${{ matrix.binary }}
+          path: |
+            backend/dist/${{ matrix.binary }}
+            backend/dist/Moneyhelper-Setup-*.exe
           if-no-files-found: error
 
       - name: 重命名为平台专属文件名
@@ -115,7 +171,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: backend/dist/${{ matrix.asset }}
-          fail_on_unmatched_files: true
+          # Windows 同时上传「免安装单文件」和「安装包」，用户按需选择。
+          files: |
+            backend/dist/${{ matrix.asset }}
+            backend/dist/Moneyhelper-Setup-*.exe
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

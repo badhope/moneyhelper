@@ -7,7 +7,8 @@
 ```bash
 # 0.1 Backend
 cd backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # includes pytest / ruff / pytest-cov
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+# requirements.txt = runtime; requirements-dev.txt = pytest / ruff / PyInstaller / test-only image libs
 .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8788
 # Open http://127.0.0.1:8788 (production frontend is built into dist)
 

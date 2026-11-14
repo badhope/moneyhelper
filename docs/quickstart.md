@@ -2,7 +2,7 @@
 ## 1. 后端
 ```bash
 cd backend
-python -m venv .venv && .venv/bin/pip install -r requirements.txt
+python -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env && $EDITOR .env   # 至少配一个模型的 key
 .venv/bin/python -m uvicorn app.main:app --port 8000
 ```
