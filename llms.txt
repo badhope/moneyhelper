@@ -1,0 +1,63 @@
+# Moneyhelper
+
+> A local-first AI finance application for individuals and small companies covering bookkeeping, reconciliation, portfolio risk, statements and tax, with all numbers computed by deterministic code.
+
+Requires Python 3.10+ and Node 20.19+; data is stored in a local SQLite file with no account or telemetry. The model only phrases precomputed values with provenance records, and live trading is never automatic — the default broker is NullBroker in dry-run. Deeper documentation includes architecture.md and module-map.md.
+
+## Docs
+
+- [Moneyhelper](https://raw.githubusercontent.com/badhope/moneyhelper/main/README.md): Bookkeeping, ledger, procurement, reconciliation, portfolio risk and tax, where all numbers come from deterministic code.
+- [Moneyhelper · 能自主干活的 AI 财务部门](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/index.md): Overview of the AI finance department: one-sentence bookkeeping, risk control, tax estimation, with quickstart and MCP integration links.
+- [快速开始（15 分钟）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/quickstart.md): Steps to start backend and frontend, record a first entry, and set up the test baseline in 15 minutes.
+- [对话工作流指南（对话即中枢）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/WORKFLOW.md): Chat as the central hub: bookkeeping, quotes, positions, morning report, memory, follow-up handling, and safety boundaries.
+- [命令行（CLI）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/cli.md): CLI commands, global parameters, exit codes, and remote/local modes, calling moneyhelper.core directly without HTTP.
+- [连接中心（Connect Hub）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/connect-hub.md): External platform connections via direct sync, pairing codes, or manual import, with security boundaries, API, tools and configuration.
+- [连接中心 · 深化篇（v4.5）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/connect-hub-deep.md): Tencent quote source with field parsing, market breadth temperature, stock profiles, pretrade checks, broker holdings, invoices, tax, cashflow.
+- [边界攻坚（v4.6）：能抄的都抄了，不能抄的说清为什么](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/hardening.md): Hardening v4.6: invoice QR-first recognition with OCR fallback, PDF statements parsing and reconciliation, rule-based transaction categorization.
+- [Agent Studio（角色 / 技能 / 提示词 / 约束 / Hook / 市场）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/studio.md): Editing roles, skills, prompts, constraints, hooks and marketplace assets, with four ways to add items and permission modes.
+- [把 Moneyhelper 接进你的 AI（MCP）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/mcp-guide.md): Connecting Moneyhelper's MCP server to Claude Code, Cursor and Cline, configuring tokens, available tools, and write approval thresholds.
+- [可复核性标准草案（M6.6）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/reviewability-standard.md): Reviewability standard: five hard requirements covering deterministic numbers, null handling, traceable methodologies, audit chains and data provenance.
+- [自托管](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/self-host.md): Self-hosting data location with WAL, encrypted backups, reverse proxy setup and deployment forms sharing the same core.
+- [部署配置指南](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/DEPLOY.md): Local run requirements, one-click startup scripts, Docker deployment, security configuration for external access, and data backup paths.
+- [配置说明（环境变量 + 应用设置项）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/CONFIG.md): Environment variables in backend/.env, runtime app settings, AI endpoint requirements, settings validation, multi-tenancy, and MCP plugins.
+- [Moneyhelper 架构图](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/architecture.md): Mermaid diagrams of the overall system architecture, financial department mode, question-answering execution path, and data reliability.
+- [Moneyhelper — 系统架构文档](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/ARCHITECTURE-detail.md): System architecture covering LangGraph multi-agent orchestration, tech stack layers, data flows, design decisions, and feature coverage.
+- [Moneyhelper v2.0 · Agent 技术栈全景图（2022-2026 盘点）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/ARCHITECTURE-v2.md): Survey of 2022-2026 agent ecosystem choices: orchestration, MCP protocol upgrades, long-term memory, and Moneyhelper integration plans.
+- [模块清单与职责（M0.7 产出）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/module-map.md): Machine-generated list of all 116 backend modules with responsibilities, sizes, layering overview, and regeneration instructions.
+- [开发指南（培训用）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/DEVELOPMENT.md): Developer onboarding: running the project, architecture and Q&A data flow, adding tools, tests, and releases.
+- [Moneyhelper — 代码规范与工程约定](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/CODE_STYLE.md): Coding standards and engineering conventions: Python and TypeScript style, security practices, testing, and protocol compliance.
+- [发版流程](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/RELEASE.md): Release process: single version source, tag-triggered workflow, version derivation from commits, CHANGELOG format, and troubleshooting.
+- [实施进度](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/PROGRESS.md): Milestone-level implementation progress with version history, test counts, and per-milestone completion status.
+- [moneyhelper 总体规划（完整版 · 历史规划快照）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/ROADMAP-v3.md): Historical planning snapshot: product positioning, differentiators, repository topology, and module split blueprint as of 2026-10-17.
+- [moneyhelper 详细实施计划（步骤版 · 可直接照做）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/PLAN-DETAILED.md): Detailed implementation plan with step-level change points, procedures, and verification for each milestone.
+- [moneyhelper 差异化头脑风暴（大胆版）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/DIFFERENTIATION.md): Bold differentiation brainstorm: defensible finance with audit workpapers, AI employee hiring, event-sourced ledger, open provenance standard, business models.
+- [M0 逐行通读发现（持续更新）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/REVIEW-FINDINGS.md): Ongoing line-by-line code review findings across core modules, boundary issues, scheduler timezone bugs, coverage status, and closing conclusions.
+- [Moneyhelper（Moneyhelper）内部严格技术评审报告](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/REVIEW-%E5%86%85%E9%83%A8%E4%B8%A5%E6%A0%BC%E8%AF%84%E5%AE%A1.md): Historical internal technical review snapshot: architecture strengths, write-tool isolation, multi-agent orchestration, and security findings later fixed in 2.6–2.9.x.
+- [Moneyhelper 前端代码审计报告](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/AUDIT-frontend.md): Historical frontend audit snapshot covering XSS, token storage, SSE cleanup, memory leaks, virtualization, i18n consistency, and component structure findings.
+- [Moneyhelper(moneyhelper) 深度代码审计报告 · 企业级视角](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/AUDIT-enterprise-deep-20261007.md): Historical enterprise-perspective deep audit: vault PBKDF2 concurrency flaws, DEK tombstone risks, overall risk rating, and P0 remediation proposals.
+- [依赖替换清单（少写代码，多用成熟库）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/DEPENDENCY-REPLACEMENT.md): Dependency replacement checklist: already replaced items with regressions, P1/P2 candidates, explicitly rejected replacements, replacement pacing rules, and known gaps.
+- [Moneyhelper 企业化改造方案](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/ENTERPRISE-ROADMAP.md): Enterprise transformation plan: current product state, target three-layer architecture, fixed security issues, and phased roadmap.
+- [现有账本的 tenant_id 映射与双写评估（切片 7c）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/LEDGER-TENANT-STRATEGY.md): Evaluation of tenant_id mapping for existing ledgers, arguing against dual-write and for a permissions-first order.
+- [自检记录（2026-11-11）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/SELF-CHECK.md): Self-check of a demo instance after security fixes: run setup, screenshots, page findings, and issues fixed or deferred.
+
+## Planning
+
+- [Agent Harness 专项调研（M0.8）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/planning/11-agent-harness-%E4%B8%93%E9%A1%B9%E8%B0%83%E7%A0%94.md): Archived research on ZCode and DeepSeek harnesses across six dimensions, listing adoptable and non-adoptable architecture ideas.
+- [moneyhelper 代码审查发现记录（进行中）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/planning/02-%E5%8F%91%E7%8E%B0%E8%AE%B0%E5%BD%95.md): Ongoing code review findings: confirmed backend bugs, reliability and security issues, and toolchain lessons learned.
+- [moneyhelper（Moneyhelper）深度审查报告 · 完整版](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/planning/03-%E5%AE%A1%E6%9F%A5%E6%8A%A5%E5%91%8A%E5%AE%8C%E6%95%B4%E7%89%88.md): Archived full deep review report: repository sync status, P1 functional bugs, P2 reliability issues, and P3 architecture debt.
+- [moneyhelper 方向探讨 · 协议生态学习地图与差异化战略](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/planning/04-%E6%96%B9%E5%90%91%E6%8E%A2%E8%AE%A8-%E5%8D%8F%E8%AE%AE%E7%94%9F%E6%80%81%E4%B8%8E%E5%B7%AE%E5%BC%82%E5%8C%96.md): Positioning consensus, AI agent protocol ecosystem timeline, and differentiation strategy of moneyhelper against competitors.
+- [AI Agent 协议/生态全景时间线（2024-11 → 2026-10，按月）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/planning/05-%E5%8D%8F%E8%AE%AE%E7%94%9F%E6%80%81%E5%85%A8%E6%99%AF%E6%97%B6%E9%97%B4%E7%BA%BF.md): Month-by-month timeline of AI agent protocols and frameworks from 2024-11 to 2026-10, with corresponding moneyhelper actions.
+- [moneyhelper 能力扩展（横向×纵向）与工程化战略](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/planning/06-%E8%83%BD%E5%8A%9B%E6%89%A9%E5%B1%95%E4%B8%8E%E5%B7%A5%E7%A8%8B%E5%8C%96%E6%88%98%E7%95%A5.md): Horizontal and vertical capability expansion roadmap, modularization, standardization, and operational improvements for moneyhelper.
+- [moneyhelper 对标项目深度学习报告（12+ 项目，多维度）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/planning/07-%E5%AF%B9%E6%A0%87%E9%A1%B9%E7%9B%AE%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0%E6%8A%A5%E5%91%8A.md): Deep learning report on 12+ benchmark finance projects, what to learn from each, and resulting moneyhelper actions.
+- [moneyhelper 总体规划（完整版 · 唯一主计划）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/planning/08-%E6%80%BB%E4%BD%93%E8%A7%84%E5%88%92-%E5%AE%8C%E6%95%B4%E7%89%88.md): Complete master plan: new positioning, repos and CI/CD, modular architecture blueprint, and multi-agent finance department strategy.
+- [moneyhelper 差异化头脑风暴（大胆版）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/planning/09-%E5%B7%AE%E5%BC%82%E5%8C%96%E5%A4%B4%E8%84%91%E9%A3%8E%E6%9A%B4.md): Bold brainstorm of differentiators such as defensible finance, agent hiring systems, event-sourced ledgers, and an open auditability standard.
+
+## Research
+
+- [个人理财 AI Agent 竞品调研报告](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/research/peer-projects.md): Survey of comparable personal-finance AI agent projects, their tech stacks, core innovations, and lessons for Moneyhelper.
+
+## Optional
+
+- [Changelog](https://raw.githubusercontent.com/badhope/moneyhelper/main/CHANGELOG.md): Version history and release notes, including new long-task engine stages and security vulnerability fixes.
+- [贡献指南](https://raw.githubusercontent.com/badhope/moneyhelper/main/CONTRIBUTING.md): How to contribute: fork and pull request workflow, testing rules, commit conventions, issue reporting, and maintainer release checklist.
+- [架构决策记录（ADR）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/adr/index.md): Key architecture decisions: deterministic calculation kernel, database domain modules, HITL approvals via LangGraph, and deployment-agnostic core.
