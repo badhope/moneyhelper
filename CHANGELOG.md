@@ -2,6 +2,30 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased] - 2026-11-16
+
+### 切片 12：AI 财务能力实测 + 企业域对话
+
+真实模型实测暴露的缺口：应用内对话 agent 只有个人理财工具，企业域问题（部门/应付/报销/
+总账/长任务）要么答「没有数据」，要么把个人账本硬当答案。
+
+- **企业域只读工具 5 个**：`get_gl_summary` / `get_payables_summary` /
+  `get_expense_queue` / `get_org_overview` / `list_longtasks`。应用内 agent 工具面
+  54 → **59**；MCP 同步镜像 → **82**。
+  - 关键 bug：新工具漏登记 `tool_policy.READONLY_TOOLS` 时不会进 agent 可见工具面
+    （`READ_TOOLS` 由策略表派生），模型只能拿 `get_ledger_view` 硬答企业问题。
+- **新增 `enterprise` 路由分支**：企业强词（部门/供应商/应付/总账/长任务）判定**先于**
+  个人账本（否则「我的总账怎么样」被 `LEDGER_WORDS` 的「账」抢走），弱词（报销）
+  在其后（「我这个月报销花了多少」仍走账本）。写作/流程咨询仍归 general。
+- **独立工具面 + 离线兜底**：`tools.ENTERPRISE_TOOLS` 只含企业域只读工具；无模型时
+  `_enterprise_deterministic` 真调这些工具并排版成文，不编数字。
+- **诚实性修复（真实模型 bug）**：模型会把「上个月欧洲差旅」偷换成「本月总账汇总」
+  端给用户。提示词新增 7.1（禁止跨维度替代）/ 7.2（缺维度要说明）/ 7.3（禁止
+  「我先查一下」半途停住）。
+- **评测脚本** `scripts/ai_finance_eval.py`：9 例、三层判据（工具命中 / 数字与库一致 /
+  诚实性），`spark-x2.6-4b` 实测 **9/9 通过**。
+- 测试：图条件边 7 → 8；新增 enterprise 路由与「企业词不抢账本」回归 2 项。
+
 ## [4.16.0] - 2026-11-14
 
 ### 摘要

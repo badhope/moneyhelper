@@ -75,6 +75,16 @@ ok "前端构建"
 if [ "$WITH_E2E" = "1" ]; then
   step "5/5 Playwright E2E"
   cd "$ROOT/frontend" || fail "cd frontend"
+  # 浏览器二进制自动探测：Playwright 自带的 chromium 下载在本机被网络拦，
+  # 但 Windows 一定装了 Edge。没显式指定又缺 chromium 时自动回落 msedge，
+  # 否则整条门禁会因「Executable doesn't exist」全红——那是环境问题，不是代码问题。
+  if [ -z "${PLAYWRIGHT_CHANNEL:-}" ] && ! ls "$LOCALAPPDATA/ms-playwright"/chromium-* >/dev/null 2>&1; then
+    if [ -x "/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" ] \
+       || [ -x "/c/Program Files/Microsoft/Edge/Application/msedge.exe" ]; then
+      export PLAYWRIGHT_CHANNEL=msedge
+      echo "PLAYWRIGHT_CHANNEL=msedge（未找到 Playwright chromium，复用本机 Edge）"
+    fi
+  fi
   npx playwright test --reporter=line || fail "Playwright E2E"
   ok "Playwright E2E"
 fi

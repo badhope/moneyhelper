@@ -455,6 +455,31 @@ class GetFirePlanIn(_In):
 # 工具名 → 入参模型
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# 企业域只读（切片 12）：同时进 function calling 与 MCP
+# ---------------------------------------------------------------------------
+
+
+class GetGlSummaryIn(_In):
+    """查企业总账概览：无参数。"""
+
+
+class GetPayablesSummaryIn(_In):
+    """查采购应付概览：无参数。"""
+
+
+class GetExpenseQueueIn(_In):
+    """查报销队列：无参数。"""
+
+
+class GetOrgOverviewIn(_In):
+    """查组织架构概览：无参数。"""
+
+
+class ListLongtasksIn(_In):
+    """查长任务列表：无参数。"""
+
+
 TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     # 财务查询
     "get_market_view": GetMarketViewIn,
@@ -520,6 +545,12 @@ TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     "trigger_morning_report": TriggerMorningReportIn,
     "backup_now": BackupNowIn,
     "set_setting": SetSettingIn,
+    # 企业域只读（切片 12）
+    "get_gl_summary": GetGlSummaryIn,
+    "get_payables_summary": GetPayablesSummaryIn,
+    "get_expense_queue": GetExpenseQueueIn,
+    "get_org_overview": GetOrgOverviewIn,
+    "list_longtasks": ListLongtasksIn,
     # 通用
     "get_now": GetNowIn,
     "web_search": WebSearchIn,

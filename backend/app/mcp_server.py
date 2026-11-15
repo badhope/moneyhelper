@@ -1249,6 +1249,36 @@ def _tenant() -> int:
 
 
 @_tool()
+async def get_gl_summary() -> str:
+    """查企业总账概览：科目、会计期间、最近凭证、试算平衡。"""
+    return await xtools.tool_get_gl_summary({})
+
+
+@_tool()
+async def get_payables_summary() -> str:
+    """查采购应付：供应商数、采购单状态分布、未付款应付金额、逾期应付。"""
+    return await xtools.tool_get_payables_summary({})
+
+
+@_tool()
+async def get_expense_queue() -> str:
+    """查报销队列：待审核报销单数量与金额。"""
+    return await xtools.tool_get_expense_queue({})
+
+
+@_tool()
+async def get_org_overview() -> str:
+    """查组织架构：部门、岗位、成员数量。"""
+    return await xtools.tool_get_org_overview({})
+
+
+@_tool()
+async def list_longtasks() -> str:
+    """查长任务列表：标题、类型、已完成阶段、状态。"""
+    return await xtools.tool_list_longtasks({})
+
+
+@_tool()
 async def gl_accounts() -> str:
     """查总账科目表：科目编码、名称、类型（asset/liability/equity/income/expense）、是否启用。"""
     rows = await db.gl_list_accounts(_tenant())

@@ -28,12 +28,13 @@ def test_graph_structure_has_all_agent_nodes() -> None:
 
 
 def test_supervisor_routes_to_seven_branches() -> None:
-    """supervisor 条件路由：记账 / 审批取消 / 记忆 / 通用 / 动作 / Studio 配置 / 财务七条支路。"""
+    """supervisor 条件路由：记账 / 审批取消 / 记忆 / 通用 / 企业 / 动作 / Studio 配置 / 财务。"""
     g = agent_graph.get_graph().get_graph()
     sup_edges = [e for e in g.edges if e.source == "supervisor"]
-    assert len(sup_edges) == 7, f"supervisor 应有 7 条条件边，实际 {len(sup_edges)}"
+    assert len(sup_edges) == 8, f"supervisor 应有 8 条条件边，实际 {len(sup_edges)}"
     assert {e.target for e in sup_edges} == {
-        "record", "nl_cancel", "memory", "general", "action", "studio_admin", "collect_market"
+        "record", "nl_cancel", "memory", "general", "enterprise",
+        "action", "studio_admin", "collect_market",
     }
 
 
@@ -101,6 +102,39 @@ async def test_general_path_no_steps(temp_db, monkeypatch) -> None:
     assert not [e for e in events if e["type"] == "step"]
     assert result["route"] == "general"
     assert result["level"] == ""
+
+
+async def test_enterprise_path_no_model(temp_db, monkeypatch) -> None:
+    """企业域问题（部门/应付/报销）走 enterprise 路由，离线也真查库、不落空回答。
+
+    回归：这些问句不含个人理财词，此前落 general（只有 web_search/get_now），
+    模型看不到企业数据只能硬答——真实模型评测 org/longtask 两例因此全线 FAIL。
+    """
+    async def _no_llm() -> bool:
+        return False
+
+    monkeypatch.setattr(service.llm, "llm_available", _no_llm)
+    events, result = await _collect(service.run_question, "公司一共有多少人？")
+    assert result["route"] == "enterprise"
+    assert result["level"] in ("L1 洞察", "L1")
+    # 真调了只读工具（事件带工具名），不是空壳
+    tool_events = [e for e in events if e["type"] == "tool"]
+    assert tool_events and tool_events[0]["data"]["name"] == "get_org_overview"
+    assert "组织" in result["answer"] or "department" in result["answer"].lower()
+
+
+async def test_enterprise_route_not_stealing_ledger_questions(temp_db) -> None:
+    """企业词不能抢个人账本问题：「我这个月报销花了多少」仍是账本域。"""
+    from app import service as svc
+
+    assert svc.route_question("我的总账现在是什么状况？")[0] == "enterprise"
+    assert svc.route_question("公司现在有哪些部门？")[0] == "enterprise"
+    assert svc.route_question("我欠供应商多少钱？")[0] == "enterprise"
+    # 个人收支口径优先
+    assert svc.route_question("我这个月报销花了多少")[0] == "ledger"
+    assert svc.route_question("这个月的开销怎么样")[0] == "ledger"
+    # 纯写作/流程咨询不进企业域（避免把「报销制度」当成查库）
+    assert svc.route_question("帮我写个报销制度")[0] == "general"
 
 
 async def test_record_path_no_model(temp_db) -> None:

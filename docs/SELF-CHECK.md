@@ -242,6 +242,29 @@ GitHub Actions 的 `docker` job 里真跑（7 步全 success）：
     建应付单 → 提交/审核（断言凭证号出现）→ 付款（断言付款单号与已付款状态）。
   - `backend/tests/test_model_eval.py` 补 2 项：部分运行分母只算实跑题（回归 3/50=6.1% 的误报）、
     空 model 参数回填真实模型名。
+  - `backend/tests/test_agent_graph.py` 补 2 项（切片 12）：企业域问题走 `enterprise` 节点并真调
+    只读工具、企业词不抢个人账本（「我这个月报销花了多少」仍走 ledger）；图条件边断言 7→8。
+  - `scripts/ai_finance_eval.py`（切片 12）：真实模型 9 例财务问答，判据为「工具命中 + 数字与库一致
+    + 诚实性」三层。本地 `spark-x2.6-4b` 实测 **9/9 通过**，其中 honesty 例要求回答明确说
+    「取不到 + 缺哪一维」而不是拿本月汇总代替。
+
+### AI 财务能力实测（切片 12）
+
+| 用例 | 期望工具 | 实测结果 |
+|---|---|---|
+| personal-spend「本月支出多少/主要花在哪几类」 | get_ledger_view / get_trend | PASS（数字来自库） |
+| personal-risk「资产有什么风险，按严重程度排」 | get_risk_flags / get_portfolio_risk | PASS |
+| portfolio「持仓总市值和累计盈亏」 | get_market_view / get_valuation | PASS |
+| gl-summary「总账什么状况，账平不平」 | get_gl_summary / gl_trial_balance | PASS |
+| payables「欠供应商多少钱/几张没付」 | get_payables_summary / payables | PASS |
+| expense-queue「多少报销待审批/金额」 | get_expense_queue / expense_claims | PASS |
+| org「有哪些部门/一共多少人」 | get_org_overview | PASS |
+| longtask「有哪些长任务/跑到哪一步」 | list_longtasks / longtasks | PASS |
+| honesty「上个月欧洲差旅花了多少」（库里没有该维度） | 允许不调工具 | PASS：明确「取不到该维度」，未用汇总冒充 |
+
+> 首轮实测为 3/9：企业域 5 例全线 FAIL。根因两条——新工具未登记 `READONLY_TOOLS`
+> 导致模型看不见；企业问句不含理财词被路由到 general（只有 web_search）。修复后 9/9。
+
 
 ## 5. 复现方式
 

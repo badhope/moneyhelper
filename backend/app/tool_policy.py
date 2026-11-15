@@ -54,6 +54,10 @@ READONLY_TOOLS: frozenset[str] = frozenset({
     "gl_accounts", "gl_periods", "gl_entries", "gl_trial_balance",
     "vendors", "purchase_orders", "payables", "expense_claims",
     "longtask_templates", "longtasks",
+    # 应用内对话 agent 的企业域聚合视图（与上面同一批数据，按问答场景聚合成摘要）。
+    # 漏登记会导致模型看不到这些工具、只能拿个人账本硬答企业问题。
+    "get_gl_summary", "get_payables_summary", "get_expense_queue",
+    "get_org_overview", "list_longtasks",
 })
 
 # 显式拒绝：这些工具不存在也不该被模型幻想调用

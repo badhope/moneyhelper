@@ -94,6 +94,49 @@ GOAL_WORDS = (
     "存款目标",
     "攒首付",
 )
+# 企业域词：总账/采购应付/组织/长任务。这些问句通常不含个人理财词
+# （「公司有哪些部门」没有「花/收入/持仓」），此前直接落 general 分支——那里只有
+# web_search/get_now，模型看不到企业数据，只能凭常识硬答或说没有数据。
+# 词选具体业务名词，避免「公司」这类泛词把「帮我写个公司简介」误判成查数据。
+#
+# 分强弱两档，是为了解决「总账」被 LEDGER_WORDS 的宽泛「账」字抢走：
+# 强词（总账/凭证/供应商/部门…）只属于企业域，先行判定；
+# 弱词（报销）与个人收支有交叉（「我这个月报销了多少」），放在账本之后再看。
+ENTERPRISE_STRONG_WORDS = (
+    "部门",
+    "岗位",
+    "组织架构",
+    "长任务",
+    "采购单",
+    "采购",
+    "供应商",
+    "应付",
+    "总账",
+    "凭证",
+    "科目",
+    "试算",
+)
+ENTERPRISE_WEAK_WORDS = ("报销",)
+# 只有「在问数据」才走企业域：纯写作/流程咨询（「帮我写个报销制度」「报销流程怎么走」）
+# 仍归 general，宁可少管也不要答错方向。
+DATA_QUESTION_MARKS = (
+    "多少",
+    "几",
+    "哪些",
+    "什么情况",
+    "怎么样",
+    "如何了",
+    "概览",
+    "汇总",
+    "进度",
+    "状态",
+    "有没有",
+    "列出",
+    "查一下",
+    "看看",
+    "?",
+    "？",
+)
 # 动作指令：命中即确定性执行工具（不依赖模型）。词选窄、选动作明确，避免误伤日常问法。
 ACTION_WORDS = (
     "买入",
@@ -153,6 +196,33 @@ FOLLOWUP_MAX_LEN = 12
 def _has_finance_word(text: str) -> bool:
     q = text.lower()
     return any(w in q for w in MARKET_WORDS) or any(w in q for w in LEDGER_WORDS)
+
+
+def _looks_like_enterprise_data_question(text: str, strong_only: bool = False) -> bool:
+    """企业域名词 + 疑问/取数句式才判为查数据。
+
+    单命中业务名词不成立：「帮我写个报销制度」含「报销」但不该去查库；
+    「报销流程怎么走」是新用户咨询流程，也要留给通用分支。两者都带疑问词，
+    所以再加一层「取数意图」——问数量/状态/清单/进度，或显式「看看/查一下」。
+
+    strong_only=True 时只看强词（不含「报销」）。路由顺序依赖这一点：
+    强词判定放在账本之前（否则「总账」会被 LEDGER_WORDS 的「账」抢走），
+    弱词放在账本之后（否则「我这个月报销花了多少」会被误判成查企业数据）。
+    """
+    q = text.lower()
+    words = ENTERPRISE_STRONG_WORDS if strong_only else (
+        ENTERPRISE_STRONG_WORDS + ENTERPRISE_WEAK_WORDS
+    )
+    # 兜底组合：明确说「公司/组织/团队」+ 人数/编制类问法，也算企业域
+    # （「公司一共有多少人」没有业务名词，只靠词表会漏）。
+    # 必须同时有主体词，避免「我家一共有多少人」这类个人问题被抢走。
+    org_subject = any(w in q for w in ("公司", "企业", "组织", "团队", "全公司"))
+    headcount = any(w in q for w in ("多少人", "几个人", "人数", "编制", "人头"))
+    if org_subject and headcount:
+        return True
+    if not any(w in q for w in words):
+        return False
+    return any(m in q for m in DATA_QUESTION_MARKS)
 
 
 async def _is_finance_followup(question: str, thread_id: str | None) -> bool:
@@ -375,6 +445,15 @@ def route_question(question: str, lang: str = "zh") -> tuple[str, str]:
         return "goal", f"你想看看财务体检 / 目标进度（{hit_g[0]}）"
     hit_m = [w for w in MARKET_WORDS if w in q]
     hit_l = [w for w in LEDGER_WORDS if w in q]
+    # 企业强词先于个人账本/持仓：「我的总账怎么样」含「账」（LEDGER_WORDS），
+    # 若按后者判定会走个人账本、答成「本月支出多少」，与用户问的公司总账无关。
+    if _looks_like_enterprise_data_question(q, strong_only=True):
+        if en:
+            return (
+                "enterprise",
+                "You're asking about the company books, procurement or the org",
+            )
+        return "enterprise", "你想查公司的账务 / 采购应付 / 组织数据"
     if hit_m and hit_l:
         if en:
             return (
@@ -393,6 +472,15 @@ def route_question(question: str, lang: str = "zh") -> tuple[str, str]:
         if en:
             return "ledger", "You want to see income, spending and debt"
         return "ledger", f"你想看这个月的收支和负债（{hit_l[0]}）"
+    # 企业弱词（报销）：个人理财词全都不命中时才考虑，
+    # 避免「我这个月报销花了多少」被抢走（它确实该走账本）。
+    if not (hit_m or hit_l) and _looks_like_enterprise_data_question(q):
+        if en:
+            return (
+                "enterprise",
+                "You're asking about company books, procurement, expenses or the org",
+            )
+        return "enterprise", "你想查公司的账务 / 采购应付 / 报销 / 组织数据"
     if en:
         return "general", "Not a finance question — answering in general"
     return "general", "这句不是理财问题，按通用问答回复"
@@ -421,20 +509,24 @@ def _looks_like_watchlist(question: str) -> bool:
 
 
 async def classify_question_llm(question: str, lang: str = "zh") -> str | None:
-    """规则未命中时的模型兜底分类：market / ledger / both / goal / general。
+    """规则未命中时的模型兜底分类：market / ledger / both / goal / enterprise / general。
 
     只管「是否理财问题及其域」，宁缺毋滥；模型不可用 / 输出非法一律返回 None（调用方保持 general）。
     """
     system = (
-        '你是意图分类器。只输出 JSON：{"route": "market|ledger|both|goal|general"}。'
+        '你是意图分类器。只输出 JSON：{"route": "market|ledger|both|goal|enterprise|general"}。'
         "market=股票/基金/持仓/行情/走势/某个标的价格；ledger=收支/记账/预算/负债；"
-        "both=同时涉及持仓与收支；goal=财务体检/储蓄目标进度；general=其它（写作/闲聊/编程等）。"
+        "both=同时涉及持仓与收支；goal=财务体检/储蓄目标进度；"
+        "enterprise=公司总账/凭证/科目/采购/供应商/应付/报销审批/部门岗位/长任务等企业数据查询；"
+        "general=其它（写作/闲聊/编程等，含制度编写、流程咨询这类不查数据的问法）。"
     )
     out = await llm.json_complete(system, question, timeout=12.0)
     if not isinstance(out, dict):
         return None
     route = str(out.get("route") or "").strip().lower()
-    return route if route in ("market", "ledger", "both", "goal", "general") else None
+    return route if route in (
+        "market", "ledger", "both", "goal", "enterprise", "general"
+    ) else None
 
 
 async def _try_save_memory(
