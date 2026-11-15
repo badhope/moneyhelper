@@ -67,6 +67,31 @@ def shadow_enabled() -> bool:
     return raw not in {"0", "false", "no", "off"}
 
 
+def enforce_enabled() -> bool:
+    """是否让 Casbin 真正参与放行判定（切片 7d）。
+
+    默认关闭：影子 mismatch 清零是切拦截的前提，但「清零」是在开发/测试流量上
+    验证的，不等于生产流量也干净。所以保留显式开关，由部署者确认后再打开：
+        MONEYHELPER_AUTHZ_ENFORCE=1
+    关闭时行为与切片 7a 完全一致（只记录、不拦截）。
+    """
+    raw = os.getenv("MONEYHELPER_AUTHZ_ENFORCE", "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def enforce_decision(
+    tenant_id: int, subject: str, role: str | None, permission_id: str
+) -> tuple[bool, str] | None:
+    """拦截模式下的最终判定。
+
+    返回 None 表示「本模式不参与判定」（开关关闭 / casbin 不可用），
+    调用方应回落到原有的字典判定——这样 casbin 故障不会把系统锁死。
+    """
+    if not enforce_enabled() or _casbin is None:
+        return None
+    return evaluate(tenant_id, subject, role, permission_id)
+
+
 def _build_enforcer(tenant_id: int, memberships: list[tuple[int, str]]) -> Any:
     """按租户成员关系构建 Casbin 强制器。
 

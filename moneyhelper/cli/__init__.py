@@ -322,6 +322,178 @@ def _dept_list_text(rows: list[dict]) -> str:
     )
 
 
+async def cmd_gl(args: argparse.Namespace) -> int:
+    """总账：科目 / 期间 / 凭证 / 试算表。"""
+    if args.url:
+        if args.action == "accounts":
+            data = await _remote("GET", args.url, args.token, "/api/gl/accounts", None)
+            rows = data.get("accounts", [])
+            _out(data, args.json, chr(10).join(
+                f"{a['code']}  {a['name']}  ({a['type']})" for a in rows
+            ) or "没有科目")
+            return 0
+        if args.action == "periods":
+            data = await _remote("GET", args.url, args.token, "/api/gl/periods", None)
+            rows = data.get("periods", [])
+            _out(data, args.json, chr(10).join(
+                f"{p['year']}-{int(p['month']):02d}  {p['status']}  id={p['id']}" for p in rows
+            ) or "没有会计期间")
+            return 0
+        if args.action == "entries":
+            data = await _remote("GET", args.url, args.token,
+                                 f"/api/gl/entries?limit={args.limit}", None)
+            rows = data.get("entries", [])
+            _out(data, args.json, chr(10).join(
+                f"{e.get('entry_no')}  {e.get('entry_date')}  {e.get('description')}"
+                f"  {e.get('status')}" for e in rows
+            ) or "没有凭证")
+            return 0
+        if args.action == "trial":
+            if not args.period:
+                _die("trial 需要 --period <id>", 2)
+            data = await _remote("GET", args.url, args.token,
+                                 f"/api/gl/trial-balance?period_id={args.period}", None)
+            _out(data, args.json,
+                 f"借方合计 {_fmt_amount(data.get('total_debit'))} · "
+                 f"贷方合计 {_fmt_amount(data.get('total_credit'))} · "
+                 f"{'平衡' if data.get('balanced') else '不平衡'}")
+            return 0
+        _die(f"未知 action：{args.action}", 2)
+
+    from app import db
+
+    await db.init_db()
+    try:
+        if args.action == "accounts":
+            rows = await db.gl_list_accounts(0)
+            _out(rows, args.json, chr(10).join(
+                f"{a['code']}  {a['name']}  ({a['type']})" for a in rows
+            ) or "没有科目")
+        elif args.action == "periods":
+            rows = await db.gl_list_periods(0)
+            _out(rows, args.json, chr(10).join(
+                f"{p['year']}-{int(p['month']):02d}  {p['status']}  id={p['id']}" for p in rows
+            ) or "没有会计期间")
+        elif args.action == "entries":
+            rows = await db.gl_list_entries(0, None, args.limit)
+            _out(rows, args.json, chr(10).join(
+                f"{e.get('entry_no')}  {e.get('entry_date')}  {e.get('description')}"
+                f"  {e.get('status')}" for e in rows
+            ) or "没有凭证")
+        elif args.action == "trial":
+            if not args.period:
+                _die("trial 需要 --period <id>", 2)
+            data = await db.gl_trial_balance(0, args.period)
+            _out(data, args.json,
+                 f"借方合计 {_fmt_amount(data.get('total_debit'))} · "
+                 f"贷方合计 {_fmt_amount(data.get('total_credit'))} · "
+                 f"{'平衡' if data.get('balanced') else '不平衡'}")
+        else:
+            _die(f"未知 action：{args.action}", 2)
+    finally:
+        await db.close_db()
+    return 0
+
+
+async def cmd_procure(args: argparse.Namespace) -> int:
+    """采购应付：供应商 / 采购单 / 应付单。"""
+    if args.url:
+        path = {
+            "vendors": "/api/procurement/vendors",
+            "orders": "/api/procurement/orders",
+            "payables": "/api/procurement/payables",
+        }[args.action]
+        data = await _remote("GET", args.url, args.token, path, None)
+    else:
+        from app import db
+
+        await db.init_db()
+        try:
+            if args.action == "vendors":
+                rows = await db.vendor_list(0)
+            elif args.action == "orders":
+                rows = await db.po_list(0)
+            else:
+                rows = await db.payable_list(0)
+        finally:
+            await db.close_db()
+        data = {args.action: rows}
+
+    rows = data.get(args.action, [])
+    if args.json:
+        _out(data, True, "")
+        return 0
+    if args.action == "vendors":
+        text = chr(10).join(f"{v['code']}  {v['name']}  {v.get('status')}" for v in rows)
+    elif args.action == "orders":
+        text = chr(10).join(
+            f"{o.get('po_no')}  {o.get('description') or '-'}  "
+            f"{_fmt_amount(o.get('amount'))}  {o.get('status')}" for o in rows
+        )
+    else:
+        text = chr(10).join(
+            f"{p.get('payable_no')}  {_fmt_amount(p.get('amount'))}  "
+            f"到期 {p.get('due_date') or '-'}  {p.get('status')}" for p in rows
+        )
+    print(text or "没有记录")
+    return 0
+
+
+async def cmd_longtask(args: argparse.Namespace) -> int:
+    """长任务：模板 / 列表 / 执行。"""
+    if args.url:
+        if args.action == "templates":
+            data = await _remote("GET", args.url, args.token, "/api/longtasks/templates", None)
+            rows = data.get("templates", [])
+            _out(data, args.json, chr(10).join(
+                f"{t['id']}  {t['label']}  ({len(t['stages'])} 阶段)" for t in rows
+            ))
+            return 0
+        if args.action == "list":
+            data = await _remote("GET", args.url, args.token, "/api/longtasks", None)
+            rows = data.get("tasks", [])
+            _out(data, args.json, chr(10).join(
+                f"{t['id']}  {t['title']}  {t['done']}/{t['total']}  {t['status']}" for t in rows
+            ) or "没有任务")
+            return 0
+        if args.action == "run":
+            if not args.id:
+                _die("run 需要 --id <task_id>", 2)
+            data = await _remote("POST", args.url, args.token,
+                                 f"/api/longtasks/{args.id}/run", {})
+            _out(data, args.json, f"已执行：{data.get('task', {}).get('status')}")
+            return 0
+        _die(f"未知 action：{args.action}", 2)
+
+    from app import longtask as lt
+
+    if args.action == "templates":
+        rows = lt.list_templates()
+        _out(rows, args.json, chr(10).join(
+            f"{t['id']}  {t['label']}  ({len(t['stages'])} 阶段)" for t in rows
+        ))
+        return 0
+    if args.action == "list":
+        rows = lt.list_tasks()
+        _out(rows, args.json, chr(10).join(
+            f"{t['id']}  {t['title']}  {t['done']}/{t['total']}  {t['status']}" for t in rows
+        ) or "没有任务")
+        return 0
+    if args.action == "run":
+        if not args.id:
+            _die("run 需要 --id <task_id>", 2)
+        from app import db
+
+        await db.init_db()
+        try:
+            task = await lt.run_task(args.id)
+        finally:
+            await db.close_db()
+        _out(task, args.json, f"已执行：{task.get('status')}")
+        return 0
+    _die(f"未知 action：{args.action}", 2)
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -390,6 +562,21 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--note", default="", help="审批备注")
     sp.add_argument("--limit", type=int, default=20, help="list：最多显示条数")
     sp.set_defaults(func=cmd_dept)
+
+    sp = sub.add_parser("gl", help="总账：科目 / 期间 / 凭证 / 试算表")
+    sp.add_argument("action", choices=["accounts", "periods", "entries", "trial"])
+    sp.add_argument("--period", type=int, default=0, help="trial：会计期间 id")
+    sp.add_argument("--limit", type=int, default=50, help="entries：最多显示条数")
+    sp.set_defaults(func=cmd_gl)
+
+    sp = sub.add_parser("procure", help="采购应付：供应商 / 采购单 / 应付单")
+    sp.add_argument("action", choices=["vendors", "orders", "payables"])
+    sp.set_defaults(func=cmd_procure)
+
+    sp = sub.add_parser("longtask", help="长任务：模板 / 列表 / 执行")
+    sp.add_argument("action", choices=["templates", "list", "run"])
+    sp.add_argument("--id", default="", help="run：任务 id")
+    sp.set_defaults(func=cmd_longtask)
 
     sp = sub.add_parser("serve", help="启动本地服务")
     sp.add_argument("--host", default="127.0.0.1")

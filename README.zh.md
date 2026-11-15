@@ -9,7 +9,7 @@
 [![Tests](https://img.shields.io/badge/tests-1%2C700%2B-059669)](#验证)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
-[![MCP](https://img.shields.io/badge/MCP-63%20tools-1A2B4A)](docs/mcp-guide.md)
+[![MCP](https://img.shields.io/badge/MCP-77%20tools-1A2B4A)](docs/mcp-guide.md)
 
 <p align="center">
   <img src="docs/screenshots-v4.16/desktop-01-overview.jpg" width="100%" alt="总览：净资产、集中度风险与按紧急度排序的待办" />
@@ -59,7 +59,7 @@ pip install -e . && moneyhelper add "午餐 45 打车 28"
 | **持仓与投研** | 持仓、集中度、盈亏归因、再平衡下单量；技术指标、5 种回测策略、固定种子蒙特卡洛。 |
 | **财报与税负（CN）** | 三表分析 20+ 指标与杜邦分解；增值税、企业所得税、个税累计预扣、含社保公积金的工资表。 |
 | **长任务** | 一次回答装不下的大活儿：小说、网页程序、Word 报告、论文、程序开发。每阶段落盘、可续跑、可逐段查看。 |
-| **报表与 MCP** | 单文件离线 HTML 报告；63 个工具通过 Model Context Protocol 暴露。 |
+| **报表与 MCP** | 单文件离线 HTML 报告；77 个工具通过 Model Context Protocol 暴露（含总账、采购应付、报销、长任务）。 |
 
 ---
 
@@ -130,7 +130,7 @@ flowchart LR
   AGENT --> TOOLS[工具注册表]
   TOOLS --> CALC
   AGENT --> LLM[LiteLLM<br/>OpenAI/Anthropic/DeepSeek/通义/...]
-  API --> MCP[MCP server<br/>63 工具]
+  API --> MCP[MCP server<br/>77 工具]
   MCP --> CALC
 ```
 

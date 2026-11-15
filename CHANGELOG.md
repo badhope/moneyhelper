@@ -68,6 +68,37 @@
   仅 `backend/data` 与 `backend/logs` 可写，源码/前端产物归 root 只读。
   本机无 Docker，镜像构建未验证（已在路线图标注）。
 
+### 企业化切片 11：企业域 MCP 工具 + CLI + 拦截开关
+
+此前 63 个 MCP 工具全部是个人财务域（账本/持仓/行情/税负），
+「企业级 AI 办公 + 财务会计」这一定位在 AI 可操作层面是空的——企业域只能点 UI。
+
+- MCP 新增 14 个企业域工具（63 → 77）：
+  - 总账：`gl_accounts` / `gl_periods` / `gl_entries` / `gl_trial_balance` / `gl_create_entry`
+  - 采购应付：`vendors` / `purchase_orders` / `payables` / `create_purchase_order` / `create_payable`
+  - 报销：`expense_claims`
+  - 长任务：`longtask_templates` / `longtasks` / `run_longtask`
+- 权限分层：10 个读工具加进 `READONLY_TOOLS`（外部客户端可直接调），
+  4 个写工具保持 ASK（模型必须经人工确认）。
+- 入参模型全部登记进 `tool_schemas.py`（单一真源），并有白名单测试锁住防漏登记。
+- CLI 新增 `moneyhelper gl|procure|longtask` 三个子命令，与 HTTP API 同一批端点。
+
+### Casbin 拦截开关（7d）
+
+- 此前只有影子模式（只记录不拦截）。新增 `MONEYHELPER_AUTHZ_ENFORCE=1`：
+  开启后 Casbin 判定为 deny 即 403，接入 `routes/_scope.py` 与 `routes/gl.py` 两处共用权限闸。
+- **默认关闭**，行为与切片 7a 完全一致；开关是显式的，由部署者确认 mismatch 清零后自行打开。
+- 两条安全约束：Casbin 允许但代码拒绝时仍以代码为准（不放宽）；
+  Casbin 不可用时回落字典判定（引擎故障不能把系统锁死）。
+- 12 项测试，含 2 项端到端（viewer 写 GL 403、admin 写 GL 200）。
+
+### 测试：设置页长尾分区配置级验证
+
+- 新增 `frontend/e2e/settings-tail.spec.ts`（7 项）：
+  组织架构建部门/岗位并清理、家庭账本建成员/借贷/结清、知识库上传入库删除、
+  非内置 Hook 停用再启用、内置工具逐项开关。
+- E2E 55 → **62**；设置页配置级验证从 22 项增至 29 项。
+
 ### 测试：设置页从「能打开」升级为「真的配置过」
 
 - 新增 `frontend/e2e/settings-write.spec.ts`（10 项）：偏好项逐个

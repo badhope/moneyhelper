@@ -56,3 +56,31 @@ async def record(
         allowed=bool(allowed),
         reason=reason,
     )
+
+
+async def enforce(
+    *,
+    tenant_id: int,
+    user: dict[str, Any] | None,
+    role: str | None,
+    permission_id: str,
+    allowed_by_code: bool,
+) -> bool:
+    """拦截模式下的最终结论（切片 7d）。
+
+    - 开关关闭 / casbin 不可用 → 原样返回代码判定（不改变现有行为）；
+    - 开启且 casbin 判定为 deny → 返回 False（真正拦截）；
+    - casbin 判定为 allow 但代码拒绝 → 仍返回代码结论（代码更保守，不放宽）。
+
+    为什么「Allow 不放宽」：Casbin 策略是目标态，代码判定是当前实现。
+    若策略比实现宽，直接放行会让"字典里有、代码没接"的权限点漏出实际能力。
+    等实现补齐后再谈放宽。
+    """
+    from .authz_engine import enforce_decision
+
+    uid = int((user or {}).get("id") or 0)
+    decision = enforce_decision(int(tenant_id), str(uid), role, permission_id)
+    if decision is None:
+        return bool(allowed_by_code)
+    casbin_allows, _detail = decision
+    return bool(allowed_by_code) and casbin_allows

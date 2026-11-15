@@ -1226,3 +1226,171 @@ def goal_planning() -> str:
         "3. 如果需要调整月度投入，给出具体数字。\n\n"
         "要求：可行性判断必须基于 get_trend 的真实结余数据，不要用收入代替储蓄能力。"
     )
+
+
+# ---------------------------------------------------------------------------
+# 企业域工具（切片 11）：总账 / 采购应付 / 报销 / 长任务
+#
+# 为什么补这一组：此前 63 个 MCP 工具全部是个人财务域（账本/持仓/行情/税负），
+# 「企业级 AI 办公 + 财务会计」这一定位在 AI 可操作层面是空的——企业域只能点 UI。
+#
+# 权限分层沿用现有机制：
+# - 读工具加进 tool_policy.READONLY_TOOLS，外部 MCP 客户端可直接调用；
+# - 写工具保持未声明 readOnlyHint（= ASK），模型必须经人工确认。
+# - 租户由 current_tenant_id() 决定（嵌在 FastAPI 里时来自鉴权中间件；
+#   独立 stdio 模式即本机租户 0），与本进程内其他企业域代码同一口径。
+# ---------------------------------------------------------------------------
+
+
+def _tenant() -> int:
+    from .db.tenant import current_tenant_id
+
+    return current_tenant_id()
+
+
+@_tool()
+async def gl_accounts() -> str:
+    """查总账科目表：科目编码、名称、类型（asset/liability/equity/income/expense）、是否启用。"""
+    rows = await db.gl_list_accounts(_tenant())
+    return json.dumps({"accounts": rows}, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def gl_periods() -> str:
+    """查会计期间列表：年、月、起止日期、状态（open/closed）。"""
+    rows = await db.gl_list_periods(_tenant())
+    return json.dumps({"periods": rows}, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def gl_entries(period_id: int = 0, limit: int = 50) -> str:
+    """查凭证列表（新→旧）。period_id 省略=全部期间；limit 1-200，默认 50。
+
+    返回每张凭证的编号、日期、摘要、借贷合计、状态（draft/posted）、来源。
+    """
+    rows = await db.gl_list_entries(_tenant(), period_id or None, limit)
+    return json.dumps({"entries": rows}, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def gl_trial_balance(period_id: int) -> str:
+    """查某会计期间的试算平衡表：各科目期初/借方/贷方/期末，以及全局是否借贷平衡。"""
+    data = await db.gl_trial_balance(_tenant(), int(period_id))
+    return json.dumps(data, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def gl_create_entry(
+    entry_date: str,
+    description: str,
+    lines: list[dict[str, Any]],
+    post_now: bool = False,
+) -> str:
+    """新建总账凭证（默认只建草稿，post_now=true 时立即过账）。
+
+    lines 是分录数组，每项形如 {"account_id": 1, "debit": 100, "credit": 0, "memo": "..."}；
+    借贷必须平衡，金额单位为元（内部转整数分）。account_id 先用 gl_accounts 查。
+    """
+    entry = await db.gl_create_entry(_tenant(), entry_date, description, lines, 0)
+    if post_now:
+        entry = await db.gl_post_entry(_tenant(), int(entry["id"]))
+    return json.dumps(entry, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def vendors() -> str:
+    """查供应商档案：编码、名称、税号、联系人、状态。"""
+    rows = await db.vendor_list(_tenant())
+    return json.dumps({"vendors": rows}, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def purchase_orders() -> str:
+    """查采购单：单号、供应商、金额、状态（draft/submitted/approved）、关联审批人。"""
+    rows = await db.po_list(_tenant())
+    return json.dumps({"orders": rows}, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def payables() -> str:
+    """查应付单：单号、供应商、发票号、金额、税额、到期日、状态、关联凭证与付款。"""
+    rows = await db.payable_list(_tenant())
+    return json.dumps({"payables": rows}, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def expense_claims(status: str = "") -> str:
+    """查报销单。status 可传 draft/submitted/approved/rejected，省略=全部。"""
+    rows = await db.expense_list_claims(_tenant(), status or None)
+    return json.dumps({"claims": rows}, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def create_purchase_order(
+    vendor_id: int,
+    order_date: str,
+    amount: float,
+    expected_date: str = "",
+    description: str = "",
+) -> str:
+    """新建采购单（草稿）。amount 单位为元；提交与审核需在采购页或调用对应工具人工确认。"""
+    po = await db.po_create(
+        _tenant(), int(vendor_id), order_date, expected_date, amount, description
+    )
+    return json.dumps(po, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def create_payable(
+    vendor_id: int,
+    invoice_date: str,
+    amount: float,
+    expense_account_id: int,
+    payable_account_id: int,
+    po_id: int = 0,
+    invoice_no: str = "",
+    due_date: str = "",
+    tax: float = 0,
+) -> str:
+    """新建应付单（草稿）。需先用 gl_accounts 查借方费用科目与贷方应付科目 id。"""
+    ap = await db.payable_create(
+        _tenant(),
+        int(vendor_id),
+        int(po_id) if po_id else None,
+        invoice_no,
+        invoice_date,
+        due_date,
+        amount,
+        tax,
+        int(expense_account_id),
+        int(payable_account_id),
+    )
+    return json.dumps(ap, ensure_ascii=False, default=str)
+
+
+@_tool()
+async def longtask_templates() -> str:
+    """查长任务模板：每种任务类型（小说/网页/Word/论文/程序）的阶段划分。"""
+    from . import longtask
+
+    return json.dumps({"templates": longtask.list_templates()}, ensure_ascii=False)
+
+
+@_tool()
+async def longtasks() -> str:
+    """查长任务列表：标题、类型、状态、已完成阶段数。"""
+    from . import longtask
+
+    return json.dumps({"tasks": longtask.list_tasks()}, ensure_ascii=False)
+
+
+@_tool()
+async def run_longtask(task_id: str, max_stages: int = 0) -> str:
+    """执行长任务（未完成阶段）。max_stages 限制本次跑几个阶段，0=全部。
+
+    长任务会真实调用模型、逐阶段落盘产物，耗时可能数分钟到数十分钟。
+    """
+    from . import longtask
+
+    task = await longtask.run_task(task_id, max_stages=max_stages or None)
+    return json.dumps(task, ensure_ascii=False, default=str)

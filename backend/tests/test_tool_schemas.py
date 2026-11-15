@@ -99,6 +99,21 @@ def test_mcp_only_tools_are_registered() -> None:
         "import_transactions",
         "get_family_summary",
         "get_provenance",
+        # 企业域（切片 11）：14 个工具只在 MCP 侧暴露
+        "gl_accounts",
+        "gl_periods",
+        "gl_entries",
+        "gl_trial_balance",
+        "gl_create_entry",
+        "vendors",
+        "purchase_orders",
+        "payables",
+        "expense_claims",
+        "create_purchase_order",
+        "create_payable",
+        "longtask_templates",
+        "longtasks",
+        "run_longtask",
     }
 
 

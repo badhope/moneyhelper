@@ -57,14 +57,29 @@ async def _require_role(
             reason="非该租户成员",
         )
         raise HTTPException(status_code=403, detail="无权访问该租户")
-    if not authz.allows(role, permission_id):
+    dict_allows = authz.allows(role, permission_id)
+    # 拦截模式（MONEYHELPER_AUTHZ_ENFORCE=1）下由 Casbin 再判一次；
+    # 开关关闭时原样返回 dict_allows，行为不变。
+    allowed = await authz_guard.enforce(
+        tenant_id=tenant_id,
+        user=user,
+        role=role,
+        permission_id=permission_id,
+        allowed_by_code=dict_allows,
+    )
+    if not allowed:
+        reason = (
+            f"角色 {role} 无 {permission_id}"
+            if not dict_allows
+            else f"Casbin 拒绝 {permission_id}（拦截模式）"
+        )
         await authz_guard.record(
             tenant_id=tenant_id,
             user=user,
             role=role,
             permission_id=permission_id,
             allowed=False,
-            reason=f"角色 {role} 无 {permission_id}",
+            reason=reason,
         )
         raise HTTPException(status_code=403, detail="需要该租户的财务写权限")
     await authz_guard.record(

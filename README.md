@@ -9,7 +9,7 @@
 [![Tests](https://img.shields.io/badge/tests-1%2C700%2B-059669)](#verification)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
-[![MCP](https://img.shields.io/badge/MCP-63%20tools-1A2B4A)](docs/mcp-guide.md)
+[![MCP](https://img.shields.io/badge/MCP-77%20tools-1A2B4A)](docs/mcp-guide.md)
 
 <p align="center">
   <img src="docs/screenshots-v4.16/desktop-01-overview.jpg" width="100%" alt="Dashboard: net worth, concentration risk and prioritized actions" />
@@ -59,7 +59,7 @@ Requires Python 3.10+ and Node 20.19+ for the source install. Data lives in a lo
 | **Portfolio & research** | Positions, concentration, P&L attribution, rebalance orders, technical indicators, 5 backtest strategies, seeded Monte Carlo scenarios. |
 | **Statements & tax (CN)** | Three-statement analysis with 20+ ratios and DuPont decomposition; VAT, corporate income tax, cumulative withholding, payroll with social insurance. |
 | **Long tasks** | Staged execution for work that does not fit one answer: novel, web app, Word report, paper, program. Each stage is persisted, resumable, and inspectable. |
-| **Reports & MCP** | Single-file offline HTML reports; 63 tools exposed over the Model Context Protocol. |
+| **Reports & MCP** | Single-file offline HTML reports; 77 tools exposed over the Model Context Protocol (incl. ledger, procurement/payables, expense claims, long tasks). |
 
 ---
 
@@ -130,7 +130,7 @@ flowchart LR
   AGENT --> TOOLS[tool registry]
   TOOLS --> CALC
   AGENT --> LLM[LiteLLM<br/>OpenAI/Anthropic/DeepSeek/Qwen/...]
-  API --> MCP[MCP server<br/>63 tools]
+  API --> MCP[MCP server<br/>77 tools]
   MCP --> CALC
 ```
 

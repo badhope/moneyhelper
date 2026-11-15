@@ -27,7 +27,7 @@
 | 文档 | 用途 |
 |---|---|
 | [CLI](cli.md) | 命令行记账与查询 |
-| [MCP 接入](mcp-guide.md) | 把 63 个工具接进 Claude Code / Cursor / Cline |
+| [MCP 接入](mcp-guide.md) | 把 77 个工具接进 Claude Code / Cursor / Cline |
 | [连接中心](connect-hub.md) / [深度接入](connect-hub-deep.md) | 行情、券商、外部数据源 |
 | [Agent Studio](studio.md) | 角色 / 技能 / 提示词 / Hook / 权限 |
 | [工作流](WORKFLOW.md) / [Workflow (EN)](WORKFLOW.en.md) | 典型任务的操作路径 |

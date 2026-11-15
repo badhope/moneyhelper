@@ -47,6 +47,13 @@ READONLY_TOOLS: frozenset[str] = frozenset({
     # 外部只读数据
     "search_symbol", "connect_catalog", "connect_fund_nav",
     "paper_overview", "broker_status", "invoice_vision_status",
+    # 企业域只读（切片 11）：总账 / 采购应付 / 报销 / 长任务。
+    # 这些只查库、不写任何东西，外部 MCP 客户端可直接调用；
+    # 对应的写工具（gl_create_entry / create_purchase_order / create_payable /
+    # run_longtask）故意不列在这里，保持 ASK 需人工确认。
+    "gl_accounts", "gl_periods", "gl_entries", "gl_trial_balance",
+    "vendors", "purchase_orders", "payables", "expense_claims",
+    "longtask_templates", "longtasks",
 })
 
 # 显式拒绝：这些工具不存在也不该被模型幻想调用
