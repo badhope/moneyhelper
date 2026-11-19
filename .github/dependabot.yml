@@ -1,0 +1,26 @@
+# 依赖更新：只盯 GitHub Actions 自身的版本。
+#
+# 为什么不开 pip / npm 的全量常规升级：这两个生态的升级多数与代码无关，
+# 每周自动开 PR 只会让 CI 排队、让人习惯性点“合并”，真正的破坏性变更反而
+# 被淹没。运行库的安全问题走仓库已开启的 Dependabot 安全更新（只在有 CVE
+# 时开 PR），需要主动升级时用 `pip list --outdated` / `npm outdated` 人工判断。
+#
+# Actions 则不同：它们跑在 CI 里、版本被 GitHub 强制弃用（node20 → node24），
+# 不更新会在某天突然全红，且更新动作本身没有业务风险。
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
+    open-pull-requests-limit: 3
+    # 镜像/派生仓库不需要重复开 PR：只在主仓维护，其余靠 mirror-sync 同步
+    target-branch: main
