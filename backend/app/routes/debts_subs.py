@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
 
-from .. import analysis, db
-from ..provenance import record_provenance
+from .. import db
+from . import _crud as crud
 
 router = APIRouter()
 
@@ -18,38 +17,16 @@ router = APIRouter()
 
 @router.post("/api/debts")
 async def create_debt(payload: dict) -> dict:
-    name = str((payload or {}).get("name", "")).strip()
-    try:
-        out = await db.add_debt(payload or {})
-    except Exception as exc:  # noqa: BLE001
-        return JSONResponse({"error": str(exc)}, status_code=400)
-    await record_provenance(
-        action="create_debt",
-        entity_type="debt",
-        entity_id=name,
-        before=None,
-        after=payload or {},
-        source="api",
+    return await crud.create_entity(
+        payload, add=db.add_debt, action="create_debt", entity_type="debt"
     )
-    analysis.invalidate_dashboard_cache()
-    return out
 
 
 @router.delete("/api/debts/{name}")
 async def remove_debt(name: str) -> dict:
-    before_row = await db.fetch_one("SELECT * FROM debts WHERE name = ?", (name,))
-    before = dict(before_row) if before_row else None
-    result = await db.delete_debt(name)
-    await record_provenance(
-        action="delete_debt",
-        entity_type="debt",
-        entity_id=name,
-        before=before,
-        after=None,
-        source="api",
+    return await crud.delete_entity(
+        name, table="debts", delete=db.delete_debt, action="delete_debt", entity_type="debt"
     )
-    analysis.invalidate_dashboard_cache()
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -59,35 +36,17 @@ async def remove_debt(name: str) -> dict:
 
 @router.post("/api/subscriptions")
 async def create_subscription(payload: dict) -> dict:
-    name = str((payload or {}).get("name", "")).strip()
-    try:
-        out = await db.add_subscription(payload or {})
-    except Exception as exc:  # noqa: BLE001
-        return JSONResponse({"error": str(exc)}, status_code=400)
-    await record_provenance(
-        action="create_subscription",
-        entity_type="subscription",
-        entity_id=name,
-        before=None,
-        after=payload or {},
-        source="api",
+    return await crud.create_entity(
+        payload, add=db.add_subscription, action="create_subscription", entity_type="subscription"
     )
-    analysis.invalidate_dashboard_cache()
-    return out
 
 
 @router.delete("/api/subscriptions/{name}")
 async def remove_subscription(name: str) -> dict:
-    before_row = await db.fetch_one("SELECT * FROM subscriptions WHERE name = ?", (name,))
-    before = dict(before_row) if before_row else None
-    result = await db.delete_subscription(name)
-    await record_provenance(
+    return await crud.delete_entity(
+        name,
+        table="subscriptions",
+        delete=db.delete_subscription,
         action="delete_subscription",
         entity_type="subscription",
-        entity_id=name,
-        before=before,
-        after=None,
-        source="api",
     )
-    analysis.invalidate_dashboard_cache()
-    return result

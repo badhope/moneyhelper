@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
 
 from .. import analysis, db
-from ..provenance import record_provenance
+from . import _crud as crud
 
 router = APIRouter()
 
@@ -18,57 +17,20 @@ async def goals_list() -> dict:
 
 @router.post("/api/goals")
 async def create_goal(payload: dict) -> dict:
-    name = str((payload or {}).get("name", "")).strip()
-    try:
-        out = await db.add_goal(payload or {})
-    except Exception as exc:  # noqa: BLE001 — 坏输入回 400
-        return JSONResponse({"error": str(exc)}, status_code=400)
-    await record_provenance(
-        action="create_goal",
-        entity_type="goal",
-        entity_id=name,
-        before=None,
-        after=payload or {},
-        source="api",
+    return await crud.create_entity(
+        payload, add=db.add_goal, action="create_goal", entity_type="goal"
     )
-    analysis.invalidate_dashboard_cache()
-    return out
 
 
 @router.put("/api/goals/{name}")
 async def update_goal(name: str, payload: dict) -> dict:
-    before_row = await db.fetch_one("SELECT * FROM goals WHERE name = ?", (name,))
-    before = dict(before_row) if before_row else None
-    try:
-        out = await db.update_goal(name, payload or {})
-    except Exception as exc:  # noqa: BLE001
-        return JSONResponse({"error": str(exc)}, status_code=400)
-    after_row = await db.fetch_one("SELECT * FROM goals WHERE name = ?", (name,))
-    after = dict(after_row) if after_row else None
-    await record_provenance(
-        action="update_goal",
-        entity_type="goal",
-        entity_id=name,
-        before=before,
-        after=after,
-        source="api",
+    return await crud.update_entity(
+        name, payload, table="goals", update=db.update_goal, action="update_goal", entity_type="goal"
     )
-    analysis.invalidate_dashboard_cache()
-    return out
 
 
 @router.delete("/api/goals/{name}")
 async def remove_goal(name: str) -> dict:
-    before_row = await db.fetch_one("SELECT * FROM goals WHERE name = ?", (name,))
-    before = dict(before_row) if before_row else None
-    result = await db.delete_goal(name)
-    await record_provenance(
-        action="delete_goal",
-        entity_type="goal",
-        entity_id=name,
-        before=before,
-        after=None,
-        source="api",
+    return await crud.delete_entity(
+        name, table="goals", delete=db.delete_goal, action="delete_goal", entity_type="goal"
     )
-    analysis.invalidate_dashboard_cache()
-    return result
