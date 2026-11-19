@@ -3,6 +3,7 @@
 #
 # 层次（任一失败即退出）：
 #   1. 静态守卫：重复代码巡检（check-duplicates.py）+ i18n 硬编码棘轮（check-i18n.py）
+#      + 前后端契约（check-api-contract.py：前端有请求、后端无端点 = 必 404）
 #   2. ruff 静态检查（backend/app+tests、moneyhelper）
 #   3. 后端 pytest 全量（并行）
 #   4. 前端 vitest 单测
@@ -52,6 +53,7 @@ step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 step "1/6 静态守卫（去重 / i18n）"
 python3 "$ROOT/scripts/check-duplicates.py" || fail "去重巡检"
 python3 "$ROOT/scripts/check-i18n.py" || fail "i18n 守卫"
+python3 "$ROOT/scripts/check-api-contract.py" || fail "前后端契约"
 ok "静态守卫"
 
 step "2/6 ruff"
