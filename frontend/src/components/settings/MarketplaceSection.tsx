@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, Loader2, Package, Search, Sparkles, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import { api, SLOW_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import { cn, errMsg } from "@/lib/utils";
@@ -135,6 +135,7 @@ export function MarketplaceSection() {
       const r = await api<{ ok: boolean; saved: { name: string }[]; errors: { file: string; error: string }[] }>(
         "/api/studio/import/url",
         { method: "POST", body: JSON.stringify({ url: u, kind: urlKind }) },
+        { timeoutMs: SLOW_REQUEST_TIMEOUT_MS },
       );
       const n = r.saved?.length ?? 0;
       if (n) toast(t("studio.urlInstalled", { n }), "ok");

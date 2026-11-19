@@ -8,8 +8,6 @@
  */
 
 export const KIND_OPTIONS = ["股票", "ETF", "基金", "现金", "其他"] as const;
-export type AssetKind = (typeof KIND_OPTIONS)[number];
-
 export const KIND_LABEL_KEYS: Record<string, string> = {
   股票: "entry.kindStock",
   ETF: "entry.kindEtf",

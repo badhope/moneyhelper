@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiStream, deleteAttachment, uploadAttachment } from "@/lib/api";
+import { apiStream, deleteAttachment, saveBlob, uploadAttachment } from "@/lib/api";
 import { useStreamingMutate } from "@/lib/use-streaming-mutate";
 import { store, useDashboard, useBootstrap, useSessionUsage } from "@/lib/store";
 import { BRAND } from "@/lib/brand";
@@ -191,12 +191,10 @@ export function useChatView({
         if (!copyText(md)) throw new Error("clipboard unavailable");
         toast(tr("chat.copied"), "ok");
       } else {
-        const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `${BRAND.name}-${new Date().toISOString().slice(0, 10)}.md`;
-        a.click();
-        URL.revokeObjectURL(a.href);
+        saveBlob(
+          new Blob([md], { type: "text/markdown;charset=utf-8" }),
+          `${BRAND.name}-${new Date().toISOString().slice(0, 10)}.md`,
+        );
         toast(tr("chat.downloaded"), "ok");
       }
     } catch {

@@ -5,7 +5,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, SLOW_REQUEST_TIMEOUT_MS } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // 类型契约
@@ -187,15 +187,6 @@ export function useIntents() {
   });
 }
 
-export function useJobs() {
-  return useQuery({
-    queryKey: ["/api/connect/jobs"],
-    queryFn: () =>
-      api<{ items: SyncResult[] }>("/api/connect/jobs").then((r) => r.items ?? []),
-    staleTime: 10_000,
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Mutations
 // ---------------------------------------------------------------------------
@@ -214,15 +205,6 @@ export function useCreateConnection() {
   return useMutation({
     mutationFn: (body: { connector_id: string; label?: string; account_ref?: string; meta?: Record<string, unknown> }) =>
       api<Connection>("/api/connect/connections", { method: "POST", body: JSON.stringify(body) }),
-    onSettled: invalidate,
-  });
-}
-
-export function useUpdateConnection() {
-  const invalidate = useInvalidate();
-  return useMutation({
-    mutationFn: ({ id, ...patch }: { id: string } & Partial<Pick<Connection, "status" | "label" | "account_ref">>) =>
-      api<Connection>(`/api/connect/connections/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     onSettled: invalidate,
   });
 }
@@ -625,17 +607,6 @@ export interface ExecuteStatus {
   note: string;
 }
 
-export interface CategorizeResult {
-  results: Record<string, unknown>[];
-  total: number;
-  fallback: number;
-  fallback_pct: number;
-  by_category: Record<string, number>;
-  by_rule: Record<string, number>;
-  rule_count: number;
-  hint: string;
-}
-
 export interface StatementPreview {
   ok: boolean;
   rows: { date: string; item: string; amount: number; category: string }[];
@@ -678,7 +649,7 @@ export function useUploadInvoiceImage() {
         warnings?: string[];
         install_hint?: string;
         duplicate?: boolean;
-      }>("/api/connect/invoices/image", { method: "POST", body });
+      }>("/api/connect/invoices/image", { method: "POST", body }, { timeoutMs: SLOW_REQUEST_TIMEOUT_MS });
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/connect/invoices"] }),
   });
@@ -691,19 +662,13 @@ export function useUploadStatementPdf() {
       const body = new FormData();
       body.append("file", file);
       if (apply) body.append("apply", "true");
-      return api<StatementPreview>("/api/connect/import/statement-pdf", { method: "POST", body });
+      return api<StatementPreview>(
+        "/api/connect/import/statement-pdf",
+        { method: "POST", body },
+        { timeoutMs: SLOW_REQUEST_TIMEOUT_MS },
+      );
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: ["dashboard"] }),
-  });
-}
-
-export function useCategorizePreview() {
-  return useMutation({
-    mutationFn: (rows: Record<string, unknown>[]) =>
-      api<CategorizeResult>("/api/connect/categorize/preview", {
-        method: "POST",
-        body: JSON.stringify({ rows }),
-      }),
   });
 }
 
@@ -734,10 +699,3 @@ export function useConfigureBroker() {
   });
 }
 
-export function useDeleteBrokerCredentials() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (name: string) => api(`/api/execute/brokers/${name}/credentials`, { method: "DELETE" }),
-    onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/execute/status"] }),
-  });
-}

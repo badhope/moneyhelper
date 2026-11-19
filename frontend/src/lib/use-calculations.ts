@@ -57,14 +57,6 @@ export interface GoalProgressItem {
   progress_pct: number;
 }
 
-/** GET /api/import/templates 单条 */
-export interface ImportTemplate {
-  key: string;
-  label: string;
-  description: string;
-  sample_columns: string[];
-}
-
 // ---------------------------------------------------------------------------
 // Fetch 函数
 // ---------------------------------------------------------------------------
@@ -83,10 +75,6 @@ export function fetchReturns(months = 6): Promise<ReturnsResult> {
 
 export function fetchGoalProgress(): Promise<GoalProgressItem[]> {
   return api<{ goals: GoalProgressItem[] }>("/api/calculations/goals/progress").then((r) => r.goals);
-}
-
-export function fetchImportTemplates(): Promise<ImportTemplate[]> {
-  return api<ImportTemplate[]>("/api/import/templates");
 }
 
 // ---------------------------------------------------------------------------
@@ -129,11 +117,3 @@ export function useGoalProgress() {
   });
 }
 
-export function useImportTemplates() {
-  return useQuery({
-    queryKey: ["import-templates"],
-    queryFn: fetchImportTemplates,
-    staleTime: 300_000,
-    refetchOnWindowFocus: false,
-  });
-}

@@ -2,20 +2,12 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen, FileText, Loader2, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import type { AttachmentItem } from "@/lib/api";
+import { api, listAttachments, SLOW_REQUEST_TIMEOUT_MS, uploadAttachment } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import { cn, errMsg } from "@/lib/utils";
 import { Section } from "./shared";
-
-interface Attachment {
-  id: number;
-  filename: string;
-  kind: string;
-  size: number;
-  indexed: number;
-  created_at: string;
-}
 
 /**
  * 知识库：把文档标记为「入库」，问答时按 BM25 检索相关片段。
@@ -31,7 +23,8 @@ export function KnowledgeSection() {
 
   const list = useQuery({
     queryKey: ["/api/attachments"],
-    queryFn: () => api<{ attachments: Attachment[] }>("/api/attachments").then((r) => r.attachments ?? []),
+    // 复用 lib/api 的 listAttachments（原为手写同路径请求）
+    queryFn: () => listAttachments(),
   });
   const items = list.data ?? [];
   const indexedCount = items.filter((a) => a.indexed).length;
@@ -40,12 +33,17 @@ export function KnowledgeSection() {
 
   const upload = async (file: File) => {
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
     try {
-      const r = await api<{ id: number }>("/api/attachments", { method: "POST", body: fd });
+      // 复用 lib/api 的上传封装（原为手写 FormData，与 uploadAttachment 完全重复）
+      const r = await uploadAttachment(file);
       // 上传即入库：用户来知识库页就是为了让文档可被检索
-      if (r?.id) await api(`/api/attachments/${r.id}/index`, { method: "POST", body: JSON.stringify({ indexed: true }) });
+      if (r?.id)
+        await api(
+          `/api/attachments/${r.id}/index`,
+          { method: "POST", body: JSON.stringify({ indexed: true }) },
+          // 建索引要跑切分 + 向量化，20s 不够
+          { timeoutMs: SLOW_REQUEST_TIMEOUT_MS },
+        );
       await refresh();
       toast(t("knowledge.added", { name: file.name }), "ok");
     } catch (e) {
@@ -55,19 +53,20 @@ export function KnowledgeSection() {
     }
   };
 
-  const toggle = async (a: Attachment) => {
+  const toggle = async (a: AttachmentItem) => {
     try {
-      await api(`/api/attachments/${a.id}/index`, {
-        method: "POST",
-        body: JSON.stringify({ indexed: !a.indexed }),
-      });
+      await api(
+        `/api/attachments/${a.id}/index`,
+        { method: "POST", body: JSON.stringify({ indexed: !a.indexed }) },
+        { timeoutMs: SLOW_REQUEST_TIMEOUT_MS }, // 建/删索引同样是慢操作
+      );
       await refresh();
     } catch (e) {
       toast(errMsg(e), "error");
     }
   };
 
-  const remove = async (a: Attachment) => {
+  const remove = async (a: AttachmentItem) => {
     try {
       await api(`/api/attachments/${a.id}`, { method: "DELETE" });
       await refresh();

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Download, FileText, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm";
-import { api } from "@/lib/api";
+import { api, apiDownload, saveBlob, SLOW_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 import { store } from "@/lib/store";
 import { useToast } from "@/lib/toast";
@@ -34,13 +34,16 @@ export function DataSection({
       if (!pass && !window.confirm(t("settings.exportPlainWarn"))) {
         return;
       }
-      const data = await api<Record<string, unknown>>(pass ? `/api/export?passphrase=${encodeURIComponent(pass)}` : "/api/export");
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${BRAND.name}-backup-${new Date().toISOString().slice(0, 10)}${pass ? "-encrypted" : ""}.json`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      // 全库导出 + PBKDF2 加密远超 20s，必须放宽；否则大账本会误报"请求超时"
+      const data = await api<Record<string, unknown>>(
+        pass ? `/api/export?passphrase=${encodeURIComponent(pass)}` : "/api/export",
+        {},
+        { timeoutMs: SLOW_REQUEST_TIMEOUT_MS },
+      );
+      saveBlob(
+        new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" }),
+        `${BRAND.name}-backup-${new Date().toISOString().slice(0, 10)}${pass ? "-encrypted" : ""}.json`,
+      );
       toast(pass ? t("settings.backupEncrypted") : t("settings.backupDownloaded"), "ok");
     } catch (e) {
       toast(errMsg(e), "error");
@@ -51,10 +54,12 @@ export function DataSection({
    *  与备份不同，这是「给人看的」成品，不加密、不含密钥。 */
   const exportReport = async () => {
     try {
-      const a = document.createElement("a");
-      a.href = `/api/export/report?lang=${encodeURIComponent(lang ?? "zh")}`;
-      a.download = `${BRAND.name}-report-${new Date().toISOString().slice(0, 10)}.html`;
-      a.click();
+      // 走 fetch 才能带上 Authorization：`<a href>` 不带 Bearer，配了口令或启用
+      // 账号体系时后端 401，而 a.click() 不报错 → 提示"已下载"但拿到 401 页。
+      await apiDownload(
+        `/api/export/report?lang=${encodeURIComponent(lang ?? "zh")}`,
+        `${BRAND.name}-report-${new Date().toISOString().slice(0, 10)}.html`,
+      );
       toast(t("settings.reportDownloaded"), "ok");
     } catch (e) {
       toast(errMsg(e), "error");

@@ -36,9 +36,3 @@ export const SECTION_GROUPS = [
 
 export type SectionId = (typeof SECTION_GROUPS)[number]["ids"][number];
 
-/** 全部分区 id（按分组顺序展开），供校验与遍历使用。 */
-export const SECTION_IDS: readonly SectionId[] = SECTION_GROUPS.flatMap((g) => g.ids);
-
-export function isSectionId(value: string): value is SectionId {
-  return (SECTION_IDS as readonly string[]).includes(value);
-}

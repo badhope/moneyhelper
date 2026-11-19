@@ -275,6 +275,7 @@ from .paper import (
 from .portfolio import (
     add_position,
     add_watchlist,
+    append_position,
     delete_position,
     delete_watchlist,
     list_watchlist,

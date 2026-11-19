@@ -8,6 +8,7 @@ from typing import Any
 from ._core import (
     _conn,
     _mark_user_data,
+    list_positions,
 )
 from .tenant import current_user_id
 from .undo import _record_snapshot, _row_to_json
@@ -81,6 +82,58 @@ async def delete_position(symbol: str) -> dict[str, Any]:
     await _mark_user_data(conn)
     await conn.commit()
     return {"ok": True, "deleted": cur.rowcount}
+
+
+async def append_position(
+    symbol: str,
+    shares: float,
+    cost: float,
+    last: float | None = None,
+    name: str | None = None,
+) -> dict[str, Any] | None:
+    """同一 symbol 追加买入：股数累加、成本加权平均（不覆盖）。
+
+    返回合并后的持仓；symbol 不存在时返回 None，由调用方决定「报 404」还是
+    「新建」（REST 追加接口要求先有持仓，MCP 的买入工具允许第一条就建立）。
+
+    此前这段加权平均逻辑有两份：`routes/ledger.py` 的 /append 与
+    `tools.py` 的 record_position。两份各自实现，改一处忘另一处就会出现
+    「REST 追加按加权、MCP 追加按覆盖」的口径分裂，而两边用户看到的是
+    同一张持仓表。
+    """
+    rows = await list_positions()
+    cur = next((r for r in rows if r["symbol"] == symbol), None)
+    if cur is None:
+        return None
+
+    add_shares = float(shares or 0)
+    add_cost = float(cost or 0)
+    if add_shares <= 0 or not math.isfinite(add_shares):
+        raise ValueError("追加股数需大于 0")
+
+    old_shares = float(cur.get("shares") or 0)
+    old_cost = float(cur.get("cost") or 0)
+    total = old_shares + add_shares
+    avg_cost = (
+        (old_shares * old_cost + add_shares * add_cost) / total if total > 0 else old_cost
+    )
+    # 现价只升不降：追加买入不应该把已知的市价往回拉低
+    new_last = float(cur.get("last") or 0)
+    if last is not None and float(last) > new_last:
+        new_last = float(last)
+
+    merged = {
+        **cur,
+        "shares": total,
+        "cost": round(avg_cost, 6),
+        "last": new_last,
+    }
+    if name:
+        merged["name"] = name
+    await update_position(merged, symbol)
+    # update_position 只回 {"ok","symbol"}；调用方（MCP 文案 / REST 回执）需要
+    # 合并后的股数与加权成本，这里把算好的值一起返回。
+    return {**merged, "symbol": symbol}
 
 
 async def update_position(p: dict[str, Any], symbol: str) -> dict[str, Any]:

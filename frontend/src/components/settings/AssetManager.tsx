@@ -6,7 +6,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog } from "@/components/ui/confirm";
-import { api } from "@/lib/api";
+import { api, listSkillRuns, SLOW_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import { cn, errMsg } from "@/lib/utils";
@@ -262,10 +262,9 @@ export function AssetManager({
 
   const loadHistory = async (id: string) => {
     try {
-      const r = await api<{ runs: { id: number; question: string; created_at: string }[] }>(
-        `/api/history?thread_id=${encodeURIComponent(`skill:${id}`)}&limit=10`,
-      );
-      setHistory(r.runs ?? []);
+      // 复用 lib/api 的 listSkillRuns（原先手写了同一个 URL 与 limit=10）
+      const runs = await listSkillRuns(id, 10);
+      setHistory(runs);
       setHistoryError(null);
     } catch (e) {
       setHistory([]);
@@ -360,7 +359,7 @@ export function AssetManager({
         ok: boolean;
         saved: { name: string; replaced?: boolean }[];
         errors: { file: string; error: string }[];
-      }>("/api/studio/import", { method: "POST", body: fd });
+      }>("/api/studio/import", { method: "POST", body: fd }, { timeoutMs: SLOW_REQUEST_TIMEOUT_MS });
       setImportErrors(r.errors ?? []);
       await refresh();
       const n = r.saved?.length ?? 0;

@@ -7,6 +7,9 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 
 const TOKEN_KEY = "wo.accessToken";
 const REQUEST_TIMEOUT_MS = 20_000;
+/** 上传/解析类请求：20MB 的文件过 OCR、pdfplumber（≤30 页）在慢机器上远超 20s，
+ *  用同一个超时会把"还在跑"误报成"请求超时"，用户重试还会产生重复单据。 */
+export const SLOW_REQUEST_TIMEOUT_MS = 120_000;
 
 export function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) ?? "";
@@ -66,10 +69,15 @@ function authHeaders(init: RequestInit): HeadersInit {
   };
 }
 
-async function request(path: string, init: RequestInit = {}, retried = false): Promise<Response> {
+async function request(
+  path: string,
+  init: RequestInit = {},
+  retried = false,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
   let resp: Response;
   try {
-    resp = await fetchWithTimeout(path, { ...init, headers: authHeaders(init) }, REQUEST_TIMEOUT_MS);
+    resp = await fetchWithTimeout(path, { ...init, headers: authHeaders(init) }, timeoutMs);
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
       throw new Error("请求超时，请检查服务是否可用");
@@ -80,32 +88,65 @@ async function request(path: string, init: RequestInit = {}, retried = false): P
     const input = await askAuth();
     if (input) {
       setToken(input.trim());
-      return request(path, init, true);
+      return request(path, init, true, timeoutMs);
     }
     throw new Error("需要访问口令");
   }
   return resp;
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const resp = await request(path, init);
-  if (!resp.ok) {
-    // 兜底必须是「人能读懂的句子」，不能是裸状态码：代理层 502/504 常返回
-    // HTML 而非 JSON，此前用户界面会只显示 "500" / "502" —— 完全无法判断
-    // 是服务没启动、还是接口报错、还是网络断了。
-    let detail = `请求失败（HTTP ${resp.status}）`;
-    try {
-      const body = await resp.json();
-      detail = body?.error ?? body?.detail ?? body?.message ?? detail;
-    } catch {
-      if (resp.status >= 500) detail = `服务暂时不可用（HTTP ${resp.status}），请稍后重试或检查后端是否已启动`;
-      else if (resp.status === 404) detail = "接口不存在（HTTP 404），请确认前后端版本一致";
-    }
-    throw new Error(detail);
+/** 把非 2xx 响应翻译成「人能读懂的句子」，不能是裸状态码。
+ *  代理层 502/504 常返回 HTML 而非 JSON，只显示 "500" / "502" 时用户无法判断
+ *  是服务没启动、接口报错、还是网络断了。api() 与 apiDownload() 共用这一份，
+ *  避免两套文案各说各话（也避免新增无法翻译的词条）。 */
+async function responseDetail(resp: Response, cloneForJson: boolean): Promise<string> {
+  let detail = `请求失败（HTTP ${resp.status}）`;
+  try {
+    const body = await (cloneForJson ? resp.clone() : resp).json();
+    detail = body?.error ?? body?.detail ?? body?.message ?? detail;
+  } catch {
+    if (resp.status >= 500) detail = `服务暂时不可用（HTTP ${resp.status}），请稍后重试或检查后端是否已启动`;
+    else if (resp.status === 401) detail = "需要访问口令";
+    else if (resp.status === 404) detail = "接口不存在（HTTP 404），请确认前后端版本一致";
   }
+  return detail;
+}
+
+export interface ApiOptions {
+  /** 覆盖默认 20s 超时（上传/解析类用 SLOW_REQUEST_TIMEOUT_MS） */
+  timeoutMs?: number;
+}
+
+export async function api<T>(path: string, init: RequestInit = {}, opts: ApiOptions = {}): Promise<T> {
+  const resp = await request(path, init, false, opts.timeoutMs ?? REQUEST_TIMEOUT_MS);
+  if (!resp.ok) throw new Error(await responseDetail(resp, false));
   // 部分接口（如 DELETE）可能返回空 body，避免对空串调 json() 报 SyntaxError
   const text = await resp.text();
   return (text ? (JSON.parse(text) as T) : ({} as T));
+}
+
+/** 把 Blob 存成本地文件：三处手写过同样的 `a.href=createObjectURL → click → revoke`，
+ *  抽出来避免各写一遍（漏 revoke 会一直占内存）。 */
+export function saveBlob(blob: Blob, filename: string): void {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/** 下载类接口统一入口：必须走 fetch 才能带上 Authorization。
+ *  以前直接用 `<a href="/api/export/report">`，浏览器不会附带 Bearer 头，
+ *  配了口令或启用了账号体系时后端返回 401，但 a.click() 不报错，
+ *  界面还会提示"已下载"——用户拿到的是一个 401 报错页或空文件。 */
+export async function apiDownload(
+  path: string,
+  filename: string,
+  opts: ApiOptions = {},
+): Promise<void> {
+  const resp = await request(path, {}, false, opts.timeoutMs ?? SLOW_REQUEST_TIMEOUT_MS);
+  if (!resp.ok) throw new Error(await responseDetail(resp, true));
+  saveBlob(await resp.blob(), filename);
 }
 
 /** 内部信号：需要用户重新输口令（触发一次带新口令的重试） */
@@ -127,15 +168,6 @@ class FatalError extends Error {}
 
 const MAX_RETRIES = 5;
 const BASE_RETRY_MS = 1000;
-
-export interface StreamHandle {
-  /** 当前重试次数（0=首次连接） */
-  retryCount: number;
-  /** 最后一次断连时间戳 */
-  lastDisconnectMs: number;
-  /** 总收到的字节数 */
-  bytesReceived: number;
-}
 
 export async function apiStream(
   path: string,
@@ -380,7 +412,7 @@ export const suggestMemories = () =>
 
 /** 技能触发历史（归档在独立线程 skill:<id>，不进会话列表）。 */
 export const listSkillRuns = (skillId: string, limit = 10) =>
-  api<{ runs: import("@/lib/types").RunRecord[] }>(
+  api<{ runs: { id: number; question: string; created_at: string }[] }>(
     `/api/history?thread_id=${encodeURIComponent(`skill:${skillId}`)}&limit=${limit}`,
   ).then((r) => r.runs ?? []);
 
@@ -479,6 +511,8 @@ export interface AttachmentItem {
   filename: string;
   kind: string;
   size: number;
+  /** 0/1：是否已加入知识库（参与检索） */
+  indexed: number;
   created_at: string;
 }
 export const listAttachments = () =>
@@ -486,7 +520,11 @@ export const listAttachments = () =>
 export const uploadAttachment = (file: File) => {
   const fd = new FormData();
   fd.append("file", file);
-  return api<{ ok: boolean; id: number }>("/api/attachments", { method: "POST", body: fd });
+  return api<{ ok: boolean; id: number }>(
+    "/api/attachments",
+    { method: "POST", body: fd },
+    { timeoutMs: SLOW_REQUEST_TIMEOUT_MS },
+  );
 };
 export const deleteAttachment = (id: number) =>
   api<{ ok: boolean; deleted: number }>(`/api/attachments/${id}`, { method: "DELETE" });
@@ -534,16 +572,6 @@ export interface MemberLoan {
   to_name?: string;
 }
 
-export interface MemberSummary {
-  member_id: number;
-  income: number;
-  expense: number;
-  transaction_count: number;
-  display_name: string;
-  role: string;
-  avatar_color: string;
-}
-
 export interface FamilySummary {
   household_income: number;
   household_expense: number;
@@ -570,8 +598,6 @@ export const addMember = (body: { display_name: string; role?: string; username?
     method: "POST",
     body: JSON.stringify(body),
   });
-export const updateMember = (id: number, body: Record<string, string>) =>
-  api<{ ok: boolean }>(`/api/members/${id}`, { method: "PUT", body: JSON.stringify(body) });
 export const deleteMember = (id: number) =>
   api<{ ok: boolean; deleted: number }>(`/api/members/${id}`, { method: "DELETE" });
 export const listMemberLoans = () =>
@@ -590,8 +616,6 @@ export const settleMemberLoan = (id: number) =>
   api<{ ok: boolean }>(`/api/members/loans/${id}/settle`, { method: "POST" });
 export const deleteMemberLoan = (id: number) =>
   api<{ ok: boolean }>(`/api/members/loans/${id}`, { method: "DELETE" });
-export const memberSummaries = () =>
-  api<{ members: MemberSummary[] }>("/api/members/summary").then((r) => r.members);
 
 // ---------------------------------------------------------------------------
 // 企业组织（切片 1-3）：租户、部门、岗位、成员
@@ -899,8 +923,6 @@ export const listGlEntries = (periodId?: number, limit = 200) =>
     `/api/gl/entries?limit=${limit}${periodId ? `&period_id=${periodId}` : ""}`,
   ).then((r) => r.entries);
 
-export const getGlEntry = (id: number) => api<GlEntry>(`/api/gl/entries/${id}`);
-
 export const createGlEntry = (body: {
   entry_date: string;
   description: string;
@@ -1126,10 +1148,12 @@ export const importBankCsv = (
   body: { bank_account_id: number; csv: string },
   tenantId?: number,
 ) =>
-  api<{ ok: boolean; imported: number }>(`/api/bank/import${orgQuery(tenantId)}`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  api<{ ok: boolean; imported: number }>(
+    `/api/bank/import${orgQuery(tenantId)}`,
+    { method: "POST", body: JSON.stringify(body) },
+    // 导入时自动生成凭证要逐行写库，几千行远超 20s
+    { timeoutMs: SLOW_REQUEST_TIMEOUT_MS },
+  );
 
 export const matchBankTransaction = (
   id: number,

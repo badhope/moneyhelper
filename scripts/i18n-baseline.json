@@ -27,7 +27,7 @@
  "components/settings/MarketplaceSection.tsx": 3,
  "components/settings/PrefsSection.tsx": 1,
  "components/ui/offline-banner.tsx": 1,
- "lib/api.ts": 10,
+ "lib/api.ts": 11,
  "lib/brand.tsx": 7,
  "lib/charts.ts": 1,
  "lib/format.ts": 2,

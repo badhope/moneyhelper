@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -299,7 +300,10 @@ async def upload_invoice(request: Request) -> Any:
     raw = await upload.read(20 * 1024 * 1024 + 1)
     if len(raw) > 20 * 1024 * 1024:
         return _bad("发票文件超过 20MB")
-    parsed = parse_invoice(raw, str(upload.filename or ""))
+    # pypdf/OFD 解析是 CPU 密集的同步调用：直接跑会独占事件循环，
+    # 让并发的 SSE 问答与轮询全部停摆（本仓库对 CPU-bound 一律 to_thread，
+    # 见 vault.py / routes/export.py）。
+    parsed = await asyncio.to_thread(parse_invoice, raw, str(upload.filename or ""))
     record = await db.save_invoice(
         file_name=str(upload.filename or "invoice"),
         raw=raw,
@@ -462,7 +466,8 @@ async def upload_invoice_image(request: Request) -> Any:
     if len(raw) > 20 * 1024 * 1024:
         return _bad("图片超过 20MB")
 
-    result = invoice_from_image(raw)
+    # 二维码解码 + tesseract OCR 均为阻塞调用（秒级），必须推入线程池。
+    result = await asyncio.to_thread(invoice_from_image, raw)
     if not result["ok"]:
         return {
             "ok": False,
@@ -539,7 +544,8 @@ async def import_statement_pdf(request: Request) -> Any:
     if len(raw) > 20 * 1024 * 1024:
         return _bad("PDF 超过 20MB")
 
-    parsed = parse_pdf_statement(raw)
+    # pdfplumber 抽表 + 抽文本：20MB/多页 PDF 可达数十秒，推入线程池。
+    parsed = await asyncio.to_thread(parse_pdf_statement, raw)
     preview = parsed.to_preview()
     apply = str(form.get("apply") or "").lower() in ("1", "true", "yes")
 

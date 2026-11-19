@@ -127,14 +127,6 @@ export function invalidateBump(): void {
   }
 }
 
-/** 强刷：写操作后需要「立刻看到新数字」时用（invalidate 只是标记 stale）。 */
-export async function refetchAllFinancial(): Promise<void> {
-  const c = getQueryClient();
-  await Promise.all(
-    DERIVED_PREFIXES.map((key) => c.refetchQueries({ queryKey: key as unknown[] })),
-  );
-}
-
 /** 兼容旧 `store` 对象形状：内部转发到 TanStack Query，调用方 import { store } 不用改。 */
 export const store = {
   bump: invalidateBump,

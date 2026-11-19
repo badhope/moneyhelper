@@ -1190,34 +1190,29 @@ async def tool_record_position(args: dict[str, Any]) -> str:
     # 此前这里是 upsert 覆盖：用户第二次说「买入茅台 100 股」会把第一次的持仓
     # 静默替换掉，市值/盈亏/集中度全部失真。
     async with _position_write_lock:
-        existing = next((p for p in await db.list_positions() if p["symbol"] == symbol), None)
-        if existing is not None:
-            total = float(existing["shares"]) + shares
-            if total <= 0:
-                return "合并后股数需大于 0"
-            merged_cost = (float(existing["shares"]) * float(existing["cost"]) + shares * cost) / total
-            merged = {
-                **existing,
-                "shares": total,
-                "cost": round(merged_cost, 6),
-                "last": max(last, float(existing.get("last") or 0)),
-                "name": name or existing.get("name"),
-            }
-            try:
-                await db.update_position(merged, symbol)
-            except Exception as exc:  # noqa: BLE001
-                return f"追加失败：{exc}"
+        # 加权平均成本只有一份实现：db.append_position（与 REST /append 共用）。
+        # 返回 None 表示这是该 symbol 的第一条持仓，走下面的新建分支。
+        try:
+            merged = await db.append_position(
+                symbol, shares, cost, last if last > 0 else None, name=name or None
+            )
+        except ValueError as exc:
+            return str(exc)
+        except Exception as exc:  # noqa: BLE001
+            return f"追加失败：{exc}"
+        if merged is not None:
             await record_provenance(
                 action="append_position",
                 entity_type="position",
                 entity_id=symbol,
-                before=dict(existing),
+                before=None,
                 after=merged,
                 source="mcp",
             )
             return (
-                f"已追加买入 {name}（{symbol}）：本次 {shares:g} 份 × {cost:g}。"
-                f"合并后 {total:g} 份，加权成本 {merged_cost:.4f}（现价 {last:g}）。"
+                f"已追加买入 {merged.get('name') or name}（{symbol}）：本次 {shares:g} 份 × {cost:g}。"
+                f"合并后 {float(merged['shares']):g} 份，加权成本 {float(merged['cost']):.4f}"
+                f"（现价 {float(merged['last']):g}）。"
             )
     try:
         await db.add_position(position_data)

@@ -68,14 +68,6 @@ export interface MemoryItem {
   updated_at: string;
 }
 
-export interface HealthInfo {
-  ok: boolean;
-  llm_configured: boolean;
-  model: string;
-  /** token = 需要访问口令；accounts = 已启用账号体系；local = 本机免登录 */
-  auth_mode?: "token" | "accounts" | "local";
-}
-
 export interface HealthReport {
   score: number;
   summary: string;
@@ -223,22 +215,6 @@ export interface BudgetUsage {
   };
 }
 
-/** 订阅总览卡片数据（GET /api/subscriptions + 前端计算 upcoming dues） */
-export interface SubscriptionsOverview {
-  monthly_total: number;
-  annual_total: number;
-  /** 未来 7 天内到期的订阅条目（含 days_until /ISO date 字符串） */
-  upcoming: {
-    name: string;
-    monthly: number;
-    note: string;
-    due_day: number;
-    days_until: number;
-    due_date: string;
-  }[];
-  upcoming_monthly_total: number;
-}
-
 export interface SchedulerStatus {
   enabled: boolean;
   report_time: string;
@@ -279,12 +255,6 @@ export interface AgentPlanStep {
   detail: string;
 }
 
-export interface AgentPlan {
-  steps: AgentPlanStep[];
-  mode: "agent" | "deterministic";
-  route: string;
-}
-
 export interface AnswerMeta {
   answer: string;
   level: string;
@@ -297,44 +267,6 @@ export interface AnswerMeta {
   /** 本轮调用过的工具（agent 模式） */
   tools?: string[];
 }
-
-/** 待确认写操作（HITL）：前端收到后显示确认卡片，确认后调 /api/confirm 执行。 */
-export interface PendingAction {
-  /** 一次性 token（确认/取消时回传；过期/已消费/已取消即失效） */
-  token: string;
-  /** 要执行的工具名（sell_position / record_position） */
-  tool: string;
-  /** 给用户看的动作摘要 */
-  summary: string;
-}
-
-export type AskEvent =
-  | { type: "start"; question: string }
-  | { type: "step"; id: string; label: string; detail: string; phase: string }
-  | { type: "agent_step"; name: string; args: Record<string, unknown>; summary: string }
-  | { type: "plan"; data: { steps: AgentPlanStep[]; mode: string; route: string } }
-  | { type: "tool"; data: { id?: string; name: string; args?: Record<string, unknown>; status: string; summary?: string; duration_ms?: number } }
-  | { type: "thinking"; data: { content: string } }
-  | { type: "agent"; data: { status: string } }
-  | { type: "text"; delta: string }
-  | {
-      type: "final";
-      answer: string;
-      level: string;
-      route: string;
-      route_reason: string;
-      metrics: Record<string, number>;
-      flags: RiskFlag[];
-      llm: "llm" | "template";
-      tools?: string[];
-      /** 写类动作待确认（HITL）：非空即展示确认卡片 */
-      pending_token?: string;
-      pending_summary?: string;
-      /** harness：本轮 token 用量（模板降级轮为空对象） */
-      tokens?: { prompt?: number; completion?: number };
-    }
-  | { type: "error"; message: string }
-  | { type: "done" };
 
 /** 会话 token 计量（GET /api/sessions/{id}/usage） */
 export type SessionUsage = {

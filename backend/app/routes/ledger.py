@@ -170,36 +170,24 @@ async def append_position(symbol: str, payload: dict) -> dict:
 
     p = payload or {}
     async with _tools._position_write_lock:
-        rows = await db.list_positions()
-        cur = next((r for r in rows if r["symbol"] == symbol), None)
-        if cur is None:
+        # 加权平均成本的唯一实现在 db.append_position（REST 与 MCP 共用），
+        # 这里只负责「不存在就 404」这个 REST 特有的语义。
+        try:
+            out = await db.append_position(
+                symbol,
+                float(p.get("shares") or 0),
+                float(p.get("cost") or 0),
+                float(p.get("last")) if p.get("last") is not None else None,
+            )
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        if out is None:
             return JSONResponse(
                 {"error": f"持仓 {symbol} 不存在，请先添加"}, status_code=404
             )
-        add_shares = float(p.get("shares") or 0)
-        add_cost = float(p.get("cost") or 0)
-        if add_shares <= 0:
-            return JSONResponse({"error": "追加股数需大于 0"}, status_code=400)
-        old_shares = cur["shares"]
-        old_cost = cur["cost"]
-        total = old_shares + add_shares
-        avg_cost = (
-            (old_shares * old_cost + add_shares * add_cost) / total
-            if total > 0
-            else old_cost
-        )
-        out = await db.update_position(
-            {
-                **cur,
-                "shares": total,
-                "cost": round(avg_cost, 6),
-                "last": float(p.get("last", cur["last"])),
-            },
-            symbol,
-        )
         await invalidate_quotes_cache()
         analysis.invalidate_dashboard_cache()
-        return {**out, "appended": True, "new_shares": total}
+        return {**out, "appended": True, "new_shares": out["shares"]}
 
 
 @router.post("/api/nl-add")
