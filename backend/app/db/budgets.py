@@ -7,8 +7,8 @@ from typing import Any
 
 from ._core import (
     NON_CONSUMPTION_CATEGORIES,
-    _conn,
     fetch_all,
+    write_txn,
 )
 from .tenant import current_user_id
 
@@ -106,7 +106,6 @@ async def save_budgets(month: str, items: list[dict[str, Any]]) -> dict[str, Any
         raise ValueError(f"budget month 格式非法: {month!r}，应为 YYYY-MM")
     from .tenant import current_user_id
 
-    conn = await _conn()
     seen: dict[str, float] = {}
     for it in items:
         cat = str(it.get("category", "")).strip() or "__total"
@@ -114,19 +113,16 @@ async def save_budgets(month: str, items: list[dict[str, Any]]) -> dict[str, Any
         if amt <= 0:
             continue
         seen[cat[:40]] = amt
-    try:
-        await conn.execute(
-            "DELETE FROM budgets WHERE user_id=? AND month=?", (current_user_id(), month)
-        )
+    uid = current_user_id()
+    # 连接是 autocommit，裸 commit/rollback 是空操作：DELETE 会先落地，
+    # 后续 INSERT 失败就留下"旧预算已删、新预算没写"的半截状态。
+    async with write_txn() as conn:
+        await conn.execute("DELETE FROM budgets WHERE user_id=? AND month=?", (uid, month))
         for cat, amt in seen.items():
             await conn.execute(
                 "INSERT INTO budgets(user_id,month,category,amount) VALUES(?,?,?,?)",
-                (current_user_id(), month, cat, amt),
+                (uid, month, cat, amt),
             )
-        await conn.commit()
-    except Exception:  # aqg: top-level boundary — 事务失败统一回滚后原样抛出，不吞异常
-        await conn.rollback()
-        raise
     return {"ok": True, "month": month, "count": len(seen)}
 
 

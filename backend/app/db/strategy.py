@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from ._core import _conn, fetch_all
+from ._core import _conn, fetch_all, write_txn
 from .tenant import current_user_id
 
 MAX_TARGETS = 60
@@ -49,14 +49,15 @@ async def replace_allocation_targets(targets: list[dict[str, Any]]) -> list[dict
         seen.add(sym)
         clean.append((sym, str(t.get("name") or sym)[:60], round(pct, 2)))
 
-    conn = await _conn()
-    await conn.execute("DELETE FROM allocation_targets WHERE user_id=?", (uid,))
-    for sym, name, pct in clean:
-        await conn.execute(
-            "INSERT INTO allocation_targets(user_id,symbol,name,target_pct,updated_at) VALUES(?,?,?,?,?)",
-            (uid, sym, name, pct, now),
-        )
-    await conn.commit()
+    # 先清空再写：autocommit 连接下 DELETE 会立即落地，必须整体放进事务，
+    # 否则中途失败会留下"目标已清空、新的没写"的空配置。
+    async with write_txn() as conn:
+        await conn.execute("DELETE FROM allocation_targets WHERE user_id=?", (uid,))
+        for sym, name, pct in clean:
+            await conn.execute(
+                "INSERT INTO allocation_targets(user_id,symbol,name,target_pct,updated_at) VALUES(?,?,?,?,?)",
+                (uid, sym, name, pct, now),
+            )
     return await list_allocation_targets()
 
 
