@@ -15,17 +15,9 @@ import { cn, errMsg } from "@/lib/utils";
 import { store as appStore, useDashboard } from "@/lib/store";
 import { fmtMoney } from "@/lib/format";
 import { GoalsPanel, GoalsList } from "@/components/GoalsPanel";
+import { KIND_OPTIONS, CATEGORY_OPTIONS, KIND_LABEL_KEYS, CAT_LABEL_KEYS } from "@/lib/kinds";
 
-const KIND_OPTIONS = ["股票", "ETF", "基金", "现金", "其他"] as const;
-const CATEGORY_OPTIONS = ["收入", "餐饮", "居住", "交通", "购物", "订阅", "投资", "还款", "其他"] as const;
-// 数据值（提交给后端）保持中文，界面显示按语言翻译
-const KIND_LABEL_KEYS: Record<string, string> = {
-  股票: "entry.kindStock", ETF: "entry.kindEtf", 基金: "entry.kindFund", 现金: "entry.kindCash", 其他: "entry.kindOther",
-};
-const CAT_LABEL_KEYS: Record<string, string> = {
-  收入: "entry.catIncome", 餐饮: "entry.catFood", 居住: "entry.catHousing", 交通: "entry.catTransport",
-  购物: "entry.catShopping", 订阅: "entry.catSubs", 投资: "entry.catInvest", 还款: "entry.catRepay", 其他: "entry.catOther",
-};
+// 选项与显示名与「改持仓」对话框共用一份，见 lib/kinds.ts
 
 function Section({
   title,

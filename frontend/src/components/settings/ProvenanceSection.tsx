@@ -8,17 +8,17 @@ import { fmtDate } from "@/lib/format";
 import { Section, inputCls, labelCls } from "./shared";
 
 /** 实体类型 → 展示名（与后端 record_provenance 的 entity_type 对齐） */
-const ENTITY_LABEL: Record<string, string> = {
-  position: "持仓",
-  transaction: "流水",
-  budget: "预算",
-  goal: "目标",
-  debt: "负债",
-  subscription: "订阅",
-  memory: "记忆",
-  dept_report: "呈批件",
-  settings: "设置",
-  report: "晨报",
+const ENTITY_LABEL_KEY: Record<string, string> = {
+  position: "prov.k.position",
+  transaction: "prov.k.transaction",
+  budget: "prov.k.budget",
+  goal: "prov.k.goal",
+  debt: "prov.k.debt",
+  subscription: "prov.k.subscription",
+  memory: "prov.k.memory",
+  dept_report: "prov.k.deptReport",
+  settings: "prov.k.settings",
+  report: "prov.k.report",
 };
 
 /**
@@ -60,7 +60,7 @@ export function ProvenanceSection() {
     if (!raw) return "—";
     try {
       const v = JSON.parse(raw);
-      if (v && typeof v === "object" && Object.keys(v).length === 0) return "（无）";
+      if (v && typeof v === "object" && Object.keys(v).length === 0) return t("prov.empty");
       return JSON.stringify(v, null, 1).slice(0, 600);
     } catch {
       return String(raw).slice(0, 300);
@@ -94,9 +94,9 @@ export function ProvenanceSection() {
             onChange={(e) => setEntityType(e.target.value)}
           >
             <option value="">{t("settings.auditAll")}</option>
-            {Object.entries(ENTITY_LABEL).map(([k, label]) => (
+            {Object.entries(ENTITY_LABEL_KEY).map(([k, key]) => (
               <option key={k} value={k}>
-                {label}
+                {t(key)}
               </option>
             ))}
           </select>
@@ -138,7 +138,7 @@ export function ProvenanceSection() {
                 >
                   <span className="min-w-0 flex-1 truncate">
                     <span className="mr-1.5 font-medium">
-                      {ENTITY_LABEL[p.entity_type] || p.entity_type}
+                      {ENTITY_LABEL_KEY[p.entity_type] ? t(ENTITY_LABEL_KEY[p.entity_type]) : p.entity_type}
                     </span>
                     {p.entity_id && (
                       <span className="mr-1.5 font-mono text-muted-foreground">{p.entity_id}</span>
@@ -150,17 +150,17 @@ export function ProvenanceSection() {
                 {open && (
                   <div className="space-y-1.5 border-t border-border px-3 py-2 text-[11px]">
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                      <span>来源：{p.source}</span>
-                      <span>操作者：{p.username || "—"}</span>
+                      <span>{t("prov.source")}：{p.source}</span>
+                      <span>{t("prov.actor")}：{p.username || "—"}</span>
                     </div>
                     <div>
-                      <div className="mb-0.5 font-medium text-muted-foreground">改动前</div>
+                      <div className="mb-0.5 font-medium text-muted-foreground">{t("prov.before")}</div>
                       <pre className="max-h-40 overflow-auto rounded bg-muted/40 p-1.5 font-mono text-[10px] leading-relaxed">
                         {pretty(p.before_json)}
                       </pre>
                     </div>
                     <div>
-                      <div className="mb-0.5 font-medium text-muted-foreground">改动后</div>
+                      <div className="mb-0.5 font-medium text-muted-foreground">{t("prov.after")}</div>
                       <pre className="max-h-40 overflow-auto rounded bg-muted/40 p-1.5 font-mono text-[10px] leading-relaxed">
                         {pretty(p.after_json)}
                       </pre>

@@ -15,6 +15,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from . import db, service
+from .db.tenant import current_tenant_id
 from .logging_utils import get_logger
 from .provenance import record_provenance
 
@@ -242,6 +243,55 @@ def _reschedule() -> None:
     # 连接中心自动同步：公开数据源每小时刷新；账单收件箱每 10 分钟扫一次
     _sched.add_job(_sync_connect_sources, trigger="interval", minutes=60, id="connect_auto_sync")
     _sched.add_job(_scan_connect_inbox, trigger="interval", minutes=10, id="connect_inbox_scan")
+    # 月末结账：每月 1 日 02:00 把上月草稿过账后关账（用户不需要点任何按钮）
+    _sched.add_job(
+        _month_end_close,
+        CronTrigger(day=1, hour=2, minute=0, timezone="Asia/Shanghai"),
+        id="month_end_close",
+    )
+
+
+async def _month_end_close() -> None:
+    """每月 1 日 02:00 自动结账上月——「全托管」的最后一块。
+
+    用户的立场是"我不懂会计，也不想点任何一个结账按钮"，所以：
+    - 只处理「上月」：找到对应期间；没建账（期间不存在）就静默退出，不制造噪音；
+    - 期间已 closed 直接跳过（幂等，重跑无副作用）；
+    - 结账函数本身要求"无草稿凭证"，所以先把草稿过账；单张过账失败只记日志，
+      不让一张异常凭证把整月结账卡死（关账那步会因仍有草稿而失败，此时同样只记日志）；
+    - 全程不抛异常：定时任务抛异常会被 APScheduler 记成失败任务并可能在下次重排丢失。
+    """
+    today = datetime.now().astimezone().date()
+    prev_end = today.replace(day=1) - timedelta(days=1)
+    tenant = current_tenant_id()
+    periods = await db.gl_list_periods(tenant)
+    target = next(
+        (
+            p
+            for p in periods
+            if int(p["year"]) == prev_end.year and int(p["month"]) == prev_end.month
+        ),
+        None,
+    )
+    if target is None or str(target.get("status")) == "closed":
+        return
+    posted = 0
+    for entry in await db.gl_list_entries(tenant, int(target["id"]), limit=500):
+        if str(entry.get("status")) != "draft":
+            continue
+        try:
+            await db.gl_post_entry(tenant, int(entry["id"]))
+            posted += 1
+        except Exception as exc:  # noqa: BLE001
+            log.warning("月末结账：凭证 %s 过账失败：%s", entry.get("id"), exc)
+    try:
+        await db.gl_close_period(tenant, int(target["id"]))
+    except Exception as exc:  # noqa: BLE001
+        log.warning(
+            "月末结账：%s-%02d 关账失败（可能仍有草稿）：%s", prev_end.year, prev_end.month, exc
+        )
+        return
+    log.info("月末结账：%s-%02d 已自动关账（补过账 %d 张）", prev_end.year, prev_end.month, posted)
 
 
 async def _sync_connect_sources() -> None:

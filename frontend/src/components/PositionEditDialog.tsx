@@ -3,6 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
+import { KIND_OPTIONS, kindLabel } from "@/lib/kinds";
 import { api } from "@/lib/api";
 import { useMutate } from "@/lib/use-mutate";
 import { FieldError } from "@/components/ui/field-error";
@@ -125,8 +126,8 @@ export function PositionEditDialog({
             <div>
               <label className={labelCls}>{t("pos.kind")}</label>
               <select className={inputCls} value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
-                {["股票", "ETF", "基金", "现金", "其他"].map((k) => (
-                  <option key={k}>{k}</option>
+                {KIND_OPTIONS.map((k) => (
+                  <option key={k}>{kindLabel(k, t)}</option>
                 ))}
               </select>
             </div>
