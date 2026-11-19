@@ -76,7 +76,9 @@ export const NAV_GROUPS: NavGroup<DataKind>[] = [
     id: "ledger",
     labelKey: "nav.groupLedger",
     items: [
-      { key: "gl", labelKey: "nav.ledgerWorkspace", icon: BookOpenCheck },
+      // 入口落在「经营报表」而不是总账：刚上手的人先要看懂"我这个月赚没赚"，
+      // 凭证列表是会计的视角，放工作区第二个 tab。
+      { key: "statements", labelKey: "nav.ledgerWorkspace", icon: BookOpenCheck },
       { key: "bank", labelKey: "nav.bank", icon: Landmark },
       { key: "paper", labelKey: "nav.paper", icon: Users },
     ],
@@ -97,8 +99,8 @@ export const NAV_GROUPS: NavGroup<DataKind>[] = [
  * 而不是散落在各组件里各判断一次。
  */
 export const WORKSPACE_HOME: Partial<Record<DataKind, DataKind>> = {
-  statements: "gl",
-  tax: "gl",
+  gl: "statements",
+  tax: "statements",
   procurement: "expenses",
   strategy: "research",
 };

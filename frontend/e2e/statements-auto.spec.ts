@@ -25,7 +25,7 @@ test.describe("财报：按总账自动出表", () => {
     await page.getByRole("button", { name: "账务", exact: true }).click();
     await page.getByRole("tab", { name: "账务", exact: true }).click();
     // 财报现在是「账务」工作区内的 pill 按钮（不是 tablist），合并后必须按 button 定位
-    await page.getByRole("button", { name: "财报", exact: true }).click();
+    await page.getByRole("button", { name: "经营报表", exact: true }).click();
 
     await page.getByRole("button", { name: "一键出报表" }).click();
 

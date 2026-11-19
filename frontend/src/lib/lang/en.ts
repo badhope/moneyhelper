@@ -787,7 +787,7 @@ export const en: Record<string, string> = {
   "nav.ledgerWorkspace": "Books",
   "nav.billsWorkspace": "Documents",
   "nav.deskWorkspace": "Research & strategy",
-  "nav.gl": "General ledger",
+  "nav.gl": "Journal",
   "gl.title": "General ledger",
   "gl.desc": "Accounts, periods, journals and trial balance. Amounts are stored in cents; debits must equal credits.",
   "gl.period": "Period",
@@ -1566,8 +1566,8 @@ export const en: Record<string, string> = {
   "nav.market": "Market",
   "nav.main": "Main navigation",
   "nav.research": "Research",
-  "nav.statements": "Statements",
-  "nav.paper": "Paper",
+  "nav.statements": "Business report",
+  "nav.paper": "Paper trading",
   "holdings.concentration": "Concentration (of holdings)",
   "holdings.threshold": "threshold {n}%",
   "holdings.industry": "Sectors",
@@ -2008,7 +2008,7 @@ export const en: Record<string, string> = {
   "connect.footSafety": "Passwords never touch this system",
 
   // ---- v4.5 deep finance ----
-  "nav.tax": "Corporate tax",
+  "nav.tax": "Tax helper",
   "connect.tabResearch": "Research+",
   "connect.tabTrade": "Trade risk",
   "connect.tabInvoice": "Invoices",

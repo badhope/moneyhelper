@@ -55,7 +55,7 @@ const GROUPS: { group: string; tabs: [string, string][] }[] = [
       ["bank", "银行对账"],
       ["statements", "财报"],
       ["tax", "公司财税"],
-      ["paper", "模拟盘"],
+      ["paper", "模拟交易"],
     ],
   },
   { group: "接入", tabs: [["connect", "连接中心"]] },

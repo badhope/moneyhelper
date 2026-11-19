@@ -22,8 +22,8 @@ const GROUPS: { group: string; tabs: string[]; inner?: Record<string, string[]> 
   { group: "业务", tabs: ["单据", "长任务"], inner: { 单据: ["报销", "采购应付"] } },
   {
     group: "账务",
-    tabs: ["账务", "银行对账", "模拟盘"],
-    inner: { 账务: ["总账", "财报", "公司财税"] },
+    tabs: ["账务", "银行对账", "模拟交易"],
+    inner: { 账务: ["记账明细", "经营报表", "报税助手"] },
   },
   { group: "接入", tabs: ["连接中心"] },
 ];
