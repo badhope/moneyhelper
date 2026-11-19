@@ -72,6 +72,13 @@ jobs:
             exit 1
           fi
           echo "无超大文件"
+      - name: 仓库守卫（i18n / API 契约 / 重复代码）
+        # 与 scripts/verify-all.sh 第 1 步同源：本地能过的三条守卫，CI 也要过，
+        # 否则"本地绿、CI 绿"只是两套标准。
+        run: |
+          python3 scripts/check-i18n.py
+          python3 scripts/check-api-contract.py
+          python3 scripts/check-duplicates.py
       - name: 文档站严格构建（坏链即失败）
         run: |
           pip install -q -r docs/requirements.txt
