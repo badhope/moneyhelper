@@ -14,7 +14,7 @@
  "components/ResearchPage.tsx": 87,
  "components/SandboxCard.tsx": 6,
  "components/SessionSidebar.tsx": 1,
- "components/StatementsPage.tsx": 80,
+ "components/StatementsPage.tsx": 74,
  "components/StrategyPage.tsx": 8,
  "components/TopBar.tsx": 1,
  "components/chat-view-hooks.ts": 1,

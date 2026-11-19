@@ -197,6 +197,9 @@ function CashflowStackChart({ result }: { result: StatementAnalysis }) {
   const { resolved } = useTheme();
   const axisColor = axisLabelColor(resolved);
   const stack = result.trends.cashflow_stack;
+  const cfOp = t("stmt3.cfOperating");
+  const cfInv = t("stmt3.cfInvesting");
+  const cfFin = t("stmt3.cfFinancing");
 
   const option = useMemo(() => {
     if (!stack) return null;
@@ -212,14 +215,15 @@ function CashflowStackChart({ result }: { result: StatementAnalysis }) {
         textStyle: { color: resolved === "dark" ? "#e2e8f0" : "#0f172a", fontSize: 12 },
         valueFormatter: (v: number | null) => (v == null ? "—" : fmtMoney(v, true, true)),
       },
-      legend: { top: 0, right: 0, textStyle: { color: axisColor, fontSize: 10 }, data: ["经营现金流", "投资现金流", "筹资现金流"] },
+      // 图例名同时是 series.name 的键：三处必须取同一个 t() 值，否则图例与系列对不上
+      legend: { top: 0, right: 0, textStyle: { color: axisColor, fontSize: 10 }, data: [cfOp, cfInv, cfFin] },
       grid: { left: 64, right: 16, top: 32, bottom: 24 },
       xAxis: { type: "category", data: periods, axisLabel: { color: axisColor, fontSize: 10 }, axisLine: { lineStyle: { color: "#64748b60" } } },
       yAxis: { type: "value", splitLine: { lineStyle: { color: "#64748b20" } }, axisLabel: { color: axisColor, fontSize: 10 } },
       series: [
-        { name: "经营现金流", type: "bar", stack: "cf", data: stack.operating, barWidth: "46%" },
-        { name: "投资现金流", type: "bar", stack: "cf", data: stack.investing, barWidth: "46%" },
-        { name: "筹资现金流", type: "bar", stack: "cf", data: stack.financing, barWidth: "46%" },
+        { name: cfOp, type: "bar", stack: "cf", data: stack.operating, barWidth: "46%" },
+        { name: cfInv, type: "bar", stack: "cf", data: stack.investing, barWidth: "46%" },
+        { name: cfFin, type: "bar", stack: "cf", data: stack.financing, barWidth: "46%" },
       ],
     };
   }, [stack, result.trends.periods, palette, resolved, axisColor, up]);
