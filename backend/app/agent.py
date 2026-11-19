@@ -52,17 +52,6 @@ READ_TOOLS = [
     t for t in tools.TOOLS
     if _policy.resolve(t["function"]["name"]) == _policy.READ
 ]
-
-
-def is_tool_excluded(name: str) -> bool:
-    """判断某工具是否应从「模型可自动执行」清单中排除。
-
-    外部 MCP 工具（mcp__ 前缀）不在内置策略表内，交给 MCP 客户端自身的
-    权限与连接状态管理，这里一律放行——否则会把用户自己接入的只读工具全部挡掉。
-    """
-    if str(name).startswith("mcp__"):
-        return False
-    return _policy.resolve(name) != _policy.READ
 # 执行层白名单：只允许模型实际调用「读类 + 自选维护」工具。写工具（记账/记忆/买卖/设置/
 # 备份/晨报）由确定性前置分支拦截，绝不暴露给模型执行，防止 prompt 注入/幻觉越权落库。
 ALLOWED_IMPL = {

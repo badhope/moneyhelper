@@ -180,14 +180,6 @@ _mutate = mutate_config
 
 async def get_config() -> dict[str, Any]:
     return await _read()
-
-
-async def save_config(cfg: dict[str, Any]) -> dict[str, Any]:
-    merged, _ = _merge_defaults(cfg)
-    await _write(merged)
-    return merged
-
-
 async def update_permissions(patch: dict[str, Any]) -> dict[str, Any]:
     """权限更新走锁：与其它配置写入共用同一份快照，避免并发覆盖。"""
     async with _studio_lock():

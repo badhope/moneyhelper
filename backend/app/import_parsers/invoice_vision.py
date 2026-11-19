@@ -221,31 +221,6 @@ def ocr_image(raw: bytes) -> dict[str, Any]:
         "engine": "",
         "note": f"OCR 引擎调用失败（rapid={rapid_error or 'N/A'}，paddle={paddle_error or 'N/A'}）",
     }
-
-
-def extract_pdf_tables(raw: bytes) -> dict[str, Any]:
-    """用 pdfplumber 抽 PDF 表格（银行对账单场景）。"""
-    try:
-        import pdfplumber  # type: ignore
-    except ImportError:
-        return {
-            "available": False,
-            "tables": [],
-            "note": "未安装 pdfplumber；安装后可解析 PDF 表格对账单",
-        }
-    try:
-        tables: list[list[list[str]]] = []
-        with pdfplumber.open(io.BytesIO(raw)) as pdf:
-            for page in pdf.pages[:10]:
-                for table in page.extract_tables() or []:
-                    rows = [[(c or "").strip() for c in row] for row in table if any(row)]
-                    if len(rows) >= 2:
-                        tables.append(rows)
-        return {"available": True, "tables": tables, "note": "" if tables else "PDF 中没有识别到表格"}
-    except Exception as exc:  # noqa: BLE001
-        return {"available": True, "tables": [], "note": f"PDF 表格解析失败：{type(exc).__name__}: {exc}"}
-
-
 def invoice_from_image(raw: bytes) -> dict[str, Any]:
     """图片发票一体化识别：先二维码（准），再 OCR（全）。
 

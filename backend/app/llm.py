@@ -582,44 +582,6 @@ def model_catalog() -> list[dict[str, str]]:
 def default_enabled_models() -> list[str]:
     """默认点亮模型清单。"""
     return ["gpt-4o-mini", "deepseek-chat"]
-
-
-def provider_presets() -> dict[str, dict[str, str]]:
-    """供应商预设（供设置页使用）。"""
-    return {
-        "deepseek": {
-            "name": "DeepSeek",
-            "base": "https://api.deepseek.com/v1",
-            "model": "deepseek-chat",
-        },
-        "doubao": {
-            "name": "豆包",
-            "base": "https://ark.cn-beijing.volces.com/api/v3",
-            "model": "",
-        },
-        "qwen": {
-            "name": "通义千问",
-            "base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            "model": "qwen-plus",
-        },
-        "openai": {
-            "name": "OpenAI",
-            "base": "https://api.openai.com/v1",
-            "model": "gpt-4o-mini",
-        },
-        "anthropic": {
-            "name": "Anthropic",
-            "base": "https://api.anthropic.com/v1",
-            "model": "claude-3-5-sonnet-latest",
-        },
-        "gemini": {
-            "name": "Google",
-            "base": "https://generativelanguage.googleapis.com/v1beta/openai",
-            "model": "gemini-2.0-flash",
-        },
-    }
-
-
 # ---------------------------------------------------------------------------
 # LiteLLM 薄封装（v2.0 新增路径）
 # ---------------------------------------------------------------------------

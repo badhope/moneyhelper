@@ -88,13 +88,3 @@ async def delete_statement(sid: str) -> bool:
     )
     await conn.commit()
     return cur.rowcount > 0
-
-
-async def update_statement_report(sid: str, report: str) -> None:
-    """更新报告文本快照（重新分析后）。"""
-    conn = await _conn()
-    await conn.execute(
-        "UPDATE financial_statements SET report=? WHERE user_id=? AND id=?",
-        (report, current_user_id(), sid),
-    )
-    await conn.commit()

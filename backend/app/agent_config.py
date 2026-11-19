@@ -130,15 +130,6 @@ async def update_config(new_config: dict[str, Any]) -> None:
     """保存用户修改后的配置（墓碑随配置一起落库）。"""
     await db.set_setting(_SETTINGS_KEY, json.dumps(new_config, ensure_ascii=False))
     log.info("agent.config.updated")
-
-
-async def get_agent_tools(agent_name: str) -> list[str] | str:
-    """获取某个 agent 启用的工具列表。返回 'all' 表示全部工具。"""
-    cfg = await get_config()
-    agent_cfg = cfg.get("agents", {}).get(agent_name, {})
-    return agent_cfg.get("tools", "all")
-
-
 async def is_skill_enabled(skill_name: str) -> bool:
     """检查某个 skill 是否启用。"""
     cfg = await get_config()

@@ -110,35 +110,6 @@ def _share_bars(rows: list[tuple[str, float]], width: int = 640, bar_h: int = 22
         )
     parts.append("</svg>")
     return "".join(parts)
-
-
-def _line_chart(points: list[float], width: int = 640, height: int = 160) -> str:
-    """折线图（内联 SVG）：用于净值/权益曲线趋势。"""
-    if len(points) < 2:
-        return '<p class="muted">数据点不足</p>'
-    lo, hi = min(points), max(points)
-    span = (hi - lo) or 1.0
-    pad = 12
-    step = (width - pad * 2) / (len(points) - 1)
-    coords = []
-    for i, v in enumerate(points):
-        x = pad + i * step
-        y = height - pad - (v - lo) / span * (height - pad * 2)
-        coords.append(f"{x:.1f},{y:.1f}")
-    area = f"M{pad:.1f},{height - pad} L{' L'.join(coords)} L{width - pad:.1f},{height - pad} Z"
-    return (
-        f'<svg viewBox="0 0 {width} {height}" width="100%" role="img" aria-label="line chart">'
-        f'<path d="{area}" fill="#0d9488" opacity="0.10"/>'
-        f'<polyline points="{" ".join(coords)}" fill="none" stroke="#0d9488" '
-        'stroke-width="2" stroke-linejoin="round"/>'
-        f'<text x="{width - pad}" y="14" font-size="10" fill="#64748b" '
-        f'text-anchor="end">最高 {_money(hi)}</text>'
-        f'<text x="{width - pad}" y="{height - 2}" font-size="10" fill="#64748b" '
-        f'text-anchor="end">最低 {_money(lo)}</text>'
-        "</svg>"
-    )
-
-
 def _table(headers: list[str], rows: list[list[Any]]) -> str:
     head = "".join(f"<th>{_e(h)}</th>" for h in headers)
     body = "".join(

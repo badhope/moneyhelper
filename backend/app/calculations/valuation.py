@@ -15,8 +15,6 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from .strategy import FUND_KINDS
-
 
 @dataclass
 class Valuation:
@@ -204,7 +202,3 @@ def compute_dca_stats(
         "last_buy_date": last_buy,
         "current_price": round(px_now, 4),
     }
-
-
-def lot_hint(kind: str) -> str:
-    return "按金额申购" if kind in FUND_KINDS else "按 100 股整手"

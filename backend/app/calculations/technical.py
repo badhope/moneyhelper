@@ -203,18 +203,6 @@ def _last_non_none(values: list[float | None]) -> float | None:
         if v is not None:
             return v
     return None
-
-
-def _prev_non_none(values: list[float | None], tail: int) -> float | None:
-    """跳过最后 tail 个元素，取更早最近一个非 None 值（用于「与上一根比」）。"""
-    idx = len(values) - 1 - tail
-    while idx >= 0:
-        if values[idx] is not None:
-            return values[idx]
-        idx -= 1
-    return None
-
-
 def clean_points(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """丢掉 close 非法（缺失/非数值/<=0）的 K 线点。
 

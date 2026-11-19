@@ -31,7 +31,6 @@ from . import analysis, tools
 from .dept_models import (
     DEPARTMENTS,
     DEPT_TITLES,
-    DispatchPlan,
     WorkOrder,
     order_to_dict,
 )
@@ -147,15 +146,6 @@ def decompose(question: str) -> list[WorkOrder]:
             ),
         ]
     return orders
-
-
-def decompose_from_plan(plan: DispatchPlan) -> list[WorkOrder]:
-    """把 LLM 产出的派工计划转成工单（M3.2 用；现在已可调用）。"""
-    from .dept_models import to_orders
-
-    return to_orders(plan)
-
-
 # ---------------------------------------------------------------------------
 # 各部门执行：返回 (文本, 结构化指标)
 # ---------------------------------------------------------------------------
