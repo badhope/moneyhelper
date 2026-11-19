@@ -175,7 +175,11 @@ export function BankPage() {
         csv: csvText,
       });
       setCsvText("");
-      toast(`${t("bank.imported")} ${r.imported}`, "ok");
+      const made = (r as { entries_created?: number }).entries_created ?? 0;
+      toast(
+        `${t("bank.imported")} ${r.imported}` + (made ? ` · ${t("bank.entriesMade", { n: made })}` : ""),
+        "ok",
+      );
       await load();
     } catch (e) {
       toast(errMsg(e), "error");

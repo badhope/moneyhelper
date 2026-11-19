@@ -140,6 +140,19 @@ async def create_account(
     return {"ok": True, "account": account}
 
 
+@router.post("/api/gl/bootstrap")
+async def bootstrap_chart(
+    payload: dict[str, Any] | None = None,
+    scope: int = Depends(gl_write_scope),
+) -> Any:
+    """一键建账：铺默认科目表 + 打开参考日期所在期间（幂等，只补缺）。"""
+    try:
+        result = await db.gl_bootstrap(scope, str((payload or {}).get("ref_date") or "") or None)
+    except (TypeError, ValueError) as exc:
+        return _bad(str(exc))
+    return {"ok": True, **result}
+
+
 @router.get("/api/gl/periods")
 async def list_periods(scope: int = Depends(gl_read_scope)) -> Any:
     return {"periods": await db.gl_list_periods(scope)}

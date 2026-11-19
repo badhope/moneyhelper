@@ -816,6 +816,7 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
     payment_id     INTEGER,
     matched_by     INTEGER,
     matched_at     TEXT NOT NULL DEFAULT '',
+    gl_entry_id    INTEGER,                    -- 由该流水自动生成的凭证（幂等标记）
     created_at     TEXT NOT NULL DEFAULT '',
     updated_at     TEXT NOT NULL DEFAULT ''
 );

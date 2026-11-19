@@ -29,6 +29,8 @@ import {
   type GlPeriod,
   type GlTrialBalance,
 } from "@/lib/api";
+import { api } from "@/lib/api";
+import { Disclosure } from "@/components/ui/grouped-nav";
 import { fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
@@ -348,7 +350,22 @@ export function GlPage() {
             </Button>
           </div>
           {accounts.length === 0 ? (
-            <div className="py-2 text-xs text-muted-foreground">{t("gl.noAccounts")}</div>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border/70 px-3 py-2.5">
+              <div className="min-w-0 text-xs text-muted-foreground">{t("gl.noAccounts")}</div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  api<{ accounts_created: number }>("/api/gl/bootstrap", { method: "POST" })
+                    .then((r: { accounts_created: number }) => {
+                      toast(t("gl.bootstrapDone", { n: r.accounts_created }), "ok");
+                      refresh();
+                    })
+                    .catch((e: unknown) => toast(errMsg(e), "error"));
+                }}
+              >
+                {t("gl.bootstrap")}
+              </Button>
+            </div>
           ) : (
             <div className="space-y-1.5">
               {accounts.map((a) => (
@@ -445,7 +462,9 @@ export function GlPage() {
 
       {tab === "entries" && (
         <>
-          <Card className="p-[var(--card-pad)]">
+          {/* 手工录凭证只是兜底：默认收起，别让首屏一上来就是"科目/借方/贷方" */}
+          <Disclosure title={t("gl.newEntryManual")} hint={t("gl.newEntryHint")}>
+          <Card className="border-0 bg-transparent p-0 shadow-none">
             <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
               <BookOpenCheck className="h-4 w-4 text-muted-foreground" />
               {t("gl.newEntry")}
@@ -557,6 +576,7 @@ export function GlPage() {
               </Button>
             </div>
           </Card>
+          </Disclosure>
 
           <Card className="p-[var(--card-pad)]">
             <div className="mb-2 text-sm font-medium">{t("gl.entries")}</div>

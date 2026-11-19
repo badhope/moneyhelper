@@ -272,6 +272,8 @@ async def _migrate_add_columns() -> None:
         "users": {"active_tenant_id": "INTEGER"},
         # 切片 8：付款可关联报销单或应付单；应付付款生成付款凭证草稿
         "payments": {"payable_id": "INTEGER", "gl_entry_id": "INTEGER"},
+        # 切片 9：银行流水可自动生成凭证，用 gl_entry_id 记下归属（兼作幂等标记）
+        "bank_transactions": {"gl_entry_id": "INTEGER"},
     }
     # transactions 表：新增 owner_id（交易归属成员）与 is_shared（是否共享）
     tx_cols = await _db.execute("PRAGMA table_info(transactions)")

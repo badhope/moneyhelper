@@ -148,6 +148,7 @@ async def import_bank_csv(
             scope,
             int((payload or {}).get("bank_account_id") or 0),
             str((payload or {}).get("csv") or ""),
+            auto_entry=bool((payload or {}).get("auto_entry", True)),
         )
     except (TypeError, ValueError) as exc:
         return _bad(str(exc))

@@ -135,6 +135,10 @@ def statements_from_trial_balance(
                 },
                 "income_statement": {
                     "revenue": r(revenue),
+                    # 家庭场景最常问的就一句"这个月花了多少/剩了多少"，
+                    # 所以把费用合计与净利直接摆出来，不用再从"收入-净利"倒推。
+                    "expenses": r(expense),
+                    "cost_of_sales": r(cost_of_sales),
                     "gross_profit": r(gross_profit),
                     "operating_profit": r(net_profit),
                     "net_profit": r(net_profit),

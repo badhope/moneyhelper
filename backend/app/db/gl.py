@@ -146,6 +146,39 @@ async def gl_list_periods(tenant_id: int) -> list[dict[str, Any]]:
     )
 
 
+async def gl_bootstrap(tenant_id: int, ref_date: str | None = None) -> dict[str, Any]:
+    """一键建账：铺默认科目表 + 打开参考日期所在期间。
+
+    只补缺、不覆盖：已有科目一律不碰（用户改过名字或编码的，保持原样），
+    重复调用是幂等的。这是"人不用懂会计"的前提——不给用户一张空科目表。
+    """
+    from ..calculations.chart import DEFAULT_CHART
+
+    have = {str(a.get("code")) for a in await gl_list_accounts(tenant_id)}
+    created = 0
+    for code, name, account_type in DEFAULT_CHART:
+        if code in have:
+            continue
+        await gl_create_account(tenant_id, code, name, account_type)
+        created += 1
+
+    day = date.today()
+    if ref_date:
+        _, day = _parse_date(ref_date)
+    try:
+        period = await gl_create_period(tenant_id, day.year, day.month)
+    except ValueError:
+        # 期间已存在：复用，不当成错误（幂等的关键）
+        row = await fetch_one(
+            "SELECT * FROM gl_periods WHERE tenant_id=? AND year=? AND month=?",
+            (int(tenant_id), day.year, day.month),
+        )
+        if row is None:
+            raise
+        period = dict(row)
+    return {"accounts_created": created, "period": period}
+
+
 async def gl_create_period(tenant_id: int, year: int, month: int) -> dict[str, Any]:
     try:
         year_i = int(year)

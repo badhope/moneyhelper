@@ -165,6 +165,7 @@ from .family import (
     member_update,
 )
 from .gl import (
+    gl_bootstrap,
     gl_close_period,
     gl_create_account,
     gl_create_entry,
@@ -435,6 +436,7 @@ __all__ = [
     "get_settings",
     "get_tenant",
     "get_trades",
+    "gl_bootstrap",
     "gl_close_period",
     "gl_create_account",
     "gl_create_entry",
