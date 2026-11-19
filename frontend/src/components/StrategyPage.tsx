@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
+import { StatTile as MetricCell } from "@/components/ui/stat";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,32 +68,6 @@ const ZONE_TEXT: Record<ValuationItem["zone"], string> = {
 };
 
 /** 指标卡：指标名 + 数值 + 一行解释（解释比数字重要，否则用户不知道好坏） */
-function MetricCell({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: "up" | "down" | "muted";
-}) {
-  return (
-    <div className="min-w-0 rounded-lg bg-muted/25 px-3 py-2">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div
-        className={cn(
-          "mt-0.5 text-lg font-bold tabular-nums leading-tight",
-          tone === "up" ? "text-up" : tone === "down" ? "text-down" : "text-foreground",
-        )}
-      >
-        {value}
-      </div>
-      {hint && <div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{hint}</div>}
-    </div>
-  );
-}
 
 function metricOrDash(v: number | null | undefined, suffix = "", tr?: (k: string) => string): string {
   return v == null ? (tr ? tr("strat.insufficient") : "—") : `${v}${suffix}`;
@@ -231,24 +206,28 @@ function RiskSection({ benchmark, onBenchmark }: { benchmark: string; onBenchmar
               value={metricOrDash(m.total_return_pct, "%", t)}
               hint={t("strategy.totalReturnHint")}
               tone={m.total_return_pct == null ? "muted" : m.total_return_pct >= 0 ? "up" : "down"}
+              size="md"
             />
             <MetricCell
               label={t("strategy.annualVol")}
               value={metricOrDash(m.annualized_volatility_pct, "%", t)}
               hint={t("strategy.annualVolHint")}
               tone="muted"
+              size="md"
             />
             <MetricCell
               label={t("strategy.maxDrawdown")}
               value={metricOrDash(m.max_drawdown_pct, "%", t)}
               hint={t("strategy.maxDrawdownHint")}
               tone="down"
+              size="md"
             />
             <MetricCell
               label={t("strategy.sharpe")}
               value={metricOrDash(m.sharpe, "", t)}
               hint={t("strategy.sharpeHint")}
               tone={sharpeTone(m.sharpe)}
+              size="md"
             />
           </div>
 

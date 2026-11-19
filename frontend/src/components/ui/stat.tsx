@@ -27,3 +27,50 @@ export function StatCell({
     </div>
   );
 }
+
+/**
+ * 圆角浅底指标格：财报 / 回测 / 模拟盘里"一格一个指标"的通用写法。
+ *
+ * 此前这套样式在 StatementsPage / PaperTradingPage / StrategyPage 各写了一份
+ * （字号 15px vs 18px、label 11px vs 12px 的差别），本质是同一个指标格。
+ * 差异收敛成两个参数：`size`（sm=卡片内密排 / md=指标条）与 `truncate`。
+ */
+export function StatTile({
+  label,
+  value,
+  hint,
+  tone = "default",
+  size = "sm",
+  truncate = true,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: "up" | "down" | "muted" | "default";
+  /** sm：卡片内密排（15px）；md：指标条（18px，label 更小） */
+  size?: "sm" | "md";
+  truncate?: boolean;
+}) {
+  const color =
+    tone === "up" ? "text-up" : tone === "down" ? "text-down" : tone === "muted" ? "text-muted-foreground" : "text-foreground";
+  return (
+    <div className="min-w-0 rounded-lg bg-muted/25 px-3 py-2">
+      <div className={cn("text-muted-foreground", size === "sm" ? "text-xs" : "text-[11px]", truncate && "truncate")}>
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-1 font-semibold tabular-nums num-in",
+          size === "sm" ? "text-[15px]" : "text-lg font-bold leading-tight",
+          color,
+          truncate && "truncate",
+        )}
+      >
+        {value}
+      </div>
+      {hint ? (
+        <div className={cn("mt-0.5 text-[11px] text-muted-foreground/80", truncate && "truncate")}>{hint}</div>
+      ) : null}
+    </div>
+  );
+}

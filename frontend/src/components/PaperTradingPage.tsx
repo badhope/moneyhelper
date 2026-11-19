@@ -29,17 +29,8 @@ import {
   usePaperList,
   type PaperAccount,
 } from "@/lib/use-paper";
+import { StatTile as MetricCell } from "@/components/ui/stat";
 
-function MetricCell({ label, value, tone, hint }: { label: string; value: string; tone?: "up" | "down" | "muted"; hint?: string }) {
-  const cls = tone === "up" ? "text-up" : tone === "down" ? "text-down" : tone === "muted" ? "text-muted-foreground" : "text-foreground";
-  return (
-    <div className="min-w-0 rounded-lg bg-muted/25 px-3 py-2">
-      <div className="truncate text-xs text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 truncate text-[15px] font-semibold tabular-nums num-in", cls)}>{value}</div>
-      {hint ? <div className="mt-0.5 truncate text-[11px] text-muted-foreground/80">{hint}</div> : null}
-    </div>
-  );
-}
 
 /** 团队收益率横向条形图：红涨绿跌，正负分色 */
 function RankingBarChart({ items }: { items: PaperAccount[] }) {

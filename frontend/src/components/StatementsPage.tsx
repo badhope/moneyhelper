@@ -34,6 +34,7 @@ import {
   useStatementSave,
   type StatementAnalysis,
 } from "@/lib/use-research";
+import { StatTile as MetricCell } from "@/components/ui/stat";
 
 /** 示例三表：一家高杠杆+低现金流质量的制造企业（能触发多条预警） */
 const SAMPLE_PAYLOAD = `{
@@ -77,16 +78,6 @@ function fmt(v: number | null | undefined, suffix = ""): string {
   return v != null ? `${v.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}${suffix}` : "—";
 }
 
-function MetricCell({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "up" | "down" | "muted" }) {
-  const cls = tone === "up" ? "text-up" : tone === "down" ? "text-down" : tone === "muted" ? "text-muted-foreground" : "text-foreground";
-  return (
-    <div className="min-w-0 rounded-lg bg-muted/25 px-3 py-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 truncate text-[15px] font-semibold tabular-nums num-in", cls)}>{value}</div>
-      {hint ? <div className="mt-0.5 truncate text-[11px] text-muted-foreground/80">{hint}</div> : null}
-    </div>
-  );
-}
 
 function TrendChart({ title, periods, series }: { title: string; periods: string[]; series: { name: string; data: (number | null)[]; suffix?: string; secondary?: boolean }[] }) {
   const ref = useRef<HTMLDivElement | null>(null);
