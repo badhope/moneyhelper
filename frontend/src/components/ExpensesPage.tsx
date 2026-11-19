@@ -7,7 +7,6 @@ import {
   createExpenseClaim,
   getMyCapabilities,
   listExpenseClaims,
-  listGlAccounts,
   rejectExpenseClaim,
   submitExpenseClaim,
   type ExpenseClaim,
@@ -16,6 +15,7 @@ import {
 import { fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { AccountSelect } from "@/components/ui/account-select";
+import { useLedgerRefs } from "@/lib/use-ledger-refs";
 import { useToast } from "@/lib/toast";
 import { cn, errMsg } from "@/lib/utils";
 
@@ -36,7 +36,9 @@ export function ExpensesPage() {
   const { t } = useI18n();
   const { toast } = useToast();
   const [claims, setClaims] = useState<ExpenseClaim[]>([]);
-  const [accounts, setAccounts] = useState<GlAccount[]>([]);
+  // 科目表来自共享查询（原先与总账/银行/采购各拉一份同一份数据）
+  const refs = useLedgerRefs();
+  const accounts: GlAccount[] = refs.accounts;
   const [loading, setLoading] = useState(true);
   const [perms, setPerms] = useState<string[]>([]);
   const [rejectId, setRejectId] = useState<number | null>(null);
@@ -63,9 +65,8 @@ export function ExpensesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [cs, as] = await Promise.all([listExpenseClaims(), listGlAccounts()]);
+      const cs = await listExpenseClaims();
       setClaims(cs);
-      setAccounts(as);
     } catch (e) {
       toast(errMsg(e), "error");
     } finally {

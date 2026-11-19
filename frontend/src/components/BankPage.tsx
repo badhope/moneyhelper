@@ -13,8 +13,6 @@ import {
   listBankReconciliations,
   listBankTransactions,
   listExpenseClaims,
-  listGlAccounts,
-  listGlPeriods,
   listPayments,
   matchBankTransaction,
   unmatchBankTransaction,
@@ -29,6 +27,7 @@ import {
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { AccountSelect } from "@/components/ui/account-select";
+import { useLedgerRefs } from "@/lib/use-ledger-refs";
 import { useToast } from "@/lib/toast";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { cn, errMsg } from "@/lib/utils";
@@ -46,8 +45,10 @@ export function BankPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [claims, setClaims] = useState<ExpenseClaim[]>([]);
-  const [accounts, setAccounts] = useState<GlAccount[]>([]);
-  const [periods, setPeriods] = useState<GlPeriod[]>([]);
+  // 科目表与期间来自共享查询（原先与总账/报销/采购各拉一份）
+  const refs = useLedgerRefs();
+  const accounts: GlAccount[] = refs.accounts;
+  const periods: GlPeriod[] = refs.periods;
   const [recons, setRecons] = useState<BankReconciliation[]>([]);
   const [summary, setSummary] = useState<BankSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -103,23 +104,17 @@ export function BankPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [ps, ts, cs, as, sum] = await Promise.all([
+      const [ps, ts, cs, sum] = await Promise.all([
         listPayments(),
         listBankTransactions(),
         listExpenseClaims(),
-        listGlAccounts(),
         getBankSummary(),
       ]);
       setPayments(ps);
       setTransactions(ts);
       setClaims(cs);
-      setAccounts(as);
       setSummary(sum);
-      const [periodList, reconList] = await Promise.all([
-        listGlPeriods(),
-        listBankReconciliations(),
-      ]);
-      setPeriods(periodList);
+      const reconList = await listBankReconciliations();
       setRecons(reconList);
     } catch (e) {
       toast(errMsg(e), "error");

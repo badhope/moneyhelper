@@ -9,7 +9,6 @@ import {
   createPayable,
   createPurchaseOrder,
   createVendor,
-  listGlAccounts,
   listPayables,
   listPurchaseOrders,
   listVendors,
@@ -24,6 +23,7 @@ import {
 import { fmtDay, fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { AccountSelect } from "@/components/ui/account-select";
+import { useLedgerRefs } from "@/lib/use-ledger-refs";
 import { useToast } from "@/lib/toast";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { cn, errMsg } from "@/lib/utils";
@@ -70,7 +70,9 @@ export function ProcurementPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [payables, setPayables] = useState<Payable[]>([]);
-  const [accounts, setAccounts] = useState<GlAccount[]>([]);
+  // 科目表来自共享查询
+  const refs = useLedgerRefs();
+  const accounts: GlAccount[] = refs.accounts;
   const [loading, setLoading] = useState(true);
   const [newVendorOpen, setNewVendorOpen] = useState(false);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
@@ -130,16 +132,10 @@ export function ProcurementPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [vs, os, ps, as] = await Promise.all([
-        listVendors(),
-        listPurchaseOrders(),
-        listPayables(),
-        listGlAccounts(),
-      ]);
+      const [vs, os, ps] = await Promise.all([listVendors(), listPurchaseOrders(), listPayables()]);
       setVendors(vs);
       setOrders(os);
       setPayables(ps);
-      setAccounts(as);
     } catch (e) {
       toast(errMsg(e), "error");
     } finally {
