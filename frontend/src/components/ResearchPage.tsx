@@ -191,7 +191,7 @@ function KlineChart({ series, period, onPeriod }: { series: TechnicalResult["ser
   return (
     <div className="flex flex-col">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm font-medium">K 线走势</div>
+        <div className="text-sm font-medium">{t("research.klineTitle")}</div>
         <div className="flex items-center gap-1.5">
           {/* 周期切换 */}
           <div className="flex gap-0.5 rounded-lg bg-muted/40 p-0.5 text-[11px]">
@@ -400,7 +400,7 @@ function BacktestPanel({
                 className="w-14 rounded-md border border-border/70 bg-background px-1.5 py-1 text-center tabular-nums outline-none focus:border-primary"
               />
             </label>
-            <span className="text-[11px] text-muted-foreground/70">改参数即重新回测（含交易成本 0.03%/边）</span>
+            <span className="text-[11px] text-muted-foreground/70">{t("research.rerunHint")}</span>
           </>
         ) : (
           <>
@@ -426,7 +426,7 @@ function BacktestPanel({
                 className="w-14 rounded-md border border-border/70 bg-background px-1.5 py-1 text-center tabular-nums outline-none focus:border-primary"
               />
             </label>
-            <span className="text-[11px] text-muted-foreground/70">改参数即重新回测</span>
+            <span className="text-[11px] text-muted-foreground/70">{t("research.rerunHintShort")}</span>
           </>
         )}
       </div>

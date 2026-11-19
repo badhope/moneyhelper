@@ -94,8 +94,8 @@ function MetricCell({
   );
 }
 
-function metricOrDash(v: number | null | undefined, suffix = ""): string {
-  return v == null ? "数据不足" : `${v}${suffix}`;
+function metricOrDash(v: number | null | undefined, suffix = "", tr?: (k: string) => string): string {
+  return v == null ? (tr ? tr("strat.insufficient") : "—") : `${v}${suffix}`;
 }
 
 function sharpeTone(v: number | null | undefined): "up" | "down" | "muted" {
@@ -228,25 +228,25 @@ function RiskSection({ benchmark, onBenchmark }: { benchmark: string; onBenchmar
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <MetricCell
               label={t("strategy.totalReturn")}
-              value={metricOrDash(m.total_return_pct, "%")}
+              value={metricOrDash(m.total_return_pct, "%", t)}
               hint={t("strategy.totalReturnHint")}
               tone={m.total_return_pct == null ? "muted" : m.total_return_pct >= 0 ? "up" : "down"}
             />
             <MetricCell
               label={t("strategy.annualVol")}
-              value={metricOrDash(m.annualized_volatility_pct, "%")}
+              value={metricOrDash(m.annualized_volatility_pct, "%", t)}
               hint={t("strategy.annualVolHint")}
               tone="muted"
             />
             <MetricCell
               label={t("strategy.maxDrawdown")}
-              value={metricOrDash(m.max_drawdown_pct, "%")}
+              value={metricOrDash(m.max_drawdown_pct, "%", t)}
               hint={t("strategy.maxDrawdownHint")}
               tone="down"
             />
             <MetricCell
               label={t("strategy.sharpe")}
-              value={metricOrDash(m.sharpe)}
+              value={metricOrDash(m.sharpe, "", t)}
               hint={t("strategy.sharpeHint")}
               tone={sharpeTone(m.sharpe)}
             />
@@ -261,19 +261,19 @@ function RiskSection({ benchmark, onBenchmark }: { benchmark: string; onBenchmar
           </div>
 
           <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] sm:grid-cols-3">
-            <MetricRow label={t("strategy.sortino")} value={metricOrDash(m.sortino)} />
-            <MetricRow label={t("strategy.calmar")} value={metricOrDash(m.calmar)} />
-            <MetricRow label={t("strategy.var95")} value={metricOrDash(m.var_95_pct, "%")} />
-            <MetricRow label={t("strategy.beta")} value={metricOrDash(m.beta)} />
-            <MetricRow label={t("strategy.alpha")} value={metricOrDash(m.alpha_pct, "%")} />
+            <MetricRow label={t("strategy.sortino")} value={metricOrDash(m.sortino, "", t)} />
+            <MetricRow label={t("strategy.calmar")} value={metricOrDash(m.calmar, "", t)} />
+            <MetricRow label={t("strategy.var95")} value={metricOrDash(m.var_95_pct, "%", t)} />
+            <MetricRow label={t("strategy.beta")} value={metricOrDash(m.beta, "", t)} />
+            <MetricRow label={t("strategy.alpha")} value={metricOrDash(m.alpha_pct, "%", t)} />
             <MetricRow
               label={t("strategy.excess")}
-              value={metricOrDash(m.excess_return_pct, "%")}
+              value={metricOrDash(m.excess_return_pct, "%", t)}
               tone={m.excess_return_pct == null ? undefined : m.excess_return_pct >= 0 ? "up" : "down"}
             />
-            <MetricRow label={t("strategy.winRate")} value={metricOrDash(m.win_rate_pct, "%")} />
-            <MetricRow label={t("strategy.bestDay")} value={metricOrDash(m.best_day_pct, "%")} />
-            <MetricRow label={t("strategy.worstDay")} value={metricOrDash(m.worst_day_pct, "%")} />
+            <MetricRow label={t("strategy.winRate")} value={metricOrDash(m.win_rate_pct, "%", t)} />
+            <MetricRow label={t("strategy.bestDay")} value={metricOrDash(m.best_day_pct, "%", t)} />
+            <MetricRow label={t("strategy.worstDay")} value={metricOrDash(m.worst_day_pct, "%", t)} />
           </div>
 
           <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
@@ -491,7 +491,7 @@ function RebalanceSection() {
                     <td className="py-1.5 pr-2 text-right tabular-nums">
                       {item.action === "hold" ? "—" : fmtMoney(item.amount, false, true)}
                       {item.approx_shares != null && (
-                        <span className="ml-1 text-[10px] text-muted-foreground">≈{item.approx_shares}股</span>
+                        <span className="ml-1 text-[10px] text-muted-foreground">≈{item.approx_shares}{t("strat.sharesUnit")}</span>
                       )}
                     </td>
                     <td className="py-1.5 text-right">{actionBadge(item)}</td>

@@ -121,7 +121,7 @@ function EquityCurveChart({ dates, equity, bench }: { dates: string[]; equity: n
           areaStyle: { color: palette[0] + "1a" },
         },
         {
-          name: "基准 1.0",
+          name: t("paper.basis"),
           type: "line",
           data: bench,
           symbol: "none",
@@ -212,13 +212,13 @@ export function PaperTradingPage() {
   const shares = Number(tradeShares) || 0;
   const amount = price * shares;
   const fee = estFee(tradeSide, amount);
-  const lotHint = tradeSide === "buy" && shares > 0 && shares % 100 !== 0 ? "买入需 100 股整数倍" : null;
-  const buyShort = tradeSide === "buy" && selected && amount + estFee("buy", amount) > selected.cash ? "现金不足" : null;
+  const lotHint = tradeSide === "buy" && shares > 0 && shares % 100 !== 0 ? t("paper.lotHint") : null;
+  const buyShort = tradeSide === "buy" && selected && amount + estFee("buy", amount) > selected.cash ? t("paper.noCash") : null;
 
   async function submitTrade() {
     if (!selectedId) return;
     if (!tradeSymbol.trim() || price <= 0 || shares <= 0) {
-      setTradeMsg("请填写代码 / 价格 / 股数");
+      setTradeMsg(t("paper.fillForm"));
       return;
     }
     setTradeBusy(true);
@@ -230,7 +230,7 @@ export function PaperTradingPage() {
         price,
         shares,
       });
-      setTradeMsg("已成交");
+      setTradeMsg(t("paper.doneKey"));
       setTradeSymbol("");
       setTradePrice("");
       setTradeShares("");
@@ -247,7 +247,7 @@ export function PaperTradingPage() {
     setOpenBusy(true);
     setOpenMsg(null);
     try {
-      await paperOpen(openName.trim() || "模拟账户", Number(openCash) || 100000);
+      await paperOpen(openName.trim() || t("paper.defaultAccount"), Number(openCash) || 100000);
       setOpenName("");
       setOpenCash("100000");
       await reload();
@@ -310,7 +310,7 @@ export function PaperTradingPage() {
                           <th className="py-2 pr-2 font-medium">{t("paper2.n5")}</th>
                           <th className="py-2 pr-2 text-right font-medium">{t("paper.m12")}</th>
                           <th className="py-2 pr-2 text-right font-medium">{t("paper.m1")}</th>
-                          <th className="py-2 pr-2 text-right font-medium">盈亏</th>
+                          <th className="py-2 pr-2 text-right font-medium">{t("paper.pnl")}</th>
                           <th className="py-2 pr-2 text-right font-medium">{t("paper.m4")}</th>
                           <th className="py-2 font-medium">{t("paper2.n6")}</th>
                         </tr>
@@ -379,7 +379,7 @@ export function PaperTradingPage() {
                   <MetricCell label={t("paper.m15")} value={fmtMoney(selected.cash, false, true)} />
                   <MetricCell label={t("paper3.k26")} value={fmtMoney(selected.market_value, false, true)} />
                   <MetricCell label={t("paper.m12")} value={fmtMoney(selected.equity, false, true)} />
-                  <MetricCell label={t("paper2.n1")} value={String(selected.trade_count)} hint={selected.stale ? "部分持仓按最后成交价" : "按最近成交价估值"} />
+                  <MetricCell label={t("paper2.n1")} value={String(selected.trade_count)} hint={selected.stale ? t("paper.staleHint") : t("paper.markHint")} />
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -404,9 +404,9 @@ export function PaperTradingPage() {
                           <th className="py-2 pr-2 font-medium">{t("paper3.k2")}</th>
                           <th className="py-2 pr-2 text-right font-medium">{t("paper3.k9")}</th>
                           <th className="py-2 pr-2 text-right font-medium">{t("paper3.k8")}</th>
-                          <th className="py-2 pr-2 text-right font-medium">现价</th>
+                          <th className="py-2 pr-2 text-right font-medium">{t("paper.price")}</th>
                           <th className="py-2 pr-2 text-right font-medium">{t("paper3.k5")}</th>
-                          <th className="py-2 pr-2 text-right font-medium">盈亏</th>
+                          <th className="py-2 pr-2 text-right font-medium">{t("paper.pnl")}</th>
                           <th className="py-2 text-right font-medium">{t("paper2.n7")}</th>
                         </tr>
                       </thead>
@@ -430,7 +430,7 @@ export function PaperTradingPage() {
                 {/* 最近交易 */}
                 {detail.data && detail.data.trades.length > 0 && (
                   <div className="mt-4 overflow-x-auto scroll-thin">
-                    <div className="mb-1 text-xs font-medium text-muted-foreground">最近交易（最新 60 笔内）</div>
+                    <div className="mb-1 text-xs font-medium text-muted-foreground">{t("paper.recentTrades")}</div>
                     <Table size="sm" minWidth={560} align="left">
                       <thead>
                         <tr className="border-b border-border/70 text-xs text-muted-foreground">
@@ -539,7 +539,7 @@ export function PaperTradingPage() {
 
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">
-                      预估成交 {fmtMoney(amount)} · 费用 {fmtMoney(fee)}（佣金 0.025% 最低 5 元{tradeSide === "sell" ? " + 印花税 0.05%" : ""}）
+                      {t("paper.estimate")} {fmtMoney(amount)} · {t("paper.fee")} {fmtMoney(fee)}{t("paper.feeHint")}{tradeSide === "sell" ? t("paper.stampTax") : ""}{t("paper.closeParen")}
                     </span>
                   </div>
 
@@ -547,9 +547,9 @@ export function PaperTradingPage() {
                   {buyShort && <div className="flex items-center gap-1 text-xs text-down"><AlertTriangle className="h-3 w-3" />{buyShort}</div>}
 
                   <Button onClick={() => void submitTrade()} disabled={tradeBusy || !selectedId || !tradeSymbol.trim() || price <= 0 || shares <= 0} className={cn(tradeSide === "sell" && "bg-down text-white hover:bg-down/90")}>
-                    {tradeBusy ? "提交中…" : tradeSide === "buy" ? "买入成交" : "卖出成交"}
+                    {tradeBusy ? t("paper.submitting") : tradeSide === "buy" ? t("paper.buyDone") : t("paper.sellDone")}
                   </Button>
-                  {tradeMsg && <div className={cn("text-xs", tradeMsg === "已成交" ? "text-up" : "text-muted-foreground")}>{tradeMsg}</div>}
+                  {tradeMsg && <div className={cn("text-xs", tradeMsg === t("paper.doneKey") ? "text-up" : "text-muted-foreground")}>{tradeMsg}</div>}
                 </div>
               )}
             </div>
