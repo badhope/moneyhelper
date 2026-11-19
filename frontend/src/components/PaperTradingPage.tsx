@@ -588,7 +588,7 @@ export function PaperTradingPage() {
               </Button>
               {openMsg && <div className="text-xs text-muted-foreground">{openMsg}</div>}
               <p className="text-[11px] leading-relaxed text-muted-foreground/70">
-                模拟盘数据由交易事件重放计算，仅用于团队策略演练，不构成投资建议。
+                {t("paper4.disclaimer")}
               </p>
             </div>
           </Card>

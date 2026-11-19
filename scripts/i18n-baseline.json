@@ -9,7 +9,7 @@
  "components/HoldingsView.tsx": 1,
  "components/LoginView.tsx": 4,
  "components/MarketView.tsx": 1,
- "components/PaperTradingPage.tsx": 2,
+ "components/PaperTradingPage.tsx": 1,
  "components/PositionEditDialog.tsx": 3,
  "components/ResearchPage.tsx": 11,
  "components/SandboxCard.tsx": 6,
