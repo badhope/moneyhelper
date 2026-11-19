@@ -15,11 +15,12 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 from typing import Any
 
 import httpx
 from cachetools import TTLCache
+
+from ..timeutil import now_iso as _now
 
 _UA = "Mozilla/5.0 (moneyhelper)"
 
@@ -63,8 +64,6 @@ _tx_kline_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=256, tt
 _breadth_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=4, ttl=60.0)
 
 
-def _now() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def to_tencent(symbol: str) -> str | None:

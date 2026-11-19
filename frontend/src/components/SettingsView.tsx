@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 import { useDashboard } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { useIsDesktop } from "@/lib/use-media-query";
-import { useSettingsForm, type SectionId } from "@/components/settings/use-settings-form";
+import { useSettingsForm } from "@/components/settings/use-settings-form";
+import { SECTION_GROUPS, type SectionId } from "@/components/settings/sections";
 import { PrefsSection } from "@/components/settings/PrefsSection";
 import { RulesSection } from "@/components/settings/RulesSection";
 import { BudgetSection } from "@/components/settings/BudgetSection";
@@ -60,16 +61,6 @@ const SECTIONS: { id: SectionId; labelKey: string; icon: typeof Wallet }[] = [
   { id: "eval", labelKey: "settings.navEval", icon: Award },
 ];
 
-const SECTION_GROUPS: { key: string; ids: SectionId[] }[] = [
-  { key: "settings.groupGeneral", ids: ["prefs", "rules", "budget", "family", "org"] },
-  { key: "settings.groupAi", ids: ["ai", "knowledge", "report", "memory"] },
-  {
-    key: "settings.groupStudio",
-    ids: ["roles", "skills", "prompt", "constraints", "hooks", "plugins", "market", "internalTools", "permissions"],
-  },
-  { key: "settings.groupData", ids: ["data", "token", "logs", "audit", "provenance"] },
-  { key: "settings.groupEval", ids: ["eval"] },
-];
 
 export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
   const { t } = useI18n();
@@ -89,7 +80,7 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
   // 用「已展开集合」而不是单个 openGroup：点开另一组时不应把当前组关掉
   // （单个 state + effect 同步会在重渲染时把用户刚点开的组重置回去）。
   const activeGroupId =
-    SECTION_GROUPS.find((g) => g.ids.includes(active))?.key ?? SECTION_GROUPS[0].key;
+    SECTION_GROUPS.find((g) => (g.ids as readonly string[]).includes(active))?.key ?? SECTION_GROUPS[0].key;
   const [openGroups, setOpenGroups] = useState<string[]>([activeGroupId]);
   useEffect(() => {
     // 切到某个分区时，确保它所在组是展开的；只增不减。
@@ -153,7 +144,11 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
             })}
           </div>
           <div className="flex gap-1 overflow-x-auto px-3 py-2 scroll-thin">
-            {SECTIONS.filter((s) => SECTION_GROUPS.find((g) => openGroups.includes(g.key))?.ids.includes(s.id)).map((s) => {
+            {SECTIONS.filter((s) =>
+              SECTION_GROUPS.some(
+                (g) => openGroups.includes(g.key) && (g.ids as readonly string[]).includes(s.id),
+              ),
+            ).map((s) => {
               const Icon = s.icon;
               const on = active === s.id;
               return (

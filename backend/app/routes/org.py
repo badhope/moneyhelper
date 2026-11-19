@@ -12,16 +12,14 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse
 
 from .. import auth, authz, authz_guard, db
 from ..db.tenant import current_tenant_id
+from ._responses import bad as _bad
 
 router = APIRouter()
 
 
-def _bad(msg: str, code: int = 400) -> JSONResponse:
-    return JSONResponse({"error": msg}, status_code=code)
 
 
 def _ints(payload: dict[str, Any], key: str) -> int | None:

@@ -14,6 +14,7 @@ from datetime import date, datetime
 from typing import Any
 
 from ..calculations.gl import to_cents
+from ..timeutil import now_str as _now
 from ._core import _conn, fetch_all, fetch_one, get_write_lock
 from .expenses import expense_get_claim
 from .gl import gl_get_account
@@ -43,8 +44,6 @@ _BANK_SELECT = (
 )
 
 
-def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _money(row: Any, key: str = "amount_cents") -> dict[str, Any]:

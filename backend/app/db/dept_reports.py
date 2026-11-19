@@ -25,9 +25,9 @@ HTTP 响应里返回，老板离开页面就丢了——而"呈批"这个动作�
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
+from ..timeutil import now_iso as _now_iso
 from ._core import _conn, fetch_all, fetch_one, uuid_hex
 from .tenant import current_user_id
 
@@ -41,8 +41,6 @@ _STATUS_BY_DECISION = {
 }
 
 
-def _now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def _row_to_report(row: Any) -> dict[str, Any]:

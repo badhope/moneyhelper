@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ._shared import sma as _sma
 from .portfolio_risk import (
     annualized_return,
     daily_returns,
@@ -34,18 +35,6 @@ DCA_MIN_DAYS = 20
 DCA_DEFAULT_FREQ = 5  # 每 5 个交易日投入一次
 
 
-def _sma(values: list[float], window: int) -> list[float | None]:
-    out: list[float | None] = [None] * len(values)
-    if window <= 0 or len(values) < window:
-        return out
-    acc = 0.0
-    for i, v in enumerate(values):
-        acc += v
-        if i >= window:
-            acc -= values[i - window]
-        if i >= window - 1:
-            out[i] = acc / window
-    return out
 
 
 def series_from_points(points: list[dict[str, Any]]) -> tuple[list[float], list[str]]:

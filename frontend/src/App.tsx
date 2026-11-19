@@ -14,6 +14,7 @@ import { api, getToken } from "@/lib/api";
 import { LoginView } from "@/components/LoginView";
 import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { isDataKind, type DataKind } from "@/lib/views";
 import { useI18n } from "@/lib/i18n";
 import { useIsDesktop } from "@/lib/use-media-query";
 import { useResizableWidth } from "@/lib/use-resizable-width";
@@ -33,7 +34,7 @@ const DepartmentPanel = lazy(() =>
   import("@/components/DepartmentPanel").then((m) => ({ default: m.DepartmentPanel })),
 );
 
-export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax" | "debts" | "gl" | "expenses" | "procurement" | "longtask" | "bank";
+export type { DataKind } from "@/lib/views";
 
 export default function App() {
   const { t } = useI18n();
@@ -190,8 +191,7 @@ export default function App() {
       setSettingsOpen(true);
       return;
     }
-    const valid: DataKind[] = ["overview", "holdings", "market", "ledger", "health", "strategy", "research", "statements", "paper", "connect", "tax", "debts", "gl", "expenses", "procurement", "longtask", "bank"];
-    const k = (valid as string[]).includes(kind) ? (kind as DataKind) : "overview";
+    const k: DataKind = isDataKind(kind) ? kind : "overview";
     setView(k);
   }, []);
 

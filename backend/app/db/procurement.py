@@ -13,12 +13,10 @@ from datetime import date, datetime
 from typing import Any
 
 from ..calculations.gl import to_cents
+from ..money import yuan_str as _yuan_str
+from ..timeutil import now_str as _now
 from ._core import _conn, fetch_all, fetch_one, get_write_lock
 from .gl import gl_create_entry, gl_delete_draft_entry, gl_get_account
-
-
-def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _row(value: Any) -> dict[str, Any] | None:
@@ -389,7 +387,7 @@ async def payable_approve(
     if not cur.rowcount:
         raise ValueError("应付单已被处理")
 
-    amount = f"{int(payable['amount_cents']) // 100}.{int(payable['amount_cents']) % 100:02d}"
+    amount = _yuan_str(payable['amount_cents'])
     try:
         entry = await gl_create_entry(
             tenant_id,
@@ -468,7 +466,7 @@ async def payable_pay(
     bank = await gl_get_account(tenant_id, bank_account_id)
     if bank is None or not bank["is_active"] or bank["type"] != "asset":
         raise ValueError("付款账户必须是启用的资产类科目")
-    amount = f"{int(payable['amount_cents']) // 100}.{int(payable['amount_cents']) % 100:02d}"
+    amount = _yuan_str(payable['amount_cents'])
     entry = await gl_create_entry(
         tenant_id,
         datetime.now().date().isoformat(),

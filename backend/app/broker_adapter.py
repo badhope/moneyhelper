@@ -35,7 +35,6 @@ import platform
 import secrets
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Protocol, runtime_checkable
@@ -114,19 +113,36 @@ class BrokerAdapter(Protocol):
 # ---------------------------------------------------------------------------
 
 
-class NullBroker:
-    """默认适配器：永远拒绝下单，只返回空数据。用于未启用交易的实例。"""
+def _probe_payload(
+    name: str,
+    supports_trading: bool,
+    problems: list[str],
+    ok_note: str,
+) -> dict[str, Any]:
+    """`probe()` 的统一返回形状：可用性、问题清单、人话结论。
 
-    name = "null"
+    四个适配器原本各自手写同一份 dict 字面量，改字段（比如加 `hint`）要改四处；
+    收敛后只有这一个出口，`problems` 为空即视为可用。
+    """
+    return {
+        "name": name,
+        "available": not problems,
+        "supports_trading": supports_trading,
+        "problems": problems,
+        "note": ok_note if not problems else "；".join(problems),
+    }
+
+
+class _NoopBroker:
+    """无外部通道的适配器基类：把「什么都不做」的接口留一份实现。
+
+    NullBroker 与 PaperBroker 的 `connect/disconnect/poll_orders/get_cash/
+    get_positions` 逐字相同（空实现），原来各写一遍；这里只写一次，
+    子类只覆盖真正有差异的 `is_connected/preview/submit/probe`。
+    """
+
+    name = "noop"
     supports_trading = False
-
-    def probe(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "available": True,
-            "supports_trading": False,
-            "note": "默认只读适配器：未启用任何券商通道",
-        }
 
     def connect(self) -> None:
         return None
@@ -134,8 +150,8 @@ class NullBroker:
     def disconnect(self) -> None:
         return None
 
-    def is_connected(self) -> bool:
-        return False
+    def poll_orders(self) -> list[dict[str, Any]]:
+        return []
 
     def get_cash(self) -> Decimal:
         return Decimal("0")
@@ -143,14 +159,25 @@ class NullBroker:
     def get_positions(self) -> list[dict[str, Any]]:
         return []
 
+
+class NullBroker(_NoopBroker):
+    """默认适配器：永远拒绝下单，只返回空数据。用于未启用交易的实例。"""
+
+    name = "null"
+
+    def probe(self) -> dict[str, Any]:
+        return _probe_payload(
+            self.name, False, problems=[], ok_note="默认只读适配器：未启用任何券商通道"
+        )
+
+    def is_connected(self) -> bool:
+        return False
+
     def preview(self, req: OrderRequest) -> OrderResult:
         return OrderResult(None, OrderStatus.REJECTED, message="交易未启用（NullBroker）")
 
     def submit(self, req: OrderRequest) -> OrderResult:
         return OrderResult(None, OrderStatus.REJECTED, message="交易未启用（NullBroker）")
-
-    def poll_orders(self) -> list[dict[str, Any]]:
-        return []
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +185,7 @@ class NullBroker:
 # ---------------------------------------------------------------------------
 
 
-class PaperBroker:
+class PaperBroker(_NoopBroker):
     """模拟盘适配器：不做真实下单，只把委托交给调用方（路由层）写模拟盘。
 
     这里保持无状态：真正撮合在 routes 层用 calculations.paper 完成，
@@ -166,39 +193,23 @@ class PaperBroker:
     """
 
     name = "paper"
-    supports_trading = False
 
     def probe(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "available": True,
-            "supports_trading": False,
-            "note": "模拟盘：委托由系统按 A 股口径撮合，不产生真实交易",
-        }
-
-    def connect(self) -> None:
-        return None
-
-    def disconnect(self) -> None:
-        return None
+        return _probe_payload(
+            self.name,
+            False,
+            problems=[],
+            ok_note="模拟盘：委托由系统按 A 股口径撮合，不产生真实交易",
+        )
 
     def is_connected(self) -> bool:
         return True
-
-    def get_cash(self) -> Decimal:
-        return Decimal("0")
-
-    def get_positions(self) -> list[dict[str, Any]]:
-        return []
 
     def preview(self, req: OrderRequest) -> OrderResult:
         return OrderResult(None, OrderStatus.SUBMITTED, message="模拟盘预检通过（未真实报单）")
 
     def submit(self, req: OrderRequest) -> OrderResult:
         return OrderResult(f"paper-{secrets.token_hex(4)}", OrderStatus.SUBMITTED, message="已交给模拟盘撮合")
-
-    def poll_orders(self) -> list[dict[str, Any]]:
-        return []
 
 
 # ---------------------------------------------------------------------------
@@ -238,13 +249,9 @@ class XtQuantBroker:
             problems.append("未设置 QMT_USERDATA_PATH（指向 userdata_mini 目录）")
         if not self.account_id:
             problems.append("未设置 QMT_ACCOUNT_ID（资金账号）")
-        return {
-            "name": self.name,
-            "available": not problems,
-            "supports_trading": True,
-            "problems": problems,
-            "note": "券商官方通道；需开通 miniQMT 权限" if not problems else "；".join(problems),
-        }
+        return _probe_payload(
+            self.name, True, problems, ok_note="券商官方通道；需开通 miniQMT 权限"
+        )
 
     def connect(self) -> None:
         info = self.probe()
@@ -392,15 +399,12 @@ class EasytraderBroker:
             problems.append("未设置 EASYTRADER_EXE_PATH（券商下单程序路径）")
         if not self.account or not self.password:
             problems.append("未设置 EASYTRADER_ACCOUNT / EASYTRADER_PASSWORD")
-        return {
-            "name": self.name,
-            "available": not problems,
-            "supports_trading": True,
-            "problems": problems,
-            "note": "GUI 自动化，客户端升级易失效；建议锁定客户端版本"
-            if not problems
-            else "；".join(problems),
-        }
+        return _probe_payload(
+            self.name,
+            True,
+            problems,
+            ok_note="GUI 自动化，客户端升级易失效；建议锁定客户端版本",
+        )
 
     def connect(self) -> None:
         info = self.probe()
@@ -713,5 +717,3 @@ def trading_status() -> dict[str, Any]:
     }
 
 
-def _now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")

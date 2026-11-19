@@ -14,7 +14,6 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
 
 from .. import db
 from ..auth import get_current_user
@@ -30,6 +29,7 @@ from ..broker_adapter import (
 )
 from ..db.tenant import current_user_id
 from ..provenance import record_provenance
+from ._responses import bad as _bad
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -40,8 +40,6 @@ _adapters: dict[tuple[int, str], Any] = {}
 _lock = asyncio.Lock()
 
 
-def _bad(msg: str, code: int = 400) -> JSONResponse:
-    return JSONResponse({"error": msg}, status_code=code)
 
 
 async def _get_adapter(name: str) -> Any:

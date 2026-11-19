@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import calendar
 import sqlite3
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 from ..calculations.gl import (
@@ -17,19 +17,15 @@ from ..calculations.gl import (
     assert_balanced,
     to_cents,
 )
+from ..money import yuan as _money
+from ..timeutil import now_str as _now
 from ._core import _conn, fetch_all, fetch_one, get_write_lock
-
-
-def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _row(value: Any) -> dict[str, Any] | None:
     return dict(value) if value is not None else None
 
 
-def _money(cents: Any) -> float:
-    return round(int(cents or 0) / 100, 2)
 
 
 def _parse_date(value: Any) -> tuple[str, date]:

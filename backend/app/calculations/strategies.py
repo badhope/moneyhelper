@@ -30,18 +30,6 @@ TRADING_DAYS = 252
 # ---------------------------------------------------------------------------
 
 
-def _sma(values: list[float], window: int) -> list[float | None]:
-    out: list[float | None] = [None] * len(values)
-    if window <= 0 or len(values) < window:
-        return out
-    acc = 0.0
-    for i, v in enumerate(values):
-        acc += v
-        if i >= window:
-            acc -= values[i - window]
-        if i >= window - 1:
-            out[i] = acc / window
-    return out
 
 
 def _stdev(values: list[float]) -> float:

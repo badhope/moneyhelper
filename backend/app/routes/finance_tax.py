@@ -10,7 +10,6 @@ from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
 
 from .. import db
 from ..auth import get_current_user
@@ -25,12 +24,11 @@ from ..calculations import (
     tax_summary,
     vat,
 )
+from ._responses import bad as _bad
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
-def _bad(msg: str, code: int = 400) -> JSONResponse:
-    return JSONResponse({"error": msg}, status_code=code)
 
 
 def _f(payload: dict[str, Any], key: str, default: float = 0.0) -> float:

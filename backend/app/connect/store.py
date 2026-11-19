@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import json
 import secrets
-import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
 from ..db._core import _conn, _mark_user_data, fetch_all, fetch_one, get_write_lock
 from ..db.tenant import current_user_id
 from ..logging_utils import get_logger
+from ..timeutil import new_id as _new_id
+from ..timeutil import now_iso as _now
 from .catalog import get_connector
 
 log = get_logger(__name__)
@@ -32,12 +33,8 @@ MAX_CONNECTIONS = 60
 MAX_INTENTS = 500
 
 
-def _now() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def _new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
 def _dumps(v: Any) -> str:

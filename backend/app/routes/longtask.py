@@ -12,16 +12,14 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
 
 from .. import auth, longtask
+from ._responses import bad as _bad
 from ._scope import tenant_permission_scope
 
 router = APIRouter()
 
 
-def _bad(msg: str, code: int = 400) -> JSONResponse:
-    return JSONResponse({"error": msg}, status_code=code)
 
 
 async def _read_scope(

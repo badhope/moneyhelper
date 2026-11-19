@@ -11,9 +11,9 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
 from typing import Any
 
+from ..timeutil import now_str as _now
 from ._core import _conn, fetch_all, fetch_one
 
 ORG_ROLES = ("owner", "admin", "accountant", "approver", "viewer", "member")
@@ -21,8 +21,6 @@ ORG_STATUSES = ("active", "archived")
 _UNSET = object()
 
 
-def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _text(value: Any, limit: int = 60, *, required: bool = True) -> str:

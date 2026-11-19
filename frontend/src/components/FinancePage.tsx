@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { BookOpenCheck, CandlestickChart, ClipboardList, CreditCard, FileText, HeartPulse, Landmark, LayoutGrid, NotebookPen, Package, Plug, Receipt, Target, TrendingUp, Users, Wallet } from "lucide-react";
+import { isDataKind, type DataKind } from "@/lib/views";
 import { useI18n } from "@/lib/i18n";
 import { GroupedNav, type NavGroup } from "@/components/ui/grouped-nav";
 
@@ -57,7 +58,7 @@ const ProcurementBody = lazy(() =>
   })),
 );
 
-export type DataKind = "overview" | "holdings" | "market" | "ledger" | "health" | "strategy" | "research" | "statements" | "paper" | "connect" | "tax" | "debts" | "gl" | "expenses" | "bank" | "procurement" | "longtask";
+export type { DataKind } from "@/lib/views";
 
 /**
  * 分组：按用户的心智模型收纳，而不是按功能清单平铺。
@@ -163,9 +164,7 @@ export function FinancePage({
                 onGoChat={onGoChat}
                 onGoSettings={onGoSettings}
                 onNavigateTab={(tab) => {
-                  const known: DataKind[] = ["overview", "holdings", "market", "ledger", "health",
-                    "strategy", "research", "statements", "paper", "connect", "tax", "debts", "gl", "expenses", "bank", "procurement", "longtask"];
-                  if (known.includes(tab as DataKind)) onKindChange(tab as DataKind);
+                  if (isDataKind(tab)) onKindChange(tab);
                 }}
               />
             )}

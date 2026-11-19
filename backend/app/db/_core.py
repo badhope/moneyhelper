@@ -23,6 +23,7 @@ import aiosqlite
 
 from ..compat_env import getenv
 from ..logging_utils import get_logger
+from ..timeutil import now_iso as _now_iso  # noqa: F401 — db 门面重导出（app/db/__init__.py 使用）
 from ._schema import (
     DEFAULT_SETTINGS,
     SCHEMA,
@@ -1183,5 +1184,3 @@ def uuid_hex() -> str:
 PENDING_TTL_MINUTES = 10
 
 
-def _now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")

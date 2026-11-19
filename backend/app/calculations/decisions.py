@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ._shared import pick_lang as _t
+
 # 优先级：数值越小越靠前。分档而非连乘，避免小差异导致排序抖动。
 PRIORITY_URGENT = 10      # 已经发生或即将发生损失（超限、缺口、逾期）
 PRIORITY_HIGH = 20        # 有明确可量化收益，且动作在用户控制内
@@ -30,8 +32,6 @@ DOMAIN_LABEL = {
 }
 
 
-def _t(lang: str, zh: str, en: str) -> str:
-    return en if str(lang).lower().startswith("en") else zh
 
 
 def _item(domain: str, priority: int, title: str, detail: str,

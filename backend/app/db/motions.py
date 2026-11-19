@@ -11,9 +11,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Any
 
+from ..timeutil import now_iso as _now
 from ._core import _conn, fetch_all, fetch_one
 from .tenant import current_user_id
 
@@ -21,8 +21,6 @@ QUORUM_RATIO = 2 / 3
 VOTES = ("yes", "no", "abstain")
 
 
-def _now() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 async def create_motion(

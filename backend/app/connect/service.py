@@ -38,8 +38,6 @@ def inbox_dir(user_id: int | None = None) -> Path:
     return path
 
 
-def _now() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 # ---------------------------------------------------------------------------

@@ -17,11 +17,11 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from fastapi import APIRouter, Body, Depends
-from fastapi.responses import JSONResponse
 
 from .. import db
 from ..auth import get_current_user
 from ..calculations import compare_methods, plan_payoff
+from ._responses import bad as _bad
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -29,8 +29,6 @@ MAX_DEBTS = 50
 MAX_EXTRA = 10_000_000.0
 
 
-def _bad(msg: str) -> JSONResponse:
-    return JSONResponse({"error": msg}, status_code=400)
 
 
 def _num(payload: dict[str, Any], key: str, default: float = 0.0) -> float:

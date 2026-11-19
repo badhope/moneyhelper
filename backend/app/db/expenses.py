@@ -11,6 +11,9 @@ from datetime import datetime
 from typing import Any
 
 from ..calculations.gl import to_cents
+from ..money import yuan
+from ..money import yuan_str as _yuan
+from ..timeutil import now_str as _now
 from ._core import _conn, fetch_all, fetch_one, get_write_lock
 from .gl import (
     gl_create_entry,
@@ -36,17 +39,13 @@ _CLAIM_SELECT = (
 )
 
 
-def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def _yuan(cents: int) -> str:
-    return f"{int(cents) // 100}.{int(cents) % 100:02d}"
 
 
 def _claim(row: Any) -> dict[str, Any]:
     data = dict(row)
-    data["amount"] = round(int(data.get("amount_cents") or 0) / 100, 2)
+    data["amount"] = yuan(data.get("amount_cents"))
     return data
 
 

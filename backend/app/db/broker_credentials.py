@@ -10,18 +10,16 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
 from .. import vault
+from ..timeutil import now_iso as _now
 from ._core import _conn, fetch_all, fetch_one, get_write_lock
 from .tenant import current_user_id
 
 ALLOWED_BROKER_IDS = ("futu", "longport", "tiger", "ibkr", "xtquant", "easytrader")
 
 
-def _now() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def _meta(raw: str) -> dict[str, Any]:

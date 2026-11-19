@@ -15,12 +15,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from ._shared import pick_lang as _t
+
 # 净值口径：只有这两个来源计入「合并净资产」
 NET_WORTH_SOURCES = ("local_portfolio", "paper")
 
 
-def _t(lang: str, zh: str, en: str) -> str:
-    return en if str(lang).lower().startswith("en") else zh
 
 
 def merge_accounts(

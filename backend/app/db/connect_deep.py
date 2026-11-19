@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import uuid
-from datetime import datetime
 from typing import Any
 
 from ..logging_utils import get_logger
+from ..timeutil import new_id as _new_id
+from ..timeutil import now_iso as _now
 from ._core import _conn, _mark_user_data, fetch_all, fetch_one, get_write_lock
 from .tenant import current_user_id
 
@@ -29,12 +29,8 @@ MAX_INVOICES = 2000
 MAX_CONDITIONAL = 100
 
 
-def _now() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def _new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
 def file_hash(raw: bytes) -> str:

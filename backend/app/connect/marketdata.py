@@ -10,11 +10,12 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 from typing import Any
 
 import httpx
 from cachetools import TTLCache
+
+from ..timeutil import now_iso as _now
 
 _UA = "Mozilla/5.0 (moneyhelper connect-hub)"
 
@@ -32,8 +33,6 @@ _fund_hist_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=64, tt
 _movers_cache: TTLCache[str, list[dict[str, Any]]] = TTLCache(maxsize=8, ttl=60.0)
 
 
-def _now() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def _num(raw: Any) -> float | None:

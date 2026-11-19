@@ -9,17 +9,15 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
 
 from ..auth import get_current_user
 from ..connect import marketdata, service, store
 from ..connect.catalog import get_connector, grouped_catalog
+from ._responses import bad as _bad
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
-def _bad(msg: str, code: int = 400) -> JSONResponse:
-    return JSONResponse({"error": msg}, status_code=code)
 
 
 # ---------------------------------------------------------------------------

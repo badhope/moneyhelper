@@ -24,6 +24,7 @@ from ..studio import (
     store,
     watchdog,
 )
+from ._responses import fail as _err
 
 log = get_logger(__name__)
 
@@ -38,8 +39,6 @@ KIND_LABELS = {
 }
 
 
-def _err(msg: str, status: int = 400) -> JSONResponse:
-    return JSONResponse({"ok": False, "error": msg}, status_code=status)
 
 
 async def _audit(

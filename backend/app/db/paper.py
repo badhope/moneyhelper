@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from ..timeutil import now_iso as _now_iso
 from ._core import _conn, fetch_all, fetch_one
 from .tenant import current_user_id
 
@@ -18,8 +19,6 @@ MAX_ACCOUNTS = 12  # 每团队最多 12 个模拟账户
 MAX_TRADES_PER_ACCOUNT = 500  # 每账户最多 500 笔（事件溯源重放上限）
 
 
-def _now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def _today() -> str:

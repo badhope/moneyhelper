@@ -28,6 +28,7 @@ from typing import Any
 
 from .db._core import data_dir
 from .logging_utils import get_logger
+from .timeutil import now_str as _now
 
 log = get_logger(__name__)
 
@@ -75,8 +76,6 @@ def _artifact_dir(task_id: str) -> Path:
     return path
 
 
-def _now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%S")
 
 
 # ---------------------------------------------------------------------------
