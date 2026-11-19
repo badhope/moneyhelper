@@ -31,11 +31,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - name: push to gitee (with retry)
+      # GitHub runner 出口到 Gitee 会被间歇性 reset，属于网络问题而非代码问题；
+      # 这里尽力重试，仍失败则跳过，避免偶发网络把整条 CI 判红。
+      - name: push to gitee (best effort, network may reset)
+        continue-on-error: true
         run: |
           git remote add mirror "https://oauth2:${{ secrets.GITEE_TOKEN }}@gitee.com/badhope/moneyhelper.git"
-          for i in 1 2 3; do
+          for i in 1 2 3 4 5; do
             git push mirror main --force && git push mirror --tags --force && exit 0
-            echo "retry $i/3 after 20s..."; sleep 20
+            echo "retry $i/5 after 30s..."; sleep 30
           done
-          exit 1
+          echo "::warning::gitee unreachable from runner, mirror not updated this run"
