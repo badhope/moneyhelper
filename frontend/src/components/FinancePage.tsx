@@ -1,3 +1,4 @@
+import { BillsWorkspace, DeskWorkspace, LedgerWorkspace } from "@/components/workspaces";
 import { lazy, Suspense } from "react";
 import { isDataKind, type DataKind } from "@/lib/views";
 import { useI18n } from "@/lib/i18n";
@@ -19,43 +20,20 @@ const EntryView = lazy(() =>
 const HealthBody = lazy(() =>
   import("@/components/HealthPage").then((m) => ({ default: m.HealthPage })),
 );
-const StrategyBody = lazy(() =>
-  import("@/components/StrategyPage").then((m) => ({ default: m.StrategyPage })),
-);
-const ResearchBody = lazy(() =>
-  import("@/components/ResearchPage").then((m) => ({ default: m.ResearchPage })),
-);
-const StatementsBody = lazy(() =>
-  import("@/components/StatementsPage").then((m) => ({ default: m.StatementsPage })),
-);
 const PaperBody = lazy(() =>
   import("@/components/PaperTradingPage").then((m) => ({ default: m.PaperTradingPage })),
 );
 const ConnectBody = lazy(() =>
   import("@/components/ConnectPage").then((m) => ({ default: m.ConnectPage })),
 );
-const TaxBody = lazy(() =>
-  import("@/components/TaxPage").then((m) => ({ default: m.TaxPage })),
-);
 const DebtPayoffBody = lazy(() =>
   import("@/components/DebtPayoffPage").then((m) => ({ default: m.DebtPayoffPage })),
-);
-const GlBody = lazy(() =>
-  import("@/components/GlPage").then((m) => ({ default: m.GlPage })),
-);
-const ExpensesBody = lazy(() =>
-  import("@/components/ExpensesPage").then((m) => ({ default: m.ExpensesPage })),
 );
 const BankBody = lazy(() =>
   import("@/components/BankPage").then((m) => ({ default: m.BankPage })),
 );
 const LongTaskBody = lazy(() =>
   import("@/components/LongTaskPage").then((m) => ({ default: m.LongTaskPage })),
-);
-const ProcurementBody = lazy(() =>
-  import("@/components/ProcurementPage").then((m) => ({
-    default: m.ProcurementPage,
-  })),
 );
 
 export type { DataKind } from "@/lib/views";
@@ -112,16 +90,18 @@ export function FinancePage({
             )}
             {kind === "holdings" && <HoldingsView onGoMarket={() => onKindChange("market")} />}
             {kind === "connect" && <ConnectBody />}
-            {kind === "tax" && <TaxBody />}
-            {kind === "research" && <ResearchBody />}
-            {kind === "statements" && <StatementsBody />}
-            {kind === "gl" && <GlBody />}
-            {kind === "expenses" && <ExpensesBody />}
-            {kind === "procurement" && <ProcurementBody />}
+            {(kind === "gl" || kind === "statements" || kind === "tax") && (
+              <LedgerWorkspace initial={kind} />
+            )}
+
+            {(kind === "expenses" || kind === "procurement") && (
+              <BillsWorkspace initial={kind} />
+            )}
+            {(kind === "research" || kind === "strategy") && <DeskWorkspace initial={kind} />}
             {kind === "longtask" && <LongTaskBody />}
             {kind === "bank" && <BankBody />}
             {kind === "paper" && <PaperBody />}
-            {kind === "strategy" && <StrategyBody />}
+
             {kind === "market" && <MarketView />}
             {kind === "ledger" && <EntryView />}
             {kind === "health" && <HealthBody />}

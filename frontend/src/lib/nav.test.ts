@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NAV_GROUPS, groupOfKind } from "@/lib/nav";
+import { NAV_GROUPS, WORKSPACE_HOME, groupOfKind, navHomeOf } from "@/lib/nav";
 import { DATA_KINDS } from "@/lib/views";
 
 /**
@@ -12,9 +12,19 @@ import { DATA_KINDS } from "@/lib/views";
 describe("NAV_GROUPS", () => {
   const keys = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.key));
 
-  it("每个视图都出现在导航里", () => {
+  it("每个视图要么在导航里，要么归属某个工作区入口", () => {
     for (const kind of DATA_KINDS) {
-      expect(keys, `视图「${kind}」没有出现在导航里`).toContain(kind);
+      if (keys.includes(kind)) continue;
+      const home = navHomeOf(kind);
+      expect(home, `视图「${kind}」既不在导航里，也没有工作区入口`).not.toBe(kind);
+      expect(keys, `视图「${kind}」的工作区入口「${home}」不在导航里`).toContain(home);
+    }
+  });
+
+  it("工作区成员不重复登记，且入口本身不被吸收", () => {
+    for (const [member, home] of Object.entries(WORKSPACE_HOME)) {
+      expect(keys, `被吸收的视图「${member}」不该再单独出现在导航里`).not.toContain(member);
+      expect(WORKSPACE_HOME[home as keyof typeof WORKSPACE_HOME]).toBeUndefined();
     }
   });
 
@@ -37,9 +47,14 @@ describe("NAV_GROUPS", () => {
     for (const g of NAV_GROUPS) expect(g.items.length).toBeGreaterThan(0);
   });
 
-  it("每个视图都能反查到所属分组", () => {
+  it("每个视图都能反查到所属分组（按工作区入口归一）", () => {
     for (const kind of DATA_KINDS) {
-      expect(groupOfKind(kind)?.items.some((i) => i.key === kind)).toBe(true);
+      const g = groupOfKind(kind);
+      expect(g, `视图「${kind}」反查不到分组`).toBeTruthy();
+      expect(
+        g?.items.some((i) => i.key === navHomeOf(kind)),
+        `视图「${kind}」的分组里没有它的入口「${navHomeOf(kind)}」`,
+      ).toBe(true);
     }
   });
 });

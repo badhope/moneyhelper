@@ -9,10 +9,7 @@ import {
   Landmark,
   LayoutGrid,
   NotebookPen,
-  Package,
   Plug,
-  Receipt,
-  Target,
   TrendingUp,
   Users,
   Wallet,
@@ -63,8 +60,7 @@ export const NAV_GROUPS: NavGroup<DataKind>[] = [
     labelKey: "nav.groupAnalyze",
     items: [
       { key: "market", labelKey: "nav.market", icon: TrendingUp },
-      { key: "research", labelKey: "nav.research", icon: CandlestickChart },
-      { key: "strategy", labelKey: "nav.strategy", icon: Target },
+      { key: "research", labelKey: "nav.deskWorkspace", icon: CandlestickChart },
       { key: "health", labelKey: "hc.title", icon: HeartPulse },
     ],
   },
@@ -72,8 +68,7 @@ export const NAV_GROUPS: NavGroup<DataKind>[] = [
     id: "books",
     labelKey: "nav.groupBooks",
     items: [
-      { key: "expenses", labelKey: "nav.expenses", icon: ClipboardList },
-      { key: "procurement", labelKey: "nav.procurement", icon: Package },
+      { key: "expenses", labelKey: "nav.billsWorkspace", icon: ClipboardList },
       { key: "longtask", labelKey: "nav.longtask", icon: FileText },
     ],
   },
@@ -81,10 +76,8 @@ export const NAV_GROUPS: NavGroup<DataKind>[] = [
     id: "ledger",
     labelKey: "nav.groupLedger",
     items: [
-      { key: "gl", labelKey: "nav.gl", icon: BookOpenCheck },
+      { key: "gl", labelKey: "nav.ledgerWorkspace", icon: BookOpenCheck },
       { key: "bank", labelKey: "nav.bank", icon: Landmark },
-      { key: "statements", labelKey: "nav.statements", icon: FileText },
-      { key: "tax", labelKey: "nav.tax", icon: Receipt },
       { key: "paper", labelKey: "nav.paper", icon: Users },
     ],
   },
@@ -95,7 +88,28 @@ export const NAV_GROUPS: NavGroup<DataKind>[] = [
   },
 ];
 
+/**
+ * 被"工作区"吸收的视图 -> 入口视图。
+ *
+ * 同一件事的多个视角（总账/财报/公司财税、报销/采购应付、投研/投资策略）在导航上
+ * 只保留一个入口，其余视角仍可通过工作区顶部 tab、对话跳转与深链到达。
+ * 这里集中登记，是为了让"导航高亮哪一项""从对话跳转过来该落在哪个分组"都有据可依，
+ * 而不是散落在各组件里各判断一次。
+ */
+export const WORKSPACE_HOME: Partial<Record<DataKind, DataKind>> = {
+  statements: "gl",
+  tax: "gl",
+  procurement: "expenses",
+  strategy: "research",
+};
+
+/** 把一个"可能是工作区成员"的视图归一成导航入口视图。 */
+export function navHomeOf(kind: DataKind): DataKind {
+  return WORKSPACE_HOME[kind] ?? kind;
+}
+
 /** 视图 -> 所属分组，供"当前在哪一组"、埋点、跳转归一使用。 */
 export function groupOfKind(kind: DataKind): NavGroup<DataKind> | undefined {
-  return NAV_GROUPS.find((g) => g.items.some((i) => i.key === kind));
+  const home = navHomeOf(kind);
+  return NAV_GROUPS.find((g) => g.items.some((i) => i.key === home));
 }
