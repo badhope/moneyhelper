@@ -28,12 +28,12 @@ import { Table } from "@/components/ui/table";
 import type { BacktestStrategy } from "@/lib/use-research";
 type StrategyId = BacktestStrategy;
 
-const STRATEGY_LABELS: Record<StrategyId, string> = {
-  ma_cross: "双均线(5/20)",
-  dca: "定投",
-  grid: "网格",
-  trend: "趋势跟随",
-  vol_target: "波动率目标",
+const STRATEGY_LABEL_KEYS: Record<StrategyId, string> = {
+  ma_cross: "research.s.maCross",
+  dca: "research.s.dca",
+  grid: "research.s.grid",
+  trend: "research.s.trend",
+  vol_target: "research.s.volTarget",
 };
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,10 +54,10 @@ import {
   type TechnicalResult,
 } from "@/lib/use-research";
 
-const BIAS_META: Record<string, { label: string; cls: string }> = {
-  bull: { label: "偏多", cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
-  bear: { label: "偏空", cls: "bg-red-500/10 text-red-600 dark:text-red-400" },
-  neutral: { label: "中性", cls: "bg-muted text-muted-foreground" },
+const BIAS_META: Record<string, { labelKey: string; cls: string }> = {
+  bull: { labelKey: "research.bias.bull", cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  bear: { labelKey: "research.bias.bear", cls: "bg-red-500/10 text-red-600 dark:text-red-400" },
+  neutral: { labelKey: "research.bias.neutral", cls: "bg-muted text-muted-foreground" },
 };
 
 const SIGNAL_STYLE: Record<string, string> = {
@@ -66,11 +66,27 @@ const SIGNAL_STYLE: Record<string, string> = {
   neutral: "text-muted-foreground",
 };
 
-const PERIODS: { key: "daily" | "weekly" | "monthly"; label: string }[] = [
-  { key: "daily", label: "日 K" },
-  { key: "weekly", label: "周 K" },
-  { key: "monthly", label: "月 K" },
+const PERIODS: { key: "daily" | "weekly" | "monthly"; labelKey: string }[] = [
+  { key: "daily", labelKey: "research.period.daily" },
+  { key: "weekly", labelKey: "research.period.weekly" },
+  { key: "monthly", labelKey: "research.period.monthly" },
 ];
+
+/** ECharts 的 series.name 同时是图例键：统一在这里取，避免两处各写一份文案 */
+const CH = {
+  kline: "research.chart.kline",
+  volume: "research.chart.volume",
+  bollUp: "research.chart.bollUp",
+  bollMid: "research.chart.bollMid",
+  bollDown: "research.chart.bollDown",
+  close: "research.chart.close",
+  trendLine: "research.chart.trendLine",
+  mcMedian: "research.chart.mcMedian",
+  band: "research.chart.band",
+  bandLower: "research.chart.bandLower",
+  strategy: "research.chart.strategy",
+  buyHold: "research.chart.buyHold",
+} as const;
 
 function TechnicalCard({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "up" | "down" | "muted" }) {
   const cls = tone === "up" ? "text-up" : tone === "down" ? "text-down" : tone === "muted" ? "text-muted-foreground" : "text-foreground";
@@ -85,6 +101,7 @@ function TechnicalCard({ label, value, hint, tone }: { label: string; value: str
 
 /** K 线主图：蜡烛（A股红涨绿跌）+ MA + 布林带（多序列 toggle）+ 周期切换 + 缩放重置 */
 function KlineChart({ series, period, onPeriod }: { series: TechnicalResult["series"]; period: string; onPeriod: (p: "daily" | "weekly" | "monthly") => void }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<EChartsType | null>(null);
   const palette = usePalette();
@@ -125,7 +142,7 @@ function KlineChart({ series, period, onPeriod }: { series: TechnicalResult["ser
       ],
       series: [
         {
-          name: "K线",
+          name: t(CH.kline),
           type: "candlestick",
           data: kdata,
           itemStyle: {
@@ -139,13 +156,13 @@ function KlineChart({ series, period, onPeriod }: { series: TechnicalResult["ser
         { name: "MA60", type: "line", data: series.ma60, symbol: "none", lineStyle: { width: 1.2, color: palette[7] }, smooth: true },
         ...(showBoll
           ? [
-              { name: "BOLL上轨", type: "line", data: series.boll_upper, symbol: "none", lineStyle: { width: 1, type: "dashed", color: palette[2] }, smooth: true },
-              { name: "BOLL中轨", type: "line", data: series.boll_mid, symbol: "none", lineStyle: { width: 1, type: "dashed", color: palette[5] }, smooth: true },
-              { name: "BOLL下轨", type: "line", data: series.boll_lower, symbol: "none", lineStyle: { width: 1, type: "dashed", color: palette[6] }, smooth: true },
+              { name: t(CH.bollUp), type: "line", data: series.boll_upper, symbol: "none", lineStyle: { width: 1, type: "dashed", color: palette[2] }, smooth: true },
+              { name: t(CH.bollMid), type: "line", data: series.boll_mid, symbol: "none", lineStyle: { width: 1, type: "dashed", color: palette[5] }, smooth: true },
+              { name: t(CH.bollDown), type: "line", data: series.boll_lower, symbol: "none", lineStyle: { width: 1, type: "dashed", color: palette[6] }, smooth: true },
             ]
           : []),
         {
-          name: "成交量",
+          name: t(CH.volume),
           type: "bar",
           xAxisIndex: 1,
           yAxisIndex: 1,
@@ -160,8 +177,8 @@ function KlineChart({ series, period, onPeriod }: { series: TechnicalResult["ser
         top: 0,
         left: 0,
         textStyle: { color: axisColor, fontSize: 10 },
-        data: ["MA5", "MA20", "MA60", "BOLL上轨", "BOLL中轨", "BOLL下轨"],
-        selected: { "BOLL上轨": showBoll, "BOLL中轨": showBoll, "BOLL下轨": showBoll },
+        data: ["MA5", "MA20", "MA60", t(CH.bollUp), t(CH.bollMid), t(CH.bollDown)],
+        selected: { [t(CH.bollUp)]: showBoll, [t(CH.bollMid)]: showBoll, [t(CH.bollDown)]: showBoll },
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,7 +205,7 @@ function KlineChart({ series, period, onPeriod }: { series: TechnicalResult["ser
                   period === p.key ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {p.label}
+                {t(p.labelKey)}
               </button>
             ))}
           </div>
@@ -200,13 +217,13 @@ function KlineChart({ series, period, onPeriod }: { series: TechnicalResult["ser
               showBoll ? "bg-primary/10 text-primary" : "bg-muted/30 text-muted-foreground hover:text-foreground",
             )}
           >
-            {showBoll ? "隐藏布林带" : "叠加布林带"}
+            {showBoll ? t("research.hideBoll") : t("research.showBoll")}
           </button>
           <button
             type="button"
             onClick={() => chartRef.current?.dispatchAction({ type: "dataZoom", start: 45, end: 100 })}
             className="rounded-md bg-muted/30 px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            title="重置缩放"
+            title={t("research.resetZoom")}
           >
             <Undo2 className="h-3 w-3" />
           </button>
@@ -219,6 +236,7 @@ function KlineChart({ series, period, onPeriod }: { series: TechnicalResult["ser
 
 /** 统计预测面板：实际收盘 + 线性趋势 + 蒙特卡洛中值/分位区间带 */
 function ForecastPanel({ forecast: f, loading, unavailable }: { forecast: ForecastResult | undefined; loading: boolean; unavailable: string | undefined }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement | null>(null);
   const palette = usePalette();
   const { up, down } = useCandleColors();
@@ -239,16 +257,16 @@ function ForecastPanel({ forecast: f, loading, unavailable }: { forecast: Foreca
         backgroundColor: resolved === "dark" ? "#1e293b" : "#fff",
         textStyle: { color: resolved === "dark" ? "#e2e8f0" : "#0f172a" },
       },
-      legend: { top: 0, left: 0, textStyle: { color: axisColor, fontSize: 11 }, data: ["收盘", "线性趋势", "蒙特卡洛中值", "5%-95% 区间"] },
+      legend: { top: 0, left: 0, textStyle: { color: axisColor, fontSize: 11 }, data: [t(CH.close), t(CH.trendLine), t(CH.mcMedian), t(CH.band)] },
       grid: { left: 56, right: 16, top: 32, bottom: 24 },
       xAxis: { type: "category", data: dates, axisLabel: { color: axisColor, fontSize: 10, interval: Math.floor(dates.length / 8) }, axisLine: { lineStyle: { color: "#64748b60" } } },
       yAxis: { scale: true, splitLine: { lineStyle: { color: "#64748b20" } }, axisLabel: { color: axisColor, fontSize: 10 } },
       series: [
-        { name: "收盘", type: "line", data: f.close, symbol: "none", lineStyle: { width: 1.4, color: palette[0] } },
-        { name: "线性趋势", type: "line", data: f.trend_line, symbol: "none", lineStyle: { width: 1.2, type: "dashed", color: palette[4] } },
-        { name: "蒙特卡洛中值", type: "line", data: f.median, symbol: "none", lineStyle: { width: 1.4, type: "dashed", color: palette[2] } },
-        { name: "区间下限", type: "line", data: f.p5, stack: "band", symbol: "none", lineStyle: { opacity: 0 }, tooltip: { show: false } },
-        { name: "5%-95% 区间", type: "line", data: band, stack: "band", symbol: "none", lineStyle: { opacity: 0 }, areaStyle: { color: f.bias === "up" ? up + "26" : down + "26" }, tooltip: { show: false } },
+        { name: t(CH.close), type: "line", data: f.close, symbol: "none", lineStyle: { width: 1.4, color: palette[0] } },
+        { name: t(CH.trendLine), type: "line", data: f.trend_line, symbol: "none", lineStyle: { width: 1.2, type: "dashed", color: palette[4] } },
+        { name: t(CH.mcMedian), type: "line", data: f.median, symbol: "none", lineStyle: { width: 1.4, type: "dashed", color: palette[2] } },
+        { name: t(CH.bandLower), type: "line", data: f.p5, stack: "band", symbol: "none", lineStyle: { opacity: 0 }, tooltip: { show: false } },
+        { name: t(CH.band), type: "line", data: band, stack: "band", symbol: "none", lineStyle: { opacity: 0 }, areaStyle: { color: f.bias === "up" ? up + "26" : down + "26" }, tooltip: { show: false } },
       ],
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -261,10 +279,10 @@ function ForecastPanel({ forecast: f, loading, unavailable }: { forecast: Foreca
   if (!f) return null;
 
   const items: { label: string; value: string; tone?: "up" | "down" }[] = [
-    { label: "趋势倾向", value: f.bias === "up" ? "偏多" : f.bias === "down" ? "偏空" : "中性", tone: f.bias === "up" ? "up" : f.bias === "down" ? "down" : undefined },
-    { label: "趋势斜率/期", value: f.slope_pct != null ? `${f.slope_pct >= 0 ? "+" : ""}${f.slope_pct.toFixed(2)}%` : "—", tone: f.slope_pct != null ? (f.slope_pct >= 0 ? "up" : "down") : undefined },
-    { label: "年化波动率", value: f.vol_annual_pct != null ? `${f.vol_annual_pct.toFixed(1)}%` : "—" },
-    { label: "MA20 偏离", value: f.mean_reversion_pct != null ? `${f.mean_reversion_pct >= 0 ? "+" : ""}${f.mean_reversion_pct.toFixed(1)}%` : "—", tone: f.mean_reversion_pct != null ? (f.mean_reversion_pct >= 0 ? "up" : "down") : undefined },
+    { label: t("research.f.trendBias"), value: f.bias === "up" ? t("research.bias.bull") : f.bias === "down" ? t("research.bias.bear") : t("research.bias.neutral"), tone: f.bias === "up" ? "up" : f.bias === "down" ? "down" : undefined },
+    { label: t("research.f.slopePerPeriod"), value: f.slope_pct != null ? `${f.slope_pct >= 0 ? "+" : ""}${f.slope_pct.toFixed(2)}%` : "—", tone: f.slope_pct != null ? (f.slope_pct >= 0 ? "up" : "down") : undefined },
+    { label: t("research.f.volAnnual"), value: f.vol_annual_pct != null ? `${f.vol_annual_pct.toFixed(1)}%` : "—" },
+    { label: t("research.f.maDev"), value: f.mean_reversion_pct != null ? `${f.mean_reversion_pct >= 0 ? "+" : ""}${f.mean_reversion_pct.toFixed(1)}%` : "—", tone: f.mean_reversion_pct != null ? (f.mean_reversion_pct >= 0 ? "up" : "down") : undefined },
   ];
 
   return (
@@ -309,13 +327,13 @@ function BacktestPanel({
       animation: false,
       color: [palette[0], palette[3]],
       tooltip: { trigger: "axis", backgroundColor: resolved === "dark" ? "#1e293b" : "#fff", textStyle: { color: resolved === "dark" ? "#e2e8f0" : "#0f172a" } },
-      legend: { top: 0, left: 0, textStyle: { color: axisColor, fontSize: 11 }, data: ["策略净值", "买入持有"] },
+      legend: { top: 0, left: 0, textStyle: { color: axisColor, fontSize: 11 }, data: [t(CH.strategy), t(CH.buyHold)] },
       grid: { left: 56, right: 16, top: 32, bottom: 24 },
       xAxis: { type: "category", data: result.curve.dates, axisLabel: { color: axisColor, fontSize: 10, interval: Math.floor(result.curve.dates.length / 6) }, axisLine: { lineStyle: { color: "#64748b60" } } },
       yAxis: { scale: true, splitLine: { lineStyle: { color: "#64748b20" } }, axisLabel: { color: axisColor, fontSize: 10 } },
       series: [
-        { name: "策略净值", type: "line", data: result.curve.strategy, symbol: "none", lineStyle: { width: 2, color: palette[0] }, areaStyle: { color: palette[0] + "22" } },
-        { name: "买入持有", type: "line", data: result.curve.benchmark, symbol: "none", lineStyle: { width: 1.2, type: "dashed", color: palette[3] } },
+        { name: t(CH.strategy), type: "line", data: result.curve.strategy, symbol: "none", lineStyle: { width: 2, color: palette[0] }, areaStyle: { color: palette[0] + "22" } },
+        { name: t(CH.buyHold), type: "line", data: result.curve.benchmark, symbol: "none", lineStyle: { width: 1.2, type: "dashed", color: palette[3] } },
       ],
     };
   }, [result, palette, resolved, axisColor]);
@@ -327,18 +345,18 @@ function BacktestPanel({
   if (!result) return null;
 
   const items: { label: string; value: string; tone?: "up" | "down" }[] = [
-    { label: "策略总收益", value: fmtPct(result.total_return_pct), tone: (result.total_return_pct ?? 0) >= 0 ? "up" : "down" },
-    { label: "同期买入持有", value: fmtPct(result.benchmark_return_pct), tone: (result.benchmark_return_pct ?? 0) >= 0 ? "up" : "down" },
-    { label: "最大回撤", value: fmtPct(result.max_drawdown_pct), tone: "down" },
-    { label: "夏普比率", value: result.sharpe !== null && result.sharpe !== undefined ? result.sharpe.toFixed(2) : "—" },
+    { label: t("research.b.totalReturn"), value: fmtPct(result.total_return_pct), tone: (result.total_return_pct ?? 0) >= 0 ? "up" : "down" },
+    { label: t("research.b.benchmark"), value: fmtPct(result.benchmark_return_pct), tone: (result.benchmark_return_pct ?? 0) >= 0 ? "up" : "down" },
+    { label: t("research.b.maxDrawdown"), value: fmtPct(result.max_drawdown_pct), tone: "down" },
+    { label: t("research.b.sharpe"), value: result.sharpe !== null && result.sharpe !== undefined ? result.sharpe.toFixed(2) : "—" },
     ...(strategy === "ma_cross"
       ? [
-          { label: "胜率", value: result.win_rate_pct !== null && result.win_rate_pct !== undefined ? `${result.win_rate_pct}%` : "—" },
-          { label: "交易回合", value: `${result.rounds ?? 0}` },
+          { label: t("research.b.winRate"), value: result.win_rate_pct !== null && result.win_rate_pct !== undefined ? `${result.win_rate_pct}%` : "—" },
+          { label: t("research.b.rounds"), value: `${result.rounds ?? 0}` },
         ]
       : [
-          { label: "累计投入", value: fmtMoney(result.total_invested ?? 0, false, true) },
-          { label: "期末市值", value: fmtMoney(result.final_value ?? 0, false, true) },
+          { label: t("research.b.invested"), value: fmtMoney(result.total_invested ?? 0, false, true) },
+          { label: t("research.b.finalValue"), value: fmtMoney(result.final_value ?? 0, false, true) },
         ]),
   ];
 
@@ -428,14 +446,15 @@ function BacktestPanel({
           <div className="max-h-40 overflow-auto">
             <Table size="xs">
               <tbody>
-                {pairs.map((t, i) => (
-                  <tr key={`${t.date}-${i}`} className="border-b border-border/40 last:border-0">
-                    <td className="px-3 py-1 tabular-nums text-muted-foreground">{t.date}</td>
-                    <td className={cn("px-3 py-1 font-medium", t.action === "buy" ? "text-up" : "text-down")}>
-                      {t.action === "buy" ? "买入" : "卖出"}
+                {/* 变量不能叫 t：本组件用 t() 取文案，同名会把 trade 对象当函数调 */}
+                {pairs.map((trade, i) => (
+                  <tr key={`${trade.date}-${i}`} className="border-b border-border/40 last:border-0">
+                    <td className="px-3 py-1 tabular-nums text-muted-foreground">{trade.date}</td>
+                    <td className={cn("px-3 py-1 font-medium", trade.action === "buy" ? "text-up" : "text-down")}>
+                      {trade.action === "buy" ? t("research.buy") : t("research.sell")}
                     </td>
-                    <td className="px-3 py-1 text-right tabular-nums">{fmtMoney(t.price)}</td>
-                    <td className="px-3 py-1 text-right tabular-nums text-muted-foreground">{fmtMoney(t.amount)}</td>
+                    <td className="px-3 py-1 text-right tabular-nums">{fmtMoney(trade.price)}</td>
+                    <td className="px-3 py-1 text-right tabular-nums text-muted-foreground">{fmtMoney(trade.amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -503,8 +522,8 @@ export function ResearchPage() {
         <div className="flex flex-col gap-4">
           <EmptyState
             illustration="search"
-            title="技术面数据不可用"
-            desc={analyze.data.reason ?? "行情源不可用"}
+            title={t("research.techUnavailable")}
+            desc={analyze.data.reason ?? t("research.quoteUnavailable")}
           />
           <Card className="p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -513,7 +532,7 @@ export function ResearchPage() {
                 策略回测
               </div>
               <div className="flex gap-1 rounded-lg bg-muted/40 p-1 text-xs">
-                {(Object.keys(STRATEGY_LABELS) as StrategyId[]).map((s) => (
+                {(Object.keys(STRATEGY_LABEL_KEYS) as StrategyId[]).map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -523,7 +542,7 @@ export function ResearchPage() {
                       strategy === s ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    {STRATEGY_LABELS[s]}
+                    {t(STRATEGY_LABEL_KEYS[s])}
                   </button>
                 ))}
               </div>
@@ -545,23 +564,23 @@ export function ResearchPage() {
             <StatCell
               label={`${quote?.name || submitted} (${submitted})`}
               value={quote?.price != null ? fmtMoney(quote.price) : "—"}
-              sub={quote?.source === "eastmoney" ? "东方财富实时" : "行情快照"}
+              sub={quote?.source === "eastmoney" ? t("research.quoteLive") : t("research.quoteSnapshot")}
               tone={quote && quote.change_pct != null ? (quote.change_pct >= 0 ? "up" : "down") : "default"}
               emphasis
             />
             <StatCell
-              label="涨跌幅"
+              label={t("research.change")}
               value={quote?.change_pct != null ? fmtPct(quote.change_pct, true) : "—"}
               tone={quote && quote.change_pct != null ? (quote.change_pct >= 0 ? "up" : "down") : "default"}
             />
-            <StatCell label="RSI(14)" value={tech.last.rsi != null ? tech.last.rsi.toFixed(1) : "—"} sub={tech.last.rsi != null ? (tech.last.rsi > 70 ? "超买区" : tech.last.rsi < 30 ? "超卖区" : "中性区") : undefined} />
+            <StatCell label="RSI(14)" value={tech.last.rsi != null ? tech.last.rsi.toFixed(1) : "—"} sub={tech.last.rsi != null ? (tech.last.rsi > 70 ? t("research.rsi.overbought") : tech.last.rsi < 30 ? t("research.rsi.oversold") : t("research.rsi.neutral")) : undefined} />
             <StatCell label="MACD" value={tech.last.hist != null ? fmtMoney(tech.last.hist) : "—"} sub={tech.last.dif != null && tech.last.dea != null ? `DIF ${tech.last.dif.toFixed(3)} / DEA ${tech.last.dea.toFixed(3)}` : undefined} tone={tech.last.hist != null ? (tech.last.hist >= 0 ? "up" : "down") : "default"} />
-            <StatCell label="MA20" value={tech.last.ma.ma20 != null ? fmtMoney(tech.last.ma.ma20) : "—"} sub={tech.last.ma.ma20 != null ? (tech.last.close >= tech.last.ma.ma20 ? "价格在其上" : "价格在其下") : undefined} tone={tech.last.ma.ma20 != null ? (tech.last.close >= tech.last.ma.ma20 ? "up" : "down") : "default"} />
+            <StatCell label="MA20" value={tech.last.ma.ma20 != null ? fmtMoney(tech.last.ma.ma20) : "—"} sub={tech.last.ma.ma20 != null ? (tech.last.close >= tech.last.ma.ma20 ? t("research.aboveMa20") : t("research.belowMa20")) : undefined} tone={tech.last.ma.ma20 != null ? (tech.last.close >= tech.last.ma.ma20 ? "up" : "down") : "default"} />
             <div className="flex min-w-0 items-center justify-center px-3">
               {bias ? (
                 <Badge className={cn("gap-1", bias.cls)}>
                   {tech.bias === "bull" ? <TrendingUp className="h-3.5 w-3.5" /> : tech.bias === "bear" ? <TrendingDown className="h-3.5 w-3.5" /> : <Activity className="h-3.5 w-3.5" />}
-                  {bias.label} · {tech.bull_count}多/{tech.bear_count}空
+                  {t(bias.labelKey)} · {tech.bull_count}多/{tech.bear_count}空
                 </Badge>
               ) : null}
             </div>
@@ -580,14 +599,14 @@ export function ResearchPage() {
               tone={tech.last.close >= (tech.last.ma.ma20 ?? Infinity) ? "up" : "down"}
             />
             <TechnicalCard
-              label="布林带位置"
+              label={t("research.bollPos")}
               value={
                 tech.last.boll.upper != null && tech.last.boll.lower != null
                   ? tech.last.close > tech.last.boll.upper
-                    ? "突破上轨"
+                    ? t("research.bollBreakUp")
                     : tech.last.close < tech.last.boll.lower
-                      ? "跌破下轨"
-                      : "带内运行"
+                      ? t("research.bollBreakDown")
+                      : t("research.bollInside")
                   : "—"
               }
               hint={
@@ -612,7 +631,7 @@ export function ResearchPage() {
               tone={tech.last.kdj.k != null && tech.last.kdj.d != null ? (tech.last.kdj.k > tech.last.kdj.d ? "up" : "down") : "muted"}
             />
             <TechnicalCard
-              label="数据量"
+              label={t("research.volumeLabel")}
               value={`${tech.point_count} 根`}
               hint={`识别 ${tech.signals.length} 条信号`}
               tone="muted"
@@ -624,7 +643,7 @@ export function ResearchPage() {
             {seriesWithOhlc ? (
               <KlineChart series={seriesWithOhlc} period={period} onPeriod={setPeriod} />
             ) : (
-              <EmptyState illustration="search" mode="compact" text="K 线数据不可用" />
+              <EmptyState illustration="search" mode="compact" text={t("research.klineUnavailable")} />
             )}
           </Card>
 
@@ -682,7 +701,7 @@ export function ResearchPage() {
                 策略回测
               </div>
               <div className="flex gap-1 rounded-lg bg-muted/40 p-1 text-xs">
-                {(Object.keys(STRATEGY_LABELS) as StrategyId[]).map((s) => (
+                {(Object.keys(STRATEGY_LABEL_KEYS) as StrategyId[]).map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -692,7 +711,7 @@ export function ResearchPage() {
                       strategy === s ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    {STRATEGY_LABELS[s]}
+                    {t(STRATEGY_LABEL_KEYS[s])}
                   </button>
                 ))}
               </div>

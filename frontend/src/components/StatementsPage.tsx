@@ -148,11 +148,11 @@ function RadarChart({ latest }: { latest: Record<string, number | null> }) {
   const option = useMemo(() => {
     // 五维盈利/效率形状（量纲一致：百分比）
     const dims: { name: string; value: number | null; max: number }[] = [
-      { name: "毛利率", value: latest.gross_margin_pct, max: 60 },
-      { name: "净利率", value: latest.net_margin_pct, max: 30 },
+      { name: t("stmt.m.gross"), value: latest.gross_margin_pct, max: 60 },
+      { name: t("stmt.m.net"), value: latest.net_margin_pct, max: 30 },
       { name: "ROE", value: latest.roe_pct, max: 30 },
-      { name: "营业利润率", value: latest.operating_margin_pct, max: 30 },
-      { name: "现金营收比", value: latest.ocf_ratio_pct, max: 30 },
+      { name: t("stmt.m.op"), value: latest.operating_margin_pct, max: 30 },
+      { name: t("stmt.m.ocfRatio"), value: latest.ocf_ratio_pct, max: 30 },
     ];
     const values = dims.map((d) => (d.value != null ? Math.min(100, Math.max(0, (d.value / d.max) * 100)) : 0));
     return {
@@ -170,7 +170,7 @@ function RadarChart({ latest }: { latest: Record<string, number | null> }) {
       series: [
         {
           type: "radar",
-          data: [{ value: values, name: "最新期", areaStyle: { color: palette[0] + "33" }, lineStyle: { color: palette[0] }, itemStyle: { color: palette[0] } }],
+          data: [{ value: values, name: t("stmt.chart.latest"), areaStyle: { color: palette[0] + "33" }, lineStyle: { color: palette[0] }, itemStyle: { color: palette[0] } }],
         },
       ],
       legend: { show: false },
@@ -183,7 +183,7 @@ function RadarChart({ latest }: { latest: Record<string, number | null> }) {
     <div className="flex flex-col">
       <div className="mb-1 text-sm font-medium">{t("stmt2.n1")}</div>
       <div ref={ref} className="h-[240px] w-full" />
-      <div className="text-[11px] text-muted-foreground/70">雷达值为五维指标相对满分（毛利率 60%、其余 30%）的归一位置，用于看盈利结构形状，非绝对评分。</div>
+      <div className="text-[11px] text-muted-foreground/70">{t("stmt.radarHint")}</div>
     </div>
   );
 }
@@ -243,7 +243,7 @@ function CashflowStackChart({ result }: { result: StatementAnalysis }) {
             (stack.operating[n] ?? 0) + (stack.investing[n] ?? 0) + (stack.financing[n] ?? 0);
           return total !== 0
             ? `最新期现金净增加额约 ${fmtMoney(total, true, true)}（经营+投资+筹资）`
-            : "最新期三流数据缺失，无法汇总净增加额";
+            : t("stmt.cfMissing");
         })()}
       </div>
     </div>
@@ -261,9 +261,9 @@ function DupontChart({ dupont }: { dupont: StatementAnalysis["dupont"] }) {
   const option = useMemo(() => {
     // 三因子统一归一（%）：净利率直接用 %；周转率 ×100 转 %；权益乘数 ×100 转 %
     const rows: { name: string; value: number | null; max: number }[] = [
-      { name: "净利率", value: dupont.net_margin_pct, max: 40 },
-      { name: "总资产周转率", value: dupont.asset_turnover != null ? dupont.asset_turnover * 100 : null, max: 200 },
-      { name: "权益乘数", value: dupont.equity_multiplier != null ? dupont.equity_multiplier * 100 : null, max: 300 },
+      { name: t("stmt.m.net"), value: dupont.net_margin_pct, max: 40 },
+      { name: t("stmt.m.assetTurnover"), value: dupont.asset_turnover != null ? dupont.asset_turnover * 100 : null, max: 200 },
+      { name: t("stmt.m.equityMultiplier"), value: dupont.equity_multiplier != null ? dupont.equity_multiplier * 100 : null, max: 300 },
     ];
     return {
       backgroundColor: "transparent",
@@ -273,7 +273,7 @@ function DupontChart({ dupont }: { dupont: StatementAnalysis["dupont"] }) {
         axisPointer: { type: "shadow" },
         backgroundColor: resolved === "dark" ? "#1e293b" : "#fff",
         textStyle: { color: resolved === "dark" ? "#e2e8f0" : "#0f172a" },
-        valueFormatter: (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}（归一%）`),
+        valueFormatter: (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}${t("stmt.normalized")}`),
       },
       grid: { left: 16, right: 90, top: 16, bottom: 16, containLabel: true },
       xAxis: { type: "value", axisLabel: { show: false }, splitLine: { show: false } },
@@ -296,9 +296,9 @@ function DupontChart({ dupont }: { dupont: StatementAnalysis["dupont"] }) {
               const r = rows[p.dataIndex];
               if (r.value == null) return "—";
               const name = r.name;
-              return name === "净利率"
+              return name === t("stmt.m.net")
                 ? `${dupont.net_margin_pct?.toFixed(2)}%`
-                : name === "总资产周转率"
+                : name === t("stmt.m.assetTurnover")
                   ? `${dupont.asset_turnover?.toFixed(2)} 次`
                   : `${dupont.equity_multiplier?.toFixed(2)} 倍`;
             },
@@ -320,41 +320,47 @@ function DupontChart({ dupont }: { dupont: StatementAnalysis["dupont"] }) {
         </span>
         <span className="text-muted-foreground">×</span>
         <span>
-          {t("stmt.m11")} <b className="tabular-nums">{dupont.asset_turnover != null ? `${dupont.asset_turnover} 次` : "—"}</b>
+          {t("stmt.m11")} <b className="tabular-nums">{dupont.asset_turnover != null ? `${dupont.asset_turnover}${t("stmt.unitTimes")}` : "—"}</b>
         </span>
         <span className="text-muted-foreground">×</span>
         <span>
-          {t("stmt.m12")} <b className="tabular-nums">{dupont.equity_multiplier != null ? `${dupont.equity_multiplier} 倍` : "—"}</b>
+          {t("stmt.m12")} <b className="tabular-nums">{dupont.equity_multiplier != null ? `${dupont.equity_multiplier}${t("stmt.unitX")}` : "—"}</b>
         </span>
         <span className="text-muted-foreground">=</span>
         <span>
           ROE <b className="tabular-nums text-up">{dupont.roe_pct != null ? `${dupont.roe_pct}%` : "—"}</b>
         </span>
-        {!dupont.complete ? <span className="text-[11px] text-amber-500/90">（部分因子数据缺失，拆解不完整）</span> : null}
+        {!dupont.complete ? <span className="text-[11px] text-amber-500/90">{t("stmt.dupontPartial")}</span> : null}
       </div>
     </div>
   );
 }
 
 /** 多期指标对比明细表：periods × 关键指标 */
-const TABLE_ROWS: { label: string; key: string; fmt?: (v: number | null) => string }[] = [
-  { label: "营业收入", key: "revenue", fmt: (v) => fmtMoney(v ?? 0, true, true) },
-  { label: "净利润", key: "net_profit", fmt: (v) => fmtMoney(v ?? 0, true, true) },
-  { label: "毛利率", key: "gross_margin_pct", fmt: (v) => fmtPct(v) },
-  { label: "净利率", key: "net_margin_pct", fmt: (v) => fmtPct(v) },
-  { label: "ROE", key: "roe_pct", fmt: (v) => fmtPct(v) },
-  { label: "ROA", key: "roa_pct", fmt: (v) => fmtPct(v) },
-  { label: "资产负债率", key: "debt_ratio_pct", fmt: (v) => fmtPct(v) },
-  { label: "流动比率", key: "current_ratio", fmt: (v) => fmt(v) },
-  { label: "速动比率", key: "quick_ratio", fmt: (v) => fmt(v) },
-  { label: "总资产周转率", key: "asset_turnover", fmt: (v) => fmt(v, " 次") },
-  { label: "经营现金流", key: "ocf", fmt: (v) => fmtMoney(v ?? 0, true, true) },
-  { label: "现金营收比", key: "ocf_ratio_pct", fmt: (v) => fmtPct(v) },
-  { label: "营收同比", key: "revenue_yoy_pct", fmt: (v) => fmtPct(v, true) },
-  { label: "净利同比", key: "net_profit_yoy_pct", fmt: (v) => fmtPct(v, true) },
+const TABLE_ROWS: {
+  labelKey: string;
+  key: string;
+  /** 单位也要 i18n，所以把 t 传进来；模块级常量自己拿不到 hook */
+  fmt?: (v: number | null, t: (k: string) => string) => string;
+}[] = [
+  { labelKey: "stmt.m.revenue", key: "revenue", fmt: (v) => fmtMoney(v ?? 0, true, true) },
+  { labelKey: "stmt.m.netProfit", key: "net_profit", fmt: (v) => fmtMoney(v ?? 0, true, true) },
+  { labelKey: "stmt.m.gross", key: "gross_margin_pct", fmt: (v) => fmtPct(v) },
+  { labelKey: "stmt.m.net", key: "net_margin_pct", fmt: (v) => fmtPct(v) },
+  { labelKey: "stmt.m.roe", key: "roe_pct", fmt: (v) => fmtPct(v) },
+  { labelKey: "stmt.m.roa", key: "roa_pct", fmt: (v) => fmtPct(v) },
+  { labelKey: "stmt.m.debtRatio", key: "debt_ratio_pct", fmt: (v) => fmtPct(v) },
+  { labelKey: "stmt.m.currentRatio", key: "current_ratio", fmt: (v) => fmt(v) },
+  { labelKey: "stmt.m.quickRatio", key: "quick_ratio", fmt: (v) => fmt(v) },
+  { labelKey: "stmt.m.assetTurnover", key: "asset_turnover", fmt: (v, t) => fmt(v, t("stmt.unitTimes")) },
+  { labelKey: "stmt.m.ocf", key: "ocf", fmt: (v) => fmtMoney(v ?? 0, true, true) },
+  { labelKey: "stmt.m.ocfRatio", key: "ocf_ratio_pct", fmt: (v) => fmtPct(v) },
+  { labelKey: "stmt.m.revenueYoy", key: "revenue_yoy_pct", fmt: (v) => fmtPct(v, true) },
+  { labelKey: "stmt.m.netProfitYoy", key: "net_profit_yoy_pct", fmt: (v) => fmtPct(v, true) },
 ];
 
 function ComparisonTable({ result }: { result: StatementAnalysis }) {
+  const { t } = useI18n();
   const periods = result.periods;
   return (
     <div className="overflow-hidden rounded-lg border border-border/70">
@@ -365,7 +371,7 @@ function ComparisonTable({ result }: { result: StatementAnalysis }) {
         <Table size="xs">
           <thead className="sticky top-0 bg-muted/40 text-left text-[11px] text-muted-foreground">
             <tr>
-              <th className="px-3 py-1.5 font-medium">指标</th>
+              <th className="px-3 py-1.5 font-medium">{t("stmt.metric")}</th>
               {periods.map((p) => (
                 <th key={p.period} className="px-3 py-1.5 text-right font-medium tabular-nums">{p.period}</th>
               ))}
@@ -374,10 +380,10 @@ function ComparisonTable({ result }: { result: StatementAnalysis }) {
           <tbody>
             {TABLE_ROWS.map((row) => (
               <tr key={row.key} className="border-b border-border/40 last:border-0">
-                <td className="px-3 py-1 text-muted-foreground">{row.label}</td>
+                <td className="px-3 py-1 text-muted-foreground">{t(row.labelKey)}</td>
                 {periods.map((p) => {
                   const v = (p.metrics[row.key] as number | null) ?? null;
-                  const text = row.fmt ? row.fmt(v) : fmt(v);
+                  const text = row.fmt ? row.fmt(v, t) : fmt(v);
                   return (
                     <td key={p.period} className={cn("px-3 py-1 text-right tabular-nums", (row.key === "revenue_yoy_pct" || row.key === "net_profit_yoy_pct" || row.key === "ocf" || row.key === "roe_pct") && v != null ? (v >= 0 ? "text-up" : "text-down") : undefined)}>
                       {text}
@@ -426,7 +432,7 @@ export function StatementsPage() {
       analyze.mutate(parsed);
     } catch (e) {
       setPayload(null);
-      setJsonError(errMsg(e, "JSON 解析失败"));
+      setJsonError(errMsg(e, t("stmt.jsonError")));
     }
   };
 
@@ -434,40 +440,40 @@ export function StatementsPage() {
 
   const groups: { title: string; items: { label: string; key: string; fmt?: (v: number | null) => string; tone?: "up" | "down" | "muted" }[] }[] = [
     {
-      title: "盈利能力",
+      title: t("stmt.k.profitability"),
       items: [
-        { label: "毛利率", key: "gross_margin_pct", fmt: (v) => fmtPct(v) },
-        { label: "净利率", key: "net_margin_pct", fmt: (v) => fmtPct(v) },
+        { label: t("stmt.m.gross"), key: "gross_margin_pct", fmt: (v) => fmtPct(v) },
+        { label: t("stmt.m.net"), key: "net_margin_pct", fmt: (v) => fmtPct(v) },
         { label: "ROE", key: "roe_pct", fmt: (v) => fmtPct(v) },
         { label: "ROA", key: "roa_pct", fmt: (v) => fmtPct(v) },
-        { label: "营业利润率", key: "operating_margin_pct", fmt: (v) => fmtPct(v) },
+        { label: t("stmt.m.op"), key: "operating_margin_pct", fmt: (v) => fmtPct(v) },
       ],
     },
     {
-      title: "偿债能力",
+      title: t("stmt.k.solvency"),
       items: [
-        { label: "资产负债率", key: "debt_ratio_pct", fmt: (v) => fmtPct(v), tone: "down" },
-        { label: "流动比率", key: "current_ratio", fmt: (v) => fmt(v) },
-        { label: "速动比率", key: "quick_ratio", fmt: (v) => fmt(v) },
-        { label: "利息保障倍数", key: "interest_coverage", fmt: (v) => fmt(v) },
+        { label: t("stmt.m.debtRatio"), key: "debt_ratio_pct", fmt: (v) => fmtPct(v), tone: "down" },
+        { label: t("stmt.m.currentRatio"), key: "current_ratio", fmt: (v) => fmt(v) },
+        { label: t("stmt.m.quickRatio"), key: "quick_ratio", fmt: (v) => fmt(v) },
+        { label: t("stmt.m.interestCoverage"), key: "interest_coverage", fmt: (v) => fmt(v) },
       ],
     },
     {
-      title: "营运能力",
+      title: t("stmt.k.operation"),
       items: [
-        { label: "总资产周转率", key: "asset_turnover", fmt: (v) => fmt(v, " 次") },
-        { label: "存货周转率", key: "inventory_turnover", fmt: (v) => fmt(v, " 次") },
-        { label: "应收账款周转率", key: "receivables_turnover", fmt: (v) => fmt(v, " 次") },
+        { label: t("stmt.m.assetTurnover"), key: "asset_turnover", fmt: (v) => fmt(v, t("stmt.unitTimes")) },
+        { label: t("stmt.m.inventoryTurnover"), key: "inventory_turnover", fmt: (v) => fmt(v, t("stmt.unitTimes")) },
+        { label: t("stmt.m.receivablesTurnover"), key: "receivables_turnover", fmt: (v) => fmt(v, t("stmt.unitTimes")) },
       ],
     },
     {
-      title: "现金流质量",
+      title: t("stmt.k.cashflow"),
       items: [
-        { label: "经营现金流", key: "ocf", fmt: (v) => fmtMoney(v ?? 0, true, true), tone: (latest.ocf ?? 0) >= 0 ? "up" : "down" },
-        { label: "现金营收比", key: "ocf_ratio_pct", fmt: (v) => fmtPct(v) },
-        { label: "利润含金量", key: "ocf_to_np", fmt: (v) => fmt(v), tone: (latest.ocf_to_np ?? 0) >= 0.5 ? "up" : "down" },
-        { label: "营收同比", key: "revenue_yoy_pct", fmt: (v) => fmtPct(v, true), tone: (latest.revenue_yoy_pct ?? 0) >= 0 ? "up" : "down" },
-        { label: "净利同比", key: "net_profit_yoy_pct", fmt: (v) => fmtPct(v, true), tone: (latest.net_profit_yoy_pct ?? 0) >= 0 ? "up" : "down" },
+        { label: t("stmt.m.ocf"), key: "ocf", fmt: (v) => fmtMoney(v ?? 0, true, true), tone: (latest.ocf ?? 0) >= 0 ? "up" : "down" },
+        { label: t("stmt.m.ocfRatio"), key: "ocf_ratio_pct", fmt: (v) => fmtPct(v) },
+        { label: t("stmt.m.ocfToNp"), key: "ocf_to_np", fmt: (v) => fmt(v), tone: (latest.ocf_to_np ?? 0) >= 0.5 ? "up" : "down" },
+        { label: t("stmt.m.revenueYoy"), key: "revenue_yoy_pct", fmt: (v) => fmtPct(v, true), tone: (latest.revenue_yoy_pct ?? 0) >= 0 ? "up" : "down" },
+        { label: t("stmt.m.netProfitYoy"), key: "net_profit_yoy_pct", fmt: (v) => fmtPct(v, true), tone: (latest.net_profit_yoy_pct ?? 0) >= 0 ? "up" : "down" },
       ],
     },
   ];
@@ -562,7 +568,7 @@ export function StatementsPage() {
           ))}
         </div>
       ) : jsonError ? (
-        <EmptyState icon={<AlertTriangle className="h-8 w-8 text-red-500/60" />} title="JSON 解析失败" desc={jsonError} />
+        <EmptyState icon={<AlertTriangle className="h-8 w-8 text-red-500/60" />} title={t("stmt.jsonError")} desc={jsonError} />
       ) : parsingError ? (
         <EmptyState icon={<AlertTriangle className="h-8 w-8 text-red-500/60" />} title={t("stmt.m18")} desc={parsingError} />
       ) : result ? (
@@ -612,40 +618,40 @@ export function StatementsPage() {
           <div className="grid gap-3 lg:grid-cols-2">
             <Card className="p-3">
               <TrendChart
-                title="营收 & 净利润（元）"
+                title={t("stmt.chart.titleRp")}
                 periods={result.trends.periods}
                 series={[
-                  { name: "营收", data: result.trends.revenue },
-                  { name: "净利润", data: result.trends.net_profit, secondary: true },
+                  { name: t("stmt.chart.revenue"), data: result.trends.revenue },
+                  { name: t("stmt.m.netProfit"), data: result.trends.net_profit, secondary: true },
                 ]}
               />
             </Card>
             <Card className="p-3">
               <TrendChart
-                title="盈利比率趋势（%）"
+                title={t("stmt.chart.titleMargin")}
                 periods={result.trends.periods}
                 series={[
-                  { name: "毛利率", data: result.trends.gross_margin },
-                  { name: "净利率", data: result.trends.net_margin, secondary: true },
+                  { name: t("stmt.m.gross"), data: result.trends.gross_margin },
+                  { name: t("stmt.m.net"), data: result.trends.net_margin, secondary: true },
                   { name: "ROE", data: result.trends.roe, secondary: true },
                 ]}
               />
             </Card>
             <Card className="p-3">
               <TrendChart
-                title="偿债能力趋势"
+                title={t("stmt.chart.titleSolvency")}
                 periods={result.trends.periods}
                 series={[
-                  { name: "资产负债率(%)", data: result.trends.debt_ratio },
-                  { name: "流动比率", data: result.trends.current_ratio, secondary: true },
+                  { name: t("stmt.chart.debtRatioPct"), data: result.trends.debt_ratio },
+                  { name: t("stmt.m.currentRatio"), data: result.trends.current_ratio, secondary: true },
                 ]}
               />
             </Card>
             <Card className="p-3">
               <TrendChart
-                title="经营现金流（元）"
+                title={t("stmt.chart.titleOcf")}
                 periods={result.trends.periods}
-                series={[{ name: "经营现金流", data: result.trends.ocf }]}
+                series={[{ name: t("stmt.m.ocf"), data: result.trends.ocf }]}
               />
             </Card>
           </div>
@@ -682,7 +688,7 @@ export function StatementsPage() {
                 {result.alerts.map((a, i) => (
                   <div key={`${a.code}-${i}`} className="flex items-start gap-2 text-[13px]">
                     <Badge className={cn("mt-0.5 shrink-0", a.level === "bad" ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400")}>
-                      {a.level === "bad" ? "风险" : "关注"}
+                      {a.level === "bad" ? t("stmt.risk") : t("stmt.watch")}
                     </Badge>
                     <span className="leading-relaxed text-foreground/90">{a.text}</span>
                   </div>
@@ -691,13 +697,13 @@ export function StatementsPage() {
             </Card>
           ) : (
             <Card className="p-3">
-              <div className="text-sm text-emerald-600 dark:text-emerald-400">✓ 未发现明显异常预警项</div>
+              <div className="text-sm text-emerald-600 dark:text-emerald-400">{t("stmt.noWarnings")}</div>
             </Card>
           )}
 
           {/* 报告 */}
           <Card className="p-3">
-            <div className="mb-1 text-sm font-medium">分析报告</div>
+            <div className="mb-1 text-sm font-medium">{t("stmt.report")}</div>
             <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-muted-foreground">{result.report_text}</pre>
           </Card>
         </>
