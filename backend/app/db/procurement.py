@@ -19,10 +19,6 @@ from ._core import _conn, fetch_all, fetch_one, get_write_lock
 from .gl import gl_create_entry, gl_delete_draft_entry, gl_get_account
 
 
-def _row(value: Any) -> dict[str, Any] | None:
-    return dict(value) if value is not None else None
-
-
 def _amount(data: dict[str, Any]) -> dict[str, Any]:
     result = dict(data)
     for key in ("amount_cents", "tax_cents"):

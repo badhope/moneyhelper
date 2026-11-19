@@ -15,6 +15,7 @@ from typing import Any
 
 from ..timeutil import now_str as _now
 from ._core import _conn, fetch_all, fetch_one
+from ._core import row_dict as _row
 
 ORG_ROLES = ("owner", "admin", "accountant", "approver", "viewer", "member")
 ORG_STATUSES = ("active", "archived")
@@ -28,10 +29,6 @@ def _text(value: Any, limit: int = 60, *, required: bool = True) -> str:
     if not s and required:
         raise ValueError("名称不能为空")
     return s[:limit]
-
-
-def _row(row: Any) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
 
 
 def _status(value: Any) -> str:

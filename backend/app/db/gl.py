@@ -20,12 +20,7 @@ from ..calculations.gl import (
 from ..money import yuan as _money
 from ..timeutil import now_str as _now
 from ._core import _conn, fetch_all, fetch_one, get_write_lock
-
-
-def _row(value: Any) -> dict[str, Any] | None:
-    return dict(value) if value is not None else None
-
-
+from ._core import row_dict as _row
 
 
 def _parse_date(value: Any) -> tuple[str, date]:
