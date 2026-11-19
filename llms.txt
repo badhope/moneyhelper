@@ -7,7 +7,8 @@ Requires Python 3.10+ and Node 20.19+; data is stored in a local SQLite file wit
 ## Docs
 
 - [Moneyhelper](https://raw.githubusercontent.com/badhope/moneyhelper/main/README.md): Bookkeeping, ledger, procurement, reconciliation, portfolio risk and tax, where all numbers come from deterministic code.
-- [Moneyhelper · 能自主干活的 AI 财务部门](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/index.md): Overview of the AI finance department: one-sentence bookkeeping, risk control, tax estimation, with quickstart and MCP integration links.
+- [Moneyhelper · Documentation](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/index.md): Documentation index: quick start, architecture, module map, deployment, MCP and self-check.
+- [Moneyhelper · 文档（中文）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/index.zh.md): 中文文档入口：快速上手、架构、模块清单、部署与自检。
 - [快速开始（15 分钟）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/quickstart.md): Steps to start backend and frontend, record a first entry, and set up the test baseline in 15 minutes.
 - [对话工作流指南（对话即中枢）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/WORKFLOW.md): Chat as the central hub: bookkeeping, quotes, positions, morning report, memory, follow-up handling, and safety boundaries.
 - [命令行（CLI）](https://raw.githubusercontent.com/badhope/moneyhelper/main/docs/cli.md): CLI commands, global parameters, exit codes, and remote/local modes, calling moneyhelper.core directly without HTTP.
