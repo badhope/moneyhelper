@@ -15,7 +15,7 @@ jobs:
     if: github.repository == 'badhope/moneyhelper'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - name: push to gitcode (with retry)
         run: |
@@ -29,7 +29,7 @@ jobs:
     if: github.repository == 'badhope/moneyhelper'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - name: push to gitee (with retry)
         run: |

@@ -14,8 +14,8 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -41,8 +41,8 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -62,7 +62,7 @@ jobs:
     # 二进制/数据集/构建产物。
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: 检查大文件（>1MB）
         run: |
           bad=$(git ls-files -z | xargs -0 -I{} sh -c 'test -f "{}" && s=$(stat -c%s "{}") && [ "$s" -gt 1048576 ] && echo "$s {}"' | sort -rn || true)
@@ -85,7 +85,7 @@ jobs:
     # 就只是"看起来对"。这里在 CI 里真构建、真起容器、真查健康、真验数据卷。
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 构建镜像
         run: docker build -t moneyhelper:ci .
