@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ._shared import sma
+
 MA_WINDOWS = (5, 10, 20, 60)
 MACD_FAST = 12
 MACD_SLOW = 26
@@ -46,21 +48,6 @@ def _num(raw: Any) -> float | None:
         return float(raw)
     except (TypeError, ValueError):
         return None
-
-
-def sma(values: list[float], window: int) -> list[float | None]:
-    """简单移动平均：前 window-1 个位置为 None（数据不足），对齐输入长度。"""
-    out: list[float | None] = [None] * len(values)
-    if window <= 0 or len(values) < window:
-        return out
-    acc = 0.0
-    for i, v in enumerate(values):
-        acc += v
-        if i >= window:
-            acc -= values[i - window]
-        if i >= window - 1:
-            out[i] = round(acc / window, 4)
-    return out
 
 
 def ema(values: list[float], span: int) -> list[float | None]:
@@ -246,7 +233,7 @@ def build_signals(
     signals: list[dict[str, Any]] = []
     closes = [_num(p.get("close")) or 0.0 for p in points]
     volumes = [_num(p.get("volume")) or 0.0 for p in points]
-    ma5_vol = sma(volumes, 5)
+    ma5_vol = sma(volumes, 5, ndigits=4)
     for i in range(1, len(closes)):
         cur_close = closes[i]
         prev_close = closes[i - 1]
@@ -326,7 +313,7 @@ def technical_analysis(points: list[dict[str, Any]]) -> dict[str, Any] | None:
         return None
     closes = _closes(points)
     volumes = [_num(p.get("volume")) or 0.0 for p in points]
-    ma = {f"ma{w}": sma(closes, w) for w in MA_WINDOWS}
+    ma = {f"ma{w}": sma(closes, w, ndigits=4) for w in MA_WINDOWS}
     macd_vals = macd(closes)
     rsi_vals = rsi(closes)
     boll_vals = bollinger(closes)

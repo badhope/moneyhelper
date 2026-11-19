@@ -18,7 +18,7 @@ from typing import Any
 import httpx
 from cachetools import TTLCache
 
-from . import db
+from . import db, symbols
 
 EASTMONEY_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get"
 SINA_URL = "https://hq.sinajs.cn/list="
@@ -30,32 +30,8 @@ _SINA_HEADERS = {
 }
 
 
-def _to_secid(symbol: str) -> str | None:
-    """A股/ETF/场内基金 → 东财 secid；现金与场外基金无法映射返回 None。"""
-    s = symbol.strip().upper()
-    if s == "CASH" or not s.isdigit() or len(s) != 6:
-        return None
-    if s[0] in "65":  # 沪市股票 / 沪市ETF(51/58)
-        return f"1.{s}"
-    if s[0] in "03":
-        return f"0.{s}"
-    if s.startswith(("15", "16")):  # 深市场内基金
-        return f"0.{s}"
-    return None
-
-
-def _to_sina(symbol: str) -> str | None:
-    """A股/ETF/场内基金 → 新浪代码（sh/sz 前缀）；现金与场外基金无法映射返回 None。"""
-    s = symbol.strip().upper()
-    if s == "CASH" or not s.isdigit() or len(s) != 6:
-        return None
-    if s[0] in "65":
-        return f"sh{s}"
-    if s[0] in "03":
-        return f"sz{s}"
-    if s.startswith(("15", "16")):
-        return f"sz{s}"
-    return None
+_to_secid = symbols.to_secid
+_to_sina = symbols.to_sina
 
 
 def _parse_price(raw: Any) -> float | None:

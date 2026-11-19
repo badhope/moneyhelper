@@ -15,8 +15,13 @@
 from __future__ import annotations
 
 
-def sma(values: list[float], window: int) -> list[float | None]:
-    """简单移动均线；前 `window-1` 个点无值（None），不足窗口长度时全 None。"""
+def sma(values: list[float], window: int, ndigits: int | None = None) -> list[float | None]:
+    """简单移动均线；前 `window-1` 个点无值（None），不足窗口长度时全 None。
+
+    `ndigits` 只为技术指标保留：指标页展示的 MA 需要固定到 4 位小数，
+    否则长序列的浮点尾数会让「MA5 = 12.340000000001」直接显示在卡片上。
+    回测/策略不需要截断，保持全精度（截断会累积到收益曲线）。
+    """
     out: list[float | None] = [None] * len(values)
     if window <= 0 or len(values) < window:
         return out
@@ -26,7 +31,8 @@ def sma(values: list[float], window: int) -> list[float | None]:
         if i >= window:
             acc -= values[i - window]
         if i >= window - 1:
-            out[i] = acc / window
+            v = acc / window
+            out[i] = round(v, ndigits) if ndigits is not None else v
     return out
 
 

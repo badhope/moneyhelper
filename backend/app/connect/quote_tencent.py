@@ -20,6 +20,7 @@ from typing import Any
 import httpx
 from cachetools import TTLCache
 
+from .. import symbols
 from ..timeutil import now_iso as _now
 
 _UA = "Mozilla/5.0 (moneyhelper)"
@@ -66,20 +67,7 @@ _breadth_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=4, ttl=6
 
 
 
-def to_tencent(symbol: str) -> str | None:
-    """系统内 symbol → 腾讯代码（sh/sz/bj 前缀）。"""
-    s = str(symbol or "").strip().upper()
-    if s in ("CASH", "") or not s.isdigit() or len(s) != 6:
-        return None
-    if s[0] in "65":
-        return f"sh{s}"
-    if s[0] in "03":
-        return f"sz{s}"
-    if s.startswith(("15", "16")):
-        return f"sz{s}"
-    if s[0] in "489":
-        return f"bj{s}"
-    return None
+to_tencent = symbols.to_tencent
 
 
 def _num(raw: Any) -> float | None:
