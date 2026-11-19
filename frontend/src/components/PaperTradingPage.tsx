@@ -12,6 +12,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Plus, RefreshCw, Trash2, TrendingUp, UserPlus } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -302,7 +303,7 @@ export function PaperTradingPage() {
                 <>
                   <RankingBarChart items={items} />
                   <div className="mt-3 overflow-x-auto scroll-thin">
-                    <table className="w-full min-w-[560px] text-left text-[13px]">
+                    <Table size="sm" minWidth={560} align="left">
                       <thead>
                         <tr className="border-b border-border/70 text-xs text-muted-foreground">
                           <th className="py-2 pr-2 font-medium">{t("paper2.n4")}</th>
@@ -346,7 +347,7 @@ export function PaperTradingPage() {
                           );
                         })}
                       </tbody>
-                    </table>
+                    </Table>
                   </div>
                 </>
               )}
@@ -397,7 +398,7 @@ export function PaperTradingPage() {
                 {/* 持仓表 */}
                 {selected.holdings.length > 0 && (
                   <div className="mt-4 overflow-x-auto scroll-thin">
-                    <table className="w-full min-w-[560px] text-left text-[13px]">
+                    <Table size="sm" minWidth={560} align="left">
                       <thead>
                         <tr className="border-b border-border/70 text-xs text-muted-foreground">
                           <th className="py-2 pr-2 font-medium">{t("paper3.k2")}</th>
@@ -422,7 +423,7 @@ export function PaperTradingPage() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </Table>
                   </div>
                 )}
 
@@ -430,7 +431,7 @@ export function PaperTradingPage() {
                 {detail.data && detail.data.trades.length > 0 && (
                   <div className="mt-4 overflow-x-auto scroll-thin">
                     <div className="mb-1 text-xs font-medium text-muted-foreground">最近交易（最新 60 笔内）</div>
-                    <table className="w-full min-w-[560px] text-left text-[13px]">
+                    <Table size="sm" minWidth={560} align="left">
                       <thead>
                         <tr className="border-b border-border/70 text-xs text-muted-foreground">
                           <th className="py-2 pr-2 font-medium">{t("paper3.k11")}</th>
@@ -459,7 +460,7 @@ export function PaperTradingPage() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </Table>
                   </div>
                 )}
               </div>

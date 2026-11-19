@@ -57,6 +57,7 @@ import {
   StockProfileCard,
 } from "@/components/ConnectDeepPanels";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 import { copyText } from "@/lib/clipboard";
 import { useToast } from "@/lib/toast";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
@@ -623,7 +624,7 @@ export function ConnectPage() {
                 <Skeleton className="h-24 w-full" />
               ) : moversQuery.data?.items?.length ? (
                 <div className="overflow-x-auto scroll-thin">
-                  <table className="w-full table-fixed text-[12px]">
+                  <Table size="xs" fixed>
                     <thead>
                       <tr className="text-left text-[11px] text-muted-foreground">
                         <th className="w-[44%] py-1 pr-2 font-normal">{t("connect.colName")}</th>
@@ -648,7 +649,7 @@ export function ConnectPage() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </Table>
                 </div>
               ) : (
                 <EmptyState mode="compact" text={moversQuery.data?.note || t("connect.noData")} />

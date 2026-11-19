@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
 import type { Position } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 import { KlineDialog } from "@/components/KlineDialog";
 
 type SortKey = "weight" | "market_value" | "pnl" | "pnl_pct";
@@ -78,7 +79,7 @@ export function PositionsTable({
           用容器查询而非视口断点：本组件主要渲染在 400-440px 的侧面板内，
           桌面视口虽宽但面板很窄，md: 视口断点会把 8 列表格挤进面板。 */}
       <div className={cn("scroll-thin hidden overflow-x-auto rounded-lg border border-border bg-card @xl:block", className)}>
-        <table className="w-full border-collapse text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <Table size="xs" collapse style={{ fontVariantNumeric: "tabular-nums" }}>
           <thead>
             <tr className="border-b border-border bg-muted/50">
               <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">{tr("pos.symbol")}</th>
@@ -166,7 +167,7 @@ export function PositionsTable({
               </tr>
             )}
           </tbody>
-        </table>
+        </Table>
       </div>
 
       {/* 窄容器：每持仓一张卡片（整卡可点开 K 线），替代 7 列宽表 */}

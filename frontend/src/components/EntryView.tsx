@@ -8,6 +8,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { ConfirmDialog } from "@/components/ui/confirm";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 import { api, deleteGoal } from "@/lib/api";
 import { useMutate } from "@/lib/use-mutate";
 import { cn, errMsg } from "@/lib/utils";
@@ -418,7 +419,7 @@ function ImportPanel({ onDone }: { onDone: () => void }) {
             {parsed.skipped > 0 && <span className="text-muted-foreground">{tt("entry.skipped", { n: parsed.skipped })}</span>}
           </div>
           <div className="overflow-x-auto scroll-thin">
-            <table className="w-full text-xs">
+            <Table size="xs">
               <thead>
                 <tr className="text-muted-foreground text-left">
                   <th className="py-1 pr-3">{tt("entry.date")}</th>
@@ -437,7 +438,7 @@ function ImportPanel({ onDone }: { onDone: () => void }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
           <div className="mt-2 flex gap-2">
             <Button size="sm" onClick={commit} disabled={doCommit.isPending || parsed.total === 0}>

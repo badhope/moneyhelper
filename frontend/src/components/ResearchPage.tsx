@@ -23,6 +23,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 
 import type { BacktestStrategy } from "@/lib/use-research";
 type StrategyId = BacktestStrategy;
@@ -425,7 +426,7 @@ function BacktestPanel({
             最近交易回合（最多 12 笔）
           </div>
           <div className="max-h-40 overflow-auto">
-            <table className="w-full text-[12px]">
+            <Table size="xs">
               <tbody>
                 {pairs.map((t, i) => (
                   <tr key={`${t.date}-${i}`} className="border-b border-border/40 last:border-0">
@@ -438,7 +439,7 @@ function BacktestPanel({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         </div>
       ) : null}

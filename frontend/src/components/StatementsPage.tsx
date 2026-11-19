@@ -25,6 +25,7 @@ import { useTheme } from "@/lib/theme";
 import { api } from "@/lib/api";
 import { fmtMoney, fmtPct } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 import {
   useStatementAnalyze,
   useStatementDelete,
@@ -357,7 +358,7 @@ function ComparisonTable({ result }: { result: StatementAnalysis }) {
         多期指标对比（{periods.length} 期）
       </div>
       <div className="max-h-80 overflow-auto">
-        <table className="w-full text-[12px]">
+        <Table size="xs">
           <thead className="sticky top-0 bg-muted/40 text-left text-[11px] text-muted-foreground">
             <tr>
               <th className="px-3 py-1.5 font-medium">指标</th>
@@ -382,7 +383,7 @@ function ComparisonTable({ result }: { result: StatementAnalysis }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </div>
     </div>
   );

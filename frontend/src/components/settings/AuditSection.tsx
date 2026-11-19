@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/ui/confirm";
 import { listAudit, clearAudit, type AuditItem } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 import { fmtDate } from "@/lib/format";
 import { Section } from "./shared";
 import { errMsg } from "@/lib/utils";
@@ -86,7 +87,7 @@ export function AuditSection() {
         <div className="text-xs text-muted-foreground py-6 text-center">{t("settings.auditEmpty")}</div>
       ) : (
         <div className="rounded-lg border border-border overflow-auto max-h-96">
-          <table className="w-full text-xs">
+          <Table size="xs">
             <thead className="bg-muted/40 text-muted-foreground sticky top-0">
               <tr>
                 <th className="px-2 py-1.5 text-left">{t("settings.auditTime")}</th>
@@ -109,7 +110,7 @@ export function AuditSection() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
       )}
       <ConfirmDialog

@@ -33,6 +33,7 @@ import { Disclosure } from "@/components/ui/grouped-nav";
 import { AccountSelect } from "@/components/ui/account-select";
 import { fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 import { useToast } from "@/lib/toast";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { cn, errMsg } from "@/lib/utils";
@@ -675,7 +676,7 @@ export function GlPage() {
             <div className="py-2 text-xs text-muted-foreground">{t("gl.noTrial")}</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <Table size="md">
                 <thead>
                   <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
                     <th className="py-1.5 pr-2">{t("gl.code")}</th>
@@ -702,7 +703,7 @@ export function GlPage() {
                     <td />
                   </tr>
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
         </Card>

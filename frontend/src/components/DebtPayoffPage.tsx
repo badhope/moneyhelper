@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Segmented } from "@/components/ui/segmented";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 import { fmtMoney, fmtPct } from "@/lib/format";
 import { cn, errMsg } from "@/lib/utils";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
@@ -245,7 +246,7 @@ export function DebtPayoffPage({ onGoLedger }: { onGoLedger?: () => void }) {
       <Card className="p-[var(--card-pad)]">
         <div className="text-[13px] font-semibold">{t("debts.byDebt")}</div>
         <div className="mt-2 overflow-x-auto scroll-thin">
-          <table className="w-full min-w-[520px] border-collapse text-[12px]">
+          <Table size="xs" collapse minWidth={520}>
             <thead>
               <tr className="border-b border-border text-left text-[11px] text-muted-foreground">
                 <th className="py-1.5 pr-2 font-medium">{t("debts.colName")}</th>
@@ -281,7 +282,7 @@ export function DebtPayoffPage({ onGoLedger }: { onGoLedger?: () => void }) {
                 );
               })}
             </tbody>
-          </table>
+          </Table>
         </div>
       </Card>
 

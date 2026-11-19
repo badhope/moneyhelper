@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Segmented } from "@/components/ui/segmented";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 import { useToast } from "@/lib/toast";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
 import { cn, errMsg } from "@/lib/utils";
@@ -667,7 +668,7 @@ export function HoldingsImportCard() {
             {result.skipped ? ` · ${t("connect.holdingsSkipped", { n: result.skipped })}` : ""}
           </div>
           <div className="mt-1 overflow-x-auto scroll-thin">
-            <table className="w-full text-[11px]">
+            <Table size="2xs">
               <thead>
                 <tr className="text-left text-[10.5px] text-muted-foreground">
                   <th className="py-1 pr-2 font-normal">{t("connect.colName")}</th>
@@ -689,7 +690,7 @@ export function HoldingsImportCard() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
           {result.warnings.length > 0 && (
             <div className="mt-1 space-y-0.5">
@@ -849,7 +850,7 @@ export function PdfStatementCard() {
           ) : null}
           {preview.rows.length ? (
             <div className="mt-1 max-h-40 overflow-y-auto scroll-thin">
-              <table className="w-full text-[11px]">
+              <Table size="2xs">
                 <tbody>
                   {preview.rows.slice(0, 20).map((r, i) => (
                     <tr key={`${r.date}-${i}`} className="border-t border-border/40">
@@ -861,7 +862,7 @@ export function PdfStatementCard() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           ) : null}
         </div>

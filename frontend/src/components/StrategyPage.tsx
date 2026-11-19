@@ -32,6 +32,7 @@ import { useEChart, usePalette, axisLabelColor } from "@/lib/charts";
 import { SandboxCard } from "@/components/SandboxCard";
 import { useTheme } from "@/lib/theme";
 import { useI18n } from "@/lib/i18n";
+import { Table } from "@/components/ui/table";
 import { useDashboard } from "@/lib/store";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -409,7 +410,7 @@ function RebalanceSection() {
         <div className="space-y-2">
           <p className="text-[11px] text-muted-foreground">{t("strategy.editHint")}</p>
           <div className="max-h-72 overflow-y-auto scroll-thin">
-            <table className="w-full text-[12px]">
+            <Table size="xs">
               <tbody>
                 {draft.map((row, i) => (
                   <tr key={row.symbol} className="border-b border-border/40">
@@ -436,7 +437,7 @@ function RebalanceSection() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
           <div className="flex items-center justify-between text-[12px]">
             <span className={cn(totalDraft === 100 ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400")}>
@@ -461,7 +462,7 @@ function RebalanceSection() {
       ) : (
         <>
           <div className="overflow-x-auto scroll-thin">
-            <table className="w-full min-w-[420px] text-[12px]">
+            <Table size="xs" minWidth={420}>
               <thead>
                 <tr className="border-b border-border text-left text-[11px] text-muted-foreground">
                   <th className="py-1.5 pr-2 font-medium">{t("strategy.colName")}</th>
@@ -497,7 +498,7 @@ function RebalanceSection() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
           <ul className="mt-2 space-y-0.5">
             {plan?.notes.map((n, i) => (
@@ -732,7 +733,7 @@ function DcaSection() {
         <EmptyState mode="compact" text={t("strategy.dcaEmpty")} className="py-8" />
       ) : (
         <div className="overflow-x-auto scroll-thin">
-          <table className="w-full min-w-[520px] text-[12px]">
+          <Table size="xs" minWidth={520}>
             <thead>
               <tr className="border-b border-border text-left text-[11px] text-muted-foreground">
                 <th className="py-1.5 pr-2 font-medium">{t("strategy.colName")}</th>
@@ -779,7 +780,7 @@ function DcaSection() {
                 );
               })}
             </tbody>
-          </table>
+          </Table>
         </div>
       )}
 
