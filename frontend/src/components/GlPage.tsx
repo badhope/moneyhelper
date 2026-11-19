@@ -19,9 +19,7 @@ import {
   createGlPeriod,
   deleteGlEntry,
   getGlTrialBalance,
-  listGlAccounts,
   listGlEntries,
-  listGlPeriods,
   postGlEntry,
   reverseGlEntry,
   type GlAccount,
@@ -30,6 +28,7 @@ import {
   type GlTrialBalance,
 } from "@/lib/api";
 import { api } from "@/lib/api";
+import { useLedgerRefs } from "@/lib/use-ledger-refs";
 import { Disclosure } from "@/components/ui/grouped-nav";
 import { AccountSelect } from "@/components/ui/account-select";
 import { fmtMoney } from "@/lib/format";
@@ -68,12 +67,15 @@ export function GlPage() {
   const { toast } = useToast();
   const { can } = useCapabilities();
   const [tab, setTab] = useState<Tab>("entries");
-  const [accounts, setAccounts] = useState<GlAccount[]>([]);
-  const [periods, setPeriods] = useState<GlPeriod[]>([]);
+  // 科目表与期间改由共享查询提供（原先每次进页各自 Promise.all 拉一遍，
+  // 同一次切换里银行对账/报销/采购还会各拉一遍同一份数据）。
+  const refs = useLedgerRefs();
+  const accounts: GlAccount[] = refs.accounts;
+  const periods: GlPeriod[] = refs.periods;
   const [entries, setEntries] = useState<GlEntry[]>([]);
   const [trial, setTrial] = useState<GlTrialBalance | null>(null);
   const [periodId, setPeriodId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const entriesLoading = refs.loading;
   const [version, setVersion] = useState(0);
 
   const [accountForm, setAccountForm] = useState({
@@ -106,26 +108,16 @@ export function GlPage() {
   const canPost = can("gl:post");
   const canClose = can("gl:close");
 
+  // 期间列表来自共享查询：默认选中"当前选择仍有效就保持，否则取最新一期"
   useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    Promise.all([listGlAccounts(), listGlPeriods()])
-      .then(([accs, ps]) => {
-        if (!alive) return;
-        setAccounts(accs);
-        setPeriods(ps);
-        setPeriodId((prev) =>
-          prev && ps.some((p) => p.id === prev) ? prev : ps[0]?.id ?? null,
-        );
-      })
-      .catch((e) => toast(errMsg(e), "error"))
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [toast, version]);
+    const ps = refs.periods;
+    if (!ps.length) return;
+    setPeriodId((prev) => (prev && ps.some((p) => p.id === prev) ? prev : ps[0].id));
+  }, [refs.periods]);
+
+  useEffect(() => {
+    if (refs.error) toast(errMsg(refs.error), "error");
+  }, [refs.error, toast]);
 
   useEffect(() => {
     if (!periodId) {
@@ -155,7 +147,10 @@ export function GlPage() {
     }
   }, [selectedPeriod]);
 
-  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  const refresh = useCallback(() => {
+    refs.invalidate();
+    setVersion((v) => v + 1);
+  }, [refs]);
 
   const doAccount = async () => {
     if (!accountForm.code.trim() || !accountForm.name.trim()) return;
@@ -289,8 +284,8 @@ export function GlPage() {
                 ))}
               </select>
             </div>
-            <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
-              <RefreshCw className={cn("mr-1 h-3.5 w-3.5", loading && "animate-spin")} />
+            <Button size="sm" variant="outline" onClick={refresh} disabled={entriesLoading}>
+              <RefreshCw className={cn("mr-1 h-3.5 w-3.5", entriesLoading && "animate-spin")} />
               {t("settings.refresh")}
             </Button>
           </div>
