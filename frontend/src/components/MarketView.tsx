@@ -16,7 +16,7 @@ import { useDashboard } from "@/lib/store";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 
 interface WatchItem {
   symbol: string;
@@ -87,7 +87,7 @@ export function MarketView() {
       setHits([]);
       invalidateWatchlist();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -96,7 +96,7 @@ export function MarketView() {
       await api(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
       invalidateWatchlist();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

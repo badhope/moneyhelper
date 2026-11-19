@@ -1,3 +1,4 @@
+import { cn, errMsg } from "@/lib/utils";
 import { useCallback, useEffect, useState } from "react";
 import { Building2, Check, ChevronDown, Loader2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -9,7 +10,6 @@ import {
   switchActiveTenant,
   type OrgTenant,
 } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 /**
  * 全局租户切换（切片 7b）。
@@ -60,7 +60,7 @@ export function TenantSwitcher({ onChanged }: { onChanged?: () => void }) {
         toast(t("tenant.switched"), "ok");
         onChanged?.();
       } catch (e) {
-        toast(e instanceof Error ? e.message : t("tenant.switchFailed"), "error");
+        toast(errMsg(e, t("tenant.switchFailed")), "error");
       } finally {
         setBusy(false);
       }

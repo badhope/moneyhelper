@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { useToast } from "@/lib/toast";
 import type { BootstrapData } from "@/lib/types";
 
@@ -208,7 +208,7 @@ export const ChatInput = memo(
                     if (f) {
                       setUploading(true);
                       onAddAttachment?.(f)
-                        .catch((err) => toast(err instanceof Error ? err.message : String(err), "error"))
+                        .catch((err) => toast(errMsg(err), "error"))
                         .finally(() => setUploading(false));
                     }
                     e.target.value = "";

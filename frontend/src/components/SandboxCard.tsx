@@ -13,7 +13,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import { fmtMoney, fmtPct } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { useSandbox, useSandboxBase, type SandboxResult } from "@/lib/use-strategy";
 
 type Kind = "less_spend" | "save_more" | "dca_change" | "one_off";
@@ -66,7 +66,7 @@ export function SandboxCard() {
       setResult(res);
       if (!res.available) toast(res.reason || t("sandbox.unavailable"), "info");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

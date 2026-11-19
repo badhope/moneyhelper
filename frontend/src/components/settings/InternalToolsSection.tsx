@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { Section } from "./shared";
 
 interface InternalTool {
@@ -63,7 +63,7 @@ export function InternalToolsSection() {
       });
       await refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }
@@ -76,7 +76,7 @@ export function InternalToolsSection() {
       setChecks(r.checks);
       toast(r.ok ? t("studio.diagOk") : t("studio.diagIssues"), r.ok ? "ok" : "error");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setChecking(false);
     }
@@ -94,7 +94,7 @@ export function InternalToolsSection() {
         r.findings.length ? "error" : "ok",
       );
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setChecking(false);
     }
@@ -105,7 +105,7 @@ export function InternalToolsSection() {
       await api("/api/studio/watchdog", { method: "POST", body: JSON.stringify({ enabled }) });
       await refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

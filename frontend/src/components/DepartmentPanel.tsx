@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { api, apiStream } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
+import { errMsg } from "@/lib/utils";
 
 /** 工单（与后端 dept_models.order_to_dict 对齐） */
 export interface DeptOrder {
@@ -130,7 +131,7 @@ export function DepartmentPanel({
       );
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
-        toast(e instanceof Error ? e.message : String(e), "error");
+        toast(errMsg(e), "error");
       }
     } finally {
       setRunning(false);
@@ -168,7 +169,7 @@ export function DepartmentPanel({
       }
       void refreshHistory();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

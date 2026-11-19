@@ -7,6 +7,7 @@ import { api, setToken } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import { BrandLogo, BRAND } from "@/lib/brand";
+import { errMsg } from "@/lib/utils";
 
 type Mode = "login" | "register";
 
@@ -43,7 +44,7 @@ export function LoginView({ onAuthed }: { onAuthed: () => void }) {
       }
       onAuthed();
     } catch (ex) {
-      const msg = ex instanceof Error ? ex.message : String(ex);
+      const msg = errMsg(ex);
       setErr(msg.includes("401") ? "用户名或密码错误"
         : msg.includes("409") ? "该用户名已被注册"
         : msg);

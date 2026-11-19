@@ -6,6 +6,7 @@ import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import type { RunRecord, BootstrapData, DashboardData, AgentToolStep, AgentPlanStep, AnswerMeta } from "@/lib/types";
 import type { ChatMessage, StepInfo } from "@/components/ChatMessageBubble";
+import { errMsg } from "@/lib/utils";
 
 let msgSeq = 1;
 const nextMsgId = () => msgSeq++;
@@ -433,7 +434,7 @@ export async function runDecidePending(
     store.bump();
     return {};
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errMsg(err);
     if (/409|失效|过期|已执行|已取消/.test(msg)) {
       patchMsg(m.id, { pendingResult: "expired" });
     } else {

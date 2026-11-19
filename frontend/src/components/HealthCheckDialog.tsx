@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { fetchHealthCheck } from "@/lib/api";
 import type { HealthReport } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
+import { errMsg } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, { text: string; variant: "ok" | "warn" | "danger" }> = {
   good: { text: "hc.good", variant: "ok" },
@@ -24,7 +25,7 @@ export function HealthCheckDialog({ open, onOpenChange }: { open: boolean; onOpe
     setError("");
     fetchHealthCheck(t("hc.locale"))
       .then((r) => alive && setReport(r))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)));
+      .catch((e) => alive && setError(errMsg(e)));
     return () => {
       alive = false;
     };

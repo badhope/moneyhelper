@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { Section } from "./shared";
 
 interface CategoryScore {
@@ -76,7 +76,7 @@ export function EvalSection() {
         setRows(lb.leaderboard ?? []);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errMsg(e));
     } finally {
       setRunning(false);
     }

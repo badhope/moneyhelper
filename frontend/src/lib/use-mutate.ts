@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import { store } from "@/lib/store";
+import { errMsg } from "@/lib/utils";
 
 interface UseMutateOptions<TArgs, TResult> {
   /** 要执行的异步操作（内部会调 api 等） */
@@ -41,7 +42,7 @@ export function useMutate<TArgs, TResult>(opts: UseMutateOptions<TArgs, TResult>
       opts.onSettled?.(res, undefined, args);
     },
     onError: (e: unknown, args) => {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = errMsg(e);
       if (opts.silentError !== true) {
         if (opts.errorKey) {
           // vars 的签名是 (args, result)，成功路径依赖 result 拼文案。

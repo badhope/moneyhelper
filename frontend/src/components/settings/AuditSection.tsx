@@ -7,6 +7,7 @@ import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import { fmtDate } from "@/lib/format";
 import { Section } from "./shared";
+import { errMsg } from "@/lib/utils";
 
 const ACTION_TONE: Record<string, string> = {
   WRITE: "text-blue-600 bg-blue-50/70",
@@ -45,7 +46,7 @@ export function AuditSection() {
       setClearOpen(false);
       void load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

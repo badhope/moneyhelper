@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { HeartPulse, Loader2 } from "lucide-react";
 import { fetchHealthCheck } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import type { HealthReport } from "@/lib/types";
 
 type Status = "good" | "warn" | "bad";
@@ -27,7 +27,7 @@ export function HealthPage() {
     setLoading(true);
     fetchHealthCheck(t("hc.locale"))
       .then((r) => alive && setReport(r))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)))
+      .catch((e) => alive && setError(errMsg(e)))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;

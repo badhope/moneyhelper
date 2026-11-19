@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { Section, inputCls } from "./shared";
 
 interface MarketItem {
@@ -90,7 +90,7 @@ export function MarketplaceSection() {
       await refresh();
       toast(t("studio.installed"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(null);
     }
@@ -103,7 +103,7 @@ export function MarketplaceSection() {
       await refresh();
       toast(t("studio.uninstalled"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(null);
     }
@@ -121,7 +121,7 @@ export function MarketplaceSection() {
       toast(t("studio.installAllDone", { n, mcp: r.mcp_configured?.length ?? 0 }), "ok");
       if (r.errors?.length) toast(t("studio.installPartial", { n: r.errors.length }), "error");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(null);
     }
@@ -145,7 +145,7 @@ export function MarketplaceSection() {
       await refresh();
       setUrl("");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setInstallingRemote(false);
     }

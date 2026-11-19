@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { Section, inputCls, labelCls } from "./shared";
 
 interface McpServer {
@@ -66,7 +66,7 @@ export function PluginsSection() {
       });
       await qc.invalidateQueries({ queryKey: ["/api/mcp/servers"] });
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setSaving(false);
     }
@@ -118,7 +118,7 @@ export function PluginsSection() {
       });
       toast(t("plugins.testOk", { n: (r.tools ?? []).length }), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setTesting(false);
     }
@@ -138,7 +138,7 @@ export function PluginsSection() {
       await qc.invalidateQueries({ queryKey: ["/api/mcp/servers"] });
       toast(enabled ? t("plugins.bulkOn") : t("plugins.bulkOff"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setSaving(false);
     }

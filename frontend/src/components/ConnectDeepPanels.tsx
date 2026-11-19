@@ -24,7 +24,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import {
   useBreadth,
   useConditionals,
@@ -225,7 +225,7 @@ export function PretradeCard() {
     try {
       setResult(await check.mutateAsync({ symbol: form.symbol.trim(), side: form.side, price, shares }));
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
   return (
@@ -338,7 +338,7 @@ export function RiskSettingsCard() {
       setForm({ daily_limit: "", deviation_pct: "", concentration_pct: "" });
       toast(t("connect.saved"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
   return (
@@ -400,7 +400,7 @@ export function ConditionalCard() {
       toast(t("connect.condCreated"), "ok");
       setForm({ ...form, symbol: "", trigger_value: "", price: "" });
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
   return (
@@ -543,7 +543,7 @@ export function InvoiceCard() {
       toast(res.duplicate ? t("connect.invoiceDuplicate") : t("connect.invoiceSaved"), "ok");
       setText("");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
   const summary = q.data?.summary;
@@ -635,7 +635,7 @@ export function HoldingsImportCard() {
         "ok",
       );
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
   return (
@@ -731,7 +731,7 @@ function ImageInvoiceInput({ onParsed }: { onParsed: () => void }) {
       );
       onParsed();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -784,7 +784,7 @@ export function PdfStatementCard() {
     void upload
       .mutateAsync({ file: f, apply: false })
       .then(setPreview)
-      .catch((e) => toast(e instanceof Error ? e.message : String(e), "error"));
+      .catch((e) => toast(errMsg(e), "error"));
   };
 
   const apply = async () => {
@@ -794,7 +794,7 @@ export function PdfStatementCard() {
       setPreview(res);
       toast(t("connect.pdfImported", { n: res.imported ?? 0, d: res.duplicated ?? 0 }), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -1025,7 +1025,7 @@ export function BrokerConfigCard() {
       setForm({});
       toast(t("connect.brokerSaved"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

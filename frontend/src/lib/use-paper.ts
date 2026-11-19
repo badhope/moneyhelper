@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { errMsg } from "@/lib/utils";
 
 export interface PaperAccount {
   account_id: string;
@@ -83,7 +84,7 @@ export function usePaperList() {
       setData(resp);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errMsg(e));
     } finally {
       setLoading(false);
     }
@@ -112,7 +113,7 @@ export function usePaperDetail(accountId: string | null) {
       setData(resp);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errMsg(e));
     } finally {
       setLoading(false);
     }

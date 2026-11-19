@@ -9,6 +9,7 @@ import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import type { BootstrapData, DashboardData } from "@/lib/types";
 import { Section } from "./shared";
+import { errMsg } from "@/lib/utils";
 
 /** 数据与备份（数据源 / 恢复示例 / 导出加密备份 / 导入备份），状态与处理逻辑已下沉 */
 export function DataSection({
@@ -42,7 +43,7 @@ export function DataSection({
       URL.revokeObjectURL(a.href);
       toast(pass ? t("settings.backupEncrypted") : t("settings.backupDownloaded"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -56,7 +57,7 @@ export function DataSection({
       a.click();
       toast(t("settings.reportDownloaded"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -88,7 +89,7 @@ export function DataSection({
       await store.refreshDashboard();
       await store.refreshSessions();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -98,7 +99,7 @@ export function DataSection({
       await store.refreshSessions();
       toast(t("settings.clearDone"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

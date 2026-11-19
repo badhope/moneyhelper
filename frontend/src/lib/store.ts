@@ -11,6 +11,7 @@
  * - store.bump() / refreshXxx() —— 变更后的刷新入口（行为不变）
  */
 
+import { errMsg } from "@/lib/utils";
 import {
   QueryClient,
   useQuery,
@@ -63,7 +64,7 @@ export function useDashboard() {
   return {
     dashboard: q.data ?? null,
     loading: q.isPending,
-    error: q.isError ? (q.error instanceof Error ? q.error.message : String(q.error)) : null,
+    error: q.isError ? (errMsg(q.error)) : null,
     refresh: q.refetch,
   };
 }

@@ -11,6 +11,7 @@ import { fmtDate } from "@/lib/format";
 import { isLevelAlert, levelLabel } from "@/lib/level";
 import type { RunRecord, SchedulerStatus } from "@/lib/types";
 import { Section, inputCls, labelCls } from "./shared";
+import { errMsg } from "@/lib/utils";
 
 /** 每日晨报（生成时间 / 立即生成 / 调度状态 / 历史记录折叠） */
 export function ReportSection({
@@ -51,7 +52,7 @@ export function ReportSection({
     onSettled: (res, e) => {
       if (e) {
         if (e instanceof Error && e.message === "__SKIPPED__") toast(t("settings.reportNoData"), "error");
-        else toast(e instanceof Error ? e.message : String(e), "error");
+        else toast(errMsg(e), "error");
         return;
       }
       if (!res) return;

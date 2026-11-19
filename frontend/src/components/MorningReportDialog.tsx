@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import { isLevelAlert, levelLabel } from "@/lib/level";
+import { errMsg } from "@/lib/utils";
 
 /** 今日晨报侧面板：手动触发一次晨报（AI 生成 + 数据附注；无 AI 时规则降级），
  *  空库不生成（后端 skipped），markdown 渲染展示；右侧滑出，不遮挡对话。 */
@@ -40,7 +41,7 @@ export function MorningReportDialog({
       .catch((e) => {
         if (!alive) return;
         setState({ loading: false });
-        toast(e instanceof Error ? e.message : String(e), "error");
+        toast(errMsg(e), "error");
       });
     return () => {
       alive = false;

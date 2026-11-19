@@ -10,7 +10,7 @@ import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import { api, deleteGoal } from "@/lib/api";
 import { useMutate } from "@/lib/use-mutate";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { store as appStore, useDashboard } from "@/lib/store";
 import { fmtMoney } from "@/lib/format";
 import { GoalsPanel, GoalsList } from "@/components/GoalsPanel";
@@ -80,7 +80,7 @@ function PositionForm({ onDone }: { onDone: () => void }) {
     key: undefined,
     silentError: true,
     onSettled: (_res, e) => {
-      if (e) setErr(e instanceof Error ? e.message : String(e));
+      if (e) setErr(errMsg(e));
       else onDone();
     },
   });
@@ -180,7 +180,7 @@ function EditTransactionForm({
     vars: () => ({ name: f.item }),
     silentError: true,
     onSettled: (_res, e) => {
-      if (e) setErr(e instanceof Error ? e.message : String(e));
+      if (e) setErr(errMsg(e));
       else onDone();
     },
   });
@@ -357,7 +357,7 @@ function ImportPanel({ onDone }: { onDone: () => void }) {
       setParsed(r);
     } catch (e) {
       setParsed(null);
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }
@@ -472,7 +472,7 @@ function DebtForm({ onDone }: { onDone: () => void }) {
       }).then(() => undefined),
     key: undefined,
     onSettled: (_res, e) => {
-      if (e) setErr(e instanceof Error ? e.message : String(e));
+      if (e) setErr(errMsg(e));
       else {
         setF({ name: "", monthly: "", balance: "", rate: "", dueDay: "" });
         onDone();
@@ -538,7 +538,7 @@ function SubscriptionForm({ onDone }: { onDone: () => void }) {
     key: undefined,
     silentError: true,
     onSettled: (_res, e) => {
-      if (e) setErr(e instanceof Error ? e.message : String(e));
+      if (e) setErr(errMsg(e));
       else {
         setF({ name: "", monthly: "", dueDay: "", note: "" });
         onDone();
@@ -649,7 +649,7 @@ export function EntryView() {
         toast(tt("entry.mergeNone"), "ok");
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setMerging(false);
     }

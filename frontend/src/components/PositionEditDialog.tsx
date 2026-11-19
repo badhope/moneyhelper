@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useMutate } from "@/lib/use-mutate";
 import { FieldError } from "@/components/ui/field-error";
 import type { Position } from "@/lib/types";
+import { errMsg } from "@/lib/utils";
 
 const inputCls =
   "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -45,7 +46,7 @@ export function PositionEditDialog({
     vars: (a) => ({ name: a.name }),
     silentError: true,
     onSettled: (_res, e) => {
-      if (e) setErr(e instanceof Error ? e.message : String(e));
+      if (e) setErr(errMsg(e));
       else onDone();
     },
   });

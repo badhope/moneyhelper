@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n";
 import { fmtDate } from "@/lib/format";
 import type { MemoryItem } from "@/lib/types";
 import { Section, inputCls, labelCls } from "./shared";
+import { errMsg } from "@/lib/utils";
 
 /** 长期记忆 + AI 归纳偏好 + 主动遗忘 + 经验库（P1 反思/踩坑复盘） */
 export function MemorySection() {
@@ -50,7 +51,7 @@ export function MemorySection() {
       if (r.ok && r.suggestions?.length) setAiSuggestions(r.suggestions);
       else toast(String(r.error || t("settings.memAiFail")), "error");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setAiBusy(false);
     }
@@ -63,7 +64,7 @@ export function MemorySection() {
       setAiSuggestions((prev) => (prev ? prev.filter((s) => s !== content) : prev));
       void reload();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -77,7 +78,7 @@ export function MemorySection() {
       toast(r.deduped ? t("settings.memDup") : t("settings.memSaved"), "ok");
       void reload();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -90,7 +91,7 @@ export function MemorySection() {
       setForgetOpen(false);
       void reload();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -188,7 +189,7 @@ export function MemorySection() {
                 onClick={() => {
                 void deleteMemory(m.id)
                   .then(reload)
-                  .catch((e) => toast(e instanceof Error ? e.message : String(e), "error"));
+                  .catch((e) => toast(errMsg(e), "error"));
               }}
                 aria-label={t("settings.memDelete", { c: m.content })}
               >
@@ -224,7 +225,7 @@ export function MemorySection() {
               toast(t("settings.memCleared"), "ok");
               void reload();
             })
-            .catch((e) => toast(e instanceof Error ? e.message : String(e), "error"));
+            .catch((e) => toast(errMsg(e), "error"));
         }}
       />
 
@@ -239,7 +240,7 @@ export function MemorySection() {
                   toast(t("settings.reflectionsCleared"), "ok");
                   void reload();
                 })
-                .catch((e) => toast(e instanceof Error ? e.message : String(e), "error"));
+                .catch((e) => toast(errMsg(e), "error"));
             }}>
               {t("settings.reflectionsClear")}
             </Button>
@@ -263,7 +264,7 @@ export function MemorySection() {
                   onClick={() => {
                     void resolveReflection(r.id)
                       .then(reload)
-                      .catch((e) => toast(e instanceof Error ? e.message : String(e), "error"));
+                      .catch((e) => toast(errMsg(e), "error"));
                   }}
                   aria-label={t("settings.reflectionsResolve")}
                   title={t("settings.reflectionsResolve")}

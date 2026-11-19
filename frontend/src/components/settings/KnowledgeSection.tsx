@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { Section } from "./shared";
 
 interface Attachment {
@@ -49,7 +49,7 @@ export function KnowledgeSection() {
       await refresh();
       toast(t("knowledge.added", { name: file.name }), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setUploading(false);
     }
@@ -63,7 +63,7 @@ export function KnowledgeSection() {
       });
       await refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -72,7 +72,7 @@ export function KnowledgeSection() {
       await api(`/api/attachments/${a.id}`, { method: "DELETE" });
       await refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

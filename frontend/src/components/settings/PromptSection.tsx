@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import { Section, inputCls } from "./shared";
+import { errMsg } from "@/lib/utils";
 
 /**
  * 系统提示词：覆盖 agents/supervisor/instructions.md 的内置默认值。
@@ -33,7 +34,7 @@ export function PromptSection() {
       await store.refreshBootstrap();
       toast(t("prompt.saved"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setSaving(false);
     }

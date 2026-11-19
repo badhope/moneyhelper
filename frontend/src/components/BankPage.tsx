@@ -30,7 +30,7 @@ import { fmtDate, fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import { useCapabilities } from "@/lib/use-capabilities";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 
 const inputCls =
   "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -121,7 +121,7 @@ export function BankPage() {
       setPeriods(periodList);
       setRecons(reconList);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setLoading(false);
     }
@@ -143,7 +143,7 @@ export function BankPage() {
       toast(t("bank.created"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -163,7 +163,7 @@ export function BankPage() {
       toast(t("bank.created"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -178,7 +178,7 @@ export function BankPage() {
       toast(`${t("bank.imported")} ${r.imported}`, "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -190,7 +190,7 @@ export function BankPage() {
       toast(t("bank.matchedMsg"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -200,7 +200,7 @@ export function BankPage() {
       toast(t("bank.unmatchedMsg"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -223,7 +223,7 @@ export function BankPage() {
       toast(t("bank.reconCreated"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -233,7 +233,7 @@ export function BankPage() {
       toast(t("bank.reconClosed"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

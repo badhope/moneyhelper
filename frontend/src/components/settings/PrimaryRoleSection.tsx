@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { Section } from "./shared";
 
 interface Role {
@@ -53,7 +53,7 @@ export function PrimaryRoleSection() {
       await qc.invalidateQueries({ queryKey: ["/api/studio/overview"] });
       toast(t("studio.primarySaved", { name: list.find((x) => x.id === id)?.name ?? id }), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(null);
     }

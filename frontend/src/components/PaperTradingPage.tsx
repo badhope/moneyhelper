@@ -19,7 +19,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useEChart, usePalette, useCandleColors, axisLabelColor } from "@/lib/charts";
 import { useTheme } from "@/lib/theme";
 import { fmtMoney, fmtPct, pnlClass, fmtDate } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import {
   paperDelete,
   paperOpen,
@@ -236,7 +236,7 @@ export function PaperTradingPage() {
       await reload();
       await detail.reload();
     } catch (e) {
-      setTradeMsg(e instanceof Error ? e.message : String(e));
+      setTradeMsg(errMsg(e));
     } finally {
       setTradeBusy(false);
     }
@@ -251,7 +251,7 @@ export function PaperTradingPage() {
       setOpenCash("100000");
       await reload();
     } catch (e) {
-      setOpenMsg(e instanceof Error ? e.message : String(e));
+      setOpenMsg(errMsg(e));
     } finally {
       setOpenBusy(false);
     }
@@ -264,7 +264,7 @@ export function PaperTradingPage() {
       setSelectedId(null);
       await reload();
     } catch (e) {
-      setTradeMsg(e instanceof Error ? e.message : String(e));
+      setTradeMsg(errMsg(e));
     }
   }
 

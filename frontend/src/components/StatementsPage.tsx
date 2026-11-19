@@ -11,6 +11,7 @@
  * 全部数值由后端确定性引擎计算（报表口径还原，非审计、非投资建议）。
  */
 
+import { cn, errMsg } from "@/lib/utils";
 import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, FileText, Plus, Save, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -22,7 +23,6 @@ import { useEChart, usePalette, useCandleColors, axisLabelColor } from "@/lib/ch
 import { useTheme } from "@/lib/theme";
 import { api } from "@/lib/api";
 import { fmtMoney, fmtPct } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import {
   useStatementAnalyze,
@@ -415,7 +415,7 @@ export function StatementsPage() {
       analyze.mutate(parsed);
     } catch (e) {
       setPayload(null);
-      setJsonError(e instanceof Error ? e.message : "JSON 解析失败");
+      setJsonError(errMsg(e, "JSON 解析失败"));
     }
   };
 

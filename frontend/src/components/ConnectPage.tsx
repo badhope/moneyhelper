@@ -60,7 +60,7 @@ import { useI18n } from "@/lib/i18n";
 import { copyText } from "@/lib/clipboard";
 import { useToast } from "@/lib/toast";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import {
   useBookmarklet,
   useCatalog,
@@ -339,7 +339,7 @@ export function ConnectPage() {
         void syncAll.mutateAsync().catch(() => undefined);
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -361,7 +361,7 @@ export function ConnectPage() {
         toast(t("connect.syncOk"), "ok");
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -376,7 +376,7 @@ export function ConnectPage() {
         how_to: res.how_to,
       });
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -385,7 +385,7 @@ export function ConnectPage() {
       await deleteConn.mutateAsync(conn.id);
       toast(t("connect.removed"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -395,7 +395,7 @@ export function ConnectPage() {
       toast(res.message || t("connect.inboxScanned", { n: res.imported }), res.imported > 0 ? "ok" : "info");
       void inboxQuery.refetch();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -419,7 +419,7 @@ export function ConnectPage() {
       toast(t("connect.intentCreated"), "ok");
       setDraft({ ...draft, symbol: "", name: "", price: "", shares: "" });
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -438,7 +438,7 @@ export function ConnectPage() {
         toast(t("connect.execOk", { fee: res.fee != null ? fmtMoney(res.fee) : "-" }), "ok");
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -447,7 +447,7 @@ export function ConnectPage() {
       await rejectIntent.mutateAsync(intent.id);
       toast(t("connect.intentRejected"), "info");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

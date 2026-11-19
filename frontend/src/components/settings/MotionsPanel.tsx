@@ -12,7 +12,7 @@ import { useI18n } from "@/lib/i18n";
 import { fmtMoney } from "@/lib/format";
 import { api } from "@/lib/api";
 import { inputCls, labelCls } from "./shared";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 
 interface MotionTally {
   yes: number;
@@ -67,7 +67,7 @@ export function MotionsPanel() {
       setMembers(ms.members ?? []);
       setActiveId(me.member?.id ?? ms.members?.[0]?.id ?? 0);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setLoading(false);
     }
@@ -92,7 +92,7 @@ export function MotionsPanel() {
       setAmount("");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }
@@ -107,7 +107,7 @@ export function MotionsPanel() {
       });
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }

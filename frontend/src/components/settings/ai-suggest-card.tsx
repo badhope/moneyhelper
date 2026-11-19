@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/toast";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { errMsg } from "@/lib/utils";
 
 /**
  * 设置区 AI 建议卡（统一交互）：生成 → 预览 → 采用/重生成。
@@ -48,7 +49,7 @@ export function AiSuggestCard<T>({
         toast(String(d.error || t("settings.aiFail")), "error");
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }

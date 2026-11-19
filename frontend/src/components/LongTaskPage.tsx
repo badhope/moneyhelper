@@ -15,7 +15,7 @@ import {
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 
 const inputCls =
   "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -76,7 +76,7 @@ export function LongTaskPage() {
       setTemplates(tpl);
       setTasks(list);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setLoading(false);
     }
@@ -93,7 +93,7 @@ export function LongTaskPage() {
       setOpenStage(null);
       setStageText("");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -111,7 +111,7 @@ export function LongTaskPage() {
       setDetail(r.task);
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }
@@ -125,7 +125,7 @@ export function LongTaskPage() {
       toast(t("longtask.finished"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }
@@ -138,7 +138,7 @@ export function LongTaskPage() {
       toast(t("longtask.cancelled"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -152,7 +152,7 @@ export function LongTaskPage() {
       setStageText(text || "");
       setOpenStage(index);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

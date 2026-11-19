@@ -19,7 +19,7 @@ import { useI18n } from "@/lib/i18n";
 import { fmtMoney } from "@/lib/format";
 import { Section, inputCls, labelCls } from "./shared";
 import { MotionsPanel } from "./MotionsPanel";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 
 const ROLES: { value: FamilyMember["role"]; key: string }[] = [
   { value: "owner", key: "family.roleOwner" },
@@ -58,7 +58,7 @@ export function FamilySection() {
       setLoans(ls);
       setSummary(sm);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setLoading(false);
     }
@@ -77,7 +77,7 @@ export function FamilySection() {
       toast(t("family.added"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -88,7 +88,7 @@ export function FamilySection() {
       await load();
     } catch (e) {
       // 有流水的成员被删时会先置空归属再删，真失败通常是权限/外键
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -106,7 +106,7 @@ export function FamilySection() {
       toast(t("family.loanAdded"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

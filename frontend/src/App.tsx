@@ -13,7 +13,7 @@ import { useBootstrap, useSessions, store } from "@/lib/store";
 import { api, getToken } from "@/lib/api";
 import { LoginView } from "@/components/LoginView";
 import { useToast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { isDataKind, type DataKind } from "@/lib/views";
 import { useI18n } from "@/lib/i18n";
 import { useIsDesktop } from "@/lib/use-media-query";
@@ -155,7 +155,7 @@ export default function App() {
         }
         toast(t("app.sessionDeleted"), "ok");
       } catch (e) {
-        toast(e instanceof Error ? e.message : String(e), "error");
+        toast(errMsg(e), "error");
       }
     },
     [activeThread, sessions, newSession, toast, t],
@@ -170,7 +170,7 @@ export default function App() {
         });
         await store.refreshSessions();
       } catch (e) {
-        toast(e instanceof Error ? e.message : String(e), "error");
+        toast(errMsg(e), "error");
       }
     },
     [toast],

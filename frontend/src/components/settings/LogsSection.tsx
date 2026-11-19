@@ -6,6 +6,7 @@ import { fetchLogs, clearLogs } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
 import { Section } from "./shared";
+import { errMsg } from "@/lib/utils";
 
 /** 日志查看：读取后端 moneyhelper.log 最近 N 行，支持刷新与清空 */
 export function LogsSection() {
@@ -39,7 +40,7 @@ export function LogsSection() {
       toast(`${t("settings.logsCleared")}（${r.cleared_lines} 行）`, "ok");
       setLines([]);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
     setClearOpen(false);
   };

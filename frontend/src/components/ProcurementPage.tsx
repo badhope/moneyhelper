@@ -25,7 +25,7 @@ import { fmtDay, fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import { useCapabilities } from "@/lib/use-capabilities";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 
 const inputCls =
   "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -140,7 +140,7 @@ export function ProcurementPage() {
       setPayables(ps);
       setAccounts(as);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setLoading(false);
     }
@@ -164,7 +164,7 @@ export function ProcurementPage() {
       toast(t("procurement.vendorCreated"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -182,7 +182,7 @@ export function ProcurementPage() {
       toast(t("procurement.orderCreated"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -192,7 +192,7 @@ export function ProcurementPage() {
       toast(t("procurement.orderSubmitted"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -202,7 +202,7 @@ export function ProcurementPage() {
       toast(t("procurement.orderApproved"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -232,7 +232,7 @@ export function ProcurementPage() {
       toast(t("procurement.payableCreated"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -242,7 +242,7 @@ export function ProcurementPage() {
       toast(t("procurement.payableSubmitted"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -252,7 +252,7 @@ export function ProcurementPage() {
       toast(t("procurement.payableApproved"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -265,7 +265,7 @@ export function ProcurementPage() {
       toast(t("procurement.paid"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

@@ -33,7 +33,7 @@ import { fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import { useCapabilities } from "@/lib/use-capabilities";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 
 const inputCls =
   "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -115,7 +115,7 @@ export function GlPage() {
           prev && ps.some((p) => p.id === prev) ? prev : ps[0]?.id ?? null,
         );
       })
-      .catch((e) => toast(e instanceof Error ? e.message : String(e), "error"))
+      .catch((e) => toast(errMsg(e), "error"))
       .finally(() => {
         if (alive) setLoading(false);
       });
@@ -137,7 +137,7 @@ export function GlPage() {
         setEntries(es);
         setTrial(tb);
       })
-      .catch((e) => toast(e instanceof Error ? e.message : String(e), "error"));
+      .catch((e) => toast(errMsg(e), "error"));
     return () => {
       alive = false;
     };
@@ -166,7 +166,7 @@ export function GlPage() {
       toast(t("gl.created"), "ok");
       refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -180,7 +180,7 @@ export function GlPage() {
       toast(t("gl.created"), "ok");
       refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -215,7 +215,7 @@ export function GlPage() {
       toast(t("gl.created"), "ok");
       refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -225,7 +225,7 @@ export function GlPage() {
       toast(t("gl.posted"), "ok");
       refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -246,7 +246,7 @@ export function GlPage() {
       }
       refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

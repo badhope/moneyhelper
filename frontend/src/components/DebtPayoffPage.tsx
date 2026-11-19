@@ -18,7 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Segmented } from "@/components/ui/segmented";
 import { useI18n } from "@/lib/i18n";
 import { fmtMoney, fmtPct } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { usePayoffPlan } from "@/lib/use-payoff";
 import type { PayoffCompare, PayoffCompareUnavailable, PayoffPlan } from "@/lib/use-payoff";
@@ -55,7 +55,7 @@ export function DebtPayoffPage({ onGoLedger }: { onGoLedger?: () => void }) {
     return (
       <Card className="p-[var(--card-pad)]">
         <div className="text-sm text-red-600 dark:text-red-400">
-          {t("debts.loadError")}: {error instanceof Error ? error.message : String(error)}
+          {t("debts.loadError")}: {errMsg(error)}
         </div>
       </Card>
     );

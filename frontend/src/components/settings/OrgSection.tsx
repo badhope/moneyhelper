@@ -28,7 +28,7 @@ import {
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { Section, inputCls, labelCls } from "./shared";
 
 const ROLE_KEYS: Record<string, string> = {
@@ -111,7 +111,7 @@ export function OrgSection() {
           return active?.id ?? ts[0]?.id ?? null;
         });
       })
-      .catch((e) => toast(e instanceof Error ? e.message : String(e), "error"));
+      .catch((e) => toast(errMsg(e), "error"));
     return () => {
       alive = false;
     };
@@ -123,7 +123,7 @@ export function OrgSection() {
     try {
       setData(await getOrgOverview(tenantId));
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setLoading(false);
     }
@@ -148,7 +148,7 @@ export function OrgSection() {
       await fn();
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
       throw e;
     }
   };
@@ -703,7 +703,7 @@ export function OrgSection() {
                           .then(load)
                           .then(() => toast(t("org.updated"), "ok"))
                           .catch((e) =>
-                            toast(e instanceof Error ? e.message : String(e), "error"),
+                            toast(errMsg(e), "error"),
                           );
                       }}
                     >

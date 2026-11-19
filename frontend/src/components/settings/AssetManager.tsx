@@ -9,7 +9,7 @@ import { ConfirmDialog } from "@/components/ui/confirm";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { Section, inputCls, labelCls } from "./shared";
 
 type Kind = "prompts" | "rules" | "hooks" | "roles" | "skills";
@@ -209,7 +209,7 @@ export function AssetManager({
       setEditing(null);
       setMode("form");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -254,7 +254,7 @@ export function AssetManager({
       if (historyFor === a.id) await loadHistory(a.id);
       toast(t("studio.runOk"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setRunning(null);
     }
@@ -269,7 +269,7 @@ export function AssetManager({
       setHistoryError(null);
     } catch (e) {
       setHistory([]);
-      setHistoryError(e instanceof Error ? e.message : String(e));
+      setHistoryError(errMsg(e));
     }
   };
 
@@ -318,7 +318,7 @@ export function AssetManager({
       setMode("none");
       toast(editing ? t("studio.updated") : t("studio.created"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }
@@ -332,7 +332,7 @@ export function AssetManager({
       });
       await refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -344,7 +344,7 @@ export function AssetManager({
       await refresh();
       toast(t("studio.deleted", { name: a.name }), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -375,7 +375,7 @@ export function AssetManager({
       }
       if (!n && !r.errors?.length) toast(t("studio.importEmpty"), "error");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }
@@ -393,7 +393,7 @@ export function AssetManager({
       if (!r.ok || !r.suggestion) throw new Error(r.error || t("studio.aiFail"));
       setAiSuggestion(r.suggestion);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }
@@ -414,7 +414,7 @@ export function AssetManager({
       setAiPrompt("");
       toast(t("studio.created"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }

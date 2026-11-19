@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 import { Section } from "./shared";
 
 interface Permissions {
@@ -62,7 +62,7 @@ export function PermissionsSection() {
       await qc.invalidateQueries({ queryKey: ["/api/studio/overview"] });
       toast(t("studio.permSaved"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setBusy(false);
     }
@@ -76,7 +76,7 @@ export function PermissionsSection() {
       });
       toast(r.error || t("studio.coreLocked"), "error");
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

@@ -16,7 +16,7 @@ import {
 import { fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
+import { cn, errMsg } from "@/lib/utils";
 
 const inputCls =
   "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -66,7 +66,7 @@ export function ExpensesPage() {
       setClaims(cs);
       setAccounts(as);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     } finally {
       setLoading(false);
     }
@@ -129,7 +129,7 @@ export function ExpensesPage() {
       toast(t("expenses.created"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -139,7 +139,7 @@ export function ExpensesPage() {
       toast(t("expenses.submitted"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -149,7 +149,7 @@ export function ExpensesPage() {
       toast(t("expenses.approved"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 
@@ -165,7 +165,7 @@ export function ExpensesPage() {
       toast(t("expenses.rejected"), "ok");
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      toast(errMsg(e), "error");
     }
   };
 

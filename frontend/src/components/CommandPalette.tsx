@@ -10,6 +10,7 @@ import { useToast } from "@/lib/toast";
 import { store } from "@/lib/store";
 import { listUndoables, undoById, type UndoableItem } from "@/lib/api";
 import type { SessionItem } from "@/lib/types";
+import { errMsg } from "@/lib/utils";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -92,7 +93,7 @@ export function CommandPalette({
       toast(t("cmd.undoOk", { label: item.label }), "ok");
       store.bump();
     } catch (e) {
-      toast(t("cmd.undoFail", { e: e instanceof Error ? e.message : String(e) }), "error");
+      toast(t("cmd.undoFail", { e: errMsg(e) }), "error");
     }
   };
 

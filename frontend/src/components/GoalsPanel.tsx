@@ -10,6 +10,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { fmtMoney } from "@/lib/format";
 import type { Goal } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
+import { errMsg } from "@/lib/utils";
 
 const labelCls = "block text-xs text-muted-foreground mb-1";
 const inputCls =
@@ -34,7 +35,7 @@ export function GoalsPanel({ onDone }: { onDone: () => void }) {
     silentError: true,
     onSettled: (_res, e) => {
       if (e) {
-        setErr(e instanceof Error ? e.message : String(e));
+        setErr(errMsg(e));
         return;
       }
       setF({ name: "", target: "", saved: "", deadline: "" });
