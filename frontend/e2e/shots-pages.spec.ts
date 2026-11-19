@@ -21,7 +21,7 @@ const ONLY = process.env.SHOTS_ONLY ? process.env.SHOTS_ONLY.split(",") : null;
 const OUT = path.resolve(process.cwd(), "../out/shots");
 
 // 与 src/lib/nav.ts 的分组一一对应（分组名与子页名取自 zh.ts）
-const GROUPS: { group: string; tabs: [string, string][] }[] = [
+const GROUPS: { group: string; tabs: [string, string][]; entry?: string }[] = [
   {
     group: "每天看",
     tabs: [
@@ -33,6 +33,7 @@ const GROUPS: { group: string; tabs: [string, string][] }[] = [
   },
   {
     group: "判断时",
+    entry: "投研与策略",
     tabs: [
       ["market", "行情"],
       ["research", "投研"],
@@ -42,6 +43,7 @@ const GROUPS: { group: string; tabs: [string, string][] }[] = [
   },
   {
     group: "业务",
+    entry: "单据",
     tabs: [
       ["expenses", "报销"],
       ["procurement", "采购应付"],
@@ -50,11 +52,13 @@ const GROUPS: { group: string; tabs: [string, string][] }[] = [
   },
   {
     group: "账务",
+    // 工作区入口：总账/经营报表/报税助手 三个视角都在「账务」里面，先点入口再点 pill
+    entry: "账务",
     tabs: [
-      ["gl", "总账"],
+      ["gl", "记账明细"],
+      ["statements", "经营报表"],
+      ["tax", "报税助手"],
       ["bank", "银行对账"],
-      ["statements", "财报"],
-      ["tax", "公司财税"],
       ["paper", "模拟交易"],
     ],
   },
@@ -77,10 +81,15 @@ test.describe("视觉基线截图", () => {
     await page.waitForTimeout(600);
 
     let n = 0;
-    for (const { group, tabs } of GROUPS) {
+    for (const { group, tabs, entry } of GROUPS) {
       const groupBtn = page.getByRole("button", { name: group, exact: true }).first();
       if (await groupBtn.count()) {
         await groupBtn.click();
+        await page.waitForTimeout(150);
+      }
+      if (entry) {
+        const entryBtn = page.getByRole("tab", { name: entry, exact: true }).first();
+        if (await entryBtn.count()) await entryBtn.click();
         await page.waitForTimeout(150);
       }
       for (const [kind, label] of tabs) {
