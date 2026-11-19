@@ -2,12 +2,13 @@
 # 全量验收门禁：一条命令跑完所有层，避免"只跑了后端就说完成"。
 #
 # 层次（任一失败即退出）：
-#   1. ruff 静态检查（backend/app+tests、moneyhelper）
-#   2. 后端 pytest 全量（并行）
-#   3. 前端 vitest 单测
-#   4. 前端生产构建
-#   5. Playwright E2E（可选，需要浏览器；--with-e2e 开启）
-#   6. 真实模型验收（可选，需要 LLM_API_KEY；--with-live 开启）
+#   1. 静态守卫：重复代码巡检（check-duplicates.py）+ i18n 硬编码棘轮（check-i18n.py）
+#   2. ruff 静态检查（backend/app+tests、moneyhelper）
+#   3. 后端 pytest 全量（并行）
+#   4. 前端 vitest 单测
+#   5. 前端生产构建
+#   6. Playwright E2E（可选，需要浏览器；--with-e2e 开启）
+#   7. 真实模型验收（可选，需要 LLM_API_KEY；--with-live）
 #
 # 用法：
 #   bash scripts/verify-all.sh                 # 1-4
@@ -48,11 +49,16 @@ fail() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 ok()   { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 
-step "1/4 ruff"
+step "1/6 静态守卫（去重 / i18n）"
+python3 "$ROOT/scripts/check-duplicates.py" || fail "去重巡检"
+python3 "$ROOT/scripts/check-i18n.py" || fail "i18n 守卫"
+ok "静态守卫"
+
+step "2/6 ruff"
 bash "$ROOT/scripts/lint.sh" || fail "ruff"
 ok "ruff"
 
-step "2/4 后端 pytest"
+step "3/6 后端 pytest"
 cd "$ROOT/backend" || fail "cd backend"
 # 并发数按 CPU 核数取 min(4, cores)：这台开发机只有 2 核，`-n 4` 会把
 # xdist worker 压到 "node down: Not properly terminated"（每次崩的用例都不同，
@@ -63,17 +69,17 @@ WORKERS=$(( CORES < 4 ? CORES : 4 ))
 "$PY" -m pytest -n "$WORKERS" -q --timeout=120 || fail "后端 pytest"
 ok "后端 pytest（${WORKERS} workers）"
 
-step "3/4 前端 vitest"
+step "4/6 前端 vitest"
 cd "$ROOT/frontend" || fail "cd frontend"
 npx vitest run || fail "前端 vitest"
 ok "前端 vitest"
 
-step "4/4 前端构建"
+step "5/6 前端构建"
 npm run build || fail "前端构建"
 ok "前端构建"
 
 if [ "$WITH_E2E" = "1" ]; then
-  step "5/5 Playwright E2E"
+  step "6/6 Playwright E2E"
   cd "$ROOT/frontend" || fail "cd frontend"
   # 浏览器二进制自动探测：Playwright 自带的 chromium 下载在本机被网络拦，
   # 但 Windows 一定装了 Edge。没显式指定又缺 chromium 时自动回落 msedge，
