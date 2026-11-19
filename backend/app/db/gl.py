@@ -313,10 +313,22 @@ async def _validate_lines(
     tenant_id: int, lines: Any
 ) -> tuple[list[dict[str, Any]], int]:
     assert_balanced(lines)
+    # 一次取齐所有科目，避免逐行查询（凭证行数多时是 N 次往返）。
+    wanted = {int(line.get("account_id") or 0) for line in lines}
+    wanted.discard(0)
+    accounts: dict[int, dict[str, Any]] = {}
+    if wanted:
+        placeholders = ",".join("?" * len(wanted))
+        rows = await fetch_all(
+            "SELECT id,tenant_id,code,name,type,parent_id,is_active,created_at"
+            f" FROM gl_accounts WHERE tenant_id=? AND id IN ({placeholders})",
+            (int(tenant_id), *sorted(wanted)),
+        )
+        accounts = {int(r["id"]): _account_payload(dict(r)) for r in rows}
     normalized: list[dict[str, Any]] = []
     for idx, line in enumerate(lines, 1):
         account_id = int(line.get("account_id") or 0)
-        account = await gl_get_account(tenant_id, account_id)
+        account = accounts.get(account_id)
         if account is None or not account["is_active"]:
             raise ValueError(f"第 {idx} 行科目不存在或已停用")
         debit = to_cents(line.get("debit", 0))

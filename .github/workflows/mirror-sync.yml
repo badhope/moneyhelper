@@ -50,7 +50,9 @@ jobs:
       MIRROR_TOKEN: ${{ secrets.GH_X33834_TOKEN }}
     steps:
       - uses: actions/checkout@v7
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: push to GitHub mirror (X33834)
         run: |
           if [ -z "$MIRROR_TOKEN" ]; then echo "skip: token not set"; exit 0; fi
@@ -64,7 +66,9 @@ jobs:
       MIRROR_TOKEN: ${{ secrets.GH_MORNINGSTAR_TOKEN }}
     steps:
       - uses: actions/checkout@v7
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: push to GitHub mirror (Morningstar202604)
         run: |
           if [ -z "$MIRROR_TOKEN" ]; then echo "skip: token not set"; exit 0; fi
