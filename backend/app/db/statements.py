@@ -29,27 +29,25 @@ async def save_statement(
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     sid = uuid.uuid4().hex[:12]
 
-    # 超限清理：保留最新的 MAX_REPORTS-1 条后插入
+    # 超限清理与插入放在同一事务：否则旧记录删掉、新记录写失败时，
+    # 用户会白丢历史报表却什么都没存下。
     rows = await fetch_all(
         "SELECT id FROM financial_statements WHERE user_id=? ORDER BY created_at DESC",
         (uid,),
     )
-    if len(rows) >= MAX_REPORTS:
-        drop = [r["id"] for r in rows[MAX_REPORTS - 1 :]]
-        conn = await _conn()
+    drop = [r["id"] for r in rows[MAX_REPORTS - 1 :]] if len(rows) >= MAX_REPORTS else []
+    from ._core import write_txn
+
+    async with write_txn() as conn:
         for did in drop:
             await conn.execute(
                 "DELETE FROM financial_statements WHERE user_id=? AND id=?", (uid, did)
             )
-        await conn.commit()
-
-    conn = await _conn()
-    await conn.execute(
-        "INSERT INTO financial_statements(user_id,id,company,currency,payload,report,created_at)"
-        " VALUES(?,?,?,?,?,?,?)",
-        (uid, sid, company[:120], currency, json.dumps(payload, ensure_ascii=False), report, now),
-    )
-    await conn.commit()
+        await conn.execute(
+            "INSERT INTO financial_statements(user_id,id,company,currency,payload,report,created_at)"
+            " VALUES(?,?,?,?,?,?,?)",
+            (uid, sid, company[:120], currency, json.dumps(payload, ensure_ascii=False), report, now),
+        )
     return {"id": sid, "company": company, "currency": currency, "created_at": now}
 
 

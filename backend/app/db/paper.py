@@ -56,19 +56,21 @@ async def open_account(name: str, initial_cash: float) -> dict[str, Any]:
 async def delete_account(account_id: str) -> bool:
     """删除账户（含其交易与快照）。返回是否删除过。"""
     uid = current_user_id()
-    conn = await _conn()
-    cur = await conn.execute(
-        "DELETE FROM paper_accounts WHERE user_id=? AND account_id=?", (uid, account_id)
-    )
-    if cur.rowcount == 0:
-        return False
-    await conn.execute(
-        "DELETE FROM paper_trades WHERE user_id=? AND account_id=?", (uid, account_id)
-    )
-    await conn.execute(
-        "DELETE FROM paper_snapshots WHERE user_id=? AND account_id=?", (uid, account_id)
-    )
-    await conn.commit()
+    from ._core import write_txn
+
+    # 账户、交易、快照三张表必须一起删，否则会留下挂在已删账户下的孤儿数据。
+    async with write_txn() as conn:
+        cur = await conn.execute(
+            "DELETE FROM paper_accounts WHERE user_id=? AND account_id=?", (uid, account_id)
+        )
+        if cur.rowcount == 0:
+            return False
+        await conn.execute(
+            "DELETE FROM paper_trades WHERE user_id=? AND account_id=?", (uid, account_id)
+        )
+        await conn.execute(
+            "DELETE FROM paper_snapshots WHERE user_id=? AND account_id=?", (uid, account_id)
+        )
     return True
 
 

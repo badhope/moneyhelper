@@ -280,6 +280,8 @@ async def rename_session(session_id: int, title: str) -> dict[str, Any]:
 
 async def delete_session(session_id: int) -> dict[str, Any]:
     """删除会话及其全部问答记录（含长会话摘要）。"""
+    from ._core import write_txn
+
     conn = await _conn()
     row = await (
         await conn.execute(
@@ -287,19 +289,22 @@ async def delete_session(session_id: int) -> dict[str, Any]:
             (current_user_id(), int(session_id)),
         )
     ).fetchone()
-    await conn.execute(
-        "DELETE FROM sessions WHERE user_id=? AND id=?", (current_user_id(), int(session_id))
-    )
-    if row:
+    # 三张表一起删必须成组：autocommit 下裸 commit 是空操作，
+    # 中途失败会留下"会话已删、runs 还挂在 thread 上"的孤儿数据。
+    async with write_txn() as conn:
         await conn.execute(
-            "DELETE FROM runs WHERE user_id=? AND thread_id=?",
-            (current_user_id(), row["thread_id"]),
+            "DELETE FROM sessions WHERE user_id=? AND id=?",
+            (current_user_id(), int(session_id)),
         )
-        await conn.execute(
-            "DELETE FROM conversation_summary WHERE user_id=? AND thread_id=?",
-            (current_user_id(), row["thread_id"]),
-        )
-    await conn.commit()
+        if row:
+            await conn.execute(
+                "DELETE FROM runs WHERE user_id=? AND thread_id=?",
+                (current_user_id(), row["thread_id"]),
+            )
+            await conn.execute(
+                "DELETE FROM conversation_summary WHERE user_id=? AND thread_id=?",
+                (current_user_id(), row["thread_id"]),
+            )
     return {"ok": True, "deleted": True}
 
 
@@ -553,34 +558,36 @@ async def fork_session(thread_id: str, run_id: int) -> dict[str, Any] | None:
     )
     base_title = (sessions[0]["title"] if sessions else "") or "新会话"
     new_tid = uuid_hex()
-    conn = await _conn()
+    from ._core import write_txn
+
     now = datetime.now().astimezone().isoformat(timespec="seconds")
-    await conn.execute(
-        "INSERT INTO sessions(user_id,thread_id,title,created_at,updated_at)"
-        " VALUES(?,?,?,?,?)",
-        (current_user_id(), new_tid, f"{base_title} · 分支"[:40], now, now),
-    )
-    for r in rows:
+    # 会话 + 全部 run 必须成组写入，否则中途失败会留下"分支会话存在但对话只有半截"。
+    async with write_txn() as conn:
         await conn.execute(
-            "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,"
-            "route,llm,route_reason,tools,actions,tokens_in,tokens_out)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                current_user_id(),
-                new_tid,
-                r["question"],
-                r["answer"],
-                r["level"] or "",
-                r["flags_json"] or "[]",
-                r["created_at"],
-                r["route"] or "",
-                r["llm"] or "",
-                r["route_reason"] or "",
-                r["tools"] or "[]",
-                r["actions"] or "[]",
-                int(r["tokens_in"] or 0),
-                int(r["tokens_out"] or 0),
-            ),
+            "INSERT INTO sessions(user_id,thread_id,title,created_at,updated_at)"
+            " VALUES(?,?,?,?,?)",
+            (current_user_id(), new_tid, f"{base_title} · 分支"[:40], now, now),
         )
-    await conn.commit()
+        for r in rows:
+            await conn.execute(
+                "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,"
+                "route,llm,route_reason,tools,actions,tokens_in,tokens_out)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    current_user_id(),
+                    new_tid,
+                    r["question"],
+                    r["answer"],
+                    r["level"] or "",
+                    r["flags_json"] or "[]",
+                    r["created_at"],
+                    r["route"] or "",
+                    r["llm"] or "",
+                    r["route_reason"] or "",
+                    r["tools"] or "[]",
+                    r["actions"] or "[]",
+                    int(r["tokens_in"] or 0),
+                    int(r["tokens_out"] or 0),
+                ),
+            )
     return {"ok": True, "thread_id": new_tid, "copied": len(rows)}
