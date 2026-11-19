@@ -357,6 +357,7 @@ __all__ = [
     "add_transactions_batch",
     "add_watchlist",
     "all_members_summary",
+    "append_position",
     "backfill_org_shadow",
     "bank_create",
     "bank_get",
