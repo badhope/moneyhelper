@@ -23,6 +23,7 @@ import {
 } from "@/lib/api";
 import { fmtDay, fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { AccountSelect } from "@/components/ui/account-select";
 import { useToast } from "@/lib/toast";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { cn, errMsg } from "@/lib/utils";
@@ -631,37 +632,21 @@ export function ProcurementPage() {
               </div>
               <div className="w-52">
                 <label className={labelCls} htmlFor="proc-expenseAccount-18">{t("procurement.expenseAccount")}</label>
-                <select id="proc-expenseAccount-18"
+                <AccountSelect id="proc-expenseAccount-18"
                   className={inputCls}
+                  accounts={expenseAccounts}
                   value={payableForm.expense_account_id}
-                  onChange={(e) =>
-                    setPayableForm({ ...payableForm, expense_account_id: e.target.value })
-                  }
-                >
-                  <option value="">{t("gl.selectAccount")}</option>
-                  {expenseAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.code} {a.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setPayableForm({ ...payableForm, expense_account_id: v })}
+                />
               </div>
               <div className="w-52">
                 <label className={labelCls} htmlFor="proc-payableAccount-19">{t("procurement.payableAccount")}</label>
-                <select id="proc-payableAccount-19"
+                <AccountSelect id="proc-payableAccount-19"
                   className={inputCls}
+                  accounts={payableAccounts}
                   value={payableForm.payable_account_id}
-                  onChange={(e) =>
-                    setPayableForm({ ...payableForm, payable_account_id: e.target.value })
-                  }
-                >
-                  <option value="">{t("gl.selectAccount")}</option>
-                  {payableAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.code} {a.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setPayableForm({ ...payableForm, payable_account_id: v })}
+                />
               </div>
               <Button size="sm" onClick={() => void doPayable()} disabled={!canWritePayable}>
                 <Plus className="mr-1 h-3.5 w-3.5" />

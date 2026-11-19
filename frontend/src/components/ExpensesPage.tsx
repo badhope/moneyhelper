@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { AccountSelect } from "@/components/ui/account-select";
 import { useToast } from "@/lib/toast";
 import { cn, errMsg } from "@/lib/utils";
 
@@ -232,29 +233,21 @@ export function ExpensesPage() {
         <div className="mt-2 flex flex-wrap items-end gap-2">
           <div className="w-52">
             <label className={labelCls}>{t("expenses.expenseAccount")}</label>
-            <select
+            <AccountSelect
               className={inputCls}
+              accounts={expenseAccounts}
               value={form.expense_account_id}
-              onChange={(e) => setForm({ ...form, expense_account_id: e.target.value })}
-            >
-              <option value="">{t("gl.selectAccount")}</option>
-              {expenseAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.code} {a.name}</option>
-              ))}
-            </select>
+              onChange={(v) => setForm({ ...form, expense_account_id: v })}
+            />
           </div>
           <div className="w-52">
             <label className={labelCls}>{t("expenses.creditAccount")}</label>
-            <select
+            <AccountSelect
               className={inputCls}
+              accounts={creditAccounts}
               value={form.credit_account_id}
-              onChange={(e) => setForm({ ...form, credit_account_id: e.target.value })}
-            >
-              <option value="">{t("gl.selectAccount")}</option>
-              {creditAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.code} {a.name}</option>
-              ))}
-            </select>
+              onChange={(v) => setForm({ ...form, credit_account_id: v })}
+            />
           </div>
           <div className="min-w-[180px] flex-1">
             <label className={labelCls}>{t("expenses.invoiceRef")}</label>

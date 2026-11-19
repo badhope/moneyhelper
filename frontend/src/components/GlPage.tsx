@@ -31,6 +31,7 @@ import {
 } from "@/lib/api";
 import { api } from "@/lib/api";
 import { Disclosure } from "@/components/ui/grouped-nav";
+import { AccountSelect } from "@/components/ui/account-select";
 import { fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
@@ -503,17 +504,13 @@ export function GlPage() {
               {entryForm.lines.map((line, idx) => (
                 <div key={idx} className="grid grid-cols-2 items-center gap-1.5 sm:flex sm:flex-wrap">
                   <div className="col-span-2 min-w-0 sm:min-w-[180px] sm:flex-1">
-                    <select
+                    <AccountSelect
                       className={miniInput}
+                      accounts={accounts}
                       value={line.account_id}
-                      onChange={(e) => setLine(idx, { account_id: e.target.value })}
+                      onChange={(v) => setLine(idx, { account_id: v })}
                       disabled={!canWrite}
-                    >
-                      <option value="">{t("gl.selectAccount")}</option>
-                      {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>{a.code} {a.name}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <input
                     className={cn(miniInput, "w-full sm:w-24")}

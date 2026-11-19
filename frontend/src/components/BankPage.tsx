@@ -28,6 +28,7 @@ import {
 } from "@/lib/api";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { AccountSelect } from "@/components/ui/account-select";
 import { useToast } from "@/lib/toast";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { cn, errMsg } from "@/lib/utils";
@@ -336,18 +337,12 @@ export function BankPage() {
               </div>
               <div className="w-52">
                 <label className={labelCls}>{t("bank.paymentAccount")}</label>
-                <select
+                <AccountSelect
                   className={inputCls}
+                  accounts={bankAccounts}
                   value={payForm.bank_account_id}
-                  onChange={(e) =>
-                    setPayForm({ ...payForm, bank_account_id: e.target.value })
-                  }
-                >
-                  <option value="">{t("gl.selectAccount")}</option>
-                  {bankAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>{a.code} {a.name}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setPayForm({ ...payForm, bank_account_id: v })}
+                />
               </div>
               <div className="min-w-[160px] flex-1">
                 <label className={labelCls}>{t("bank.note")}</label>
@@ -419,18 +414,12 @@ export function BankPage() {
             <div className="flex flex-wrap items-end gap-2">
               <div className="w-44">
                 <label className={labelCls}>{t("bank.bankAccount")}</label>
-                <select
+                <AccountSelect
                   className={inputCls}
+                  accounts={bankAccounts}
                   value={txnForm.bank_account_id}
-                  onChange={(e) =>
-                    setTxnForm({ ...txnForm, bank_account_id: e.target.value })
-                  }
-                >
-                  <option value="">{t("gl.selectAccount")}</option>
-                  {bankAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>{a.code} {a.name}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setTxnForm({ ...txnForm, bank_account_id: v })}
+                />
               </div>
               <div className="w-36">
                 <label className={labelCls}>{t("gl.date")}</label>
@@ -606,18 +595,12 @@ export function BankPage() {
             <div className="flex flex-wrap items-end gap-2">
               <div className="w-48">
                 <label className={labelCls}>{t("bank.bankAccount")}</label>
-                <select
+                <AccountSelect
                   className={inputCls}
+                  accounts={bankAccounts}
                   value={reconForm.bank_account_id}
-                  onChange={(e) =>
-                    setReconForm({ ...reconForm, bank_account_id: e.target.value })
-                  }
-                >
-                  <option value="">{t("gl.selectAccount")}</option>
-                  {bankAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>{a.code} {a.name}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setReconForm({ ...reconForm, bank_account_id: v })}
+                />
               </div>
               <div className="w-44">
                 <label className={labelCls}>{t("bank.period")}</label>
