@@ -13,6 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from .. import db
 from ..auth import get_current_user
 from ..calculations import analyze_statements
+from ..calculations.report_from_gl import statements_from_trial_balance
+from ..db.tenant import current_tenant_id
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -29,6 +31,66 @@ async def statements_analyze(payload: dict[str, Any]) -> dict[str, Any]:
             detail="invalid statement payload: expected {company, periods:[{period, balance_sheet, income_statement, cashflow_statement}]}",
         )
     return result
+
+
+@router.post("/api/statements/from-gl")
+async def statements_from_ledger(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """零输入出报表：按总账已过账凭证还原三表并分析，返回 {payload, analysis}。
+
+    产品定位：用户不该为了看财报而手抄一份资产负债表。凭证本来就是系统按
+    报销 / 采购 / 银行流水自动生成的，这里只是把它们按科目汇总成报表口径。
+
+    - 不传 `period_id` 时取**最新一期**；总账里没有任何期间时返回 409，
+      提示"先在总账里过账"，而不是返回一份全 0 的假报表。
+    - 返回的 `payload` 可直接再 POST 到 `/api/statements` 存档，前端用它做预览。
+    """
+    body = payload or {}
+    tenant = current_tenant_id()
+    periods = await db.gl_list_periods(tenant)
+    if body.get("period_id"):
+        period = next((p for p in periods if int(p["id"]) == int(body["period_id"])), None)
+        if period is None:
+            raise HTTPException(status_code=404, detail="会计期间不存在")
+    elif periods:
+        period = periods[0]
+    else:
+        raise HTTPException(status_code=409, detail="总账还没有任何会计期间，请先过账凭证")
+
+    posted_now = 0
+    if int(period.get("posted_entries") or 0) == 0:
+        # 草稿是系统按报销/采购/银行流水自动生成的，用户不该被要求"先自己去过账"。
+        # 传 auto_post=true 时这里直接替他过账（幂等：重复调用时已过账的不会再动）。
+        if not body.get("auto_post"):
+            drafts = int(period.get("draft_entries") or 0)
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"{period['year']}年{period['month']}月有 {drafts} 张草稿凭证还没过账，"
+                    "无法出报表（可加 auto_post=true 由系统自动过账）"
+                    if drafts
+                    else f"{period['year']}年{period['month']}月还没有任何凭证，无法出报表"
+                ),
+            )
+        for e in await db.gl_list_entries(tenant, int(period["id"]), 500):
+            if str(e.get("status")) == "draft":
+                await db.gl_post_entry(tenant, int(e["id"]))
+                posted_now += 1
+
+    tb = await db.gl_trial_balance(tenant, int(period["id"]))
+    label = f"{period['year']}-{int(period['month']):02d}"
+    payload_out = statements_from_trial_balance(
+        tb.get("items") or [],
+        company=str(body.get("company") or "本企业"),
+        currency=str(body.get("currency") or "CNY"),
+        period=label,
+    )
+    analysis = analyze_statements(payload_out)
+    return {
+        "period": tb.get("period"),
+        "payload": payload_out,
+        "analysis": analysis,
+        "auto_posted": posted_now,
+    }
 
 
 @router.post("/api/statements")

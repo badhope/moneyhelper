@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm";
+import { Disclosure } from "@/components/ui/grouped-nav";
 import { useEChart, usePalette, useCandleColors, axisLabelColor } from "@/lib/charts";
 import { useTheme } from "@/lib/theme";
 import { api } from "@/lib/api";
@@ -27,6 +28,7 @@ import { useI18n } from "@/lib/i18n";
 import {
   useStatementAnalyze,
   useStatementDelete,
+  useStatementFromGl,
   useStatementList,
   useStatementSave,
   type StatementAnalysis,
@@ -398,12 +400,16 @@ export function StatementsPage() {
   });
 
   const analyze = useStatementAnalyze();
+  const fromGl = useStatementFromGl();
   const save = useStatementSave();
   const del = useStatementDelete();
   const [pendingDelete, setPendingDelete] = useState<{ id: string; company: string } | null>(null);
   const list = useStatementList();
 
-  const result: StatementAnalysis | undefined = analyze.data;
+  // 结果有两个来源：手抄 JSON 分析（analyze）与按总账自动出表（fromGl）。
+  // 后者是默认路径，前者是"手动录入"兜底，两者共用一个结果区。
+  const result: StatementAnalysis | undefined = analyze.data ?? fromGl.data?.analysis;
+  const payloadToSave: Record<string, unknown> | null = payload ?? fromGl.data?.payload ?? null;
   const parsingError = analyze.isError ? (analyze.error as Error).message : null;
   const [jsonError, setJsonError] = useState<string | null>(null);
 
@@ -463,8 +469,51 @@ export function StatementsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 输入区 */}
+      {/* 默认路径：不用填任何东西，按总账自动出三表 */}
       <Card className="p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <FileText className="h-4 w-4 text-primary" />
+              {t("stmt3.autoTitle")}
+            </div>
+            <div className="mt-0.5 text-[11.5px] text-muted-foreground">{t("stmt3.autoHint")}</div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => fromGl.mutate({})}
+            disabled={fromGl.isPending}
+          >
+            {fromGl.isPending ? t("stmt3.autoRunning") : t("stmt3.autoRun")}
+          </Button>
+        </div>
+        {fromGl.isError ? (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-[11.5px] text-amber-700 dark:text-amber-400">
+            <span className="min-w-0">{errMsg(fromGl.error)}</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => fromGl.mutate({ auto_post: true })}
+              disabled={fromGl.isPending}
+            >
+              {t("stmt3.autoPost")}
+            </Button>
+          </div>
+        ) : fromGl.data ? (
+          <div className="mt-2 text-[11.5px] text-muted-foreground">
+            {t("stmt3.autoDone", {
+              period: `${fromGl.data.period.year}-${String(fromGl.data.period.month).padStart(2, "0")}`,
+            })}
+            {fromGl.data.auto_posted
+              ? ` ${t("stmt3.autoPosted", { n: fromGl.data.auto_posted })}`
+              : ""}
+          </div>
+        ) : null}
+      </Card>
+
+      {/* 兜底路径：手抄 JSON，收进折叠面板，不占首屏 */}
+      <Disclosure title={t("stmt3.input")} hint={t("stmt3.inputHint")}>
+      <Card className="border-0 bg-transparent p-0 shadow-none">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-medium">
             <FileText className="h-4 w-4 text-primary" />
@@ -498,6 +547,7 @@ export function StatementsPage() {
           {t("stmt3.fields")}
         </div>
       </Card>
+      </Disclosure>
 
       {/* 结果区 */}
       {analyze.isPending ? (
@@ -526,7 +576,7 @@ export function StatementsPage() {
               ) : save.data ? (
                 <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">{t("stmt2.n5")}</Badge>
               ) : (
-                <Button size="sm" variant="outline" onClick={() => payload && save.mutate(payload)}>
+                <Button size="sm" variant="outline" onClick={() => payloadToSave && save.mutate(payloadToSave)}>
                   <Save className="mr-1.5 h-3.5 w-3.5" />
                   {t("stmt2.n6")}
                 </Button>

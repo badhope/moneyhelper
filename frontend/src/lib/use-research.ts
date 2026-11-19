@@ -270,6 +270,26 @@ export function useResearchForecast(symbol: string | null, period: "daily" | "we
 // 财报 hooks
 // ---------------------------------------------------------------------------
 
+export type StatementFromGl = {
+  period: { id: number; year: number; month: number } & Record<string, unknown>;
+  payload: Record<string, unknown>;
+  analysis: StatementAnalysis;
+  /** 本次由系统代为过账的草稿凭证数（auto_post=true 时可能非 0） */
+  auto_posted?: number;
+};
+
+/** 零输入出报表：让后端按总账已过账凭证还原三表，省掉手抄 JSON。 */
+export function useStatementFromGl() {
+  return useMutation({
+    mutationFn: (body?: { period_id?: number; company?: string; auto_post?: boolean }) =>
+      api<StatementFromGl>("/api/statements/from-gl", {
+        method: "POST",
+        body: JSON.stringify(body ?? {}),
+      }),
+    retry: 0,
+  });
+}
+
 export function useStatementAnalyze() {
   return useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
