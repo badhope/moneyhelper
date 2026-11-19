@@ -75,8 +75,8 @@ jobs:
 
       - name: 同步 tag 到镜像
         env:
-          GH_X33834: ${{ secrets.GH_TOKEN_X33834 }}
-          GH_MORNINGSTAR: ${{ secrets.GH_TOKEN_MORNINGSTAR }}
+          GH_X33834: ${{ secrets.GH_X33834_TOKEN }}
+          GH_MORNINGSTAR: ${{ secrets.GH_MORNINGSTAR_TOKEN }}
         run: |
           set -euo pipefail
           push_tag() {

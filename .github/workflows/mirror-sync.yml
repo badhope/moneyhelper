@@ -1,5 +1,5 @@
-# 镜像同步：主仓(GitHub badhope) → GitCode badhope + Gitee badhope
-# 注意：GitHub Actions 不支持 secrets 动态索引，故用两个显式 job 写死 secret 名。
+# 镜像同步：主仓(GitHub badhope) → GitCode badhope + Gitee badhope + GitHub 两个镜像仓
+# 注意：GitHub Actions 不支持 secrets 动态索引，故用显式 job 写死 secret 名。
 # 用户名必须是 oauth2（GitCode/Gitee 均不接受平台用户名 + token 的 Basic 认证）。
 name: mirror-sync
 on:
@@ -42,3 +42,31 @@ jobs:
             echo "retry $i/5 after 30s..."; sleep 30
           done
           echo "::warning::gitee unreachable from runner, mirror not updated this run"
+
+  github-x33834:
+    if: github.repository == 'badhope/moneyhelper'
+    runs-on: ubuntu-latest
+    env:
+      MIRROR_TOKEN: ${{ secrets.GH_X33834_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - name: push to GitHub mirror (X33834)
+        run: |
+          if [ -z "$MIRROR_TOKEN" ]; then echo "skip: token not set"; exit 0; fi
+          git remote add mirror "https://x-access-token:${MIRROR_TOKEN}@github.com/X33834/moneyhelper.git"
+          git push mirror main --force && git push mirror --tags --force
+
+  github-morningstar:
+    if: github.repository == 'badhope/moneyhelper'
+    runs-on: ubuntu-latest
+    env:
+      MIRROR_TOKEN: ${{ secrets.GH_MORNINGSTAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - name: push to GitHub mirror (Morningstar202604)
+        run: |
+          if [ -z "$MIRROR_TOKEN" ]; then echo "skip: token not set"; exit 0; fi
+          git remote add mirror "https://x-access-token:${MIRROR_TOKEN}@github.com/Morningstar202604/moneyhelper.git"
+          git push mirror main --force && git push mirror --tags --force
