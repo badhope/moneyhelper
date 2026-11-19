@@ -117,9 +117,12 @@ async def member_delete(member_id: int) -> dict[str, Any]:
     整体在事务里，任一步失败回滚，不留半截状态。
     """
     uid = current_user_id()
-    conn = await _conn()
-    try:
-        await conn.execute("BEGIN")
+    from ._core import write_txn
+
+    # 顺序要求：先删引用方（member_loans），再删被引用方（members），反序会撞外键。
+    # 用 write_txn 而不是裸 BEGIN：全库单连接，多语句事务必须拿写锁，
+    # 否则并发时会撞 "cannot start a transaction within a transaction"。
+    async with write_txn() as conn:
         # 软切断：该成员的流水不再归属任何人（保持流水不计丢）
         await conn.execute(
             "UPDATE transactions SET owner_id=NULL WHERE user_id=? AND owner_id=?",
@@ -132,10 +135,6 @@ async def member_delete(member_id: int) -> dict[str, Any]:
         cur = await conn.execute(
             "DELETE FROM members WHERE user_id=? AND id=?", (uid, member_id)
         )
-        await conn.commit()
-    except Exception:
-        await conn.rollback()
-        raise
     return {"ok": True, "deleted": cur.rowcount}
 
 
