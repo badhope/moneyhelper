@@ -18,8 +18,11 @@ import { cn } from "@/lib/utils";
  */
 
 // 类型真源在 lib/nav.ts（导航清单也在那里）；这里只引入并重导出，不重复定义。
-export type { NavGroup };
+// 顺序不能反：`export type { X }` 要求 X 已在作用域内，Babel 的 TS 解析器不做提升，
+// 写成 export 在前会让 Vite dev 报 "Export 'NavGroup' is not defined"（页面直接白屏）。
 import type { NavGroup } from "@/lib/nav";
+
+export type { NavGroup };
 
 export function GroupedNav<T extends string>({
   groups,
