@@ -1301,7 +1301,7 @@ export const en: Record<string, string> = {
   "stmt3.autoHint": "Vouchers are generated automatically from expenses, procurement and bank feeds. This rolls them up by account into a balance sheet, P&L and ratios.",
   "stmt3.autoRun": "Generate now",
   "stmt3.autoRunning": "Rolling up…",
-  "stmt3.autoPost": "Post drafts and report",
+  "stmt3.autoPost": "Just do it and give me the report",
   "stmt3.autoPosted": "(auto-posted {n} drafts)",
   "stmt3.autoDone": "Generated from posted vouchers of {period}. You can save it as a snapshot.",
   "stmt3.loadSample": "Load sample",

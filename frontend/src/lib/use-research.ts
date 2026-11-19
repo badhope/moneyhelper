@@ -281,7 +281,7 @@ export type StatementFromGl = {
 /** 零输入出报表：让后端按总账已过账凭证还原三表，省掉手抄 JSON。 */
 export function useStatementFromGl() {
   return useMutation({
-    mutationFn: (body?: { period_id?: number; company?: string; auto_post?: boolean }) =>
+    mutationFn: (body?: { period_id?: number; company?: string; auto_post?: boolean; auto_setup?: boolean }) =>
       api<StatementFromGl>("/api/statements/from-gl", {
         method: "POST",
         body: JSON.stringify(body ?? {}),

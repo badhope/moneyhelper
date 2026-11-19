@@ -1301,7 +1301,7 @@ export const zh: Record<string, string> = {
   "stmt3.autoHint": "凭证是系统按报销、采购、银行流水自动生成的，这里直接按科目汇总成资产负债表、利润表与指标。",
   "stmt3.autoRun": "一键出报表",
   "stmt3.autoRunning": "正在汇总…",
-  "stmt3.autoPost": "帮我过账并出报表",
+  "stmt3.autoPost": "全部交给你，直接出报表",
   "stmt3.autoPosted": "（已自动过账 {n} 张草稿）",
   "stmt3.autoDone": "已按 {period} 的已过账凭证生成；可直接保存存档。",
   "stmt3.loadSample": "载入示例",

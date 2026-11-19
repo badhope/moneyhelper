@@ -47,6 +47,12 @@ async def statements_from_ledger(payload: dict[str, Any] | None = None) -> dict[
     body = payload or {}
     tenant = current_tenant_id()
     periods = await db.gl_list_periods(tenant)
+    setup = None
+    if not periods and body.get("auto_setup", True):
+        # 连账套都还没有：先替他把科目表与当期期间铺好，再判断有没有数据。
+        # 这是"零操作"的最后一步——用户不该被要求"先去总账建科目"。
+        setup = await db.gl_bootstrap(tenant)
+        periods = await db.gl_list_periods(tenant)
     if body.get("period_id"):
         period = next((p for p in periods if int(p["id"]) == int(body["period_id"])), None)
         if period is None:
@@ -54,7 +60,23 @@ async def statements_from_ledger(payload: dict[str, Any] | None = None) -> dict[
     elif periods:
         period = periods[0]
     else:
-        raise HTTPException(status_code=409, detail="总账还没有任何会计期间，请先过账凭证")
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"已自动建好账套（{setup['accounts_created']} 个科目、"
+                f"{setup['period']['year']}年{setup['period']['month']}月期间），"
+                "但本月还没有任何凭证：导入银行流水或记一笔就能出报表"
+                if setup
+                else "总账还没有任何会计期间（可加 auto_setup=true 由系统自动建账）"
+            ),
+        )
+
+    setup_note = (
+        f"系统已自动建好账套（{setup['accounts_created']} 个科目、"
+        f"{period['year']}年{period['month']}月期间）· "
+        if setup
+        else ""
+    )
 
     posted_now = 0
     if int(period.get("posted_entries") or 0) == 0:
@@ -65,10 +87,14 @@ async def statements_from_ledger(payload: dict[str, Any] | None = None) -> dict[
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"{period['year']}年{period['month']}月有 {drafts} 张草稿凭证还没过账，"
-                    "无法出报表（可加 auto_post=true 由系统自动过账）"
-                    if drafts
-                    else f"{period['year']}年{period['month']}月还没有任何凭证，无法出报表"
+                    setup_note
+                    + (
+                        f"{period['year']}年{period['month']}月有 {drafts} 张草稿凭证还没过账，"
+                        "无法出报表（可加 auto_post=true 由系统自动过账）"
+                        if drafts
+                        else f"{period['year']}年{period['month']}月还没有任何凭证："
+                        "导入银行流水或记一笔就能出报表"
+                    )
                 ),
             )
         for e in await db.gl_list_entries(tenant, int(period["id"]), 500):
@@ -90,6 +116,9 @@ async def statements_from_ledger(payload: dict[str, Any] | None = None) -> dict[
         "payload": payload_out,
         "analysis": analysis,
         "auto_posted": posted_now,
+        "auto_setup": (
+            {"accounts_created": setup["accounts_created"]} if setup else None
+        ),
     }
 
 

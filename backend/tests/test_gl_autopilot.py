@@ -115,3 +115,23 @@ async def test_import_then_report_without_any_manual_step(client) -> None:
     pl = data["payload"]["periods"][0]["income_statement"]
     assert pl["expenses"] == 200.0
     assert pl["net_profit"] == -200.0
+
+
+@pytest.mark.asyncio
+async def test_from_gl_sets_up_books_when_totally_empty(client) -> None:
+    """全新租户：账套都没有，也不要让用户去建科目——先自动建账，再告诉他缺数据。"""
+    _, token = await _user()
+    resp = await client.post("/api/statements/from-gl", json={}, headers=_headers(token))
+    assert resp.status_code in (200, 409), resp.text
+    if resp.status_code == 409:
+        detail = resp.json()["detail"]
+        assert "已自动建好账套" in detail, detail
+        assert "导入银行流水" in detail, "必须告诉用户下一步怎么做，而不是只报错"
+        # 建账必须真发生了：科目表已就位
+        accounts = (await client.get("/api/gl/accounts", headers=_headers(token))).json()["accounts"]
+        assert len(accounts) == len(DEFAULT_CHART)
+        # 关掉自动建账时仍然允许显式拒绝（不改变既有语义）
+        resp2 = await client.post(
+            "/api/statements/from-gl", json={"auto_setup": False}, headers=_headers(token)
+        )
+        assert resp2.status_code == 409
