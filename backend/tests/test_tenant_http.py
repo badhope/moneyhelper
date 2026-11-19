@@ -7,9 +7,8 @@
 
 from __future__ import annotations
 
-import pytest
 from app import auth, db
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 
 
 async def _make_user(username: str) -> tuple[int, str]:
@@ -29,16 +28,6 @@ async def _make_user(username: str) -> tuple[int, str]:
     assert user is not None
     token = auth._make_jwt(user)  # noqa: SLF001 — 测试直接签发，跳过登录限流
     return int(user["id"]), token
-
-
-@pytest.fixture
-async def client(temp_db):
-    from app.main import app
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://127.0.0.1:8787"
-    ) as c:
-        yield c
 
 
 async def _add_position(c: AsyncClient, token: str, symbol: str, name: str, shares: int) -> None:

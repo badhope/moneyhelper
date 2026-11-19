@@ -8,17 +8,7 @@
 两者缺一不可。
 """
 
-import httpx
 import pytest
-from app import main
-
-
-@pytest.fixture
-async def client(temp_db):
-    transport = httpx.ASGITransport(app=main.app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8787") as ac:
-        yield ac
-
 
 # 所有对外声称支持的策略
 ALL_STRATEGIES = ["ma_cross", "dca", "grid", "trend", "vol_target"]

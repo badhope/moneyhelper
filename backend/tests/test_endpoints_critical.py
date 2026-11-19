@@ -8,20 +8,8 @@
 
 from __future__ import annotations
 
-import pytest
 from app import db
-from httpx import ASGITransport, AsyncClient
-
-
-@pytest.fixture
-async def client(temp_db):
-    from app.main import app
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://127.0.0.1:8787"
-    ) as c:
-        yield c
-
+from httpx import AsyncClient
 
 # ---------------------------------------------------------------------------
 # /api/confirm：一次性 token

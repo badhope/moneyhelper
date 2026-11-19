@@ -98,16 +98,6 @@ class TestValueErrorBecomes400:
         assert len(msg) > 2
 
 
-@pytest.fixture
-async def client(temp_db):
-    import httpx
-    from app import main
-
-    transport = httpx.ASGITransport(app=main.app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8787") as ac:
-        yield ac
-
-
 # ---------------------------------------------------------------------------
 # 升级探测：schema 派生的「有效」POST body
 #

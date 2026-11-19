@@ -43,6 +43,33 @@ if str(_REPO_ROOT) not in sys.path:
 
 
 @pytest.fixture
+async def client(temp_db):
+    """共享 ASGI 客户端：`temp_db` + `main.app`，不触网。
+
+    改造前 38 个测试文件各自定义 `client`，其中 25 个是同一段代码的复制
+    （只是 `app` / `main.app` / 局部 import 三种写法）。这里留一份，
+    需要额外 monkeypatch 的测试仍在自己文件里定义 `client`（夹具就近覆盖）。
+    """
+    import httpx
+    from app import main
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=main.app), base_url="http://127.0.0.1:8787"
+    ) as ac:
+        yield ac
+
+
+@pytest.fixture
+async def _temp_db(temp_db):
+    """共享别名：19 个测试文件曾各自复制 `async def _temp_db(temp_db): yield`。
+
+    保留原名而不是让调用方改用 temp_db：`client` 等夹具签名里已引用 `_temp_db`，
+    改名会在每个测试函数签名上产生无关改动。行为就是转发 temp_db。
+    """
+    yield
+
+
+@pytest.fixture
 async def temp_db(tmp_path, monkeypatch):
     """临时内存库（test_api.py 自带同语义本地 fixture，此处供其余测试文件复用）。
     生产首启为空账本（不种示例），测试业务需要示例数据，故显式种入。"""

@@ -13,8 +13,10 @@ from app.connect import quote_tencent
 
 
 @pytest.fixture(autouse=True)
-async def _temp_db(temp_db):
+async def _auto_temp_db(temp_db):
+    """保持原文件的 autouse 语义：本文件每个用例都跑在临时库上。"""
     yield
+
 
 
 def _fake_quote(symbol: str = "600519") -> dict:

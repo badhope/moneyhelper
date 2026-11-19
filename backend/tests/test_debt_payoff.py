@@ -6,21 +6,12 @@
 
 from __future__ import annotations
 
-import httpx
 import pytest
-from app import main
 from app.calculations.debt_payoff import (
     DebtItem,
     compare_methods,
     plan_payoff,
 )
-
-
-@pytest.fixture
-async def client(temp_db):
-    transport = httpx.ASGITransport(app=main.app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8787") as ac:
-        yield ac
 
 
 def _debts() -> list[dict]:

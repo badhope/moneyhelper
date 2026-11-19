@@ -8,18 +8,7 @@
 
 from __future__ import annotations
 
-import httpx
-import pytest
 from app import auth, db
-from app.main import app
-
-
-@pytest.fixture
-async def client(temp_db):
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8787"
-    ) as c:
-        yield c
 
 
 async def _make_user(username: str, role: str = "user") -> tuple[int, str]:

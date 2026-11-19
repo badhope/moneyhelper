@@ -6,22 +6,16 @@
 
 from __future__ import annotations
 
-import httpx
 import pytest
-from app import main
 
 
 @pytest.fixture(autouse=True)
-async def _temp_db(temp_db):
-    """复用 conftest 的临时库：搜索路由仍会经过租户中间件。"""
+async def _auto_temp_db(temp_db):
+    """保持原文件的 autouse 语义：本文件每个用例都跑在临时库上。
+
+    `_temp_db` 转发版已收敛到 conftest；此处只保留「自动生效」这一行为差异。
+    """
     yield
-
-
-@pytest.fixture
-async def client(_temp_db):
-    transport = httpx.ASGITransport(app=main.app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8787") as ac:
-        yield ac
 
 
 @pytest.mark.parametrize(

@@ -14,8 +14,11 @@ from app import quotes as quotes_mod
 
 
 @pytest.fixture(autouse=True)
-async def _temp_db(temp_db):
-    """转发 conftest 的临时库 fixture（test_goals_memory 依赖 autouse 事务隔离 + seed）。"""
+async def _auto_temp_db(temp_db):
+    """保持原文件的 autouse 语义：本文件每个用例都跑在临时库上。
+
+    `_temp_db` 转发版已收敛到 conftest；此处只保留「自动生效」这一行为差异。
+    """
     yield
 
 

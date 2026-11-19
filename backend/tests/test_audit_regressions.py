@@ -21,9 +21,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-import httpx
 import pytest
-from app import main
 from app.calculations.backtest import (
     backtest_dca,
     backtest_ma_cross,
@@ -37,13 +35,6 @@ from app.calculations.technical import (
     rsi,
     technical_analysis,
 )
-
-
-@pytest.fixture
-async def client(temp_db):
-    transport = httpx.ASGITransport(app=main.app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8787") as ac:
-        yield ac
 
 
 def _pts(closes: list[float], vol: int = 1000) -> list[dict]:

@@ -8,19 +8,7 @@ from __future__ import annotations
 
 import pytest
 from app import db
-from httpx import ASGITransport, AsyncClient
-
-
-@pytest.fixture
-async def client(temp_db):
-    from app.main import app
-
-    # base_url 必须是本机地址：未设 API_TOKEN 时 host_guard 只放行本机/白名单，
-    # 用 http://test 会被 403 拦掉（与真实部署一致的行为，不是 bug）。
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://127.0.0.1:8787"
-    ) as c:
-        yield c
+from httpx import AsyncClient
 
 
 @pytest.fixture(autouse=True)
