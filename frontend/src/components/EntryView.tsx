@@ -16,6 +16,7 @@ import { store as appStore, useDashboard } from "@/lib/store";
 import { fmtMoney } from "@/lib/format";
 import { GoalsPanel, GoalsList } from "@/components/GoalsPanel";
 import { KIND_OPTIONS, CATEGORY_OPTIONS, KIND_LABEL_KEYS, CAT_LABEL_KEYS } from "@/lib/kinds";
+import { inputCls, labelCls } from "@/components/ui/field";
 
 // 选项与显示名与「改持仓」对话框共用一份，见 lib/kinds.ts
 
@@ -39,9 +40,6 @@ function Section({
   );
 }
 
-const inputCls =
-  "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
-const labelCls = "block text-xs text-muted-foreground mb-1";
 
 function PositionForm({ onDone }: { onDone: () => void }) {
   const { t: tt } = useI18n();

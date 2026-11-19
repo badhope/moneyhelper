@@ -11,10 +11,7 @@ import { fmtMoney } from "@/lib/format";
 import type { Goal } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
 import { errMsg } from "@/lib/utils";
-
-const labelCls = "block text-xs text-muted-foreground mb-1";
-const inputCls =
-  "w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+import { inputClsCompact as inputCls, labelCls } from "@/components/ui/field";
 
 export function GoalsPanel({ onDone }: { onDone: () => void }) {
   const { t } = useI18n();

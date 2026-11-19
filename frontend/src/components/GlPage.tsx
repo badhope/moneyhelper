@@ -37,10 +37,8 @@ import { Table } from "@/components/ui/table";
 import { useToast } from "@/lib/toast";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { cn, errMsg } from "@/lib/utils";
+import { inputCls, labelCls } from "@/components/ui/field";
 
-const inputCls =
-  "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
-const labelCls = "block text-xs text-muted-foreground mb-1";
 const miniInput =
   "w-full rounded-lg border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring";
 

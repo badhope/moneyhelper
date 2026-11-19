@@ -31,10 +31,8 @@ import { useLedgerRefs } from "@/lib/use-ledger-refs";
 import { useToast } from "@/lib/toast";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { cn, errMsg } from "@/lib/utils";
+import { inputCls, labelCls } from "@/components/ui/field";
 
-const inputCls =
-  "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
-const labelCls = "block text-xs text-muted-foreground mb-1";
 
 /** 付款与银行流水：登记付款、导入流水、匹配/取消匹配、对账汇总。 */
 export function BankPage() {

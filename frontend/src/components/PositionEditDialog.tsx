@@ -9,10 +9,8 @@ import { useMutate } from "@/lib/use-mutate";
 import { FieldError } from "@/components/ui/field-error";
 import type { Position } from "@/lib/types";
 import { errMsg } from "@/lib/utils";
+import { inputCls, labelCls } from "@/components/ui/field";
 
-const inputCls =
-  "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
-const labelCls = "block text-xs text-muted-foreground mb-1";
 
 /** 编辑持仓弹窗：可改 名称 / 类型 / 行业 / 股数 / 成本 / 现价 / 费用，提交 PUT /api/positions/:symbol。 */
 export function PositionEditDialog({

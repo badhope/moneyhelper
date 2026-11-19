@@ -7,10 +7,8 @@ import { useMutate } from "@/lib/use-mutate";
 import { FieldError } from "@/components/ui/field-error";
 import { fmtMoney } from "@/lib/format";
 import type { Position } from "@/lib/types";
+import { inputCls, labelCls } from "@/components/ui/field";
 
-const inputCls =
-  "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
-const labelCls = "block text-xs text-muted-foreground mb-1";
 
 /**
  * 追加持仓弹窗：填「本次买入股数 + 成交价」，后端按加权平均合并成本。

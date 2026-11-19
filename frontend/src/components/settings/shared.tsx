@@ -1,8 +1,7 @@
 import { Card } from "@/components/ui/card";
 
-export const inputCls =
-  "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
-export const labelCls = "block text-xs text-muted-foreground mb-1";
+// 表单样式统一在 ui/field，这里再导出一次，避免 20 多处旧引用一起改
+export { inputCls, labelCls } from "@/components/ui/field";
 
 /** 供应商预设（与后端 app/llm.py PROVIDERS 一致）：快捷选择自动填入 base/model，可手动改 */
 export const PRESET_PROVIDERS = {
