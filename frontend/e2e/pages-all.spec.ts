@@ -8,10 +8,12 @@ import { test, expect } from "@playwright/test";
  * 这类只有用户才会发现的问题。
  */
 
+// 与 src/lib/nav.ts 的 NAV_GROUPS 一一对应（分组名取自 zh.ts 的 nav.group*）。
+// 单测 nav.test.ts 守"每个视图都在导航里"，这里守"每个视图都点得开"。
 const GROUPS: { group: string; tabs: string[] }[] = [
   { group: "每天看", tabs: ["总览", "持仓", "记账", "还债规划"] },
   { group: "判断时", tabs: ["行情", "投研", "投资策略", "财务体检"] },
-  { group: "业务", tabs: ["报销", "采购应付"] },
+  { group: "业务", tabs: ["报销", "采购应付", "长任务"] },
   { group: "账务", tabs: ["总账", "银行对账", "财报", "公司财税", "模拟盘"] },
   { group: "接入", tabs: ["连接中心"] },
 ];
@@ -54,7 +56,7 @@ test.describe("财务工作区全量可达", () => {
       }
     }
 
-    expect(visited).toBe(16);
+    expect(visited).toBe(17);
     expect(errors, `页面出现异常：\n${errors.join("\n")}`).toEqual([]);
   });
 });

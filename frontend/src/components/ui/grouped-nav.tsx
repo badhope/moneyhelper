@@ -3,7 +3,6 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { ChevronDown } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { LucideIcon } from "lucide-react";
 
 /**
  * 分组导航：把扁平 tab 条按「看/管/算」的认知分组收纳。
@@ -18,11 +17,9 @@ import type { LucideIcon } from "lucide-react";
  *  - 移动端横向滚动保留，但组标题固定，避免滑到中间失去上下文。
  */
 
-export type NavGroup<T extends string> = {
-  id: string;
-  labelKey: string;
-  items: { key: T; labelKey: string; icon: LucideIcon }[];
-};
+// 类型真源在 lib/nav.ts（导航清单也在那里）；这里只引入并重导出，不重复定义。
+export type { NavGroup };
+import type { NavGroup } from "@/lib/nav";
 
 export function GroupedNav<T extends string>({
   groups,

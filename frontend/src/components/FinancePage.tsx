@@ -1,8 +1,8 @@
 import { lazy, Suspense } from "react";
-import { BookOpenCheck, CandlestickChart, ClipboardList, CreditCard, FileText, HeartPulse, Landmark, LayoutGrid, NotebookPen, Package, Plug, Receipt, Target, TrendingUp, Users, Wallet } from "lucide-react";
 import { isDataKind, type DataKind } from "@/lib/views";
 import { useI18n } from "@/lib/i18n";
-import { GroupedNav, type NavGroup } from "@/components/ui/grouped-nav";
+import { GroupedNav } from "@/components/ui/grouped-nav";
+import { NAV_GROUPS } from "@/lib/nav";
 
 const Dashboard = lazy(() =>
   import("@/components/Dashboard").then((m) => ({ default: m.Dashboard })),
@@ -60,64 +60,6 @@ const ProcurementBody = lazy(() =>
 
 export type { DataKind } from "@/lib/views";
 
-/**
- * 分组：按用户的心智模型收纳，而不是按功能清单平铺。
- *
- *   daily   每天都会看：总览、持仓、记账
- *   analyze 需要判断时看：行情、投研、策略、体检
- *   books   记账算账时才进：财报、税负、模拟盘
- *   connect 一次性配置：连接中心
- *
- * 原来 11 个 tab 同级平铺，用户每次都要线性扫一遍；分组后每屏只看到
- * 3-4 项，且「日常」与「配置」在视觉上分开，不会把一次性动作误当高频动作。
- */
-const GROUPS: NavGroup<DataKind>[] = [
-  {
-    id: "daily",
-    labelKey: "nav.groupDaily",
-    items: [
-      { key: "overview", labelKey: "nav.dashboard", icon: LayoutGrid },
-      { key: "holdings", labelKey: "nav.holdings", icon: Wallet },
-      { key: "ledger", labelKey: "nav.ledger", icon: NotebookPen },
-      { key: "debts", labelKey: "nav.debts", icon: CreditCard },
-    ],
-  },
-  {
-    id: "analyze",
-    labelKey: "nav.groupAnalyze",
-    items: [
-      { key: "market", labelKey: "nav.market", icon: TrendingUp },
-      { key: "research", labelKey: "nav.research", icon: CandlestickChart },
-      { key: "strategy", labelKey: "nav.strategy", icon: Target },
-      { key: "health", labelKey: "hc.title", icon: HeartPulse },
-    ],
-  },
-  {
-    id: "books",
-    labelKey: "nav.groupBooks",
-    items: [
-      { key: "expenses", labelKey: "nav.expenses", icon: ClipboardList },
-      { key: "procurement", labelKey: "nav.procurement", icon: Package },
-      { key: "longtask", labelKey: "nav.longtask", icon: FileText },
-    ],
-  },
-  {
-    id: "ledger",
-    labelKey: "nav.groupLedger",
-    items: [
-      { key: "gl", labelKey: "nav.gl", icon: BookOpenCheck },
-      { key: "bank", labelKey: "nav.bank", icon: Landmark },
-      { key: "statements", labelKey: "nav.statements", icon: FileText },
-      { key: "tax", labelKey: "nav.tax", icon: Receipt },
-      { key: "paper", labelKey: "nav.paper", icon: Users },
-    ],
-  },
-  {
-    id: "connect",
-    labelKey: "nav.groupConnect",
-    items: [{ key: "connect", labelKey: "nav.connect", icon: Plug }],
-  },
-];
 
 /**
  * 财务工作区：整页视图（对标 opencode / codex 的 section 切换）。
@@ -143,7 +85,7 @@ export function FinancePage({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <GroupedNav groups={GROUPS} value={kind} onChange={onKindChange} />
+      <GroupedNav groups={NAV_GROUPS} value={kind} onChange={onKindChange} />
 
       <div className="min-h-0 flex-1 overflow-y-auto scroll-thin">
         <div className="@container mx-auto w-full max-w-6xl px-4 py-5 sm:px-6">
