@@ -370,6 +370,9 @@
   `auth_guard.py`（API_TOKEN 共享口令、当前用户、管理员与实例管理员依赖）。
 - `main.py` 368 → 222 行：`main_lifespan.py` 承接前端目录解析、lifespan 与 MCP 子应用嵌套
   lifespan（`_mcp_state` 随之迁出），main 只留异常兜底、路由装配、MCP 挂载与静态托管。
+- `studio/installer.py` 346 → 100 行：`installer_apply.py`（条目批量落库）、
+  `installer_market.py`（安装/推荐安装/卸载）、`installer_seed.py`（出厂预装与 MCP 漂移修复）、
+  `installer_templates.py`（空白模板）；远程抓取留在门面，`installer.httpx` 替换仍生效。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 

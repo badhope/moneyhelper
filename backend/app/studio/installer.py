@@ -1,18 +1,21 @@
-"""Studio 安装器：从内置市场 / 远程 URL 安装资产，以及组装 MCP 配置。"""
+"""Studio 资产安装门面：远程抓取、按条目落库，以及市场/预装/模板的 re-export。
+
+按域拆到 installer_remote（抓取与 SSRF 校验在门面）、installer_market（安装/卸载）、
+installer_seed（出厂预装与 MCP 漂移修复）、installer_templates（空白模板）。
+"""
 
 from __future__ import annotations
 
 import base64
-import json
 import re
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 
-from .. import mcp_client
 from ..logging_utils import get_logger
-from . import importer, market, store
+from . import importer
+from .installer_apply import _apply_entries
 
 log = get_logger(__name__)
 
@@ -84,263 +87,14 @@ async def install_remote(url: str, default_kind: str | None = None) -> dict[str,
     return await _apply_entries(entries, source=url)
 
 
-async def _apply_entries(entries: list[dict[str, Any]], *, source: str) -> dict[str, Any]:
-    saved: list[dict[str, Any]] = []
-    errors: list[dict[str, str]] = []
-    for entry in entries:
-        if "__zip_errors__" in entry:
-            errors.extend(entry["__zip_errors__"])
-            continue
-        try:
-            asset = await store.upsert_asset(entry["kind"], entry["id"], entry["asset"])
-            saved.append({"kind": entry["kind"], "id": entry["id"], "name": asset.get("name", "")})
-        except Exception as exc:  # noqa: BLE001 — 单条失败不拖累整包
-            errors.append({"file": entry.get("source") or source, "error": str(exc)})
-    return {"ok": not errors or bool(saved), "saved": saved, "errors": errors, "source": source}
-
-
-async def install_market(item_id: str) -> dict[str, Any]:
-    item = market.find(item_id)
-    if item is None:
-        raise ValueError(f"市场条目不存在：{item_id}")
-    if item["kind"] == "mcp":
-        server = dict(item.get("server") or {})
-        if not server.get("url") and not server.get("command"):
-            raise ValueError("该 MCP 条目缺少 server 配置")
-        raw = mcp_client.raw_servers()
-        default_on = bool(server.get("url"))
-        for entry in raw:
-            if entry.get("name") == server.get("name"):
-                entry.update({**server, "enabled": default_on})
-                break
-        else:
-            raw.append({**server, "enabled": default_on})
-        mcp_client.save_servers(raw)
-        await _record_install(item_id)
-        return {
-            "ok": True,
-            "kind": "mcp",
-            "installed": server.get("name"),
-            "market_id": item_id,
-            "note": (
-                "MCP 已写入配置并启用（远程 HTTP）。"
-                if default_on
-                else "MCP 已写入配置但默认停用（stdio 依赖 npx/uvx）；请在「插件（MCP）」中启用。"
-            ),
-        }
-    asset = dict(item.get("asset") or {})
-    if not asset:
-        raise ValueError("该市场条目缺少资产内容")
-    asset.setdefault("enabled", True)
-    saved = await store.upsert_asset(item["kind"], item["id"], asset)
-    await _record_install(item_id)
-    return {"ok": True, "kind": item["kind"], "id": item["id"], "name": saved.get("name", ""), "market_id": item_id}
-
-
-async def install_recommended() -> dict[str, Any]:
-    """安装推荐组合：全部非 MCP 资产 + 配置推荐 MCP（离线安全，MCP 需手动启用）。"""
-    cfg = await store.get_config()
-    installed = (cfg.setdefault("marketplace", {}).setdefault("installed", {}))
-    saved: list[dict[str, Any]] = []
-    errors: list[dict[str, str]] = []
-    mcp_configured: list[str] = []
-    for item in market.catalog():
-        if item["kind"] == "mcp":
-            if item["id"] in installed:
-                continue
-            try:
-                server = dict(item.get("server") or {})
-                raw = mcp_client.raw_servers()
-                if not any(e.get("name") == server.get("name") for e in raw):
-                    raw.append({**server, "enabled": False})
-                    mcp_client.save_servers(raw)
-                    mcp_configured.append(server.get("name", ""))
-                installed[item["id"]] = {"kind": "mcp", "installed_at": store.now_iso(), "enabled": False}
-            except Exception as exc:  # noqa: BLE001
-                errors.append({"file": item["id"], "error": str(exc)})
-            continue
-        if item["id"] in installed:
-            continue
-        try:
-            asset = dict(item.get("asset") or {})
-            asset.setdefault("enabled", True)
-            await store.upsert_asset(item["kind"], item["id"], asset)
-            installed[item["id"]] = {"kind": item["kind"], "installed_at": store.now_iso(), "enabled": True}
-            saved.append({"kind": item["kind"], "id": item["id"], "name": asset.get("name", "")})
-        except Exception as exc:  # noqa: BLE001
-            errors.append({"file": item["id"], "error": str(exc)})
-    await store.mutate_config(lambda c: c.update({"marketplace": cfg["marketplace"]}))
-    return {
-        "ok": not errors,
-        "saved": saved,
-        "mcp_configured": mcp_configured,
-        "errors": errors,
-        "note": "MCP 服务器已写入配置但默认关闭，避免离线环境拖慢问答；可在「插件（MCP）」中逐个启用。",
-    }
-
-
-async def _record_install(item_id: str) -> None:
-    def _apply(cfg):
-        installed = cfg.setdefault("marketplace", {}).setdefault("installed", {})
-        installed[item_id] = {"installed_at": store.now_iso()}
-
-    await store.mutate_config(_apply)
-
-
-async def uninstall_market(item_id: str) -> dict[str, Any]:
-    item = market.find(item_id)
-    if item is None:
-        raise ValueError(f"市场条目不存在：{item_id}")
-    cfg = await store.get_config()
-    installed = (cfg.setdefault("marketplace", {}).setdefault("installed", {}))
-    if item["kind"] == "mcp":
-        server = item.get("server") or {}
-        raw = [e for e in mcp_client.raw_servers() if e.get("name") != server.get("name")]
-        mcp_client.save_servers(raw)
-    else:
-        try:
-            await store.delete_asset(item["kind"], item["id"], force=True)
-        except Exception as exc:  # noqa: BLE001 — 删除失败如实回报
-            raise ValueError(str(exc)) from exc
-    installed.pop(item_id, None)
-    await store.mutate_config(lambda c: c.update({"marketplace": cfg["marketplace"]}))
-    return {"ok": True, "uninstalled": item_id}
-
-
-async def seed_default_bundle() -> dict[str, Any]:
-    """首次启动的「出厂预装」：把市场里全部非 MCP 资产装好并启用。
-
-    只跑一次（marketplace.seeded=true 后不再执行），因此用户之后删掉的条目
-    不会被重启重新装回来。MCP 只写配置、保持停用：stdio 服务器依赖 npx/uvx，
-    离线或未安装时启用会拖慢每轮问答。
-    """
-    cfg = await store.get_config()
-    marketplace = cfg.setdefault("marketplace", {"installed": {}})
-    if marketplace.get("seeded"):
-        return {"seeded": False, "reason": "already"}
-    installed = marketplace.setdefault("installed", {})
-    saved = 0
-    mcp_names: list[str] = []
-    for item in market.catalog():
-        if item["kind"] == "mcp":
-            server = dict(item.get("server") or {})
-            if not server.get("name"):
-                continue
-            raw = mcp_client.raw_servers()
-            # 远程 HTTP MCP 默认启用（无本地运行时依赖）；stdio 需要 npx/uvx，
-            # 缺失时每轮问答都要等一次启动失败，所以默认停用、由用户显式打开。
-            default_on = bool(server.get("url"))
-            if not any(e.get("name") == server.get("name") for e in raw):
-                raw.append({**server, "enabled": default_on})
-                try:
-                    mcp_client.save_servers(raw)
-                    mcp_names.append(str(server["name"]))
-                except ValueError as exc:
-                    log.warning("studio.seed mcp failed (%s): %s", item["id"], exc)
-            installed[item["id"]] = {
-                "kind": "mcp",
-                "installed_at": store.now_iso(),
-                "enabled": default_on,
-            }
-            continue
-        if item["id"] in installed:
-            continue
-        try:
-            asset = dict(item.get("asset") or {})
-            asset.setdefault("enabled", True)
-            # 市场条目不算「内置资产」：可自由删除（内置只指代码里随包分发的默认项）
-            asset.setdefault("builtin", False)
-            await store.upsert_asset(item["kind"], item["id"], asset)
-            installed[item["id"]] = {
-                "kind": item["kind"],
-                "installed_at": store.now_iso(),
-                "enabled": True,
-            }
-            saved += 1
-        except Exception as exc:  # noqa: BLE001 — 单条失败不阻断出厂预装
-            log.warning("studio.seed asset failed (%s): %s", item["id"], exc)
-    marketplace["seeded"] = True
-    await store.mutate_config(lambda c: c.update({"marketplace": marketplace}))
-    log.info("studio.seed_default_bundle assets=%s mcp=%s", saved, len(mcp_names))
-    return {"seeded": True, "assets": saved, "mcp_configured": mcp_names}
-
-
-async def repair_mcp_config() -> dict[str, Any]:
-    """修复 MCP 配置漂移：已安装过的市场条目若从 mcp.json 里消失，重新补回。
-
-    为什么需要单独一步：`mcp.json` 在 data/ 下、`seeded` 标记在 settings 表里，
-    两者生命周期不同——用户删了 mcp.json（换机器/清数据）后 DB 仍认为「已预装」，
-    MCP 就永远回不来了。只补 `installed` 里记录过的条目，不会复活用户主动卸载的。
-    """
-    cfg = await store.get_config()
-    installed = (cfg.get("marketplace") or {}).get("installed") or {}
-    if not installed:
-        return {"repaired": []}
-    raw = mcp_client.raw_servers()
-    names = {str(e.get("name") or "") for e in raw}
-    repaired: list[str] = []
-    for item in market.catalog():
-        if item["kind"] != "mcp" or item["id"] not in installed:
-            continue
-        server = dict(item.get("server") or {})
-        name = str(server.get("name") or "")
-        if not name or name in names:
-            continue
-        raw.append({**server, "enabled": bool(server.get("url"))})
-        names.add(name)
-        repaired.append(name)
-    if repaired:
-        try:
-            mcp_client.save_servers(raw)
-        except ValueError as exc:
-            log.warning("studio.repair_mcp failed: %s", exc)
-            return {"repaired": [], "error": str(exc)}
-    return {"repaired": repaired}
-
-
-def template_for(kind: str) -> dict[str, Any]:
-    templates: dict[str, dict[str, Any]] = {
-        "prompts": {
-            "name": "我的提示词",
-            "description": "一句话说明用途",
-            "category": "custom",
-            "priority": 50,
-            "enabled": True,
-            "content": "在这里写提示词正文。建议：先写目标，再写约束，最后写输出格式。",
-        },
-        "rules": {
-            "name": "我的约束",
-            "description": "一句话说明约束目的",
-            "severity": "should",
-            "scope": "all",
-            "enabled": True,
-            "content": "约束正文。must 级约束违反时回答不合格；should 级为默认建议。",
-        },
-        "hooks": {
-            "name": "我的 Hook",
-            "description": "一句话说明触发场景",
-            "event": "pre_tool",
-            "action": "warn",
-            "match": "tool_name_pattern",
-            "payload": "提示文案或注入内容",
-            "priority": 50,
-            "enabled": True,
-        },
-        "roles": {
-            "name": "我的角色",
-            "description": "一句话职责",
-            "instructions": "你是……。职责：……。输出：……。边界：……。",
-            "tools": "all",
-            "temperature": 0.2,
-            "enabled": True,
-        },
-        "skills": {
-            "name": "我的技能",
-            "description": "一句话描述技能",
-            "content": "技能指令正文：何时使用、步骤、验收标准。",
-            "enabled": True,
-        },
-    }
-    if kind not in templates:
-        raise ValueError(f"未知资产类型：{kind}")
-    return json.loads(json.dumps(templates[kind], ensure_ascii=False))
+from .installer_market import (  # noqa: F401,E402 — 对外同名导出
+    _record_install,
+    install_market,
+    install_recommended,
+    uninstall_market,
+)
+from .installer_seed import (  # noqa: F401,E402
+    repair_mcp_config,
+    seed_default_bundle,
+)
+from .installer_templates import template_for  # noqa: F401,E402
