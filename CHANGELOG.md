@@ -164,6 +164,12 @@
   `tax_cit.py`，个税累计预扣进 `tax_iit.py`，工资核算进 `tax_payroll.py`，月末清单与
   税负汇总进 `tax_reports.py`，数值舍入口径进 `tax_common.py`；税率表与 `@dataclass`
   装饰器随它们各自的函数一并迁移。
+- `tools.py` 511 → 96 行门面：工具目录（三类技能包的 name+描述文案）进 `tool_catalog.py`，
+  统一注册表（`TOOLS`/`TOOL_IMPL`/`_TOOL_REGISTRY`/`FINANCE_*`/`GENERAL_*`/`ENTERPRISE_*`）
+  进 `tool_registry.py`，晨报触发（依赖 scheduler）单独进 `tools_report.py`。门面保留
+  `_action_log`/`Emit`/`TOOL_RESULT_MAX_CHARS`/`truncate_tool_result`/`_fn`，并把深研实现
+  继续灌进 `globals()`——MCP 包装器走 `xtools.tool_xxx` 属性访问，`TOOL_IMPL`、
+  `FINANCE_TOOL_NAMES`、`TOOLS` 三处双向校验口径不变（59/59 + 通用 2 + 企业 5 = 61）。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
