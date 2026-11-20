@@ -240,6 +240,10 @@
   `agent_graph_builder.py`。两者都经门面动态取 `_CHECKPOINT_DB` 与节点函数——conftest 会把
   checkpoint 库指到临时目录，测试也会 `monkeypatch.setattr(agent_graph, "run_graph", …)`；
   同时门面保留 `asyncio` 属性，测试用 `agent_graph.asyncio.to_thread` 建库。
+- `routes/calculations.py` 413 → 20 行门面：净值与历史净值序列进 `calculations_networth.py`，
+  收益率（XIRR/TWR/简单收益率）进 `calculations_returns.py`，健康评分与目标进度进
+  `calculations_health.py`，净值快照/拆分/归因与 `_parse_date` 进
+  `calculations_networth_past.py`。子路由按原顺序 include，契约守卫 191 条路径全对上。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
