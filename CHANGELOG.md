@@ -123,6 +123,9 @@
 - `calculations/strategies.py` 606 → 25 行门面：指标（波动/ATR/唐奇安）进
   `strategies_indicators.py`，统一执行引擎与四套策略进 `strategies_backtest.py`；
   基准曲线等私有 helper 一并从门面导出（回归测试直接 import）。
+- `db/history.py` 593 → 41 行门面：运行记录进 `history_runs.py`，会话增删改/迁移进
+  `history_sessions.py`，对话摘要与 HITL pending 动作进 `history_pending.py`；
+  runs 保存时回调 sessions 的 `upsert_session`，跨组单向导入无环。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
