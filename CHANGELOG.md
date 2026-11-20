@@ -359,6 +359,9 @@
 - `calculations/cashflow.py` 344 → 18 行：`cashflow_util.py`（日期/分位数/月份区间）、
   `cashflow_rules.py`（阈值与周期窗口）、`cashflow_forecast.py`（预测区间）、
   `cashflow_detect.py`（订阅与异常识别）。
+- `tool_schemas.py` 373 → 108 行：基类 `_In` 与 schema 清洗移到 `schemas_base.py`，
+  六个 `schemas_*.py` 改从基类模块继承，本文件只做域合并与 `input_schema` /
+  `validate_tool_args` / `function_schema` 三个对外接口，循环导入消失。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 

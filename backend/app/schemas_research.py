@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from .tool_schemas import _In
+from .schemas_base import _In
 
 
 class ResearchAnalyzeIn(_In):
