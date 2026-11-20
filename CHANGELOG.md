@@ -139,6 +139,9 @@
 - `quotes.py` 544 → 196 行门面：大盘指数进 `quotes_indices.py`，组合今日盈亏进
   `quotes_pnl.py`，K 线抓取/解析进 `quotes_kline.py`；`live_quotes`/`quote_now`/`kline`
   主函数留门面（回归测试经门面注入数据源与 `_fetch_kline` 补丁）。
+- `scheduler.py` 541 → 452 行门面：订阅到期巡检（窗口判定/日期 helper/月度去重）进
+  `scheduler_subs.py`；调度器状态、晨报、月末结账、连接同步与技能定时任务留门面
+  （回归测试经门面注入 `_sched`/`_state` 补丁），订阅测试的 datetime patch 路径同步改到子模块。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。

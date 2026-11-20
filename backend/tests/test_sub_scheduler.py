@@ -1,5 +1,5 @@
 """订阅到期巡检（scheduler._check_subscriptions_due）行为测试：直接调用、不启动 APScheduler。
-通过 patch("app.scheduler.datetime", ...) 固定 today，验证窗口内/外/去重三种场景。
+通过 patch("app.scheduler_subs.datetime", ...) 固定 today，验证窗口内/外/去重三种场景。
 注意：temp_db 会调 reset_to_seed() 种入演示数据（含 健身私教 due_day=5 等），
 本模块的测试统一在测例开头先清空 subscriptions 再按需 add。
 """
@@ -62,7 +62,7 @@ async def test_sub_due_within_window_writes(temp_db):
     await _reset_subs()
     today = date(2026, 10, 5)
     await db.add_subscription({"name": "Netflix", "monthly": 45.0, "note": "4K", "due_day": "5"})
-    with patch("app.scheduler.datetime", _FixedDatetime(today)):
+    with patch("app.scheduler_subs.datetime", _FixedDatetime(today)):
         await scheduler._check_subscriptions_due()
 
     mem = await db.fetch_all("SELECT * FROM user_memory WHERE kind LIKE 'subscription_due:%'")
@@ -77,7 +77,7 @@ async def test_sub_due_outside_window_skipped(temp_db):
     await _reset_subs()
     today = date(2026, 10, 5)
     await db.add_subscription({"name": "FarSub", "monthly": 10.0, "due_day": "28"})  # 23 天后
-    with patch("app.scheduler.datetime", _FixedDatetime(today)):
+    with patch("app.scheduler_subs.datetime", _FixedDatetime(today)):
         await scheduler._check_subscriptions_due()
 
     mem = await db.fetch_all("SELECT * FROM user_memory WHERE kind LIKE 'subscription_due:%'")
@@ -89,7 +89,7 @@ async def test_sub_no_due_day_skipped(temp_db):
     await _reset_subs()
     today = date(2026, 10, 5)
     await db.add_subscription({"name": "NoDue", "monthly": 20.0, "due_day": ""})
-    with patch("app.scheduler.datetime", _FixedDatetime(today)):
+    with patch("app.scheduler_subs.datetime", _FixedDatetime(today)):
         await scheduler._check_subscriptions_due()
 
     mem = await db.fetch_all("SELECT * FROM user_memory WHERE kind LIKE 'subscription_due:%'")
@@ -101,7 +101,7 @@ async def test_sub_dedup_same_month(temp_db):
     await _reset_subs()
     today = date(2026, 10, 5)
     await db.add_subscription({"name": "Once", "monthly": 30.0, "due_day": "5"})
-    with patch("app.scheduler.datetime", _FixedDatetime(today)):
+    with patch("app.scheduler_subs.datetime", _FixedDatetime(today)):
         for _ in range(3):
             await scheduler._check_subscriptions_due()
 
