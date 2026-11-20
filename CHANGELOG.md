@@ -93,6 +93,11 @@
   种子/默认值/data_note 与会话兜底迁移进 `seed.py`，`row_dict`/`_clamp_limit` 进 `util.py`。
   连接、写事务、读池与多租户迁移仍留在 `_core.py`——它们共享 `_db` 单连接状态，
   硬拆需要把全局状态搬家，收益不抵风险。
+- `routes/qa.py` 677 → 219 行：SSE 传输层进 `qa_sse.py`（内部契约与 AG-UI 两套事件流、
+  sse-starlette 跨事件循环的两个隐患处理），部门实况与呈批件进 `qa_department.py`，
+  HITL 确认进 `qa_confirm.py`（per-token 锁与上限一并搬走），历史/会话进 `qa_history.py`。
+  子模块各挂自己的 `router`，主文件按 department → confirm → history 顺序 `include_router`，
+  路由顺序与拆分前一致；`_LoopSafeEventSourceResponse` 仍从 `qa.py` 导出（main.py 依赖）。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
