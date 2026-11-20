@@ -70,10 +70,25 @@
 - `db/backup.py` 1282 → 574 行，导出侧拆到 `backup_export.py`（全量导出 + 月度趋势），
   各域还原组件拆到 `backup_restore.py`（总账/报销/支付/采购/银行流水/对账）。导入仍在
   同一个写事务内按域顺序落库，备份文件格式不变。
+- `tool_schemas.py` 755 → 359 行，模型按域进 `schemas_views/market/research/connect/`
+  `write/enterprise.py`，每模块导出 `MODELS = {tool_name: Model}`；主文件按原始白名单把
+  合并集合分回 `TOOL_INPUT_MODELS`（63 条）与 `MCP_ONLY_INPUT_MODELS`（19 条）。
+- `agent.py` 725 → 624 行，白名单常量与 `_tool_summary` 进 `agent_tooling.py`，历史压缩进
+  `agent_history.py`；`run_agent`、流式收尾与 studio hook 仍在原文件。
+- `broker_adapter.py` 719 → 290 行，协议与枚举进 `broker_types.py`、纸面/空通道进
+  `broker_paper.py`、QMT 进 `broker_xtquant.py`、GUI 进 `broker_easytrader.py`；
+  实盘模块改从 `broker_types` 取类型，解开与原模块的循环依赖。
+- `studio/store.py` 688 → 65 行门面：持久化进 `store_core.py`（默认包、读写、锁、变更入口）、
+  权限进 `store_permissions.py`、资产 CRUD 进 `store_assets.py`、Hook 与提示词拼装进
+  `store_hooks.py`、主角色/看门狗/内置工具开关进 `store_extras.py`；`_mutate` 旧名保留。
+- `studio/market.py` 743 → 41 行门面：来源 URL 进 `market_sources.py`，42 条市场条目按
+  技能/智能体/MCP/其它拆成四个 `market_items_*.py`，拼接顺序与原文件逐条一致。
 
-拆分后的两个坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入
-行情，函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖
-检查原先只读 `mcp_server.py`，拆分后改为扫描 `mcp_*.py` 全域，避免"拆走即漏检"。
+拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
+函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
+只读 `mcp_server.py`，拆分后改为扫描 `mcp_*.py` 全域，避免"拆走即漏检"；Studio 锁测试
+把 `_studio_lock` 打在门面上，拆到 `store_assets` 后补丁落空、直接被 `AttributeError`
+抓住，同时给读写成对计数加了"读 > 0"断言，防止补丁再次落空时测试静默空转。
 
 
 ## [Unreleased] - 2026-11-16

@@ -342,6 +342,8 @@ async def test_all_config_mutations_hold_the_lock(temp_db, monkeypatch) -> None:
     """
     import asyncio
 
+    from app.studio import store_assets
+
     async def run_under_counter(fn) -> int:
         real = asyncio.Lock()
         counter = {"enter": 0}
@@ -354,7 +356,8 @@ async def test_all_config_mutations_hold_the_lock(temp_db, monkeypatch) -> None:
             async with real:
                 yield
 
-        monkeypatch.setattr(store, "_studio_lock", counting)
+        # 拆分后资产层在 store_assets 里解析锁，补丁必须打到实际调用处
+        monkeypatch.setattr(store_assets, "_studio_lock", counting)
         # 真锁 + 超时：嵌套进入会挂住，超时即判定为缺陷（而不是让测试永久卡住）
         await asyncio.wait_for(fn(), timeout=10)
         return counter["enter"]
@@ -382,9 +385,12 @@ async def test_config_writes_never_exceed_reads(temp_db, monkeypatch) -> None:
     """并发写时不许出现「写次数 > 读次数」：那意味着有写入不是基于新鲜快照。"""
     import asyncio
 
+    from app.studio import store_assets
+
     reads = {"n": 0}
     writes = {"n": 0}
-    real_read, real_write = store._read, store._write
+    # 读写在 store_assets 中解析，补丁打到那里才有意义
+    real_read, real_write = store_assets._read, store_assets._write
 
     async def counted_read():
         reads["n"] += 1
@@ -394,14 +400,15 @@ async def test_config_writes_never_exceed_reads(temp_db, monkeypatch) -> None:
         writes["n"] += 1
         return await real_write(cfg)
 
-    monkeypatch.setattr(store, "_read", counted_read)
-    monkeypatch.setattr(store, "_write", counted_write)
+    monkeypatch.setattr(store_assets, "_read", counted_read)
+    monkeypatch.setattr(store_assets, "_write", counted_write)
     await asyncio.gather(
         *[
             store.upsert_asset("prompts", f"par{i}", {"name": f"P{i}", "content": "x"})
             for i in range(8)
         ]
     )
+    assert reads["n"] > 0, "读计数为 0：补丁未打到实际调用处，测试空转"
     assert writes["n"] <= reads["n"], (
         f"写 {writes['n']} 次 > 读 {reads['n']} 次：存在未基于新鲜快照的写入"
     )
