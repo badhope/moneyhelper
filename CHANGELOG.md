@@ -221,6 +221,12 @@
   技能定时动作执行进 `scheduler_skills.py`。`_sched`/`_state` 两个全局、`_reschedule`、
   `generate_report`（测试 `monkeypatch.setattr(scheduler, "has_data", …)` 直接打门面）与
   技能同步/启停仍留门面——全局状态搬家会让测试夹具与时序断言全部失效。
+- `mcp_client.py` 439 → 276 行：会话打开（StreamableHTTP/stdio 两路）、工具发现与缓存、
+  `probe`/`refresh`/`failure_status`/`call_mcp_tool`/`resolve_mcp_tool` 进
+  `mcp_client_transport.py`。配置与状态（`MCP_CFG`、`_discover_cache`、`_discovery_failures`、
+  `_servers`、`_readonly_tools`）留门面，传输层通过 `_facade` 动态取——测试既会
+  `monkeypatch.setattr(mcp_client, "MCP_CFG", …)` 换配置，也会直接替换 `_readonly_tools`
+  和 `_discover`，import 快照会让这些补丁全部落空（本轮已实测踩到 `_discover` 一处）。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
