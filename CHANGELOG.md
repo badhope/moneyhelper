@@ -380,6 +380,12 @@
   门面按原顺序拼接 50 题；题目正文去空白后与拆分前逐字节一致（5772 字符）。
 - `mcp_server.py` 438 → 414 行：`_apply_shared_schemas` 移到 `mcp_shared_schemas.py`
   （`mcp` 惰性导入避免循环），挂载与注册副作用仍留门面。
+- `evaluate.py` 331 → 67 行：`evaluate_types.py`（`EvalItem` 与日期/金额工具）、
+  `evaluate_rules.py`（预算/订阅/债务/目标/现金流五条规则），门面保留 `RULES` 与
+  `evaluate_all`；`_upcoming_due` 等仍从 `evaluate` 导入（测试直接引用）。
+- `db/expenses.py` 319 → 19 行：`expenses_query.py`（读取与申请人/科目校验）、
+  `expenses_write.py`（创建/提交）、`expenses_review.py`（审批/驳回与凭证回滚）；
+  门面保留 `_now` 时钟口径与全部 `expense_*` 导出。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
