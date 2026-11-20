@@ -324,6 +324,9 @@
   `service_bookmarklet.py`（回传书签）、`service_sync.py`（公开源/收件箱/配对码三路同步）、
   `service_inbox.py`（扫描解析去重入账归档）、`service_intents.py`（paper 落单与
   live 交接单）。子模块依赖单向：common ← inbox ← sync。
+- `longtask.py` 385 → 48 行：`longtask_store.py`（task.json/artifacts 读写）、
+  `_templates.py`（阶段模板）、`_tasks.py`（建单/列表/产物/上下文）、`_runner.py`
+  （顺序执行与硬上限）。门面保留 `_now`（now_str）与全部旧名。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
