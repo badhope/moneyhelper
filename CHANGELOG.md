@@ -124,6 +124,9 @@
   缓存、降级链与对外入口（`live_quotes`/`quote_now`/`kline`）仍留在原文件：它们的
   TTLCache 与 `invalidate_quotes_cache` 必须是同一批对象，拆开就会出现"清了缓存却
   仍命中旧值"。
+- `db/gl.py` 657 → 50 行门面：科目与会计期间（建账、建期、结账、期间归属）进
+  `gl_accounts.py`，凭证（校验、记账、过账、反冲、试算表）进 `gl_entries.py`。
+  凭证侧依赖期间侧的 `_open_period_for_date` / `gl_get_period`，单向依赖不开环。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
