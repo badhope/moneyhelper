@@ -211,6 +211,11 @@
   同步任务三段式进 `store_jobs.py`，交易意图状态机进 `store_intents.py`。
   时间戳策略守卫要求门面仍暴露 `_now`（AWARE=now_iso），故门面显式重导出时钟；
   其余同名函数一律 re-export，调用方零改动。
+- `llm.py` 465 → 227 行：供应商推断与 LiteLLM 模型串拼装进 `llm_routing.py`（纯函数），
+  `stream_narrate`/`stream_text_short`/`json_complete`/`litellm_chat` 进 `llm_stream.py`。
+  流式层一律通过门面动态取配置（`_facade._config()`），测试 patch `llm._config` /
+  `agent.llm._config` 仍生效——若在 import 时把函数对象绑死，补丁会静默落空。
+  配置缓存（`_cfg`/`_cfg_by_tenant`）、`_config`、`invalidate` 与 `aclose` 留门面。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
