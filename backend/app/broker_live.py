@@ -18,7 +18,7 @@ import os
 from decimal import Decimal
 from typing import Any
 
-from .broker_adapter import OrderRequest, OrderResult, OrderSide, OrderStatus
+from .broker_types import OrderRequest, OrderResult, OrderSide, OrderStatus
 
 log = logging.getLogger(__name__)
 
