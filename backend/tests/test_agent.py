@@ -9,7 +9,7 @@ import json
 
 import httpx
 import pytest
-from app import agent, db, llm, tools
+from app import agent, db, llm, tools, tools_market, tools_views
 
 
 def _chat_resp(content: str | None = None, tool_calls: list[dict] | None = None) -> httpx.Response:
@@ -183,8 +183,8 @@ async def test_tool_kline_falls_back(temp_db, monkeypatch):
             "points": [{"date": "2026-09-01", "close": 10.0, "pct_change": 0.1}],
         }
 
-    # tools.py 在模块加载时绑定 fetch_kline，须直接 patch tools 模块
-    monkeypatch.setattr(tools, "fetch_kline", _fake)
+    # K 线工具已拆到 tools_views，patch 要落到实际使用它的模块
+    monkeypatch.setattr(tools_views, "fetch_kline", _fake)
     out = json.loads(await tools.tool_get_kline({"symbol": "600519"}))
     assert out["symbol"] == "600519" and out["points"]
 
@@ -326,7 +326,8 @@ async def test_buy_without_quote_asks_for_cost(temp_db, monkeypatch):
     async def no_quote(_sym: str) -> dict | None:
         return None
 
-    monkeypatch.setattr(tools, "quote_now", no_quote)
+    for mod in (tools, tools_market):
+        monkeypatch.setattr(mod, "quote_now", no_quote)
     before = {p["symbol"]: p["shares"] for p in await db.list_positions()}
     out = await tools.run_action("买入 600519 100 股")
     assert out["route"] == "action"
@@ -342,7 +343,8 @@ async def test_buy_with_quote_records_position(temp_db, monkeypatch):
     async def with_quote(_sym: str) -> dict:
         return {"price": 1250.0, "name": "贵州茅台", "symbol": "600519"}
 
-    monkeypatch.setattr(tools, "quote_now", with_quote)
+    for mod in (tools, tools_market):
+        monkeypatch.setattr(mod, "quote_now", with_quote)
     out = await tools.run_action("买入 600519 100 股")
     assert out["route"] == "action"
     assert out["level"] == "待确认"
@@ -423,7 +425,8 @@ async def test_graph_hitl_resume_survives_memory_clear(temp_db, monkeypatch):
     async def _no_llm():
         return False
 
-    monkeypatch.setattr(tools, "quote_now", with_quote)
+    for mod in (tools, tools_market):
+        monkeypatch.setattr(mod, "quote_now", with_quote)
     monkeypatch.setattr(service.llm, "llm_available", _no_llm)
 
     events: list = []

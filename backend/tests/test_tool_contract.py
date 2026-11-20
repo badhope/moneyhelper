@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 from app import quotes as quotes_mod
-from app import tools
+from app import tools, tools_market, tools_research, tools_views
 
 # ---------------------------------------------------------------------------
 # 离线环境：行情相关入口全部换成快速失败 mock（复用 test_tools 的思路，
@@ -54,9 +54,12 @@ def offline_quotes(monkeypatch):
     monkeypatch.setattr(quotes_mod, "live_quotes", _snap)
     monkeypatch.setattr(quotes_mod, "quote_now", _quote)
     monkeypatch.setattr(quotes_mod, "indices_quotes", lambda: [])
-    # tools 模块的提前绑定
-    monkeypatch.setattr(tools, "quote_now", _quote)
-    monkeypatch.setattr(tools, "fetch_kline", _empty_kline)
+    # 各工具子模块在模块顶部做了 `from .quotes import kline as fetch_kline` 的提前绑定，
+    # 拆分后必须逐个子模块替换，否则探测会真的走网络。
+    for mod in (tools, tools_market):
+        monkeypatch.setattr(mod, "quote_now", _quote, raising=False)
+    for mod in (tools, tools_views, tools_research):
+        monkeypatch.setattr(mod, "fetch_kline", _empty_kline, raising=False)
 
     async def _no_search(q, limit=5):
         return []

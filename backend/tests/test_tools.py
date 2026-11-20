@@ -11,7 +11,7 @@ import json
 
 import pytest
 from app import quotes as quotes_mod
-from app import tools
+from app import tools, tools_market, tools_views
 
 
 @pytest.fixture
@@ -26,10 +26,9 @@ def snap_quotes(monkeypatch):
 
     monkeypatch.setattr(quotes_mod, "live_quotes", _snap)
     monkeypatch.setattr(quotes_mod, "quote_now", _quote)
-    # tools.py 用 `from .quotes import quote_now` 直接绑定了函数对象，
-    # 只 patch quotes 模块属性不会影响它，必须同时替换 tools 里的引用，
-    # 否则测试会真的走网络（隔离环境下必挂）。
-    monkeypatch.setattr(tools, "quote_now", _quote)
+    # 行情/持仓工具已拆到 tools_market，模块前缀绑定要替换到子模块上，
+    # 只 patch quotes 模块属性不会影响它，否则测试会真的走网络。
+    monkeypatch.setattr(tools_market, "quote_now", _quote)
     return _snap
 
 
@@ -113,7 +112,7 @@ async def test_tool_kline_with_data(monkeypatch, snap_quotes, temp_db):
             "points": [{"date": "2026-01-01", "close": 100.0, "pct_change": 0.5}] * 40,
         }
 
-    monkeypatch.setattr(tools, "fetch_kline", fake_kline)
+    monkeypatch.setattr(tools_views, "fetch_kline", fake_kline)
     out = _loads(await tools.tool_get_kline({"symbol": "600519"}))
     assert out["symbol"] == "600519" and out["points"]
 
@@ -126,7 +125,7 @@ async def test_tool_kline_no_data(monkeypatch, snap_quotes, temp_db):
     async def empty_kline(symbol, period="daily", limit=60):
         return None
 
-    monkeypatch.setattr(tools, "fetch_kline", empty_kline)
+    monkeypatch.setattr(tools_views, "fetch_kline", empty_kline)
     assert "无法获取" in await tools.tool_get_kline({"symbol": "999999"})
 
 
