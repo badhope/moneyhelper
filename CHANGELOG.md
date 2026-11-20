@@ -170,6 +170,11 @@
   `_action_log`/`Emit`/`TOOL_RESULT_MAX_CHARS`/`truncate_tool_result`/`_fn`，并把深研实现
   继续灌进 `globals()`——MCP 包装器走 `xtools.tool_xxx` 属性访问，`TOOL_IMPL`、
   `FINANCE_TOOL_NAMES`、`TOOLS` 三处双向校验口径不变（59/59 + 通用 2 + 企业 5 = 61）。
+- `mcp_server.py` 613 → 438 行：传输层挂载（`build_asgi`、`_DynamicMcp`/`_DynamicSse`
+  两个转发器、`_ExactPathRoute` 精确路径路由、`mount_to_app` 与 `/mcp-sse` 鉴权闸、
+  `startup` 探活）整体进 `mcp_mount.py`。mcp 实例、`_tool` 装饰器、`_apply_shared_schemas`
+  与各域包装器的 import 注册仍留门面——九个子模块都从 `mcp_server` 取 `_tool`/`mcp`，
+  搬走会让「import 即注册」断链；门面末尾 re-export 三个挂载入口，`main.py` 调用不变。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
