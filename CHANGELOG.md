@@ -297,6 +297,11 @@
 
 
 ## [Unreleased] - 2026-11-16
+- `department.py` 409 → 110 行：`dept_rules.py`（关键词派工表、全复核触发词与任务
+  模板、`decompose`）、`dept_runners.py`（四部门执行器、`_DEPT_RUNNERS`、
+  `_execute_order`）、`dept_secretary.py`（交叉对账口径、`reconcile`、`_verdict`、
+  `_secretary`）。执行器仍按名字从门面解析（`getattr(_facade.department_mod(), …)`），
+  测试替换 `department._run_risk` 照样生效。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
