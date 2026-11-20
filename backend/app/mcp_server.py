@@ -16,7 +16,6 @@ MCP 协议接入后，Claude Code / Cursor 等 IDE 可以直接对 Moneyhelper �
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 from . import tool_policy as _policy
 from . import tools as xtools
@@ -195,32 +194,9 @@ async def backup_now(lang: str = "zh") -> str:
 # - 函数签名保持原样（fastmcp 需要它做参数绑定），仅对外暴露的 schema 换源
 
 
-def _apply_shared_schemas() -> list[str]:
-    """把已注册 MCP 工具的参数 schema 覆盖为共享真源；返回未能对齐的工具名。
-
-    只覆盖"共享真源里有定义"的工具；返回缺失清单让调用方可观测——
-    新增 MCP 工具时若忘记在 tool_schemas.py 里登记，这里会明确报出来。
-    """
-    from . import tool_schemas as ts
-
-    manager = getattr(mcp, "_tool_manager", None)
-    if manager is None:  # pragma: no cover — 假 MCP（fastmcp 不可用）
-        return []
-    registered: dict[str, Any] = getattr(manager, "_tools", {}) or {}
-    missing: list[str] = []
-    for name, tool in registered.items():
-        try:
-            tool.parameters = ts.input_schema(name)
-        except KeyError:
-            missing.append(name)
-    if missing:
-        log.warning(
-            "mcp.schema_missing: 以下工具未在 tool_schemas.py 登记入参模型: %s",
-            ", ".join(sorted(missing)),
-        )
-    return missing
 
 
+from .mcp_shared_schemas import _apply_shared_schemas  # noqa: F401,E402 — 对外同名导出
 
 if __name__ == "__main__":
     """独立运行 MCP Server（stdio transport，供 Claude Desktop 等接入）。
