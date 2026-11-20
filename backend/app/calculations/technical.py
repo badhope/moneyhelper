@@ -1,15 +1,6 @@
-"""技术指标与信号引擎（股票投研 · 纯函数确定性计算）。
+"""技术指标与信号引擎门面：参数见 technical_types，指标/信号/叙述各自成模块。
 
-输入：quotes.kline() 返回的日线点列表 [{date, open, close, high, low, volume, ...}]。
-输出：MA/EMA/MACD/RSI/BOLL/KDJ 指标 + 规则信号（金叉死叉/超买超卖/布林突破/量能配合）。
-
-设计原则（与 calculations 包一致）：
-1. 纯函数、无 I/O、无全局状态，可直接单测。
-2. 仅依赖 Python 标准库，不引入 numpy。
-3. 指标口径写进 docstring：数据不足返回 None/空，绝不返回看似合理的假数值。
-4. 信号只做「技术面观察」，不构成投资建议——前端与研报文本必须带免责声明。
-
-参考：FinRobot / qlib 的指标口径（MA5/10/20/60、MACD 12/26/9、RSI 14、BOLL 20±2σ）。
+纯函数、无 I/O、无全局状态；仅依赖标准库，不引入 numpy。
 """
 
 from __future__ import annotations
@@ -17,287 +8,34 @@ from __future__ import annotations
 from typing import Any
 
 from ._shared import sma
-
-MA_WINDOWS = (5, 10, 20, 60)
-MACD_FAST = 12
-MACD_SLOW = 26
-MACD_SIGNAL = 9
-RSI_PERIOD = 14
-BOLL_PERIOD = 20
-BOLL_STD = 2.0
-KDJ_N = 9
-KDJ_K = 3
-KDJ_D = 3
-MAX_SIGNALS = 12  # 单次分析最多返回的信号条数（超出按重要程度 + 新近度截断）
-
-
-def _closes(points: list[dict[str, Any]]) -> list[float]:
-    return [float(p["close"]) for p in points if _num(p.get("close")) is not None]
-
-
-def _num(raw: Any) -> float | None:
-    """宽松数值解析：缺失/占位符/非数值一律 None，绝不抛异常。
-
-    行情层只保证 close 非空（quotes._parse_kline_rows 会跳过 close 缺失的行），
-    high/low/open/volume 都可能是 None（东财用 "-" 占位）。指标函数直接 float()
-    会在停牌/新股等残缺行上抛 TypeError，把整个投研接口打成 500（实测）。
-    """
-    if raw is None or isinstance(raw, bool):
-        return None
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return None
-
-
-def ema(values: list[float], span: int) -> list[float | None]:
-    """指数移动平均：首值取前 span 个的简单均值，之后 EMA = α·v + (1-α)·EMA。"""
-    out: list[float | None] = [None] * len(values)
-    if not values or span <= 0:
-        return out
-    if len(values) < span:
-        # 数据不足时从第一个值起递推（口径与行情软件一致：不足周期也画线）
-        alpha = 2.0 / (span + 1)
-        prev = values[0]
-        out[0] = round(prev, 4)
-        for i in range(1, len(values)):
-            prev = alpha * values[i] + (1 - alpha) * prev
-            out[i] = round(prev, 4)
-        return out
-    alpha = 2.0 / (span + 1)
-    seed = sum(values[:span]) / span
-    prev = seed
-    out[span - 1] = round(prev, 4)
-    for i in range(span, len(values)):
-        prev = alpha * values[i] + (1 - alpha) * prev
-        out[i] = round(prev, 4)
-    return out
-
-
-def macd(values: list[float]) -> dict[str, list[float | None]]:
-    """MACD(12,26,9)：{dif, dea, hist}；数据不足 26 根时 dif/dea 为 None。"""
-    fast = ema(values, MACD_FAST)
-    slow = ema(values, MACD_SLOW)
-    dif: list[float | None] = [
-        (round(f - s, 4) if f is not None and s is not None else None)
-        for f, s in zip(fast, slow, strict=False)
-    ]
-    dea = ema([d for d in dif if d is not None], MACD_SIGNAL)
-    # dea 与 dif 等长对齐：ema 输出从 dif 首个非 None 处（=第 MACD_SLOW-1 根）起算，直接偏移回去
-    first = next((i for i, v in enumerate(dif) if v is not None), None)
-    dea_aligned: list[float | None] = [None] * len(dif)
-    if first is not None:
-        for j, d in enumerate(dea):
-            dea_aligned[first + j] = d
-    hist: list[float | None] = [
-        (round(d - s, 4) if d is not None and s is not None else None)
-        for d, s in zip(dif, dea_aligned, strict=False)
-    ]
-    return {"dif": dif, "dea": dea_aligned, "hist": hist}
-
-
-def rsi(values: list[float], period: int = RSI_PERIOD) -> list[float | None]:
-    """RSI(14) Wilder 平滑口径；不足 period 根时全部 None。
-
-    边界口径（不写清楚就会算出反的数）：
-    - avg_loss == 0（区间内没有一根下跌）→ RSI = 100，不是 0。
-      RS = avg_gain / avg_loss 在 avg_loss 为 0 时趋于无穷，
-      RSI = 100 - 100/(1+RS) 随之趋于 100。旧实现把「无下跌」当成 RS=0，
-      单边上涨 60 根算出 RSI 0.00，直接触发「深度超卖」买入信号——完全反了。
-    - avg_gain == avg_loss == 0（价格纹丝不动）→ 约定 RSI = 50（中性）。
-    """
-    out: list[float | None] = [None] * len(values)
-    if len(values) <= period:
-        return out
-
-    def _rsi_of(avg_gain: float, avg_loss: float) -> float:
-        if avg_loss <= 0.0:
-            return 50.0 if avg_gain <= 0.0 else 100.0
-        return round(100.0 - 100.0 / (1.0 + avg_gain / avg_loss), 2)
-
-    gains, losses = 0.0, 0.0
-    for i in range(1, period + 1):
-        ch = values[i] - values[i - 1]
-        if ch >= 0:
-            gains += ch
-        else:
-            losses -= ch
-    avg_gain, avg_loss = gains / period, losses / period
-    out[period] = _rsi_of(avg_gain, avg_loss)
-    for i in range(period + 1, len(values)):
-        ch = values[i] - values[i - 1]
-        g = ch if ch >= 0 else 0.0
-        loss = -ch if ch < 0 else 0.0
-        avg_gain = (avg_gain * (period - 1) + g) / period
-        avg_loss = (avg_loss * (period - 1) + loss) / period
-        out[i] = _rsi_of(avg_gain, avg_loss)
-    return out
-
-
-def bollinger(values: list[float], period: int = BOLL_PERIOD, k: float = BOLL_STD) -> dict[str, list[float | None]]:
-    """布林带(20,2)：{mid, upper, lower}；不足 period 根为 None。样本方差口径（/n）。"""
-    n = len(values)
-    mid: list[float | None] = [None] * n
-    upper: list[float | None] = [None] * n
-    lower: list[float | None] = [None] * n
-    if n < period:
-        return {"mid": mid, "upper": upper, "lower": lower}
-    for i in range(period - 1, n):
-        window = values[i - period + 1 : i + 1]
-        m = sum(window) / period
-        var = sum((v - m) ** 2 for v in window) / period
-        sd = var**0.5
-        mid[i] = round(m, 4)
-        upper[i] = round(m + k * sd, 4)
-        lower[i] = round(m - k * sd, 4)
-    return {"mid": mid, "upper": upper, "lower": lower}
-
-
-def kdj(points: list[dict[str, Any]]) -> dict[str, list[float | None]]:
-    """KDJ(9,3,3)：{k, d, j}；不足 9 根为 None。RSV = (C-L9)/(H9-L9)×100。
-
-    残缺行（high/low/close 任一缺失）不推进 K/D：窗口里带 None 会让 max()/min()
-    直接抛 TypeError，把投研接口打成 500。这里跳过该点并保留上一根的 K/D，
-    等下一根有效数据再继续递推（停牌一天不该让整条指标断掉）。
-    """
-    n = len(points)
-    k: list[float | None] = [None] * n
-    d: list[float | None] = [None] * n
-    j: list[float | None] = [None] * n
-    prev_k, prev_d = 50.0, 50.0
-    for i in range(n):
-        if i < KDJ_N - 1:
-            continue
-        window = points[i - KDJ_N + 1 : i + 1]
-        highs = [_num(p.get("high")) for p in window]
-        lows = [_num(p.get("low")) for p in window]
-        close = _num(points[i].get("close"))
-        if close is None or any(h is None for h in highs) or any(v is None for v in lows):
-            continue
-        hi = max(highs)  # type: ignore[type-var]
-        lo = min(lows)  # type: ignore[type-var]
-        rsv = (close - lo) / (hi - lo) * 100.0 if hi > lo else 0.0
-        prev_k = (2.0 / 3.0) * prev_k + (1.0 / 3.0) * rsv
-        prev_d = (2.0 / 3.0) * prev_d + (1.0 / 3.0) * prev_k
-        k[i] = round(prev_k, 2)
-        d[i] = round(prev_d, 2)
-        j[i] = round(3 * prev_k - 2 * prev_d, 2)
-    return {"k": k, "d": d, "j": j}
-
-
-def _last_non_none(values: list[float | None]) -> float | None:
-    for v in reversed(values):
-        if v is not None:
-            return v
-    return None
-def clean_points(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """丢掉 close 非法（缺失/非数值/<=0）的 K 线点。
-
-    必须在**进入指标层之前**做一次，且只此一次：所有并行数组（closes / dates /
-    volumes / ohlc / 各指标序列）都由同一份点集推导，长度天然对齐。
-    旧实现只在算 closes 时过滤，dates 与 volumes 仍用原始长度，
-    一旦有一根残缺行，后面所有 `ma5[i]`、`volumes[i]`、`dates[i]` 全部错位一格，
-    信号挂到错误的日期上，资金曲线的日期轴与净值轴也对不上（无声错，最难查）。
-    close<=0 同样剔除：它是除零源（回测基准 closes[-1]/closes[0]）。
-    """
-    out: list[dict[str, Any]] = []
-    for p in points:
-        c = _num(p.get("close"))
-        if c is None or c <= 0:
-            continue
-        out.append(p)
-    return out
-
-
-def build_signals(
-    points: list[dict[str, Any]],
-    ma5: list[float | None],
-    ma10: list[float | None],
-    ma20: list[float | None],
-    dif: list[float | None],
-    dea: list[float | None],
-    rsi_vals: list[float | None],
-    boll: dict[str, list[float | None]],
-    kdj_vals: dict[str, list[float | None]],
-) -> list[dict[str, Any]]:
-    """信号合成（规则引擎，非模型）：返回按时间升序的信号列表。
-
-    信号类型（code 稳定，供前端图标/文案聚合）：
-    - MA_CROSS:      MA5 上穿/下穿 MA20（金叉/死叉）
-    - MACD_CROSS:    DIF 上穿/下穿 DEA
-    - RSI_OVER:      RSI 超买(>70)/超卖(<30)
-    - BOLL_BREAK:    收盘价突破上轨/跌破下轨
-    - KDJ_CROSS:     K 上穿/下穿 D
-    - VOL_SURGE:     成交量 > 5日均量 × 2（放量）
-    """
-    signals: list[dict[str, Any]] = []
-    closes = [_num(p.get("close")) or 0.0 for p in points]
-    volumes = [_num(p.get("volume")) or 0.0 for p in points]
-    ma5_vol = sma(volumes, 5, ndigits=4)
-    for i in range(1, len(closes)):
-        cur_close = closes[i]
-        prev_close = closes[i - 1]
-        date = points[i].get("date", "")
-        # MA 金叉/死叉（MA5 vs MA20）
-        m5, m5p = ma5[i], ma5[i - 1]
-        m20, m20p = ma20[i], ma20[i - 1]
-        if None not in (m5, m5p, m20, m20p):
-            if m5p <= m20p and m5 > m20:
-                signals.append({"date": date, "code": "MA_CROSS", "side": "bull", "text": "MA5 上穿 MA20（金叉）"})
-            elif m5p >= m20p and m5 < m20:
-                signals.append({"date": date, "code": "MA_CROSS", "side": "bear", "text": "MA5 下穿 MA20（死叉）"})
-        # MACD 金叉/死叉
-        d, dp = dif[i], dif[i - 1]
-        s, sp = dea[i], dea[i - 1]
-        if None not in (d, dp, s, sp):
-            if dp <= sp and d > s:
-                signals.append({"date": date, "code": "MACD_CROSS", "side": "bull", "text": "DIF 上穿 DEA（MACD 金叉）"})
-            elif dp >= sp and d < s:
-                signals.append({"date": date, "code": "MACD_CROSS", "side": "bear", "text": "DIF 下穿 DEA（MACD 死叉）"})
-        # RSI 超买超卖
-        r, rp = rsi_vals[i], rsi_vals[i - 1]
-        if r is not None:
-            if rp is not None and rp <= 30 and r > 30:
-                signals.append({"date": date, "code": "RSI_OVER", "side": "bull", "text": f"RSI 上穿 30（{r}）超卖回升"})
-            elif rp is not None and rp >= 70 and r < 70:
-                signals.append({"date": date, "code": "RSI_OVER", "side": "bear", "text": f"RSI 下穿 70（{r}）超买回落"})
-            elif r >= 80:
-                signals.append({"date": date, "code": "RSI_OVER", "side": "bear", "text": f"RSI {r} 深度超买"})
-            elif r <= 20:
-                signals.append({"date": date, "code": "RSI_OVER", "side": "bull", "text": f"RSI {r} 深度超卖"})
-        # 布林突破
-        up, low = boll["upper"][i], boll["lower"][i]
-        if up is not None and low is not None:
-            if cur_close > up and prev_close <= up:
-                signals.append({"date": date, "code": "BOLL_BREAK", "side": "bull", "text": "收盘突破布林上轨"})
-            elif cur_close < low and prev_close >= low:
-                signals.append({"date": date, "code": "BOLL_BREAK", "side": "bear", "text": "收盘跌破布林下轨"})
-        # KDJ 金叉/死叉
-        kk, kp = kdj_vals["k"][i], kdj_vals["k"][i - 1]
-        dd, dp2 = kdj_vals["d"][i], kdj_vals["d"][i - 1]
-        if None not in (kk, kp, dd, dp2):
-            if kp <= dp2 and kk > dd:
-                signals.append({"date": date, "code": "KDJ_CROSS", "side": "bull", "text": "KDJ 金叉"})
-            elif kp >= dp2 and kk < dd:
-                signals.append({"date": date, "code": "KDJ_CROSS", "side": "bear", "text": "KDJ 死叉"})
-        # 放量：均量必须只用**当日之前**的 5 根。
-        # 旧写法取 ma5_vol[:i+1] 的最后一个值，把当天成交量算进了均量里，
-        # 阈值被自己抬高（实际要 >2.67 倍前四日均量才触发），与文案「5日均量×2」不符。
-        if volumes[i]:
-            mv = _last_non_none(ma5_vol[max(0, i - 5) : i])
-            if mv and mv > 0 and volumes[i] > mv * 2:
-                signals.append({"date": date, "code": "VOL_SURGE", "side": "neutral", "text": f"成交量放量（{volumes[i]:,.0f} > 5日均量×2）"})
-    # 截断到 12 条：按「重要程度 + 时间新近」挑，输出仍按时间升序。
-    # 旧写法 signals.sort(重要度升序)[-12:] 取到的是**最不重要**的 12 条
-    # （实测 300 根日线里 MA_CROSS / MACD_CROSS / KDJ_CROSS 全被丢掉，
-    # 只剩 RSI_OVER 与 VOL_SURGE），多空倾向 bias 于是由噪声决定。
-    order = {"MA_CROSS": 0, "MACD_CROSS": 1, "KDJ_CROSS": 2, "BOLL_BREAK": 3, "RSI_OVER": 4, "VOL_SURGE": 5}
-    ranked = sorted(
-        enumerate(signals),
-        key=lambda kv: (order.get(kv[1]["code"], 9), kv[1]["side"] != "bull", -kv[0]),
-    )
-    kept = sorted(ranked[:MAX_SIGNALS], key=lambda kv: kv[0])
-    return [s for _idx, s in kept]
+from .technical_indicators import (  # noqa: F401 — 对外同名导出
+    _closes,  # noqa: F401 — technical_analysis 使用
+    _num,
+    bollinger,
+    ema,
+    kdj,
+    macd,
+    rsi,
+)
+from .technical_signals import (  # noqa: F401 — 对外同名导出
+    _last_non_none,
+    build_signals,
+    clean_points,
+)
+from .technical_text import trend_text  # noqa: F401 — 对外同名导出
+from .technical_types import (  # noqa: F401 — 对外同名导出（口径常量）
+    BOLL_PERIOD,
+    BOLL_STD,
+    KDJ_D,
+    KDJ_K,
+    KDJ_N,
+    MA_WINDOWS,
+    MACD_FAST,
+    MACD_SIGNAL,
+    MACD_SLOW,
+    MAX_SIGNALS,
+    RSI_PERIOD,
+)
 
 
 def technical_analysis(points: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -398,41 +136,3 @@ def technical_analysis(points: list[dict[str, Any]]) -> dict[str, Any] | None:
             "boll_lower": boll_vals["lower"],
         },
     }
-
-
-def trend_text(ta: dict[str, Any], lang: str = "zh") -> str:
-    """把技术分析结果转成一段人类可读的结论（确定性模板，无需模型）。"""
-    en = lang != "zh"
-    last = ta["last"]
-    close = last["close"]
-    ma = last["ma"]
-    parts: list[str] = []
-    if en:
-        head = f"Close {close:,.2f}"
-        if ma.get("ma20") is not None:
-            trend = "above" if close >= ma["ma20"] else "below"
-            parts.append(f"{head}, price {trend} the 20-day MA ({ma['ma20']:,.2f})")
-        if last.get("rsi") is not None:
-            parts.append(f"RSI(14) {last['rsi']}")
-        if last.get("dif") is not None and last.get("dea") is not None:
-            st = "positive" if last["dif"] >= last["dea"] else "negative"
-            parts.append(f"MACD {st} (DIF {last['dif']} / DEA {last['dea']})")
-    else:
-        head = f"最新收盘 {close:,.2f}"
-        if ma.get("ma20") is not None:
-            trend = "之上" if close >= ma["ma20"] else "之下"
-            parts.append(f"{head}，价格位于 20 日均线{trend}（{ma['ma20']:,.2f}）")
-        if last.get("rsi") is not None:
-            parts.append(f"RSI(14) {last['rsi']}")
-        if last.get("dif") is not None and last.get("dea") is not None:
-            st = "多头" if last["dif"] >= last["dea"] else "空头"
-            parts.append(f"MACD {st}排列（DIF {last['dif']} / DEA {last['dea']}）")
-    bias_zh = {"bull": "技术面偏多", "bear": "技术面偏空", "neutral": "技术面中性"}
-    bias_en = {"bull": "technically bullish", "bear": "technically bearish", "neutral": "technically neutral"}
-    tag = bias_en[ta["bias"]] if en else bias_zh[ta["bias"]]
-    n_sig = len(ta["signals"])
-    parts.append(f"近 {ta['point_count']} 根日线识别 {n_sig} 条信号，{tag}" if en else f"近 {ta['point_count']} 根日线识别 {n_sig} 条信号，{tag}。")
-    if ta["signals"]:
-        tops = [s["text"] for s in ta["signals"][:3]]
-        parts.append("Recent signals: " + "; ".join(tops) if en else "近期信号：" + "；".join(tops))
-    return "\n".join(parts)

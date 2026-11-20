@@ -227,6 +227,10 @@
   `_servers`、`_readonly_tools`）留门面，传输层通过 `_facade` 动态取——测试既会
   `monkeypatch.setattr(mcp_client, "MCP_CFG", …)` 换配置，也会直接替换 `_readonly_tools`
   和 `_discover`，import 快照会让这些补丁全部落空（本轮已实测踩到 `_discover` 一处）。
+- `calculations/technical.py` 438 → 128 行：参数常量（MA 窗口 / MACD / RSI / BOLL / KDJ /
+  `MAX_SIGNALS`）进 `technical_types.py`，五个指标原语与 `_num`/`_closes` 进
+  `technical_indicators.py`，信号规则与截断进 `technical_signals.py`，叙述模板进
+  `technical_text.py`；`technical_analysis` 留门面组装。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
