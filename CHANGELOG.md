@@ -141,6 +141,10 @@
   messages/温度/settings，压缩仍在原函数内），内置科研工具、技能开关过滤、MCP 动态
   工具与主角色白名单进 `agent_toolset.build_toolset()`（白名单必须最后一步）。装配与
   循环分离后，`run_agent` 只剩「调模型 → 执行工具 → 收敛」主线。
+- `db/schema_tables.py` 811 → 16 行门面：个人账本、投资与连接、企业与总账三段 DDL
+  分别进 `schema_personal.py`（262 行）、`schema_invest.py`（237 行）、
+  `schema_enterprise.py`（301 行），门面只做按原序拼接。拼接后的 `SCHEMA` 用脚本与
+  拆分前逐字比对（32901 字符全等），建表顺序与外键关系不变。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
