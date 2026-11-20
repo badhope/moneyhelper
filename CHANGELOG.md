@@ -392,6 +392,9 @@
   `banking_bank_match.py`；门面保留 `_now` 与 `bank_*`/`_parse_csv_rows` 导出。
 - `studio/commands.py` 322 → 147 行：`commands_parse.py` 承接动词/类型/日程/行情解析，
   门面保留模板、`execute`、`handle_question`。
+- `scheduler.py` 320 → 228 行：`scheduler_report.py` 承接晨报生成（`REPORT_QUESTION` /
+  `_parse_time` / `has_data` / `generate_report`），运行态计数仍写门面 `_state`，
+  `has_data` 经门面动态取（测试替换照旧生效）。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
