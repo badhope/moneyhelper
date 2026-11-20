@@ -335,6 +335,10 @@
 - `db/_core.py` 419 → 263 行：`db_paths.py`（数据目录解析、`DB_PATH`、旧库搬移）、
   `db_write_txn.py`（`write_txn` 持锁事务通道）。连接生命周期与写锁仍留在 `_core`，
   测试 monkeypatch `_core.DB_PATH` / `_core._conn` / `_core._write_locks` 全部照旧生效。
+- `connect/marketdata.py` 372 → 25 行：`marketdata_common.py`（UA/数值解析）、
+  `marketdata_fund.py`（净值与历史）、`marketdata_movers.py`（东财主源/新浪备源）、
+  `marketdata_indices.py`、`marketdata_status.py`。子模块统一经 `_facade.httpx` 建客户端、
+  经 `_facade._movers_*` 调备源，测试对 `marketdata.httpx` / `_movers_cache` 的替换照旧生效。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
