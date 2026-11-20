@@ -133,6 +133,9 @@
 - `service_routing.py` 570 → 128 行门面：词表与阈值进 `routing_vocab.py`，意图判定
   （财务词/企业取数/追问/记账/记忆/自选/审批回执）进 `routing_intent.py`，一句话记账与
   记忆写入进 `routing_nl.py`；`route_question` 规则路由与 `classify_question_llm` 兜底留在门面。
+- `middleware.py` 549 → 150 行门面：鉴权总闸/租户上下文/操作者归属进 `mw_auth.py`，
+  Host/Origin 防护进 `mw_host.py`，安全头/指标计数/审计日志进 `mw_observ.py`，免鉴权路径
+  清单进 `mw_common.py`；限流组保留在门面（回归测试直接打本模块全局配额桶）。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
