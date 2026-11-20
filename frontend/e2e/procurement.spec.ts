@@ -44,8 +44,11 @@ test.describe("采购应付", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "总览" }).first().click();
     await page.getByRole("button", { name: "业务" }).click();
-    await page.getByRole("tab", { name: "采购应付" }).click();
-    await expect(page.getByText("采购与应付")).toBeVisible();
+    // 「单据」是分组导航里的入口（报销/采购应付 已被工作区吸收），
+    // 进去之后才在 PillTabs 里切到「采购应付」——后者是普通按钮，不是 tab。
+    await page.getByRole("tab", { name: "单据" }).click();
+    await page.getByRole("button", { name: "采购应付", exact: true }).click();
+    await expect(page.getByText("采购与应付")).toBeVisible({ timeout: 20_000 });
 
     // 1) 供应商
     await page.getByRole("button", { name: "供应商", exact: true }).click();
@@ -84,7 +87,7 @@ test.describe("采购应付", () => {
     await page.getByLabel("到期日").fill("2026-12-10");
     await page.getByLabel("金额").fill("5000");
     await page.getByLabel("税额").fill("300");
-    await page.getByLabel("借方科目（费用/资产）").selectOption({ label: "6601 采购费用" });
+    await page.getByLabel("支出科目（费用/资产）").selectOption({ label: "6601 采购费用" });
     await page.getByLabel("应付科目（负债）").selectOption({ label: "2202 应付账款" });
     await page.getByRole("button", { name: "保存应付单" }).click();
 

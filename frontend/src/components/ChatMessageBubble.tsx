@@ -391,7 +391,10 @@ function BubbleInner({
               <SummaryBlock meta={m.meta} compact={Boolean(m.cards && m.cards.length > 0)} />
             )}
 
-            {m.actions && m.actions.length > 0 && !(m.cards && m.cards.length > 0) && (
+            {/* 富回答块与跳转 chip 并存：此前有卡片就把 chip 整排隐藏，
+                结果"我的持仓怎么样"这类带卡片的回答再也点不到「去持仓页」——
+                卡片只展示数字，不提供跳转，隐藏 chip 等于把唯一入口掐掉。 */}
+            {m.actions && m.actions.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 {m.actions.filter(Boolean).map((a, i) => (
                   <button

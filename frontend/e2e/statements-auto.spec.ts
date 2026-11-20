@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, request } from "@playwright/test";
 
 /**
  * 「零输入出报表」的可达性守卫。
@@ -27,6 +27,27 @@ test.describe("财报：按总账自动出表", () => {
     // 财报现在是「账务」工作区内的 pill 按钮（不是 tablist），合并后必须按 button 定位
     await page.getByRole("button", { name: "经营报表", exact: true }).click();
 
+    // 先造一张草稿凭证：本测试要验的正是"有草稿 → 系统替你过账 → 出指标"，
+    // 空库上点两次不可能变出报表（此前脚本在空库上跑，第 2 步必然失败）。
+    const ctx = await request.newContext({ baseURL: "http://127.0.0.1:8788" });
+    const boot = await ctx.post("/api/gl/bootstrap", { data: { ref_date: "2026-11-20" } });
+    if (!boot.ok()) throw new Error(`建账失败: ${await boot.text()}`);
+    const accounts = await (await ctx.get("/api/gl/accounts")).json();
+    const list = (accounts.accounts || []) as { id: number }[];
+    if (list.length < 2) throw new Error("科目表少于 2 个，无法造凭证");
+    const entry = await ctx.post("/api/gl/entries", {
+      data: {
+        entry_date: "2026-11-20",
+        description: `E2E草稿 ${Date.now()}`,
+        lines: [
+          { account_id: list[0].id, debit: 1200, memo: "E2E" },
+          { account_id: list[1].id, credit: 1200, memo: "E2E" },
+        ],
+      },
+    });
+    if (!entry.ok()) throw new Error(`造草稿凭证失败: ${await entry.text()}`);
+    await ctx.dispose();
+
     await page.getByRole("button", { name: "一键出报表" }).click();
 
     // 结果区：要么直接出指标，要么给出"草稿还没过账"的原因
@@ -36,7 +57,8 @@ test.describe("财报：按总账自动出表", () => {
 
     // 有草稿时，产品定位要求"人不用操作"：再点一次自动过账，就必须出指标
     if (await reason.isVisible().catch(() => false)) {
-      await page.getByRole("button", { name: "帮我过账并出报表" }).click();
+      // 文案已改为「全部交给你，直接出报表」（关键路径上产品主动揽下动作）
+      await page.getByRole("button", { name: "全部交给你，直接出报表" }).click();
       await expect(metrics).toBeVisible({ timeout: 25_000 });
     }
 

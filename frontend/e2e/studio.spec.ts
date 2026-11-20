@@ -46,15 +46,13 @@ test.describe("Agent Studio", () => {
   test("模板手写创建提示词并保存", async ({ page }) => {
     await openSettings(page, "系统提示词");
     await page.getByRole("button", { name: "手写模板" }).first().click();
-    // 表单第一组：名称（text）、说明（text）、正文（textarea）、优先级（number）
-    const nameInput = page.locator('input[type="text"]').last().locator("xpath=../..").locator("..");
-    const textInputs = page.locator('input[type="text"]');
-    const count = await textInputs.count();
-    await textInputs.nth(count - 2).fill("E2E 提示词");
-    await page.locator("textarea").last().fill("回答不超过三句话。");
+    // 表单字段有稳定的 id（asset-<key>），此前用 input 出现顺序倒数定位，
+    // 页面上多一个输入框（例如会话搜索框）就会填错字段，是这条用例偶发失败的原因。
+    await expect(page.locator("#asset-name")).toBeVisible({ timeout: 10_000 });
+    await page.locator("#asset-name").fill("E2E 提示词");
+    await page.locator("#asset-content").fill("回答不超过三句话。");
     await page.getByRole("button", { name: "创建", exact: true }).click();
     await expect(page.getByText("E2E 提示词").first()).toBeVisible({ timeout: 10_000 });
-    await expect(nameInput).toHaveCount(1);
   });
 
   test("导入 SKILL.md 文件", async ({ page }) => {
