@@ -145,6 +145,12 @@
   分别进 `schema_personal.py`（262 行）、`schema_invest.py`（237 行）、
   `schema_enterprise.py`（301 行），门面只做按原序拼接。拼接后的 `SCHEMA` 用脚本与
   拆分前逐字比对（32901 字符全等），建表顺序与外键关系不变。
+- `db/_core.py` 530 → 418 行：读连接池（`_READ_POOL_SIZE`/轮询/按事件循环持有锁）、
+  `set_read_pool`、`fetch_all`/`fetch_one`/`execute` 搬进 `db/readpool.py`。连接单例、
+  写锁、`DB_PATH`、`init_db`/`close_db` 仍留 `_core.py`；`readpool` 每次调用动态取
+  `_core._conn()`，测试 patch `_core._conn`/`_core._db` 照旧生效。`close_db` 改为委托
+  `readpool.reset_pool_state()` 清池与循环标记；`_read_conns` 以同一列表对象在门面转出，
+  现有「关库后池为空」断言不变。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
