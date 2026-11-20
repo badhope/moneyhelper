@@ -244,6 +244,9 @@
   收益率（XIRR/TWR/简单收益率）进 `calculations_returns.py`，健康评分与目标进度进
   `calculations_health.py`，净值快照/拆分/归因与 `_parse_date` 进
   `calculations_networth_past.py`。子路由按原顺序 include，契约守卫 191 条路径全对上。
+- `routes/org.py` 414 → 21 行门面：租户作用域（读域放行 / 写域 owner-admin 校验、`_ints`）进
+  `org_scope.py`，租户列表/权限点/活动租户切换/组织总览进 `org_tenants.py`，部门、岗位、成员
+  三组写路由各自成模块。四个子 router 按原顺序 include，契约守卫 191 条路径全对上。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
