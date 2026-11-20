@@ -60,6 +60,9 @@
 - `agent_graph.py` 1588 → 965 行，节点拆到 `agent_enterprise.py`（企业域提示+工具挑选+
   确定性兜底）、`agent_nodes_collect.py`（市场/账本取数、风控）、
   `agent_nodes_action.py`（记账/取消/待确认/记忆/工作台）。
+- `service.py` 964 → 261 行，路由侧拆到 `service_routing.py`（词表、意图判定、NL 记账
+  入口、LLM 分类兜底、`route_question`），多轮上下文拆到 `service_history.py`（历史拼装、
+  长会话压缩与摘要，阈值常量随之上移）。`service.db` 仍可访问，测试靠它注入 spy。
 - `db/backup.py` 1282 → 574 行，导出侧拆到 `backup_export.py`（全量导出 + 月度趋势），
   各域还原组件拆到 `backup_restore.py`（总账/报销/支付/采购/银行流水/对账）。导入仍在
   同一个写事务内按域顺序落库，备份文件格式不变。
