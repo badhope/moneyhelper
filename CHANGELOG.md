@@ -314,6 +314,9 @@
   `strategy_dca.py`、`strategy_fire.py`、`strategy_sandbox.py`（反事实沙盒）；
   `strategy_common.py` 只放跨子域复用的 `_months_ago`。四个子 router 按原顺序
   include，`scripts/check-api-contract.py` 191 条路径全部对上。
+- `calculations/financial_statements.py` 396 → 16 行：`financial_statements_metrics.py`
+  （三表→单期指标）、`_analysis.py`（多期入口与杜邦）、`_alerts.py`（预警规则与阈值）、
+  `_report.py`（模板化中英文叙述）。预警阈值只留在 `_alerts`，门面 re-export 旧入口。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
