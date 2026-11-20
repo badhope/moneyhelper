@@ -216,6 +216,11 @@
   流式层一律通过门面动态取配置（`_facade._config()`），测试 patch `llm._config` /
   `agent.llm._config` 仍生效——若在 import 时把函数对象绑死，补丁会静默落空。
   配置缓存（`_cfg`/`_cfg_by_tenant`）、`_config`、`invalidate` 与 `aclose` 留门面。
+- `scheduler.py` 452 → 320 行：月底自动结账、连接中心自动同步、账单收件箱扫描进
+  `scheduler_background.py`（三个任务都「全程不抛异常」，否则 APScheduler 会记失败并丢重排），
+  技能定时动作执行进 `scheduler_skills.py`。`_sched`/`_state` 两个全局、`_reschedule`、
+  `generate_report`（测试 `monkeypatch.setattr(scheduler, "has_data", …)` 直接打门面）与
+  技能同步/启停仍留门面——全局状态搬家会让测试夹具与时序断言全部失效。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。

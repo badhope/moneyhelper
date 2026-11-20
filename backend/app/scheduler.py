@@ -8,16 +8,21 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from . import db, service
-from .db.tenant import current_tenant_id
 from .logging_utils import get_logger
 from .provenance import record_provenance
+from .scheduler_background import (  # noqa: F401,E402 — 对外同名导出
+    _month_end_close,
+    _scan_connect_inbox,
+    _sync_connect_sources,
+)
+from .scheduler_skills import run_skill_action  # noqa: F401,E402
 from .scheduler_subs import _check_subscriptions_due  # noqa: F401,E402
 
 log = get_logger(__name__)
@@ -162,84 +167,6 @@ def _reschedule() -> None:
     )
 
 
-async def _month_end_close() -> None:
-    """每月 1 日 02:00 自动结账上月——「全托管」的最后一块。
-
-    用户的立场是"我不懂会计，也不想点任何一个结账按钮"，所以：
-    - 只处理「上月」：找到对应期间；没建账（期间不存在）就静默退出，不制造噪音；
-    - 期间已 closed 直接跳过（幂等，重跑无副作用）；
-    - 结账函数本身要求"无草稿凭证"，所以先把草稿过账；单张过账失败只记日志，
-      不让一张异常凭证把整月结账卡死（关账那步会因仍有草稿而失败，此时同样只记日志）；
-    - 全程不抛异常：定时任务抛异常会被 APScheduler 记成失败任务并可能在下次重排丢失。
-    """
-    today = datetime.now().astimezone().date()
-    prev_end = today.replace(day=1) - timedelta(days=1)
-    tenant = current_tenant_id()
-    periods = await db.gl_list_periods(tenant)
-    target = next(
-        (
-            p
-            for p in periods
-            if int(p["year"]) == prev_end.year and int(p["month"]) == prev_end.month
-        ),
-        None,
-    )
-    if target is None or str(target.get("status")) == "closed":
-        return
-    posted = 0
-    for entry in await db.gl_list_entries(tenant, int(target["id"]), limit=500):
-        if str(entry.get("status")) != "draft":
-            continue
-        try:
-            await db.gl_post_entry(tenant, int(entry["id"]))
-            posted += 1
-        except Exception as exc:  # noqa: BLE001
-            log.warning("月末结账：凭证 %s 过账失败：%s", entry.get("id"), exc)
-    try:
-        await db.gl_close_period(tenant, int(target["id"]))
-    except Exception as exc:  # noqa: BLE001
-        log.warning(
-            "月末结账：%s-%02d 关账失败（可能仍有草稿）：%s", prev_end.year, prev_end.month, exc
-        )
-        return
-    log.info("月末结账：%s-%02d 已自动关账（补过账 %d 张）", prev_end.year, prev_end.month, posted)
-
-
-async def _sync_connect_sources() -> None:
-    """后台自动同步「全自动」类连接（公开行情 / 基金净值）。
-
-    只碰 automation=auto 且未停用的连接：登录类连接需要用户在场，
-    绝不在后台凭空消耗配对码。单条失败只记日志，不影响其他连接。
-    """
-    try:
-        from . import connect
-
-        for conn in await connect.list_connections():
-            if conn["status"] == "disabled":
-                continue
-            connector = connect.get_connector(conn["connector_id"]) or {}
-            if connector.get("automation") != "auto":
-                continue
-            try:
-                await connect.sync_connection(conn["id"])
-            except Exception as exc:  # noqa: BLE001 — 单条同步失败不阻断调度
-                log.warning("connect.auto_sync_failed id=%s err=%s", conn["id"], exc)
-    except Exception as exc:  # noqa: BLE001 — 调度任务失败不能炸服务
-        log.warning("connect.auto_sync crashed: %s", exc)
-
-
-async def _scan_connect_inbox() -> None:
-    """后台自动扫描账单收件箱：用户只需把官方导出的 CSV 放进去。"""
-    try:
-        from . import connect
-
-        out = await connect.scan_import_inbox()
-        if out.get("imported"):
-            log.info("connect.inbox_auto_imported n=%s", out["imported"])
-    except Exception as exc:  # noqa: BLE001
-        log.warning("connect.inbox_scan crashed: %s", exc)
-
-
 async def _cron_job() -> None:
     try:
         await generate_report()
@@ -303,65 +230,6 @@ async def sync_skill_jobs() -> None:
             _sched.add_job(_skill_action_job, trigger, id=f"{_SKILL_JOB_PREFIX}{sid}", args=[sid])
         except Exception as exc:  # noqa: BLE001 — 单个技能排程失败不影响其他
             log.warning("skill job add failed (%s): %s", sid, exc)
-
-
-async def run_skill_action(skill_id: str) -> dict[str, Any]:
-    """执行一次技能动作：走标准问答管线 → 归档到 thread=skill:<id>（不进会话列表）。
-
-    供「立即触发」端点与定时任务共用；失败抛 ValueError（调用方转 400 / 记 last_error）。
-    """
-    from . import agent_config
-    from . import service as service_mod
-
-    cfg = await agent_config.get_config()
-    skill = (cfg.get("skills") or {}).get(skill_id)
-    if not isinstance(skill, dict):
-        raise ValueError("技能不存在")
-    if not skill.get("enabled", True):
-        raise ValueError("技能已停用")
-    action = agent_config.normalize_skill_action(skill.get("action"))
-    if not action:
-        raise ValueError("该技能没有可执行的定时动作")
-
-    prompt = action["prompt"]
-    thread_id = f"skill:{skill_id}"
-
-    async def emit(_ev: dict[str, Any]) -> None:
-        pass
-
-    result = await service_mod.run_question(prompt, emit, thread_id=thread_id)
-    await db.save_run(
-        thread_id=thread_id,
-        question=prompt,
-        answer=result["answer"],
-        level=result["level"],
-        flags=result["flags"],
-        route=result.get("route", ""),
-        llm=result.get("llm", ""),
-        route_reason=result.get("route_reason", ""),
-        # 系统归档不进会话列表（与晨报一致）；历史按 thread_id 读
-        skip_session=True,
-    )
-    # 审计链：技能触发属于"自动产生的金额相关产出"，可溯源
-    try:
-        await record_provenance(
-            action="skill_action_fired",
-            entity_type="skill",
-            entity_id=skill_id,
-            before=None,
-            after={"thread_id": thread_id, "time": action["time"]},
-            source="scheduler",
-            username="system",
-        )
-    except Exception as exc:  # noqa: BLE001 — 审计失败不影响触发结果
-        log.warning("skill action audit failed: %s", exc)
-    return {
-        "ok": True,
-        "skill_id": skill_id,
-        "thread_id": thread_id,
-        "answer": result["answer"],
-        "level": result["level"],
-    }
 
 
 async def notify_settings_changed() -> None:
