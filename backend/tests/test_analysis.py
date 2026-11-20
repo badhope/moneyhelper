@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import pytest
-from app import analysis
+from app import analysis, analysis_views
 
 
 @pytest.fixture(autouse=True)
 def _fixed_month(monkeypatch):
     """把账本「本月」口径钉在测试数据的月份上，避免测试随真实日历过期。"""
-    monkeypatch.setattr(analysis, "_month_prefix", lambda: "2026-09")
+    # 实现已拆到 analysis_views，patch 要打到实际使用它的模块
+    monkeypatch.setattr(analysis_views, "_month_prefix", lambda: "2026-09")
 
 
 POSITIONS = [

@@ -10,6 +10,9 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from .. import db, scheduler
+from ..logging_utils import get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter()
 
@@ -29,6 +32,8 @@ async def generate_report_now() -> dict:
     try:
         result = await scheduler.generate_report()
     except Exception as exc:  # noqa: BLE001 — 手动触发失败要给可读错误
+        # 手动触发失败此前只回一句 error，服务端没有任何日志，排查只能靠猜
+        log.exception("reports.generate_failed: %s", exc)
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
     if result.get("skipped"):
         # 空库不生成（前端据此提示「还没有数据」而非假装成功）
