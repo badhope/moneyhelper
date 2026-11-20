@@ -116,6 +116,10 @@
   `studio_permissions.py`、看门狗/内置工具/诊断/主角色/命令进 `studio_settings.py`、
   资产 CRUD 进 `studio_assets.py`。子路由按「市场 → 权限 → 设置 → 资产」挂载，
   资产始终最后——`/api/studio/{kind}` 会遮蔽同级静态路径，顺序错了就 404。
+- `studio/internal_tools.py` 612 → 169 行：科研写作进 `internal_tools_research.py`、
+  数据探查进 `internal_tools_data.py`、来源评分进 `internal_tools_score.py`，共享错误
+  回执进 `internal_tools_common.py`；`INTERNAL_TOOL_SPECS`/`INPUTS` 注册表与
+  `run_internal_tool` 调度留在主文件，impl 仍指向同名函数。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
