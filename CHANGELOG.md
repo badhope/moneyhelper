@@ -133,6 +133,9 @@
 - `routes/connect_deep.py` 648 → 35 行：行情/风控、持仓导入、发票、条件单、账单五组各成
   一模块（`connect_quotes/holdings/invoices/conditionals/statements.py`），按原顺序
   `include_router`，路径匹配关系与拆分前一致。
+- `llm.py` 625 → 470 行：LiteLLM 兼容客户端（`_CompatClient` 与单例、`_get_client`）进
+  `llm_client.py`，模型目录与 provider 前缀映射进 `llm_catalog.py`。配置读取与 `_cfg`
+  真源留在原文件——测试直接用 `llm._cfg = {...}` 注入模型，搬走即失效。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
