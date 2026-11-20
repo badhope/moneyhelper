@@ -373,6 +373,9 @@
 - `studio/installer.py` 346 → 100 行：`installer_apply.py`（条目批量落库）、
   `installer_market.py`（安装/推荐安装/卸载）、`installer_seed.py`（出厂预装与 MCP 漂移修复）、
   `installer_templates.py`（空白模板）；远程抓取留在门面，`installer.httpx` 替换仍生效。
+- `connect/catalog_connectors.py` 394 → 22 行：按业务段拆 `catalog_conn_quote.py`（行情与投研）、
+  `catalog_conn_broker.py`（证券与交易）、`catalog_conn_fund_bank.py`（基金与银行）、
+  `catalog_conn_pay_flow.py`（支付/发票/财税）；门面按原顺序拼接，31 条连接器与其排序不变。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
