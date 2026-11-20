@@ -4,110 +4,27 @@
 首次运行自动建表。全新库为**空账本**（不种示例数据）：用户从记第一笔/添加持仓开始；
 示例数据仅在设置页显式"导入示例数据"时种入（演示用）。
 
-本文件为拆分后的基础设施层：连接/建表/迁移/种子/通用查询/成员会话存储。
-域数据操作见同包 users/budgets/portfolio/ledger/debts/goals/memory/audit/undo/history/backup/family。
+路径解析与旧库搬移已拆到 `db_paths.py`；本文件只保留连接生命周期与写锁，
+名字仍从这里导出，调用方与测试无需改动。
 """
+
 from __future__ import annotations
 
 import asyncio
-import shutil
 import weakref as _weakref
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 
 import aiosqlite
 
-from ..compat_env import getenv
-from ..logging_utils import get_logger
 from ..timeutil import now_iso as _now_iso  # noqa: F401 — db 门面重导出（app/db/__init__.py 使用）
 from ._schema import SCHEMA
-
-"""组合库 + 运行历史持久化（aiosqlite，单连接串行，不阻塞事件循环）。
-
-所有函数都是异步的；连接在启动时创建（WAL 模式）。
-首次运行自动建表。全新库为**空账本**（不种示例数据）：用户从记第一笔/添加持仓开始；
-示例数据仅在设置页显式"导入示例数据"时种入（演示用）。
-"""
-
-
-def data_dir() -> Path:
-    """运行期数据目录（数据库 / 备份 / checkpoint）。
-
-    默认 `backend/data`（与 Dockerfile 的 VOLUME 一致），可用
-    `MONEYHELPER_DATA_DIR` 覆盖。
-
-    历史坑：默认值原先是 `backend/app/data`，而 Docker 卷挂的是
-    `backend/data` —— 容器内账本写在卷外，重建即丢。统一到一处后，
-    本地与容器看到的是同一个目录语义。
-
-    覆盖值不允许指向程序自身目录（源码 / .git / 依赖清单）：否则一个环境变量
-    就能让整个应用把数据写进源码树。最高权限需显式
-    MONEYHELPER_ALLOW_SYSTEM_ACCESS=1。
-    """
-    raw = getenv("MONEYHELPER_DATA_DIR").strip()
-    if raw:
-        path = Path(raw).expanduser()
-        if not path.is_absolute():
-            path = (Path.cwd() / path).resolve()
-        from ..pathguard import assert_not_protected
-
-        assert_not_protected(path, operation="把数据目录指向")
-    else:
-        path = Path(__file__).resolve().parent.parent.parent / "data"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def _resolve_db_path() -> Path:
-    """解析数据库路径：MONEYHELPER_DB_PATH 优先，空串视为未设置。
-
-    空串直接交给 Path("") 会退化成当前目录，导致建库失败或写错位置，
-    因此这里显式过滤空值，并展开 ~ 与相对路径。
-    """
-    raw = getenv("MONEYHELPER_DB_PATH").strip()
-    if not raw:
-        return data_dir() / "wealth.db"
-    path = Path(raw).expanduser()
-    if not path.is_absolute():
-        path = (Path.cwd() / path).resolve()
-    from ..pathguard import assert_not_protected
-
-    assert_not_protected(path, operation="把数据库放到")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-# 旧版数据目录（backend/app/data）。2.4.2 起统一到 backend/data，
-# 这里在首次启动时把老库搬过去，避免升级后"账本消失"。
-_LEGACY_DB = Path(__file__).resolve().parent.parent / "data" / "wealth.db"
-
-
-def _migrate_legacy_db(target: Path) -> None:
-    """若新位置还没有库、但旧位置有，且没有显式指定 MONEYHELPER_DB_PATH，则搬移。
-
-    WAL 模式下副本必须连带 -wal/-shm 一起搬，否则已提交但未 checkpoint
-    的事务会丢。
-    """
-    if getenv("MONEYHELPER_DB_PATH").strip():
-        return  # 用户显式指定了路径，不猜
-    if target.exists() or not _LEGACY_DB.exists():
-        return
-    try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        for suffix in ("", "-wal", "-shm"):
-            src = Path(str(_LEGACY_DB) + suffix)
-            if src.exists():
-                shutil.copy2(src, Path(str(target) + suffix))
-        log = get_logger("db")
-        log.info("db.migrated legacy=%s -> %s", _LEGACY_DB, target)
-    except Exception as exc:  # noqa: BLE001 — 迁移失败不该阻断启动
-        get_logger("db").warning("db.migrate_failed: %s", exc)
-
-
-DB_PATH = _resolve_db_path()
-_migrate_legacy_db(DB_PATH)
+from .db_paths import (  # noqa: F401,E402 — 对外同名导出
+    _LEGACY_DB,
+    DB_PATH,
+    _migrate_legacy_db,
+    _resolve_db_path,
+    data_dir,
+)
 
 _db: aiosqlite.Connection | None = None
 _inited = False
@@ -262,84 +179,9 @@ def get_write_lock() -> asyncio.Lock:
         _write_locks[loop] = lk
     return lk
 
-
-@asynccontextmanager
-async def write_txn() -> AsyncIterator[aiosqlite.Connection]:
-    """单语句写操作的安全通道：持写锁 + 显式事务 + 异常必回滚。
-
-    为什么需要它：全库只有一条 aiosqlite 连接，隐含事务是所有协程共享的。
-    一个协程写完未提交时，另一个协程的 commit() 会把它一起提交；一个协程
-    失败未回滚时，下一个 commit() 会把半截数据固化。历史上这类问题只在
-    「备份恢复 + 并发记账」时暴露，表现为"回滚了但数据已经没了"。
-
-    用法（替代裸 `conn.execute(...); commit()`）：
-        async with write_txn() as conn:
-            await conn.execute(...)
-            await conn.execute(...)
-        # 正常退出 → COMMIT；异常退出 → ROLLBACK 后原样抛出
-
-    注意：不接受嵌套——已在事务内再进入会死锁（同一把非重入锁）。
-    确实需要嵌套时用 savepoint，或把逻辑合并到一个 write_txn 里。
-    """
-    lock = get_write_lock()
-    async with lock:
-        conn = await _conn()
-        # 连接是 autocommit（isolation_level=None），commit()/rollback() 都是空操作，
-        # 必须显式开事务才能拿到「要么全成、要么全败」的语义。
-        #
-        # 嵌套处理：调用方可能已在外层事务里（测试或组合操作）。
-        # 此时 BEGIN 会抛 "cannot start a transaction within a transaction"，
-        # 改用 SAVEPOINT —— 这是 SQLite 标准的嵌套事务写法，回滚只影响内层。
-        import uuid as _uuid
-
-        sp = f"sp_{_uuid.uuid4().hex[:12]}"
-        nested = bool(conn.in_transaction)
-        if nested:
-            await conn.execute(f"SAVEPOINT {sp}")
-        else:
-            await conn.execute("BEGIN IMMEDIATE")
-        try:
-            yield conn
-            if nested:
-                await conn.execute(f"RELEASE {sp}")
-            else:
-                await conn.execute("COMMIT")
-        except BaseException:
-            try:
-                if nested:
-                    await conn.execute(f"ROLLBACK TO {sp}")
-                    await conn.execute(f"RELEASE {sp}")
-                else:
-                    await conn.execute("ROLLBACK")
-            except Exception:  # noqa: BLE001 — 回滚失败不能掩盖原始异常
-                pass
-            raise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # --------------------------------------------------------------------------
 # 读
 # --------------------------------------------------------------------------
-
-
-
 # --------------------------------------------------------------------------
 # 待确认动作（写操作 HITL：确认前不落库，token 一次性消费）
 # --------------------------------------------------------------------------
@@ -355,6 +197,7 @@ from ._schema import (  # noqa: F401,E402
     SEED_SUBSCRIPTIONS,
     SEED_TRANSACTIONS,
 )
+from .db_write_txn import write_txn  # noqa: F401,E402 — 对外同名导出
 from .members import (  # noqa: F401,E402
     _ACTIVE_KEY,
     _AVATAR_COLORS,

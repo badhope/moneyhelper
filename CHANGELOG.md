@@ -332,6 +332,9 @@
   与 `_extract_rows`）、`connect_inbox.py`、`connect_market.py`（基金/涨跌榜/指数）、
   `connect_intents.py`（意图 CRUD、paper 执行、实盘回填）。六个子 router 按原顺序
   include，契约 191 条不变。
+- `db/_core.py` 419 → 263 行：`db_paths.py`（数据目录解析、`DB_PATH`、旧库搬移）、
+  `db_write_txn.py`（`write_txn` 持锁事务通道）。连接生命周期与写锁仍留在 `_core`，
+  测试 monkeypatch `_core.DB_PATH` / `_core._conn` / `_core._write_locks` 全部照旧生效。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
