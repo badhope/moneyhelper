@@ -327,6 +327,11 @@
 - `longtask.py` 385 → 48 行：`longtask_store.py`（task.json/artifacts 读写）、
   `_templates.py`（阶段模板）、`_tasks.py`（建单/列表/产物/上下文）、`_runner.py`
   （顺序执行与硬上限）。门面保留 `_now`（now_str）与全部旧名。
+- `routes/connect.py` 375 → 33 行：`connect_catalog.py`（目录与源状态）、
+  `connect_connections.py`（CRUD 与同步）、`connect_pairing.py`（配对码/书签/页面回传
+  与 `_extract_rows`）、`connect_inbox.py`、`connect_market.py`（基金/涨跌榜/指数）、
+  `connect_intents.py`（意图 CRUD、paper 执行、实盘回填）。六个子 router 按原顺序
+  include，契约 191 条不变。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
