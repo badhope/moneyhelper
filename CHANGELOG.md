@@ -63,6 +63,10 @@
 - `service.py` 964 → 261 行，路由侧拆到 `service_routing.py`（词表、意图判定、NL 记账
   入口、LLM 分类兜底、`route_question`），多轮上下文拆到 `service_history.py`（历史拼装、
   长会话压缩与摘要，阈值常量随之上移）。`service.db` 仍可访问，测试靠它注入 spy。
+- `analysis.py` 955 → 495 行，拆到 `analysis_views.py`（市场/账本视图、集中度与月度口径，
+  阈值常量与月份前缀随之搬走）与 `analysis_health.py`（目标进度、财务体检评分与报告文案）。
+  对外符号全部 re-export；同时给 `POST /api/reports/generate` 补了异常日志——此前 500 只
+  回一句 `error`，服务端什么都没记，出问题只能靠猜。
 - `db/backup.py` 1282 → 574 行，导出侧拆到 `backup_export.py`（全量导出 + 月度趋势），
   各域还原组件拆到 `backup_restore.py`（总账/报销/支付/采购/银行流水/对账）。导入仍在
   同一个写事务内按域顺序落库，备份文件格式不变。
