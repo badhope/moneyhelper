@@ -130,20 +130,20 @@ export function BrokerConfigCard() {
     futu: [
       { key: "host", label: "OpenD Host", placeholder: "127.0.0.1" },
       { key: "port", label: "OpenD Port", placeholder: "11111" },
-      { key: "account_id", label: "Account ID", placeholder: "数字账户 ID" },
+      { key: "account_id", label: "Account ID", placeholder: t("connect.brokerAccountIdPh") },
       { key: "market", label: "Trade Market", placeholder: "HK / US / CN" },
-      { key: "security_firm", label: "Security Firm", placeholder: "FUTUSECURITIES（可选）" },
+      { key: "security_firm", label: "Security Firm", placeholder: t("connect.brokerSecurityFirmPh") },
     ],
     longport: [
-      { key: "app_key", label: "App Key", secret: true, placeholder: "从长桥 OpenAPI 控制台复制" },
-      { key: "app_secret", label: "App Secret", secret: true, placeholder: "不会回显" },
-      { key: "access_token", label: "Access Token", secret: true, placeholder: "不会回显" },
+      { key: "app_key", label: "App Key", secret: true, placeholder: t("connect.brokerLongportKeyPh") },
+      { key: "app_secret", label: "App Secret", secret: true, placeholder: t("connect.brokerSecretNoEcho") },
+      { key: "access_token", label: "Access Token", secret: true, placeholder: t("connect.brokerSecretNoEcho") },
     ],
     tiger: [
-      { key: "tiger_id", label: "Tiger ID", secret: true, placeholder: "开发者 ID" },
-      { key: "private_key", label: "Private Key", secret: true, placeholder: "PEM 私钥内容/路径" },
-      { key: "account", label: "Account", placeholder: "交易账户" },
-      { key: "license", label: "License", secret: true, placeholder: "可选" },
+      { key: "tiger_id", label: "Tiger ID", secret: true, placeholder: t("connect.brokerTigerIdPh") },
+      { key: "private_key", label: "Private Key", secret: true, placeholder: t("connect.brokerPrivateKeyPh") },
+      { key: "account", label: "Account", placeholder: t("connect.brokerAccountPh") },
+      { key: "license", label: "License", secret: true, placeholder: t("connect.brokerOptional") },
     ],
     ibkr: [
       { key: "host", label: "TWS Host", placeholder: "127.0.0.1" },
@@ -152,12 +152,12 @@ export function BrokerConfigCard() {
     ],
     xtquant: [
       { key: "path", label: "QMT userdata_mini", placeholder: "D:\\QMT\\userdata_mini" },
-      { key: "account_id", label: "Account ID", secret: true, placeholder: "资金账号" },
+      { key: "account_id", label: "Account ID", secret: true, placeholder: t("connect.brokerFundAccountPh") },
     ],
     easytrader: [
       { key: "exe_path", label: "Client exe", placeholder: "C:\\...\\xiadan.exe" },
-      { key: "account", label: "Account", secret: true, placeholder: "资金账号" },
-      { key: "password", label: "Password", secret: true, placeholder: "只写入 vault" },
+      { key: "account", label: "Account", secret: true, placeholder: t("connect.brokerFundAccountPh") },
+      { key: "password", label: "Password", secret: true, placeholder: t("connect.brokerVaultOnly") },
     ],
   };
   const current = status.data?.adapters.find((a) => a.id === broker);

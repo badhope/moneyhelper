@@ -143,7 +143,7 @@ export function StockProfileCard({ defaultSymbol }: { defaultSymbol: string }) {
               { label: t("connect.pb"), value: d.pb != null ? d.pb.toFixed(2) : "-", tone: "" },
               {
                 label: t("connect.totalMv"),
-                value: d.total_mv_yi != null ? `${d.total_mv_yi.toFixed(0)} 亿` : "-",
+                value: d.total_mv_yi != null ? `${d.total_mv_yi.toFixed(0)} ${t("connect.mvUnit")}` : "-",
                 tone: "",
               },
               {
