@@ -339,6 +339,9 @@
   `marketdata_fund.py`（净值与历史）、`marketdata_movers.py`（东财主源/新浪备源）、
   `marketdata_indices.py`、`marketdata_status.py`。子模块统一经 `_facade.httpx` 建客户端、
   经 `_facade._movers_*` 调备源，测试对 `marketdata.httpx` / `_movers_cache` 的替换照旧生效。
+- `provenance.py` 370 → 41 行：`provenance_model.py`（记录模型与快照裁剪）、
+  `provenance_ring.py`（环形缓冲/异步落库/测试辅助）、`provenance_write.py`
+  （`record_provenance` 与请求归属）、`provenance_read.py`（内存优先 + SQLite 回退）。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
