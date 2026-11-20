@@ -395,6 +395,9 @@
 - `scheduler.py` 320 → 228 行：`scheduler_report.py` 承接晨报生成（`REPORT_QUESTION` /
   `_parse_time` / `has_data` / `generate_report`），运行态计数仍写门面 `_state`，
   `has_data` 经门面动态取（测试替换照旧生效）。
+- `analysis_health.py`：`health_check` 225 行的单函数按五维拆成 `_dim_portfolio` /
+  `_dim_cashflow` / `_dim_debt` / `_dim_emergency` / `_dim_goals` 五个纯函数（各 ≤ 45 行），
+  `health_check` 降到 55 行只做汇总与加权；输出字段与文案逐字未变。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 

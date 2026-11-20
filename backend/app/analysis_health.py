@@ -51,26 +51,15 @@ def goal_progress(goals: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def health_check(
-    market: dict[str, Any] | None,
-    ledger: dict[str, Any] | None,
-    flags: list[dict[str, Any]],
-    goals: list[dict[str, Any]] | None = None,
-    lang: str = "zh",
-) -> dict[str, Any]:
-    """结构化财务体检：资产配置 / 现金流 / 负债 / 应急金 / 目标进度 五维评分。
-
-    每维度返回 status（good/warn/bad）+ 一句 human 可读结论。纯函数，供工具与 REST 复用。
-    lang：zh → 中文文案；en → 英文文案（界面语言跟随）。
-    """
-    en = lang != "zh"
-    dims: list[dict[str, Any]] = []
-
+def _dim_portfolio(
+    market: dict[str, Any] | None, en: bool,
+) -> dict[str, Any] | None:
+    """资产配置维度：集中度超限 → warn；否则按市值与累计盈亏给 good。"""
     # 1) 资产配置
     conc = (market or {}).get("concentration") or {}
     breaches = conc.get("asset_breaches", [])
     if breaches:
-        dims.append({
+        return {
             "key": "portfolio",
             "title": "Asset mix" if en else "资产配置",
             "status": "warn",
@@ -88,13 +77,13 @@ def health_check(
                 if en
                 else "单一持仓/行业占比过高，考虑分散配置降低波动。"
             ),
-        })
+        }
     elif market:
         m = market
         word = "gain" if en else "浮盈"
         loss_word = "loss" if en else "浮亏"
         label = word if m["total_pnl"] >= 0 else loss_word
-        dims.append({
+        return {
             "key": "portfolio",
             "title": "Asset mix" if en else "资产配置",
             "status": "good",
@@ -108,14 +97,19 @@ def health_check(
                 )
             ),
             "suggestion": "",
-        })
+        }
 
+
+def _dim_cashflow(
+    ledger: dict[str, Any] | None, en: bool,
+) -> dict[str, Any] | None:
+    """现金流维度：本月无收入不评估；储蓄率低于建议线 warn，≥20% good。"""
     # 2) 现金流 / 储蓄率（本月无收入时储蓄率不可算，跳过该维度避免伪信号）
     if ledger and ledger.get("income", 0) > 0:
         sr = ledger.get("savings_rate", 0)
         net = ledger.get("net", 0)
         if sr < SAVINGS_RATE_WARN_PCT:
-            dims.append({
+            return {
                 "key": "cashflow",
                 "title": "Cash flow" if en else "现金流",
                 "status": "warn",
@@ -129,9 +123,9 @@ def health_check(
                     if en
                     else "梳理非必要支出（可看支出分类），把储蓄率提到 20% 以上。"
                 ),
-            })
+            }
         elif sr >= 20:
-            dims.append({
+            return {
                 "key": "cashflow",
                 "title": "Cash flow" if en else "现金流",
                 "status": "good",
@@ -141,8 +135,13 @@ def health_check(
                     else f"本月结余 {net:,.0f} 元，储蓄率 {sr}%，处于健康区间。"
                 ),
                 "suggestion": "",
-            })
+            }
 
+
+def _dim_debt(
+    ledger: dict[str, Any] | None, en: bool,
+) -> dict[str, Any] | None:
+    """负债维度：DTI 超线或有高息负债 → warn/bad；无债务记录 → unknown。"""
     # 3) 负债健康
     if ledger:
         dti = ledger.get("dti_pct", 0)
@@ -150,7 +149,7 @@ def health_check(
         if dti > DTI_WARN_PCT or high:
             detail_zh = f"负债月供占收入 {dti}%（建议线 {DTI_WARN_PCT}%）" + (f"，存在高息负债：{high[0]['name']}" if high else "")
             detail_en = f"Debt payments are {dti}% of income (target {DTI_WARN_PCT}%)" + (f", high-interest debt: {high[0]['name']}" if high else "")
-            dims.append({
+            return {
                 "key": "debt",
                 "title": "Debt health" if en else "负债健康",
                 "status": "warn" if not high else "bad",
@@ -160,13 +159,13 @@ def health_check(
                     if en
                     else "优先偿还高息负债（如信用卡分期），再考虑新增负债。"
                 ),
-            })
+            }
         elif ledger.get("debt_monthly", 0) == 0:
             # debt_monthly=0 有两种可能：确实没负债，或用户根本没录负债。
             # 后者给 good 等于凭空送 20 分（新用户记一笔账就能拿高分），
             # 所以按「负债条数」区分：有明细且都还清 = good；没明细 = unknown。
             has_debt_records = bool((ledger or {}).get("debt_count"))
-            dims.append({
+            return {
                 "key": "debt",
                 "title": "Debt health" if en else "负债健康",
                 "status": "good" if has_debt_records else "unknown",
@@ -180,8 +179,13 @@ def health_check(
                     "Record outstanding debts so DTI and interest cost can be assessed."
                     if en else "补录未偿还负债，才能评估负债率与利息成本。"
                 ),
-            })
+            }
 
+
+def _dim_emergency(
+    ledger: dict[str, Any] | None, en: bool,
+) -> dict[str, Any] | None:
+    """应急金维度：覆盖月数达目标 good，否则 warn；无数据不评估。"""
     # 4) 应急金
     em = (ledger or {}).get("emergency") or {}
     if em.get("has_data"):
@@ -196,7 +200,7 @@ def health_check(
             if ok
             else f"Emergency fund covers only {em.get('months_covered')} months, below the {em.get('target_months')}-month target"
         )
-        dims.append({
+        return {
             "key": "emergency",
             "title": "Emergency fund" if en else "应急金",
             "status": "good" if ok else "warn",
@@ -206,8 +210,13 @@ def health_check(
                 if en
                 else "每月结余优先补足应急金，再谈其它目标。"
             ),
-        })
+        }
 
+
+def _dim_goals(
+    goals: list[dict[str, Any]] | None, ledger: dict[str, Any] | None, en: bool,
+) -> dict[str, Any] | None:
+    """目标进度维度：部分目标按当前结余赶不上截止日 → warn。"""
     # 5) 目标进度
     gs = goal_progress(goals or [])
     if gs:
@@ -225,7 +234,7 @@ def health_check(
                 + ", ".join(f"{g['name']} {g['pct']}%" for g in on_going[:3])
                 + (" (some goals may miss their deadline at the current net)" if slow else "")
             )
-            dims.append({
+            return {
                 "key": "goals",
                 "title": "Goal progress" if en else "目标进度",
                 "status": "warn" if slow else "good",
@@ -235,15 +244,41 @@ def health_check(
                     if en
                     else "提高每月储蓄或延后目标截止月。"
                 ),
-            })
+            }
         else:
-            dims.append({
+            return {
                 "key": "goals",
                 "title": "Goal progress" if en else "目标进度",
                 "status": "good",
                 "detail": "All goals achieved." if en else "全部目标已达成。",
                 "suggestion": "",
-            })
+            }
+
+
+
+def health_check(
+    market: dict[str, Any] | None,
+    ledger: dict[str, Any] | None,
+    flags: list[dict[str, Any]],
+    goals: list[dict[str, Any]] | None = None,
+    lang: str = "zh",
+) -> dict[str, Any]:
+    """结构化财务体检：资产配置 / 现金流 / 负债 / 应急金 / 目标进度 五维评分。
+
+    每维度由 `_dim_*` 纯函数产出（status + 一句 human 可读结论），此处只做汇总与加权。
+    lang：zh → 中文文案；en → 英文文案（界面语言跟随）。
+    """
+    en = lang != "zh"
+    dims: list[dict[str, Any]] = []
+    for dim in (
+        _dim_portfolio(market, en),
+        _dim_cashflow(ledger, en),
+        _dim_debt(ledger, en),
+        _dim_emergency(ledger, en),
+        _dim_goals(goals, ledger, en),
+    ):
+        if dim:
+            dims.append(dim)
 
     flags_texts = [f["text"] for f in flags]
     if not dims:
