@@ -46,6 +46,26 @@
 面向用户的会计术语改为白话（凭证→记账记录、过账→确认入账、期间→月份、试算表→核对表），
 保留"结转/冲销"这类真会计动作。后端文案不动——后端是给模型看的，属内置提示。
 
+### 代码结构
+
+三个"什么都往里塞"的模块按域拆开，命名空间与注册机制都不变（`tools` 继续对外导出
+全部工具函数，MCP 的 `@_tool()` 仍是 import 即注册）：
+
+- `tools.py` 1945 → 758 行，分到 `tools_enterprise/system/portfolio/research/market/`
+  `paper/connect/memory/views.py`；依赖实现、`TOOL_IMPL` 表与 `getattr(tools, name)`
+  的调用方式保持原样。
+- `mcp_server.py` 1426 → 810 行，包装器按域拆到 `mcp_views/connect/analytics/broker/`
+  `market/research/writes.py`；FastMCP 实例、`_tool` 注册助手、resources、prompts、
+  schema 对齐与 ASGI 挂载仍在原文件。
+- `agent_graph.py` 1588 → 965 行，节点拆到 `agent_enterprise.py`（企业域提示+工具挑选+
+  确定性兜底）、`agent_nodes_collect.py`（市场/账本取数、风控）、
+  `agent_nodes_action.py`（记账/取消/待确认/记忆/工作台）。
+
+拆分后的两个坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入
+行情，函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖
+检查原先只读 `mcp_server.py`，拆分后改为扫描 `mcp_*.py` 全域，避免"拆走即漏检"。
+
+
 ## [Unreleased] - 2026-11-16
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
