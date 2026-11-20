@@ -356,6 +356,9 @@
   （借款生命周期）、`family_summary.py`（净资产/未结借款汇总）。
 - `db/procurement_payable.py` 337 → 30 行：`procurement_payable_query.py`（查询与科目
   校验）、`_create.py`（建单/提交）、`_action.py`（审批/付款，通过即生成总账分录）。
+- `calculations/cashflow.py` 344 → 18 行：`cashflow_util.py`（日期/分位数/月份区间）、
+  `cashflow_rules.py`（阈值与周期窗口）、`cashflow_forecast.py`（预测区间）、
+  `cashflow_detect.py`（订阅与异常识别）。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
