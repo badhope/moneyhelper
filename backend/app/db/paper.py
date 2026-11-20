@@ -137,7 +137,11 @@ async def snapshot_exists(account_id: str, date: str) -> bool:
 
 
 async def save_snapshot(account_id: str, equity: float, cash: float, market_value: float) -> None:
-    """按日存档净值点（同日幂等覆盖）。"""
+    """按日存档净值点（同日幂等覆盖）。
+
+    注意：这里**不能**再包 write_txn —— 调用方（paper_trade）已经持有写锁，
+    而写锁不可重入，再进一层会自己死锁。同日覆盖的并发安全由调用方的锁保证。
+    """
     uid = current_user_id()
     date = _today()
     conn = await _conn()

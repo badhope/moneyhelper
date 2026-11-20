@@ -406,7 +406,8 @@ async def bank_match(
         )
         await conn.commit()
     except sqlite3.IntegrityError as exc:
-        await conn.execute("ROLLBACK")
+        # 连接是 autocommit：失败的 UPDATE 本身不会落地，无需再发 ROLLBACK
+        # （无活动事务时 ROLLBACK 会抛 OperationalError，把真正的冲突原因盖掉）。
         raise ValueError("该付款已经匹配过流水") from exc
     if not cur.rowcount:
         raise ValueError("流水已被处理")
