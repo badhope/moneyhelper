@@ -406,6 +406,9 @@
   （AI 生成/应用）；市场→权限→设置→资产的挂载顺序原样保留。
 - `db/schema_enterprise.py` 308 → 12 行：按表组拆 `schema_enterprise_org/gl/fin/proc.py`，
   门面拼回单一 `SCHEMA_ENTERPRISE`，DDL 逐字节一致（12619 字符）。
+- 修复：审计哈希链在并发写入下会分叉（e2e 首页并发请求实测 393 条里 8 处断链）。
+  `add_audit_log` 的 SAVEPOINT + `SELECT prev_hash` + `INSERT` 改为持 `get_write_lock()` 执行；
+  新增并发回归测试（40 并发写入后链必须可验证），无锁版本实测立即 `ok=false`。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 

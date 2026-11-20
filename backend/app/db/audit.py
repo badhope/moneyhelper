@@ -11,6 +11,7 @@ from ._core import (
     _conn,
     _mark_user_data,
     fetch_all,
+    get_write_lock,
 )
 from .tenant import current_user_id
 
@@ -66,54 +67,57 @@ async def add_audit_log(
     actor_s = str(actor)[:64]
     detail_s = str(detail)[:500]
     duration_i = int(duration_ms or 0)
-    # SAVEPOINT 隔离：审计是旁路数据，不能把调用方未完成的事务一并 commit
-    # （专家评审 P0-9 实测：批量入账失败时审计的 commit 会把前两条落库）。
-    await conn.execute("SAVEPOINT audit_write")
-    try:
-        cur = await conn.execute(
-            "SELECT entry_hash FROM audit_logs"
-            " WHERE user_id=? AND entry_hash<>'' ORDER BY id DESC LIMIT 1",
-            (uid,),
-        )
-        row = await cur.fetchone()
-        prev_hash = str(row["entry_hash"]) if row else ""
-        entry_hash = _entry_hash(
-            prev_hash,
-            ts=ts_s,
-            action=action_s,
-            method=method_s,
-            path=path_s,
-            status=status_i,
-            actor=actor_s,
-            detail=detail_s,
-            duration_ms=duration_i,
-        )
-        await conn.execute(
-            "INSERT INTO audit_logs(user_id,ts,action,method,path,status,actor,detail,"
-            "duration_ms,prev_hash,entry_hash)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                uid,
-                ts_s,
-                action_s,
-                method_s,
-                path_s,
-                status_i,
-                actor_s,
-                detail_s,
-                duration_i,
-                prev_hash,
-                entry_hash,
-            ),
-        )
-        await conn.execute("RELEASE audit_write")
-    except Exception:
+    # 并发写入必须串行：两条请求同时读到同一 prev_hash 会分叉哈希链
+    # （e2e 实测：并发首页请求下链在随机 id 处断开）。写锁覆盖 SELECT+INSERT。
+    async with get_write_lock():
+        # SAVEPOINT 隔离：审计是旁路数据，不能把调用方未完成的事务一并 commit
+        # （专家评审 P0-9 实测：批量入账失败时审计的 commit 会把前两条落库）。
+        await conn.execute("SAVEPOINT audit_write")
         try:
-            await conn.execute("ROLLBACK TO audit_write")
+            cur = await conn.execute(
+                "SELECT entry_hash FROM audit_logs"
+                " WHERE user_id=? AND entry_hash<>'' ORDER BY id DESC LIMIT 1",
+                (uid,),
+            )
+            row = await cur.fetchone()
+            prev_hash = str(row["entry_hash"]) if row else ""
+            entry_hash = _entry_hash(
+                prev_hash,
+                ts=ts_s,
+                action=action_s,
+                method=method_s,
+                path=path_s,
+                status=status_i,
+                actor=actor_s,
+                detail=detail_s,
+                duration_ms=duration_i,
+            )
+            await conn.execute(
+                "INSERT INTO audit_logs(user_id,ts,action,method,path,status,actor,detail,"
+                "duration_ms,prev_hash,entry_hash)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    uid,
+                    ts_s,
+                    action_s,
+                    method_s,
+                    path_s,
+                    status_i,
+                    actor_s,
+                    detail_s,
+                    duration_i,
+                    prev_hash,
+                    entry_hash,
+                ),
+            )
             await conn.execute("RELEASE audit_write")
-        except Exception:  # noqa: BLE001
-            pass
-        raise
+        except Exception:
+            try:
+                await conn.execute("ROLLBACK TO audit_write")
+                await conn.execute("RELEASE audit_write")
+            except Exception:  # noqa: BLE001
+                pass
+            raise
     return {"ok": True}
 
 

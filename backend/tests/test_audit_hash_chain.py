@@ -75,3 +75,20 @@ async def test_legacy_rows_are_skipped(temp_db) -> None:
     assert result["ok"] is True
     assert result["checked"] == 1
     assert result["legacy_rows"] == 1
+
+
+async def test_concurrent_appends_keep_chain_linear(temp_db) -> None:
+    """并发写审计不得分叉：同 prev_hash 被两条同时读到就会断链（e2e 实测过）。"""
+    import asyncio
+
+    await asyncio.gather(*[_add(f"/api/c{i}") for i in range(40)])
+    res = await db.verify_audit_chain()
+    assert res["ok"] is True
+    assert res["checked"] == 40
+    heads = await _latest_heads()
+    assert len(heads) == 40
+    prev = ""
+    for row in heads:
+        assert row["entry_hash"], "每条都必须落哈希"
+        prev = row["entry_hash"]
+    assert res["head"] == prev
