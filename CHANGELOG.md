@@ -130,6 +130,9 @@
 - `db/banking.py` 648 → 41 行门面：付款进 `banking_payments.py`、流水导入与匹配进
   `banking_bank.py`、对账进 `banking_recon.py`；`_money/_payment/_bank` 三个行转元的
   助手随各自域走，门面仍导出全部旧名。
+- `routes/connect_deep.py` 648 → 35 行：行情/风控、持仓导入、发票、条件单、账单五组各成
+  一模块（`connect_quotes/holdings/invoices/conditionals/statements.py`），按原顺序
+  `include_router`，路径匹配关系与拆分前一致。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
