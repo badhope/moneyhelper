@@ -306,6 +306,10 @@
   `connect_imports.py`（交割单导入批次）、`connect_conditionals.py`（条件单状态机与
   上限守卫）、`connect_risk.py`（风控默认值与区间校验）。门面保留 `_now`（带偏移）
   守住时间戳策略表。
+- `db/migrate.py` 443 → 37 行：`migrate_columns.py`（老库补列）、`migrate_tenant.py`
+  （租户表清单、主键形状判定与迁移主流程）、`migrate_rebuild.py`（复合主键/唯一键重建）、
+  `migrate_safety.py`（一致性快照与残留临时表恢复）。子模块互调统一走 `_core.`，
+  保持"连接与补丁都从 _core 取"的既有约束。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
