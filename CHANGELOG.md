@@ -354,6 +354,8 @@
   `portfolio_merge.py`（同名合并）、`watchlist.py`（自选股）。
 - `db/family.py` 337 → 37 行：`family_members.py`（成员 CRUD）、`family_loans.py`
   （借款生命周期）、`family_summary.py`（净资产/未结借款汇总）。
+- `db/procurement_payable.py` 337 → 30 行：`procurement_payable_query.py`（查询与科目
+  校验）、`_create.py`（建单/提交）、`_action.py`（审批/付款，通过即生成总账分录）。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
