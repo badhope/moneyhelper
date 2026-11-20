@@ -197,6 +197,10 @@
   条件单）进 `tool_impl_deep_trade.py`，执行层与票据能力（账单归类/券商状态与预检报单/
   发票视觉探测）进 `tool_impl_deep_broker.py`；门面只留 `DEEP_TOOL_NAMES` 文案与
   `DEEP_TOOL_IMPL` 组装（16 条，name 与 impl 键集双向核对一致）。
+- `calculations/backtest.py` 467 → 23 行门面：常量与序列准备（`series_from_points`/
+  `prepare_series`/`_position_size`）进 `backtest_series.py`，双均线进 `backtest_ma.py`，
+  定投进 `backtest_dca.py`，策略分发与结果叙述（`run_backtest`/`backtest_text`）进
+  `backtest_report.py`；`calculations/__init__` 的六个导出名不变。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
