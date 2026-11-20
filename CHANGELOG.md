@@ -153,6 +153,9 @@
   付款进 `backup_restore_settle.py`，采购应付进 `backup_restore_procure.py`，银行流水与
   对账进 `backup_restore_bank.py`，租户注入写回原语独立为 `backup_restore_table.py`；
   四域组件互不调用，仅共享原语，无环。
+- `broker_live.py` 512 → 21 行门面：基类（凭据注入/连接状态/本地预检）进
+  `broker_live_base.py`，四个真实通道 futu / longport / tiger / ibkr 各自独立成模块；
+  门面保留同名类导出，`broker_adapter` 的注册表按名取类的口径不变。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
