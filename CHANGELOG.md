@@ -401,6 +401,11 @@
 - `agent.py` 374 → 342 行（`run_agent` 306 → 274 行）：`agent_turn.py` 承接
   `RepeatGuard`（同工具同参数连击守卫）、`final_answer_result`（终答收口）与
   `wrap_up_answer`（轮次用尽兜底成文）；流式实现经门面动态取，测试替换照旧生效。
+- `routes/studio.py` 307 → 19 行：`studio_common.py`（标签/审计/权限）、`studio_read.py`
+  （总览/模板/格式规范）、`studio_import.py`（上传与 URL 导入）、`studio_generate.py`
+  （AI 生成/应用）；市场→权限→设置→资产的挂载顺序原样保留。
+- `db/schema_enterprise.py` 308 → 12 行：按表组拆 `schema_enterprise_org/gl/fin/proc.py`，
+  门面拼回单一 `SCHEMA_ENTERPRISE`，DDL 逐字节一致（12619 字符）。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
