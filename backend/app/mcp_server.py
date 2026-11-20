@@ -16,7 +16,6 @@ MCP 协议接入后，Claude Code / Cursor 等 IDE 可以直接对 Moneyhelper �
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any
 
 from starlette.routing import BaseRoute
@@ -170,54 +169,10 @@ async def backup_now(lang: str = "zh") -> str:
 # ---------------------------------------------------------------------------
 
 
-@mcp.resource("moneyhelper://scheduled-outputs")
-async def scheduled_outputs_resource() -> str:
-    """最近的定时产出（晨报 + 技能触发），供 MCP 客户端主动拉取。
-
-    为什么用 resource 而不是 Tasks：MCP 的 Tasks（长任务推送）在 mcp 1.30 仍属
-    experimental，fastmcp 2.x 未透传，落地要绕开框架直接用 lowlevel server。
-    而"客户端能拿到定时产出"这个真实需求，用 resource 拉取即可满足——
-    客户端按自己的节奏刷新，服务端由既有 APScheduler 负责生成。
-    """
-    rows = await db.list_scheduled_runs(10)
-
-    items = [
-        {
-            "thread_id": r.get("thread_id"),
-            "question": r.get("question"),
-            "answer": r.get("answer"),
-            "level": r.get("level"),
-            "created_at": r.get("created_at"),
-        }
-        for r in rows
-    ]
-    return json.dumps(
-        {"count": len(items), "items": items},
-        ensure_ascii=False,
-        indent=1,
-    )
 
 
-@mcp.resource("moneyhelper://scheduler-status")
-async def scheduler_status_resource() -> str:
-    """定时任务状态（晨报开关、下次运行时间、上次错误）。"""
-    from . import scheduler
-
-    return json.dumps(scheduler.status(), ensure_ascii=False, indent=1)
 
 
-@mcp.resource("moneyhelper://system-prompt")
-def system_prompt_resource() -> str:
-    """Moneyhelper 系统提示词：描述工具集和 Agent 行为规则。"""
-    return (
-        "你是 Moneyhelper(moneyhelper)财务 Agent，通过 MCP 工具访问用户的本地财务数据。\n"
-        "规则：\n"
-        "1. 需要数字时必须调用工具获取，绝不编造\n"
-        "2. 先给一句话结论，再列关键数字，最后风险项\n"
-        "3. 不给具体买卖指令\n"
-        "4. 工具失败时如实说明\n"
-        "5. 涉及用户背景先查 get_user_memory"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -487,48 +442,10 @@ if __name__ == "__main__":
 # ---------------------------------------------------------------------------
 
 
-@mcp.prompt()
-def monthly_review(month: str = "") -> str:
-    """月度财务复盘：收支结构 + 异常项 + 下月建议。
-
-    参数 month 形如 2026-11；留空表示当月。
-    """
-    target = month or "本月"
-    return (
-        f"请为我做 {target} 的财务复盘，按以下结构输出：\n"
-        "1. 收支概览：总收入、总支出、结余、储蓄率（用 get_trend / get_budget 的数据）；\n"
-        "2. 支出结构：占比最高的三类及金额，指出是否存在异常增长（用 get_ledger_view）；\n"
-        "3. 风险提示：调用 get_risk_flags，逐条说明影响与可执行动作；\n"
-        "4. 下月建议：给出 1-3 条具体、可量化的调整建议。\n\n"
-        "要求：所有金额必须来自工具返回，不要估算；数据缺失时明确说明缺什么。"
-    )
 
 
-@mcp.prompt()
-def portfolio_checkup() -> str:
-    """持仓体检：集中度、盈亏归因、再平衡建议。"""
-    return (
-        "请对我的投资组合做一次体检，按以下结构输出：\n"
-        "1. 整体表现：总市值、累计盈亏、今日盈亏（get_market_view）；\n"
-        "2. 风险集中度：单一标的与行业占比，标出越过 40% 阈值的项（get_portfolio_risk）；\n"
-        "3. 盈亏贡献：哪几只贡献了主要盈利/亏损（get_market_view 的 pnl 字段）；\n"
-        "4. 再平衡建议：调用 get_rebalance_plan，说明每笔调整的金额与理由。\n\n"
-        "要求：不要给买卖建议式的肯定判断，只陈述数据与规则触发情况；"
-        "所有百分比保留两位小数。"
-    )
 
 
-@mcp.prompt()
-def goal_planning() -> str:
-    """目标规划：进度诊断 + 每月需存 + 可行性判断。"""
-    return (
-        "请评估我的财务目标进度，按以下结构输出：\n"
-        "1. 逐个目标的完成度、剩余缺口、距截止月还有几个月（get_goals）；\n"
-        "2. 按当前储蓄能力，判断每个目标是否可行；不可行的给出两个替代方案"
-        "（延长期限 / 降低目标额）；\n"
-        "3. 如果需要调整月度投入，给出具体数字。\n\n"
-        "要求：可行性判断必须基于 get_trend 的真实结余数据，不要用收入代替储蓄能力。"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -545,188 +462,44 @@ def goal_planning() -> str:
 # ---------------------------------------------------------------------------
 
 
-def _tenant() -> int:
-    from .db.tenant import current_tenant_id
-
-    return current_tenant_id()
 
 
-@_tool()
-async def get_gl_summary() -> str:
-    """查企业总账概览：科目、会计期间、最近凭证、试算平衡。"""
-    return await xtools.tool_get_gl_summary({})
 
 
-@_tool()
-async def get_payables_summary() -> str:
-    """查采购应付：供应商数、采购单状态分布、未付款应付金额、逾期应付。"""
-    return await xtools.tool_get_payables_summary({})
 
 
-@_tool()
-async def get_expense_queue() -> str:
-    """查报销队列：待审核报销单数量与金额。"""
-    return await xtools.tool_get_expense_queue({})
 
 
-@_tool()
-async def get_org_overview() -> str:
-    """查组织架构：部门、岗位、成员数量。"""
-    return await xtools.tool_get_org_overview({})
 
 
-@_tool()
-async def list_longtasks() -> str:
-    """查长任务列表：标题、类型、已完成阶段、状态。"""
-    return await xtools.tool_list_longtasks({})
 
 
-@_tool()
-async def gl_accounts() -> str:
-    """查总账科目表：科目编码、名称、类型（asset/liability/equity/income/expense）、是否启用。"""
-    rows = await db.gl_list_accounts(_tenant())
-    return json.dumps({"accounts": rows}, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def gl_periods() -> str:
-    """查会计期间列表：年、月、起止日期、状态（open/closed）。"""
-    rows = await db.gl_list_periods(_tenant())
-    return json.dumps({"periods": rows}, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def gl_entries(period_id: int = 0, limit: int = 50) -> str:
-    """查凭证列表（新→旧）。period_id 省略=全部期间；limit 1-200，默认 50。
-
-    返回每张凭证的编号、日期、摘要、借贷合计、状态（draft/posted）、来源。
-    """
-    rows = await db.gl_list_entries(_tenant(), period_id or None, limit)
-    return json.dumps({"entries": rows}, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def gl_trial_balance(period_id: int) -> str:
-    """查某会计期间的试算平衡表：各科目期初/借方/贷方/期末，以及全局是否借贷平衡。"""
-    data = await db.gl_trial_balance(_tenant(), int(period_id))
-    return json.dumps(data, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def gl_create_entry(
-    entry_date: str,
-    description: str,
-    lines: list[dict[str, Any]],
-    post_now: bool = False,
-) -> str:
-    """新建总账凭证（默认只建草稿，post_now=true 时立即过账）。
-
-    lines 是分录数组，每项形如 {"account_id": 1, "debit": 100, "credit": 0, "memo": "..."}；
-    借贷必须平衡，金额单位为元（内部转整数分）。account_id 先用 gl_accounts 查。
-    """
-    entry = await db.gl_create_entry(_tenant(), entry_date, description, lines, 0)
-    if post_now:
-        entry = await db.gl_post_entry(_tenant(), int(entry["id"]))
-    return json.dumps(entry, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def vendors() -> str:
-    """查供应商档案：编码、名称、税号、联系人、状态。"""
-    rows = await db.vendor_list(_tenant())
-    return json.dumps({"vendors": rows}, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def purchase_orders() -> str:
-    """查采购单：单号、供应商、金额、状态（draft/submitted/approved）、关联审批人。"""
-    rows = await db.po_list(_tenant())
-    return json.dumps({"orders": rows}, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def payables() -> str:
-    """查应付单：单号、供应商、发票号、金额、税额、到期日、状态、关联凭证与付款。"""
-    rows = await db.payable_list(_tenant())
-    return json.dumps({"payables": rows}, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def expense_claims(status: str = "") -> str:
-    """查报销单。status 可传 draft/submitted/approved/rejected，省略=全部。"""
-    rows = await db.expense_list_claims(_tenant(), status or None)
-    return json.dumps({"claims": rows}, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def create_purchase_order(
-    vendor_id: int,
-    order_date: str,
-    amount: float,
-    expected_date: str = "",
-    description: str = "",
-) -> str:
-    """新建采购单（草稿）。amount 单位为元；提交与审核需在采购页或调用对应工具人工确认。"""
-    po = await db.po_create(
-        _tenant(), int(vendor_id), order_date, expected_date, amount, description
-    )
-    return json.dumps(po, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def create_payable(
-    vendor_id: int,
-    invoice_date: str,
-    amount: float,
-    expense_account_id: int,
-    payable_account_id: int,
-    po_id: int = 0,
-    invoice_no: str = "",
-    due_date: str = "",
-    tax: float = 0,
-) -> str:
-    """新建应付单（草稿）。需先用 gl_accounts 查借方费用科目与贷方应付科目 id。"""
-    ap = await db.payable_create(
-        _tenant(),
-        int(vendor_id),
-        int(po_id) if po_id else None,
-        invoice_no,
-        invoice_date,
-        due_date,
-        amount,
-        tax,
-        int(expense_account_id),
-        int(payable_account_id),
-    )
-    return json.dumps(ap, ensure_ascii=False, default=str)
 
 
-@_tool()
-async def longtask_templates() -> str:
-    """查长任务模板：每种任务类型（小说/网页/Word/论文/程序）的阶段划分。"""
-    from . import longtask
-
-    return json.dumps({"templates": longtask.list_templates()}, ensure_ascii=False)
 
 
-@_tool()
-async def longtasks() -> str:
-    """查长任务列表：标题、类型、状态、已完成阶段数。"""
-    from . import longtask
-
-    return json.dumps({"tasks": longtask.list_tasks()}, ensure_ascii=False)
 
 
-@_tool()
-async def run_longtask(task_id: str, max_stages: int = 0) -> str:
-    """执行长任务（未完成阶段）。max_stages 限制本次跑几个阶段，0=全部。
-
-    长任务会真实调用模型、逐阶段落盘产物，耗时可能数分钟到数十分钟。
-    """
-    from . import longtask
-
-    task = await longtask.run_task(task_id, max_stages=max_stages or None)
-    return json.dumps(task, ensure_ascii=False, default=str)
 
 
 # ---------------------------------------------------------------------------
@@ -765,6 +538,27 @@ from .mcp_connect import (  # noqa: F401,E402 — 注册副作用 + 同名属性
     stock_profile,
     tax_calc,
 )
+from .mcp_enterprise import (  # noqa: F401,E402 — 注册副作用 + 同名属性
+    create_payable,
+    create_purchase_order,
+    expense_claims,
+    get_expense_queue,
+    get_gl_summary,
+    get_org_overview,
+    get_payables_summary,
+    gl_accounts,
+    gl_create_entry,
+    gl_entries,
+    gl_periods,
+    gl_trial_balance,
+    list_longtasks,
+    longtask_templates,
+    longtasks,
+    payables,
+    purchase_orders,
+    run_longtask,
+    vendors,
+)
 from .mcp_market import (  # noqa: F401,E402 — 注册副作用 + 同名属性
     add_to_watchlist,
     get_kline,
@@ -772,6 +566,11 @@ from .mcp_market import (  # noqa: F401,E402 — 注册副作用 + 同名属性
     get_watchlist,
     remove_from_watchlist,
     search_symbol,
+)
+from .mcp_prompts import (  # noqa: F401,E402 — prompt 注册副作用
+    goal_planning,
+    monthly_review,
+    portfolio_checkup,
 )
 from .mcp_research import (  # noqa: F401,E402 — 注册副作用 + 同名属性
     paper_open,
@@ -782,6 +581,11 @@ from .mcp_research import (  # noqa: F401,E402 — 注册副作用 + 同名属�
     research_forecast,
     statements_analyze,
     web_search,
+)
+from .mcp_resources import (  # noqa: F401,E402 — resource 注册副作用
+    scheduled_outputs_resource,
+    scheduler_status_resource,
+    system_prompt_resource,
 )
 from .mcp_views import (  # noqa: F401,E402 — 注册副作用 + 同名属性
     get_budget,
@@ -807,4 +611,3 @@ from .mcp_writes import (  # noqa: F401,E402 — 注册副作用 + 测试访问 
     sell_position,
     set_setting,
 )
-

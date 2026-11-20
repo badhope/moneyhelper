@@ -98,6 +98,9 @@
   HITL 确认进 `qa_confirm.py`（per-token 锁与上限一并搬走），历史/会话进 `qa_history.py`。
   子模块各挂自己的 `router`，主文件按 department → confirm → history 顺序 `include_router`，
   路由顺序与拆分前一致；`_LoopSafeEventSourceResponse` 仍从 `qa.py` 导出（main.py 依赖）。
+- `mcp_server.py` 810 → 613 行：企业域 19 个工具包装器进 `mcp_enterprise.py`，
+  三个 resource 进 `mcp_resources.py`，三个 prompt 进 `mcp_prompts.py`；注册机制仍是
+  "import 即注册"，主文件末尾 import 触发并保留同名属性。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
