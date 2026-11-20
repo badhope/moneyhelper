@@ -9,7 +9,7 @@ import json
 
 import httpx
 import pytest
-from app import agent, db, llm, tools, tools_market, tools_views
+from app import agent, db, llm, tools, tools_action, tools_market, tools_views
 
 
 def _chat_resp(content: str | None = None, tool_calls: list[dict] | None = None) -> httpx.Response:
@@ -326,7 +326,7 @@ async def test_buy_without_quote_asks_for_cost(temp_db, monkeypatch):
     async def no_quote(_sym: str) -> dict | None:
         return None
 
-    for mod in (tools, tools_market):
+    for mod in (tools_action, tools_market):
         monkeypatch.setattr(mod, "quote_now", no_quote)
     before = {p["symbol"]: p["shares"] for p in await db.list_positions()}
     out = await tools.run_action("买入 600519 100 股")
@@ -343,7 +343,7 @@ async def test_buy_with_quote_records_position(temp_db, monkeypatch):
     async def with_quote(_sym: str) -> dict:
         return {"price": 1250.0, "name": "贵州茅台", "symbol": "600519"}
 
-    for mod in (tools, tools_market):
+    for mod in (tools_action, tools_market):
         monkeypatch.setattr(mod, "quote_now", with_quote)
     out = await tools.run_action("买入 600519 100 股")
     assert out["route"] == "action"
@@ -425,7 +425,7 @@ async def test_graph_hitl_resume_survives_memory_clear(temp_db, monkeypatch):
     async def _no_llm():
         return False
 
-    for mod in (tools, tools_market):
+    for mod in (tools_action, tools_market):
         monkeypatch.setattr(mod, "quote_now", with_quote)
     monkeypatch.setattr(service.llm, "llm_available", _no_llm)
 

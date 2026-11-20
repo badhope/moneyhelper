@@ -101,6 +101,10 @@
 - `mcp_server.py` 810 → 613 行：企业域 19 个工具包装器进 `mcp_enterprise.py`，
   三个 resource 进 `mcp_resources.py`，三个 prompt 进 `mcp_prompts.py`；注册机制仍是
   "import 即注册"，主文件末尾 import 触发并保留同名属性。
+- `tools.py` 768 → 509 行：确定性动作直达路径（`run_action`、`_create_pending`、
+  `_match_position_by_name`、`_ACTION_STOP`）进 `tools_action.py`，门面 re-export 保持
+  `tools.run_action`；测试里两处 `quote_now` 补丁改打 `tools_action`（函数搬走后原补丁
+  会 AttributeError 或静默失效）。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
