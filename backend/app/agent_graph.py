@@ -23,18 +23,14 @@ LangGraph 1.x 关键用法：StateGraph 状态机 + add_conditional_edges 条件
 
 from __future__ import annotations
 
-import asyncio
+import asyncio  # noqa: F401 — 测试经 agent_graph.asyncio.to_thread 建库
 import time
 import uuid
-import weakref
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from typing import Any, TypedDict
 
-import aiosqlite
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from . import (
@@ -44,6 +40,13 @@ from . import (
 from .logging_utils import get_logger
 
 log = get_logger(__name__)
+
+from .agent_checkpoint import (  # noqa: F401,E402 — 对外同名导出
+    _acquire_exec_graph,
+    _acquire_saver,
+    close_checkpoints,
+)
+from .agent_graph_builder import _build_graph  # noqa: F401,E402 — 与 get_graph 共用
 
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
 
@@ -71,51 +74,6 @@ _HITL_THREADS: dict[str, dict[str, Any]] = {}
 # 用 WeakKeyDictionary 而不是 id(loop) 作键：id() 在对象被回收后可能被复用，
 # 新 loop 拿到旧 key 就会命中已关闭的连接（症状是随机 "Event loop is closed"）。
 # 弱引用键在 loop 被 GC 时自动失效，不需要手动清理。
-_savers: weakref.WeakKeyDictionary[Any, AsyncSqliteSaver] = weakref.WeakKeyDictionary()
-_exec_graphs: weakref.WeakKeyDictionary[Any, Any] = weakref.WeakKeyDictionary()
-
-
-async def _acquire_saver() -> AsyncSqliteSaver:
-    """按当前 event loop 惰性构建磁盘 AsyncSqliteSaver（WAL + setup）。"""
-    loop = asyncio.get_running_loop()
-    key = loop
-    if key not in _savers:
-        _CHECKPOINT_DB.parent.mkdir(parents=True, exist_ok=True)
-        conn = await aiosqlite.connect(str(_CHECKPOINT_DB))
-        conn.row_factory = aiosqlite.Row
-        await conn.execute("PRAGMA journal_mode=WAL")
-        saver = AsyncSqliteSaver(conn)
-        await saver.setup()
-        _savers[key] = saver
-    return _savers[key]
-
-
-async def _acquire_exec_graph() -> Any:
-    """按当前 event loop 惰性编译「带磁盘 checkpoint 的执行图」（供 run_graph / resume 使用）。"""
-    loop = asyncio.get_running_loop()
-    key = loop
-    if key not in _exec_graphs:
-        saver = await _acquire_saver()
-        _exec_graphs[key] = _build_graph().compile(checkpointer=saver)
-    return _exec_graphs[key]
-
-
-async def close_checkpoints() -> None:
-    """关闭并清空当前进程持有的磁盘 checkpoint 连接（供测试 teardown / 优雅停机复用）。
-
-    生产端单 worker 单 loop 常驻连接无需调用；测试端每个 loop 各开一个连接，
-    测试结束前由 conftest 调用本函数释放 aiosqlite worker 线程，避免 loop 关闭后挂住进程。
-    """
-    _exec_graphs.clear()
-    for saver in list(_savers.values()):
-        try:
-            await saver.conn.close()
-        except Exception:
-            pass
-    _savers.clear()
-    _close_pending_conn()
-
-
 # ---------------------------------------------------------------------------
 # token → thread_id 磁盘持久化：让「进程重启后也能恢复 HITL 挂起操作」。
 # 与 checkpoint 分文件（agent_pending.db），独立于 LangGraph 管理的 checkpoint 库。
@@ -209,54 +167,6 @@ async def general(state: AgentState) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-
-
-def _build_graph() -> Any:
-    g = StateGraph(AgentState)
-    g.add_node("supervisor", supervisor)
-    g.add_node("record", record)
-    g.add_node("nl_cancel", nl_cancel)
-    g.add_node("memory", memory)
-    g.add_node("action", action)
-    g.add_node("studio_admin", studio_admin)
-    g.add_node("general", general)
-    g.add_node("enterprise", enterprise)
-    g.add_node("collect_market", collect_market)
-    g.add_node("collect_ledger", collect_ledger)
-    g.add_node("risk", risk)
-    g.add_node("finalize", finalize)
-
-    g.add_edge(START, "supervisor")
-    g.add_conditional_edges(
-        "supervisor",
-        _supervisor_route,
-        {
-            "record": "record",
-            "nl_cancel": "nl_cancel",
-            "memory": "memory",
-            "general": "general",
-            "enterprise": "enterprise",
-            "action": "action",
-            "studio_admin": "studio_admin",
-            "finance": "collect_market",
-        },
-    )
-    # 多智能体管线：市场 agent → 账本 agent → 风控 agent → 成文 agent
-    # （顺序边：单连接 aiosqlite 不支持跨节点并发读写，结构并行、执行串行）
-    g.add_edge("collect_market", "collect_ledger")
-    g.add_edge("collect_ledger", "risk")
-    g.add_edge("risk", "finalize")
-    g.add_edge("record", END)
-    g.add_edge("nl_cancel", END)
-    g.add_edge("memory", END)
-    g.add_edge("action", END)
-    g.add_edge("studio_admin", END)
-    g.add_edge("general", END)
-    g.add_edge("enterprise", END)
-    g.add_edge("finalize", END)
-    # 仅声明图结构，不在此编译：结构图（get_graph）挂 MemorySaver，执行图
-    # （_acquire_exec_graph）挂磁盘 AsyncSqliteSaver，两者共享同一节点/路由定义。
-    return g
 
 
 _graph: Any | None = None

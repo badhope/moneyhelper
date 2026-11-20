@@ -235,6 +235,11 @@
   借贷与科目校验进 `gl_entries_validate.py`，加锁插入/建单/删草稿进 `gl_entries_write.py`，
   过账与反冲进 `gl_entries_post.py`，试算平衡进 `gl_entries_report.py`。依赖单向：
   view ← write ← post，validate 独立；门面 re-export 全部旧名。
+- `agent_graph.py` 425 → 334 行：磁盘 checkpoint（按 event loop 的 `_savers`/`_exec_graphs`、
+  `close_checkpoints`）进 `agent_checkpoint.py`，图构建 `_build_graph` 进
+  `agent_graph_builder.py`。两者都经门面动态取 `_CHECKPOINT_DB` 与节点函数——conftest 会把
+  checkpoint 库指到临时目录，测试也会 `monkeypatch.setattr(agent_graph, "run_graph", …)`；
+  同时门面保留 `asyncio` 属性，测试用 `agent_graph.asyncio.to_thread` 建库。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
