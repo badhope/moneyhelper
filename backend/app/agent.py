@@ -37,33 +37,17 @@ from . import agent_config, db, llm, mcp_client, tools
 #
 # 判定改为由 tool_policy 统一回答（而不是手写集合）：新增工具时不必记得
 # 同步这个集合，未知工具默认 ASK（fail-closed），不会被意外暴露给模型。
-from . import tool_policy as _policy  # noqa: E402 — 与工具表同层，避免循环导入
 from .observability import timed
 from .tool_schemas import validate_tool_args
 
-WRITE_EXCLUDED = {
-    n for n in tools.TOOL_IMPL
-    if _policy.resolve(n) != _policy.READ
-}
 # 只按「内置财务工具」过滤，不能把外部 MCP 工具误伤：
 # `mcp__search_symbol` 之类的名字不在内置表里，若按「未登记即排除」处理，
 # 所有外部只读 MCP 工具都会失效（这曾导致 test_mcp_read_tools_not_blocked 失败）。
-READ_TOOLS = [
-    t for t in tools.TOOLS
-    if _policy.resolve(t["function"]["name"]) == _policy.READ
-]
 # 执行层白名单：只允许模型实际调用「读类 + 自选维护」工具。写工具（记账/记忆/买卖/设置/
 # 备份/晨报）由确定性前置分支拦截，绝不暴露给模型执行，防止 prompt 注入/幻觉越权落库。
-ALLOWED_IMPL = {
-    n: tools.TOOL_IMPL[n]
-    for n in {t["function"]["name"] for t in READ_TOOLS}
-    if n in tools.TOOL_IMPL
-}
 
 # 通用技能包：领域无关工具（时间 / 联网搜索），供 general（非财务）分支装配。
 # 这是「先 Agent 后财务」的落点：通用 Agent 内核不依赖任何财务能力。
-GENERAL_TOOLS: list[dict[str, Any]] = tools.GENERAL_TOOLS
-GENERAL_IMPL: dict[str, Any] = tools.GENERAL_IMPL
 
 # 通用 Agent 内核说明书（general 分支用）：领域无关的自主 agent 行为规则。
 GENERAL_SYSTEM = (
@@ -78,7 +62,6 @@ GENERAL_SYSTEM = (
 
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
 
-MAX_TURNS = 5
 
 _AGENTS_DIR = pathlib.Path(__file__).parent / "agents"
 
@@ -100,58 +83,6 @@ def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def _tool_summary(name: str, result_text: str) -> str:
-    """给前端的工具结果摘要（简短、可读）。"""
-    try:
-        data = json.loads(result_text)
-    except Exception:  # noqa: BLE001
-        return result_text[:80]
-    if name == "get_market_view":
-        if not isinstance(data, dict):
-            return result_text[:80]
-        return f"总市值 {data.get('total_market_value', 0):,} 元，累计盈亏 {data.get('total_pnl', 0):,} 元"
-    if name == "get_ledger_view":
-        if not isinstance(data, dict):
-            return result_text[:80]
-        return f"{data.get('month', '')} 收入 {data.get('income', 0):,}、支出 {data.get('expense', 0):,}、结余 {data.get('net', 0):,}"
-    if name == "get_risk_flags":
-        if not isinstance(data, dict):
-            return result_text[:80]
-        return f"发现 {data.get('count', 0)} 项需关注"
-    if name == "get_budget":
-        if not isinstance(data, dict):
-            return result_text[:80]
-        return f"{data.get('month', '')} 支出 {data.get('total_spent', 0):,} / 预算 {data.get('total_budget', 0):,}"
-    if name == "get_trend":
-        n = len(data) if isinstance(data, list) else 0
-        return f"已取近 {n} 个月趋势"
-    if name == "record_transaction":
-        if not isinstance(data, dict):
-            return result_text[:80]
-        return f"已入账：{data.get('item', '')} {data.get('amount', 0):,} 元（{data.get('category', '')}）"
-    if name == "get_kline":
-        if not isinstance(data, dict):
-            return result_text[:80]
-        n = len(data.get("points", [])) if isinstance(data, dict) else 0
-        return f"已取 {data.get('symbol', '')} {n} 个K线点"
-    if name == "get_goals":
-        if isinstance(data, dict) and data.get("empty"):
-            return "暂无财务目标"
-        if isinstance(data, list):
-            parts = [f"{g.get('name', '')} {g.get('pct', 0)}%" for g in data[:3]]
-            return "目标进度：" + "、".join(parts)
-        return result_text[:80]
-    if name == "get_user_memory":
-        if isinstance(data, dict) and data.get("empty"):
-            return "暂无长期记忆"
-        if isinstance(data, list):
-            return f"共 {len(data)} 条记忆"
-        return result_text[:80]
-    if name == "save_user_memory":
-        return "已记住" if data.get("ok") else "记忆未保存"
-    if name == "get_health_check":
-        return f"体检综合评分 {data.get('score', 0)} 分，{data.get('summary', '')}"
-    return result_text[:80]
 
 
 async def _stream_final_answer(
@@ -211,50 +142,6 @@ async def _stream_final_answer(
     return "".join(full_parts).strip()
 
 
-async def _compress_history(messages: list[dict[str, Any]], cfg: dict[str, Any]) -> list[dict[str, Any]]:
-    """长会话上下文压缩（progressive disclosure）。
-
-    当 messages 超过 8 条（含 system+user+assistant+tool），把除最近 4 条外
-    的早期历史用一句话摘要替代，防 context window 溢出。
-    摘要由 LiteLLM 廉价模型（如 gpt-4o-mini）快速产出。
-    """
-    if len(messages) <= 8:
-        return messages
-    # 保底逻辑：保留 system 消息 + 最近 4 轮对话，把中间部分压缩
-    # 找到 system 消息数量
-    system_count = sum(1 for m in messages if m.get("role") == "system")
-    keep_tail = 4  # 保留最近 4 条对话（含 tool 消息）
-    if len(messages) - system_count <= keep_tail + 1:
-        return messages
-    head = messages[: system_count + 1]  # system + 首个 user
-    tail = messages[-keep_tail:]  # 最近 4 条
-    middle = messages[system_count + 1 : -keep_tail]
-
-    if not middle:
-        return messages
-
-    # 用简短提示请模型摘要早期对话
-    middle_text = "\n".join(
-        f"[{m.get('role', '?')}] {str(m.get('content', ''))[:200]}"
-        for m in middle
-    )[:2000]
-
-    try:
-        summary = await llm.stream_text_short(
-            f"把下面多轮对话压缩为一句话摘要（保留关键数据和意图，≤80字）：\n{middle_text}",
-            timeout=15.0,
-        )
-    except Exception:
-        summary = None
-
-    if not summary:
-        return messages  # 压缩失败不丢数据，原样返回
-
-    compressed = {
-        "role": "system",
-        "content": f"（前面对话摘要：{summary}）以下是最后的对话：",
-    }
-    return [*head, compressed, *tail]
 
 
 async def studio_pre_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -723,3 +610,15 @@ async def run_agent(    question: str,
             "llm": "llm",
         }
     raise AgentUnavailable(f"工具循环超过 {MAX_TURNS} 轮未收敛")
+
+from .agent_history import _compress_history  # noqa: F401,E402 — run_agent 使用
+from .agent_tooling import (  # noqa: F401,E402 — 对外同名导出
+    ALLOWED_IMPL,
+    GENERAL_IMPL,
+    GENERAL_TOOLS,
+    MAX_TURNS,
+    READ_TOOLS,
+    WRITE_EXCLUDED,
+    _tool_summary,
+)
+
