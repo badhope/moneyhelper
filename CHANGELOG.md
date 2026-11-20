@@ -348,6 +348,8 @@
 - `calculations/pretrade.py` 366 → 30 行：`pretrade_limits.py`（板块涨跌停规则）、
   `pretrade_check.py`（九项检查与结果打包）、`pretrade_orders.py`（再平衡转委托与
   当日委托额）。检查项与阈值仍单点定义。
+- `db/ledger.py` 360 → 22 行：`ledger_batch.py`（批量入账）、`ledger_write.py`
+  （单笔增删改与撤销快照）、`ledger_merge.py`（同组合并）。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
