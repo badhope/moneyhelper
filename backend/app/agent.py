@@ -30,7 +30,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from . import agent_config, db, llm, mcp_client, tools
+from . import db, llm, mcp_client, tools
 
 # 写类工具已被确定性分支覆盖（记账/记忆/买卖/设置/备份/晨报都有前置 action/record/memory
 # 节点拦截），agent 模式只暴露读类 + 自选维护工具，防止模型在追问/分析语境里越权落库。
@@ -184,101 +184,19 @@ async def run_agent(    question: str,
         raise AgentUnavailable("未接入模型")
 
     client = llm._get_client(cfg, timeout=60.0)  # noqa: SLF001 — LiteLLM 后端
-    # 主角色温度：设置页「角色」里的 temperature 之前只存不用，模型永远 0.2。
-    role_temperature = 0.2
-    try:
-        from .studio import store as studio_store
+    from .agent_context import build_turn_context
 
-        role = (await studio_store.primary_role()).get("role") or {}
-        role_temperature = float(role.get("temperature", 0.2))
-        role_temperature = max(0.0, min(1.5, role_temperature))
-    except Exception:  # noqa: BLE001 — 角色配置异常时回退默认温度
-        role_temperature = 0.2
-    # Agent 行为可配置化：工具轮次上限与失败反思重试由设置中心控制（默认与历史一致）。
-    _s = await db.get_settings()
+    messages, role_temperature, _s = await build_turn_context(
+        question,
+        lang=lang,
+        system=system,
+        inject_memories=inject_memories,
+        history=history,
+        cfg=cfg,
+    )
+    # 工具轮次上限与失败反思重试（设置中心控制，默认与历史一致）
     turn_cap = max(1, min(int((_s.get("agent_tool_turns") or MAX_TURNS) or MAX_TURNS), 30))
     reflect = (_s.get("agent_reflect") or "on") != "off"
-    # 知识库检索：从已入库的附件里找与问题最相关的片段，作为参考资料注入。
-    # 与长期记忆分开：知识库是长文档切片，记忆是用户主动记住的短句。
-    kb_context = ""
-    if (_s.get("knowledge_enabled") or "on") != "off":
-        try:
-            from . import knowledge
-
-            docs = await db.list_indexed_attachments()
-            if docs:
-                chunks: list[dict[str, Any]] = []
-                for d in docs:
-                    for piece in knowledge.chunk_text(str(d.get("content") or "")):
-                        chunks.append({"id": d.get("id"), "filename": d.get("filename"), "content": piece})
-                hits = knowledge.rank_chunks(question, chunks)
-                kb_context = knowledge.build_context(hits)
-        except Exception:  # noqa: BLE001 — 检索失败不影响回答
-            kb_context = ""
-
-    # 自定义提示词：设置里填了就用它覆盖内置 instructions.md（留空则用文件默认值）。
-    # 只允许追加/替换「财务分支」的系统提示；通用闲聊分支不受影响。
-    # Studio 提示词 / 约束 / pre_prompt Hook / 主角色指令在此叠加（scope 区分财务与科研）。
-    custom_prompt = str(_s.get("custom_system_prompt") or "").strip()
-    if system is not None:
-        base_prompt = system
-    elif custom_prompt:
-        base_prompt = custom_prompt
-    else:
-        base_prompt = AGENT_SYSTEM
-    try:
-        from .studio import store as studio_store
-
-        if inject_memories:
-            system_prompt = await studio_store.build_system_prompt(base_prompt, scope="finance")
-        else:
-            system_prompt = base_prompt
-    except Exception:  # noqa: BLE001 — Studio 配置异常不得拖垮问答
-        system_prompt = base_prompt
-    lang_rule = "请用简体中文回答用户的问题。" if lang == "zh" else "Answer the user in English."
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": system_prompt},
-        {"role": "system", "content": lang_rule},
-    ]
-    if kb_context:
-        messages.append(
-            {
-                "role": "system",
-                "content": (
-                    "以下是从用户知识库检索到的资料片段，回答时可用作参考；"
-                    "若与工具查询到的实时数据冲突，以工具结果为准。\n\n" + kb_context
-                ),
-            }
-        )
-
-    if history:
-        messages.append(
-            {
-                "role": "system",
-                "content": "同一会话历史（仅作上下文参考，数字一律以工具结果为准）："
-                + json.dumps(history, ensure_ascii=False)[:2000],
-            }
-        )
-    # 长期记忆预注入（用户主动要求记住的）：模型无需先调工具即可参考用户背景。
-    # 仅财务分支注入（inject_memories=True）；通用 agent 分支不注入，隐私边界不变。
-    # 「设置 → Agent」关闭长期记忆技能后同样不注入（技能开关真正生效）。
-    long_mem_on = await agent_config.is_skill_enabled("long_memory")
-    memories = await db.list_memory() if (inject_memories and long_mem_on) else []
-    if memories:
-        mem_text = "\n".join(f"- {m['content']}" for m in memories[:5])
-        messages.append(
-            {
-                "role": "system",
-                "content": "用户长期记忆（用户主动要求记住的，作上下文参考，需要精确数字仍以工具结果为准）：\n"
-                + mem_text[:400],
-            }
-        )
-    # 自定义技能（设置页 AI 生成并启用）：注入个性化指令，仅财务分支（通用分支保持领域无关）
-    if inject_memories:
-        skill_text = await agent_config.custom_skill_prompt()
-        if skill_text:
-            messages.append({"role": "system", "content": skill_text[:800]})
-    messages.append({"role": "user", "content": question})
 
     steps: list[dict[str, Any]] = []
     used_tools: list[str] = []
@@ -288,69 +206,11 @@ async def run_agent(    question: str,
     # （对齐 Claude Code 的 progressive disclosure：长会话摘要兜底，防 context window 溢出）
     messages = await _compress_history(messages, cfg)
 
-    tool_schemas = tools_list if tools_list is not None else READ_TOOLS
-    tool_map = impl_map if tools_list is not None else ALLOWED_IMPL
-    # Studio 内置科研工具：只进财务/科研分支的工具面（内部工具不对外暴露）
-    internal_impl: dict[str, Any] = {}
-    if tools_list is None:
-        try:
-            from .studio import internal_tools as studio_tools
-            from .studio import store as studio_store
+    from .agent_toolset import build_toolset
 
-            enabled_internal = await studio_store.internal_tools_enabled()
-            if enabled_internal:
-                wanted = [
-                    s
-                    for s in studio_tools.INTERNAL_FUNCTION_SCHEMAS
-                    if enabled_internal.get(s["function"]["name"])
-                ]
-                if wanted:
-                    tool_schemas = tool_schemas + wanted
-
-                    def _make_internal_runner(tool_name: str):
-                        async def _run(args: dict[str, Any]) -> str:
-                            return studio_tools.run_internal_tool(tool_name, args) or ""
-
-                        return _run
-
-                    # 执行层统一 await impl(args)：内置工具是同步纯函数，必须包一层协程，
-                    # 否则 await 一个 str 会抛 TypeError，8 个内置工具全部不可用。
-                    internal_impl = {
-                        name: _make_internal_runner(name)
-                        for name in enabled_internal
-                        if name in studio_tools.INTERNAL_TOOL_SPECS
-                    }
-        except Exception:  # noqa: BLE001 — 内置工具装配失败不影响主工具面
-            internal_impl = {}
-        # 技能开关真正生效：被关闭技能对应的工具从工具面移除（与 react 路径同口径）
-        disabled_tools = await agent_config.disabled_tool_names()
-        if disabled_tools:
-            tool_schemas = [
-                t for t in tool_schemas if t["function"]["name"] not in disabled_tools
-            ]
-            tool_map = {k: v for k, v in ALLOWED_IMPL.items() if k not in disabled_tools}
-    # P2 MCP：把已配置 MCP 服务器提供的工具动态合并进工具列表（仅财务分支，通用分支不接外部工具）
-    mcp_schemas: list[dict[str, Any]] = []
-    if tools_list is None:
-        try:
-            mcp_schemas = await mcp_client.refresh()
-            tool_schemas = tool_schemas + mcp_schemas
-        except Exception:  # noqa: BLE001 — MCP 异常不影响主流程
-            pass
-        # 主角色工具白名单必须放在最后一步：它是「最终暴露给模型的工具面」，
-        # 放在 MCP 合并之前会被后加的 mcp__* 工具绕过去（实测白名单只剩 1 个工具时仍有 9 个）。
-        try:
-            from .studio import store as studio_store
-
-            role = (await studio_store.primary_role()).get("role") or {}
-            allowed = role.get("tools")
-            if isinstance(allowed, list) and allowed:
-                allow = {str(x) for x in allowed}
-                tool_schemas = [t for t in tool_schemas if t["function"]["name"] in allow]
-                tool_map = {k: v for k, v in tool_map.items() if k in allow}
-                mcp_schemas = [m for m in mcp_schemas if m["function"]["name"] in allow]
-        except Exception:  # noqa: BLE001 — 角色配置异常时保留完整工具面
-            pass
+    tool_schemas, tool_map, internal_impl, mcp_schemas = await build_toolset(
+        tools_list, impl_map
+    )
     # 循环检测：模型有时会反复用完全相同的参数调同一个工具（尤其工具持续报错时），
     # 白烧 token 也拿不到新信息。连续 3 次完全相同则中断并如实说明。
     _repeat_key: tuple[str, str] | None = None

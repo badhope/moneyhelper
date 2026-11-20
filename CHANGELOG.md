@@ -136,6 +136,11 @@
 - `llm.py` 625 → 470 行：LiteLLM 兼容客户端（`_CompatClient` 与单例、`_get_client`）进
   `llm_client.py`，模型目录与 provider 前缀映射进 `llm_catalog.py`。配置读取与 `_cfg`
   真源留在原文件——测试直接用 `llm._cfg = {...}` 注入模型，搬走即失效。
+- `agent.py` 624 → 484 行：`run_agent` 里两段纯装配逻辑搬走——角色温度、知识库检索、
+  自定义提示词、历史与长期记忆拼装进 `agent_context.build_turn_context()`（返回
+  messages/温度/settings，压缩仍在原函数内），内置科研工具、技能开关过滤、MCP 动态
+  工具与主角色白名单进 `agent_toolset.build_toolset()`（白名单必须最后一步）。装配与
+  循环分离后，`run_agent` 只剩「调模型 → 执行工具 → 收敛」主线。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
