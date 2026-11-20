@@ -310,6 +310,10 @@
   （租户表清单、主键形状判定与迁移主流程）、`migrate_rebuild.py`（复合主键/唯一键重建）、
   `migrate_safety.py`（一致性快照与残留临时表恢复）。子模块互调统一走 `_core.`，
   保持"连接与补丁都从 _core 取"的既有约束。
+- `routes/strategy.py` 397 → 22 行：`strategy_risk.py`（风险/再平衡/估值）、
+  `strategy_dca.py`、`strategy_fire.py`、`strategy_sandbox.py`（反事实沙盒）；
+  `strategy_common.py` 只放跨子域复用的 `_months_ago`。四个子 router 按原顺序
+  include，`scripts/check-api-contract.py` 191 条路径全部对上。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
