@@ -83,6 +83,16 @@
   `store_hooks.py`、主角色/看门狗/内置工具开关进 `store_extras.py`；`_mutate` 旧名保留。
 - `studio/market.py` 743 → 41 行门面：来源 URL 进 `market_sources.py`，42 条市场条目按
   技能/智能体/MCP/其它拆成四个 `market_items_*.py`，拼接顺序与原文件逐条一致。
+- `db/_schema.py` 936 → 18 行门面：57 条建表语句按域切成 `SCHEMA_PERSONAL`（个人账本/会话/
+  记忆/审计/家庭）、`SCHEMA_INVEST`（配置/定投/财报/纸面/净值/连接/发票/券商）、
+  `SCHEMA_ENTERPRISE`（租户/组织/总账/报销/支付/银行/授权/采购/应付）三段存于
+  `schema_tables.py`，`SCHEMA` 按原序拼接（实测与拆分前逐字一致，57 张表数量不变）；
+  示例数据进 `schema_seed.py`。
+- `db/_core.py` 1196 → 944 行：通用查询（持仓/流水/订阅/负债/设置）进 `queries.py`，
+  活跃成员与配色池进 `members.py`（`_active_member_id` 仍是同一个 dict，夹具 clear 生效），
+  种子/默认值/data_note 与会话兜底迁移进 `seed.py`，`row_dict`/`_clamp_limit` 进 `util.py`。
+  连接、写事务、读池与多租户迁移仍留在 `_core.py`——它们共享 `_db` 单连接状态，
+  硬拆需要把全局状态搬家，收益不抵风险。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
