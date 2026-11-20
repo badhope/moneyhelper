@@ -18,124 +18,20 @@ from typing import Any
 import httpx
 from cachetools import TTLCache
 
-from . import db, symbols
-
-EASTMONEY_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get"
-SINA_URL = "https://hq.sinajs.cn/list="
-
-_UA = "Mozilla/5.0 (moneyhelper)"
-_SINA_HEADERS = {
-    "Referer": "https://finance.sina.com.cn",
-    "User-Agent": _UA,
-}
-
-
-_to_secid = symbols.to_secid
-_to_sina = symbols.to_sina
-
-
-def _parse_price(raw: Any) -> float | None:
-    """价格解析：必须是正数（0 与负数视为无效，如盘前 0.000）。"""
-    value = _num(raw)
-    return value if value is not None and value > 0 else None
-
-
-async def _eastmoney_quotes(symbols: list[str]) -> dict[str, float]:
-    """东财批量行情；网络失败/缺价返回 {}，由调用方降级。"""
-    code_to_symbol: dict[str, str] = {}
-    secids: list[str] = []
-    for s in symbols:
-        sid = _to_secid(s)
-        if sid:
-            code_to_symbol[sid.split(".", 1)[1]] = s
-            secids.append(sid)
-    if not secids:
-        return {}
-
-    params = {
-        "fltt": "2",
-        "invt": "2",
-        "fields": "f2,f12,f14",
-        "secids": ",".join(secids),
-        "ut": "fa5fd1943c7b386f172d6893dbfba10b",
-    }
-    headers = {"User-Agent": "Mozilla/5.0 (moneyhelper)"}
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            resp = await client.get(EASTMONEY_URL, params=params, headers=headers)
-            resp.raise_for_status()
-            payload = resp.json()
-    except Exception:  # noqa: BLE001 — 行情失败一律降级，绝不拖垮分析
-        return {}
-
-    diff = ((payload or {}).get("data") or {}).get("diff") or []
-    if isinstance(diff, dict):
-        diff = list(diff.values())
-    out: dict[str, float] = {}
-    for item in diff:
-        if not isinstance(item, dict):
-            continue
-        sym = code_to_symbol.get(str(item.get("f12") or ""))
-        if not sym:
-            continue
-        px = _parse_price(item.get("f2"))
-        if px is not None:
-            out[sym] = px
-    return out
-
-
-async def _sina_fields(symbols: list[str], field: int) -> dict[str, float]:
-    """新浪备源：一次性批量拉取，按 `field` 取某一列。
-
-    新浪 `hq_str_*` 的返回是逗号分隔的定长字段表：
-    `0 名称 / 1 今开 / 2 昨收 / 3 现价 / ...`。
-    现价与昨收原本各写了一份「建映射 → 请求 → GBK 解码 → 正则拆行 → 取第 N 列」，
-    只有列下标不同（3 vs 2）与长度下界（<4 vs <3）不同，后者还容易写成 off-by-one。
-    合并后长度判断统一成 `len(parts) <= field`。
-
-    返回 {symbol: 该列数值}；网络失败或缺字段的值跳过，由调用方继续降级。
-    """
-    codes = [_to_sina(s) for s in symbols]
-    mapped: dict[str, str] = {}
-    for s, c in zip(symbols, codes, strict=False):
-        if c:
-            mapped[c] = s
-    if not mapped:
-        return {}
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            resp = await client.get(SINA_URL + ",".join(mapped), headers=_SINA_HEADERS)
-            resp.raise_for_status()
-            text = resp.content.decode("gbk", errors="ignore")
-    except Exception:  # noqa: BLE001 — 行情失败一律降级，绝不拖垮分析
-        return {}
-    out: dict[str, float] = {}
-    for line in text.splitlines():
-        # var hq_str_sh600000="浦发银行,今开,昨收,现价,...";
-        m = re.match(r'var hq_str_([a-z]{2}\d{6})="([^"]*)"', line.strip())
-        if not m:
-            continue
-        sym = mapped.get(m.group(1))
-        if not sym:
-            continue
-        parts = m.group(2).split(",")
-        if len(parts) <= field:
-            continue
-        value = _parse_price(parts[field])
-        if value is not None:
-            out[sym] = value
-    return out
-
-
-async def _sina_quotes(symbols: list[str]) -> dict[str, float]:
-    """新浪备源现价（字段 3）。"""
-    return await _sina_fields(symbols, 3)
-
-
-async def _sina_prev_close(symbols: list[str]) -> dict[str, float]:
-    """新浪备源昨收（字段 2），供今日盈亏在备源下计算。"""
-    return await _sina_fields(symbols, 2)
-
+from . import db
+from .quotes_sources import (
+    _SINA_HEADERS,
+    _UA,
+    EASTMONEY_URL,
+    SINA_URL,
+    _eastmoney_quotes,
+    _num,
+    _parse_price,
+    _sina_prev_close,
+    _sina_quotes,
+    _to_secid,
+    _to_sina,
+)
 
 # 行情缓存：TTLCache 自动管理 TTL 过期与 LRU 淘汰，替代自建 dict + time.time() 比较
 # maxsize 256 覆盖常规持仓组合数；ttl 30s 与行情源刷新频率一致
@@ -515,17 +411,6 @@ _KLINE_FIELDS = (
 )
 
 
-def _num(raw: Any) -> float | None:
-    """数值解析：允许 0 与负数（涨跌额/涨跌幅需要负值），只排除缺失与占位符。
-
-    不能复用 _parse_price：价格必须为正，但涨跌额/涨跌幅下跌时就是负数。
-    """
-    if raw is None or raw == "-" or raw == "" or isinstance(raw, bool):
-        return None
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return None
 
 
 def _parse_kline_rows(rows: list[Any]) -> list[dict[str, Any]]:

@@ -119,6 +119,11 @@
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
+- `quotes.py` 659 → 547 行：东财/新浪两路取数与字段解析进 `quotes_sources.py`（纯函数、
+  无模块级状态），`_num` 随之下移——价格解析要正数、涨跌幅要负数，两者不能混用。
+  缓存、降级链与对外入口（`live_quotes`/`quote_now`/`kline`）仍留在原文件：它们的
+  TTLCache 与 `invalidate_quotes_cache` 必须是同一批对象，拆开就会出现"清了缓存却
+  仍命中旧值"。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
