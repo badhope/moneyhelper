@@ -365,6 +365,11 @@
 - `agent_graph.py` 335 → 183 行：`agent_graph_run.py` 承接 `get_graph` / `run_graph` /
   `resume_action`，emit ContextVar、HITL 注册表、图构建器一律经门面动态取，
   门面末尾 re-export 三件套，测试对 `_CHECKPOINT_DB` / `_PENDING_DB` / `_HITL_THREADS` 的替换照旧生效。
+- `auth.py` 335 → 125 行：`auth_jwt.py`（secret 解析与 encode/decode）、`auth_models.py`
+  （登录/注册入参与令牌响应）、`auth_ratelimit.py`（滑动窗口限流与客户端 IP）、
+  `auth_guard.py`（API_TOKEN 共享口令、当前用户、管理员与实例管理员依赖）。
+- `main.py` 368 → 222 行：`main_lifespan.py` 承接前端目录解析、lifespan 与 MCP 子应用嵌套
+  lifespan（`_mcp_state` 随之迁出），main 只留异常兜底、路由装配、MCP 挂载与静态托管。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
