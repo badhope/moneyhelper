@@ -386,6 +386,12 @@
 - `db/expenses.py` 319 → 19 行：`expenses_query.py`（读取与申请人/科目校验）、
   `expenses_write.py`（创建/提交）、`expenses_review.py`（审批/驳回与凭证回滚）；
   门面保留 `_now` 时钟口径与全部 `expense_*` 导出。
+- `routes/paper.py` 329 → 16 行：`paper_accounts.py`（开户/详情/下单/快照）与
+  `paper_bridge.py`（桥接计划/跟踪/跨账户概览）各自持 router，门面嵌套装配，URL 不变。
+- `db/banking_bank.py` 326 → 24 行：`banking_bank_query.py`、`banking_bank_import.py`、
+  `banking_bank_match.py`；门面保留 `_now` 与 `bank_*`/`_parse_csv_rows` 导出。
+- `studio/commands.py` 322 → 147 行：`commands_parse.py` 承接动词/类型/日程/行情解析，
+  门面保留模板、`execute`、`handle_question`。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
