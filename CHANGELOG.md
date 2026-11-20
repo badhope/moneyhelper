@@ -350,6 +350,8 @@
   当日委托额）。检查项与阈值仍单点定义。
 - `db/ledger.py` 360 → 22 行：`ledger_batch.py`（批量入账）、`ledger_write.py`
   （单笔增删改与撤销快照）、`ledger_merge.py`（同组合并）。
+- `db/portfolio.py` 337 → 27 行：`portfolio_write.py`（持仓增删改/追加）、
+  `portfolio_merge.py`（同名合并）、`watchlist.py`（自选股）。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
