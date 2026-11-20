@@ -149,6 +149,10 @@
   增删改查/按月合并/一句话记账进 `ledger_transactions.py`，通用 CSV 导入与预算体检进
   `ledger_imports.py`，撤回三件套与快照描述进 `ledger_undo.py`；门面按原文件顺序 include
   子路由，通配路径 `/api/{entity:path}/batch-undo` 匹配顺序不变。
+- `db/backup_restore.py` 520 → 20 行门面：复式总账还原进 `backup_restore_gl.py`，报销与
+  付款进 `backup_restore_settle.py`，采购应付进 `backup_restore_procure.py`，银行流水与
+  对账进 `backup_restore_bank.py`，租户注入写回原语独立为 `backup_restore_table.py`；
+  四域组件互不调用，仅共享原语，无环。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
