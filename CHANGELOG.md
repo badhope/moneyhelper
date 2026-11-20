@@ -231,6 +231,10 @@
   `MAX_SIGNALS`）进 `technical_types.py`，五个指标原语与 `_num`/`_closes` 进
   `technical_indicators.py`，信号规则与截断进 `technical_signals.py`，叙述模板进
   `technical_text.py`；`technical_analysis` 留门面组装。
+- `db/gl_entries.py` 426 → 22 行门面：行/凭证序列化与查询进 `gl_entries_view.py`，
+  借贷与科目校验进 `gl_entries_validate.py`，加锁插入/建单/删草稿进 `gl_entries_write.py`，
+  过账与反冲进 `gl_entries_post.py`，试算平衡进 `gl_entries_report.py`。依赖单向：
+  view ← write ← post，validate 独立；门面 re-export 全部旧名。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
