@@ -184,6 +184,10 @@
   与 `_r2`/`_metrics`/`_benchmark`/`_benchmark_curve` 四个口径助手）进 `strategies_bt_core.py`，
   网格策略进 `strategies_bt_grid.py`，动量/趋势/波动目标三个信号策略进
   `strategies_bt_signals.py`（三个策略共用引擎与指标，统一从 core 取，不再互调）。
+- `eval_bank.py` 489 → 22 行门面：题目结构（`Expect`/`Question`/`ExpectKind`）进
+  `eval_bank_types.py`，50 道题正文进 `eval_bank_questions.py`（纯数据，改题只动这里）。
+  拆分后题库与拆分前逐字比对（去空白 5804 字符全等，id 序列 50 条一致），
+  `get_questions`/`question_count` 与 `QUESTIONS` 口径不变。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
