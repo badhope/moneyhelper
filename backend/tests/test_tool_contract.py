@@ -133,9 +133,21 @@ def _mcp_registered() -> dict[str, dict]:
     return dict(getattr(manager, "_tools", {}) or {})
 
 
+def mcp_wrapper_sources() -> list[Path]:
+    """mcp_server.py 及其分域模块：包装器可能定义在任意一个里。"""
+    main = Path(mcp_server_source())
+    return [main, *sorted(main.parent.glob("mcp_*.py"))]
+
+
 def _wrapper_impl_map() -> dict[str, str]:
-    """AST 解析 mcp_server.py：包装器名 → 它委托的 xtools.tool_* 属性名。"""
-    src = Path(mcp_server_source()).read_text(encoding="utf-8")
+    """AST 解析 mcp_server 与分域模块：包装器名 → 它委托的 xtools.tool_* 属性名。"""
+    out: dict[str, str] = {}
+    for path in mcp_wrapper_sources():
+        out.update(_wrapper_map_from(path.read_text(encoding="utf-8")))
+    return out
+
+
+def _wrapper_map_from(src: str) -> dict[str, str]:
     tree = ast.parse(src)
     out: dict[str, str] = {}
     for node in ast.walk(tree):
