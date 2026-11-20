@@ -56,6 +56,52 @@ jobs:
       - name: 构建验证
         run: cd frontend && npx vite build
 
+  e2e:
+    # 端到端抽查：不跑全量（65 条全量约 4 分钟且含图表/截图类重用例），只跑对用户
+    # 主链路最关键的几组——首屏冒烟、对话、采购应付、数据浮层、按总账出报表。
+    #
+    # 为什么必须有这一环：Playwright 长期只在开发者本机跑，产品文案/导航一改，规格
+    # 就静默过期（"帮我过账并出报表" 已改名半年没人发现，e2e 也一直红着没人看）。
+    # 门禁不覆盖的地方 = 等于没有守卫。这里只抽 5 个文件，把"规格与产品对齐"这件事
+    # 变成每次 push 都要过的一道闸，成本约 2 分钟。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 安装后端依赖
+        run: pip install -q -r backend/requirements.txt -r backend/requirements-dev.txt
+      - name: 安装前端依赖
+        run: cd frontend && npm ci --no-audit --no-fund --include=dev
+      - name: 安装 Chromium（含系统依赖）
+        run: cd frontend && npx playwright install --with-deps chromium
+      - name: 端到端抽查（冒烟 / 对话 / 采购应付 / 数据浮层 / 出报表）
+        run: |
+          cd frontend
+          npx playwright test \
+            e2e/smoke.spec.ts \
+            e2e/chat.spec.ts \
+            e2e/procurement.spec.ts \
+            e2e/data.spec.ts \
+            e2e/statements-auto.spec.ts
+      - name: 上传失败现场（截图 + trace）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-${{ github.run_id }}
+          path: frontend/test-results
+          retention-days: 7
+
   hygiene:
     # 仓库卫生：防止大文件与文档站坏链把仓库体积/信任度慢慢蛀空。
     # 阈值 1MB：本项目最大的单文件是图标（0.4MB），超过 1MB 基本是误提交的
