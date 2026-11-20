@@ -345,6 +345,9 @@
 - `nlparse.py` 369 → 31 行：`nlparse_lexicon.py`（分类/噪声词表、金额与中文数字换算）、
   `nlparse_date.py`（相对/显式日期）、`nlparse_item.py`（条目命名与咨询语气词）、
   `nlparse_entry.py`（多笔拆分、规则解析、模型兜底）。
+- `calculations/pretrade.py` 366 → 30 行：`pretrade_limits.py`（板块涨跌停规则）、
+  `pretrade_check.py`（九项检查与结果打包）、`pretrade_orders.py`（再平衡转委托与
+  当日委托额）。检查项与阈值仍单点定义。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
