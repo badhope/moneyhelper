@@ -60,6 +60,9 @@
 - `agent_graph.py` 1588 → 965 行，节点拆到 `agent_enterprise.py`（企业域提示+工具挑选+
   确定性兜底）、`agent_nodes_collect.py`（市场/账本取数、风控）、
   `agent_nodes_action.py`（记账/取消/待确认/记忆/工作台）。
+- `db/backup.py` 1282 → 574 行，导出侧拆到 `backup_export.py`（全量导出 + 月度趋势），
+  各域还原组件拆到 `backup_restore.py`（总账/报销/支付/采购/银行流水/对账）。导入仍在
+  同一个写事务内按域顺序落库，备份文件格式不变。
 
 拆分后的两个坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入
 行情，函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖
