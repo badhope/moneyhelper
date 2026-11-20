@@ -342,6 +342,9 @@
 - `provenance.py` 370 → 41 行：`provenance_model.py`（记录模型与快照裁剪）、
   `provenance_ring.py`（环形缓冲/异步落库/测试辅助）、`provenance_write.py`
   （`record_provenance` 与请求归属）、`provenance_read.py`（内存优先 + SQLite 回退）。
+- `nlparse.py` 369 → 31 行：`nlparse_lexicon.py`（分类/噪声词表、金额与中文数字换算）、
+  `nlparse_date.py`（相对/显式日期）、`nlparse_item.py`（条目命名与咨询语气词）、
+  `nlparse_entry.py`（多笔拆分、规则解析、模型兜底）。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
