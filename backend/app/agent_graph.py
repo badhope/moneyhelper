@@ -24,14 +24,11 @@ LangGraph 1.x 关键用法：StateGraph 状态机 + add_conditional_edges 条件
 from __future__ import annotations
 
 import asyncio
-import json
-import sqlite3
 import time
 import uuid
 import weakref
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
-from datetime import datetime, timedelta
 from typing import Any, TypedDict
 
 import aiosqlite
@@ -41,13 +38,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from . import (
-    agent,
-    analysis,
     db,
-    llm,
-    mem,
-    nlparse,
-    quotes,
     service,
 )
 from .logging_utils import get_logger
@@ -55,6 +46,10 @@ from .logging_utils import get_logger
 log = get_logger(__name__)
 
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
+
+# HITL 挂起库路径（与 checkpoint 同目录、独立文件）。测试夹具会改这个值，
+# agent_pending 每次建连时读取它，因此这里的真源不能搬走。
+_PENDING_DB = db.data_dir() / "agent_pending.db"
 
 # 节点内实时发 SSE 事件：ContextVar 按 asyncio task 隔离，并发请求互不串扰
 _emit_ctx: ContextVar[Emit | None] = ContextVar("wo_emit", default=None)
@@ -125,83 +120,18 @@ async def close_checkpoints() -> None:
 # token → thread_id 磁盘持久化：让「进程重启后也能恢复 HITL 挂起操作」。
 # 与 checkpoint 分文件（agent_pending.db），独立于 LangGraph 管理的 checkpoint 库。
 # ---------------------------------------------------------------------------
-_PENDING_DB = _CHECKPOINT_DB.with_name("agent_pending.db")
-_pending_conn: sqlite3.Connection | None = None
 
 
-def _pending_sql() -> sqlite3.Connection:
-    global _pending_conn
-    if _pending_conn is None:
-        _PENDING_DB.parent.mkdir(parents=True, exist_ok=True)
-        _pending_conn = sqlite3.connect(str(_PENDING_DB), check_same_thread=False)
-        _pending_conn.execute("PRAGMA journal_mode=WAL")
-        _pending_conn.execute(
-            "CREATE TABLE IF NOT EXISTS pending("
-            " token TEXT PRIMARY KEY, thread_id TEXT NOT NULL, created_at TEXT NOT NULL)"
-        )
-        _pending_conn.commit()
-    return _pending_conn
 
 
-async def _save_pending(token: str, thread_id: str) -> None:
-    def _w() -> None:
-        c = _pending_sql()
-        # 顺手清理过期条目：pending 表此前只增不删，用户反复触发写操作但不确认时
-        # 会无限增长（重启后还能被 resume 的也只是最近 30 分钟内的）。
-        c.execute(
-            "DELETE FROM pending WHERE created_at < ?",
-            (_pending_cutoff(),),
-        )
-        c.execute(
-            "INSERT OR REPLACE INTO pending(token, thread_id, created_at) VALUES(?,?,?)",
-            (token, thread_id, time.strftime("%Y-%m-%dT%H:%M:%S")),
-        )
-        c.commit()
-
-    await asyncio.to_thread(_w)
 
 
-def _pending_cutoff() -> str:
-    """早于此刻的 pending 记录视为过期（与审批 TTL 一致，避免陈旧 token 被恢复）。"""
-    from datetime import timedelta
-
-    return (datetime.now() - timedelta(minutes=_PENDING_APPROVAL_TTL_MINUTES)).strftime(
-        "%Y-%m-%dT%H:%M:%S"
-    )
 
 
-async def _load_pending(token: str) -> str | None:
-    def _r() -> str | None:
-        row = (
-            _pending_sql()
-            .execute(
-                "SELECT thread_id FROM pending WHERE token=? AND created_at >= ?",
-                (token, _pending_cutoff()),
-            )
-            .fetchone()
-        )
-        return row[0] if row else None
-
-    return await asyncio.to_thread(_r)
 
 
-async def _delete_pending(token: str) -> None:
-    def _d() -> None:
-        c = _pending_sql()
-        c.execute("DELETE FROM pending WHERE token=?", (token,))
-        c.commit()
-
-    await asyncio.to_thread(_d)
 
 
-def _close_pending_conn() -> None:
-    global _pending_conn
-    if _pending_conn is not None:
-        try:
-            _pending_conn.close()
-        except Exception:
-            pass
-        _pending_conn = None
 
 
 async def _emit(ev: dict[str, Any]) -> None:
@@ -215,34 +145,8 @@ def _now_ms() -> int:
 
 
 # 大额审批 pending 有效期：超过后「确认」不再生效（防止隔很久的误触/陈旧回复入账）
-_PENDING_APPROVAL_TTL_MINUTES = 30
 
 
-async def _pending_confirm_context(
-    question: str, thread_id: str | None
-) -> dict[str, Any] | None:
-    """上一轮为 nl_pending 待确认时，把「确认/取消」短回复识别为审批回执。
-
-    仅当该线程最后一条 run 的 route 是 nl_pending、未过 TTL 且回复命中词表才算，否则返回 None。
-    （消费动作由调用方经 db.claim_pending_nl 原子完成，本函数只做识别。）
-    """
-    if not thread_id:
-        return None
-    decision = service._confirm_decision(question)
-    if decision is None:
-        return None
-    runs = await db.list_runs(thread_id, 1)
-    if not runs or runs[0].get("route") != "nl_pending":
-        return None
-    try:
-        created = datetime.fromisoformat(str(runs[0].get("created_at") or ""))
-        if datetime.now().astimezone() - created > timedelta(
-            minutes=_PENDING_APPROVAL_TTL_MINUTES
-        ):
-            return None
-    except ValueError:
-        pass  # 时间戳异常不阻断（按未过期处理）
-    return {"decision": decision, "question": str(runs[0].get("question") or "")}
 
 
 class AgentState(TypedDict, total=False):
@@ -271,224 +175,6 @@ class AgentState(TypedDict, total=False):
 # ---------------------------------------------------------------------------
 
 
-async def supervisor(state: AgentState) -> dict[str, Any]:
-    """意图分类 + 记账检测。LLM 分类失败/未接入一律规则兜底。"""
-    q = state["question"]
-    tid = state.get("thread_id")
-    en_lang = state.get("lang") == "en"
-
-    # 大额审批回执优先：「确认/取消」承接本线程最后一条 nl_pending，先于一切路由，
-    # 否则「确认」会被分类成 general，审批流断在死路（原实现承诺可回复确认但无实现）。
-    # claim_pending_nl 原子消费：并发/断连重试时只有一个回执能生效，防重复入账。
-    pending_ctx = await _pending_confirm_context(q, tid)
-    if pending_ctx:
-        if pending_ctx["decision"] == "confirm":
-            segments = service._nl_segments(pending_ctx["question"])
-            if segments and tid and await db.claim_pending_nl(str(tid)):
-                return {
-                    "route": "bookkeeping",
-                    "reason": "Large-amount approval: user confirmed"
-                    if en_lang
-                    else "大额审批：用户确认入账",
-                    "parsed": segments[0],
-                    "confirm": True,
-                    "pending_question": pending_ctx["question"],
-                }
-        elif tid and await db.claim_pending_nl(str(tid)):
-            return {
-                "route": "nl_cancel",
-                "reason": "Large-amount approval: user cancelled"
-                if en_lang
-                else "大额审批：用户取消",
-            }
-        # claim 失败（已被并发回执消费）或原句不可解析：落回常规路由，不重复入账
-
-    # 长记忆 recall：把用户历史相关记忆注入 state，供后续节点参考
-    # （纯本地 BM25 检索，零网络；技能关闭时不召回，隐私与开关口径一致）
-    from . import agent_config
-
-    long_mem_on = await agent_config.is_skill_enabled("long_memory")
-    mem_hits = await mem.recall(q) if long_mem_on else []
-    if mem_hits:
-        log.info(
-            "mem.recalled count=%s sample=%s",
-            len(mem_hits),
-            mem_hits[0].get("memory", "")[:60],
-        )
-
-    route, reason = service.route_question(q, state.get("lang", "zh"))
-    if route == "general" and await service._is_finance_followup(q, tid):
-        route = "both"
-        reason = (
-            "Follow-up to the previous finance question"
-            if state.get("lang") == "en"
-            else "承接上一轮财务提问的省略追问"
-        )
-
-    # 动作指令优先（卖出/清仓/晨报/备份）：先于记账检测，否则「卖出 600519」
-    # 这类带数字的动作会被 nlparse 当成一笔支出记进账本（语义劫持）。
-    if route == "action":
-        return {"route": "action", "reason": reason, "mode": "deterministic"}
-
-    # 对话内配置（添加/停用/删除角色、技能、提示词、约束、Hook）：先于记账与记忆，
-    # 否则「添加技能 定投提醒：每周日检查」会被 nlparse 当成一笔支出入账。
-    from .studio import commands as studio_commands
-
-    studio_result = await studio_commands.handle_question(q, state.get("lang", "zh"))
-    if studio_result is not None:
-        return {
-            "route": "studio_admin",
-            "reason": (
-                "Studio configuration command"
-                if en_lang
-                else "对话内修改 Agent Studio 配置"
-            ),
-            "mode": "deterministic",
-            "result": {
-                "answer": studio_result.get("answer", ""),
-                "level": "L1 洞察" if not en_lang else "L1",
-                "route": "studio_admin",
-                "route_reason": "Studio configuration command"
-                if en_lang
-                else "对话内修改 Agent Studio 配置",
-                "metrics": {},
-                "flags": [],
-                "llm": "template",
-                "tools": [],
-                "actions": [],
-            },
-        }
-
-    # 记忆指令其次（先于记账）：「记住/记得 …」明确是记忆意图，
-    # 否则「记住我下个月要交房租 5000」会被一句话记账当成支出入账。
-    # 写入只由 memory 节点做一次（它负责剥离「记住」前缀、去重与技能开关回执）；
-    # 路由层不再重复写，避免同一句话存两条。
-    if service._looks_like_memory(q):
-        reason_mem = (
-            "Recognized as a memory instruction — saving to long-term memory"
-            if state.get("lang") == "en"
-            else "识别为记忆指令，直接存长期记忆"
-        )
-        return {"route": "memory", "reason": reason_mem, "mode": "deterministic"}
-
-    # 一句话记账：短句 + 能解析出金额 → 记账 agent（规则秒回，不调模型）
-    # 「自选」类指令先排除：股票代码（600519）会被 nlparse 当成金额，走 60 万大额审批（实测）
-    parsed = None
-    if service._looks_like_record(q) and not service._looks_like_watchlist(q):
-        parsed = nlparse.parse(q)
-    if parsed is not None:
-        return {"route": "bookkeeping", "reason": reason, "parsed": parsed}
-
-    if route == "general":
-        # 规则未命中且模型可用：让模型兜底判一次是否其实是理财问题（如「茅台现在多少钱」）
-        if await llm.llm_available():
-            llm_route = await service.classify_question_llm(q, state.get("lang", "zh"))
-            if llm_route in ("market", "ledger", "both", "goal", "enterprise"):
-                route = llm_route
-                reason = (
-                    "Model recognized this as a finance question"
-                    if en_lang
-                    else "模型判定这是理财问题"
-                )
-            else:
-                return {"route": "general", "reason": reason, "mode": "deterministic"}
-        else:
-            return {"route": "general", "reason": reason, "mode": "deterministic"}
-
-    # 企业域分支（规则强词命中，或模型兜底判成 enterprise）：独立节点自带工具面，
-    # 不参与财务管线的持仓/账本取数与风险复核（那条链路只算个人理财指标）。
-    if route == "enterprise":
-        return {
-            "route": "enterprise",
-            "reason": reason,
-            "mode": "agent" if await llm.llm_available() else "deterministic",
-        }
-
-    mode = "agent" if await llm.llm_available() else "deterministic"
-    # goal 路由（目标/体检）需要完整财务数据：市场 + 账本都查
-    routes = ["market", "ledger"] if route in ("both", "goal") else [route]
-
-    en_st = state.get("lang") == "en"
-    # 结构化计划：前端 Agent 面板/推理轨迹展示本轮将执行的 Agent 管线（label/detail 跟随语言）
-    plan_steps: list[dict[str, Any]] = []
-    if mode == "agent":
-        plan_steps = [
-            {
-                "id": "supervisor",
-                "label": "Understand" if en_st else "理解意图",
-                "detail": reason,
-            },
-            {
-                "id": "reason",
-                "label": "Reason" if en_st else "自主分析",
-                "detail": (
-                    "Verify holdings/ledger/risk with tools, then compose"
-                    if en_st
-                    else "调用工具核对持仓/账本/风险后成文"
-                ),
-            },
-        ]
-    else:
-        if "market" in routes:
-            plan_steps.append(
-                {
-                    "id": "market",
-                    "label": "View holdings" if en_st else "查看持仓",
-                    "detail": "Holdings · Quotes · P&L · Concentration"
-                    if en_st
-                    else "持仓·行情·盈亏·集中度",
-                }
-            )
-        if "ledger" in routes:
-            plan_steps.append(
-                {
-                    "id": "ledger",
-                    "label": "Ledger" if en_st else "核对账本",
-                    "detail": "Income · Expenses · Cash · Debt"
-                    if en_st
-                    else "收支·结余·负债·应急金",
-                }
-            )
-        plan_steps.append(
-            {
-                "id": "risk",
-                "label": "Risk review" if en_st else "风险复核",
-                "detail": "Concentration · Emergency fund · High-interest debt"
-                if en_st
-                else "集中度·应急金·高息负债",
-            }
-        )
-        plan_steps.append(
-            {
-                "id": "finalize",
-                "label": "Compose answer" if en_st else "整理成文",
-                "detail": "Summarize conclusion & figures"
-                if en_st
-                else "汇总结论与数字",
-            }
-        )
-    # Agent 行为可配置：关闭「展示执行计划」时不再发计划卡（推理轨迹/面板同步隐藏）
-    _agent_plan = (await db.get_settings()).get("agent_plan", "on") != "off"
-    if plan_steps and _agent_plan:
-        await _emit(
-            {
-                "type": "plan",
-                "data": {"steps": plan_steps, "mode": mode, "route": route},
-            }
-        )
-
-    # 确定性模式发"理解问题"步骤；agent 模式不发（工具调用过程即说明，避免重复）
-    if mode == "deterministic":
-        await _emit(
-            {
-                "type": "step",
-                "id": "supervisor",
-                "label": "Understand" if en_st else "理解问题",
-                "detail": f"{reason}，开始分析" if not en_st else reason,
-                "phase": "done",
-            }
-        )
-    return {"route": route, "reason": reason, "mode": mode, "routes": routes}
 
 
 # 写入/动作节点已拆到 agent_nodes_action.py，见文件末尾导入。
@@ -516,234 +202,6 @@ async def general(state: AgentState) -> dict[str, Any]:
 
 
 
-async def finalize(state: AgentState) -> dict[str, Any]:
-    """成文 agent：有模型 → function calling 工具循环；无模型 → 模板成文（流式）。"""
-    q = state["question"]
-    tid = state.get("thread_id")
-    routes = state.get("routes") or []
-    market = state.get("market")
-    ledger = state.get("ledger")
-    flags = state.get("flags") or []
-    # 空数据判定与旧流程一致：没有任何持仓且没有任何流水 → 引导记账（不是零值假象）
-    positions = state.get("positions")
-    if positions is None:
-        positions = await db.list_positions()
-    if state.get("mode") != "agent":
-        has_data = bool(positions) or bool(
-            await db.fetch_all("SELECT 1 FROM transactions LIMIT 1")
-        )
-    else:
-        has_data = True  # agent 模式由模型自行判断数据有无
-    route = state.get("route") or "both"
-    reason = state.get("reason") or ""
-
-    if state.get("mode") == "agent":
-        # agent 模式：模型自主调用工具取数成文（工具数字仍来自本地确定性计算）。
-        # 模型不可用/调用失败抛 AgentUnavailable → 图内降级确定性模板成文（不中断、不冒充）。
-        try:
-            history = await service._build_history(tid)
-            result = await agent.run_agent(
-                q, _emit, history, state.get("lang", "zh")
-            )
-            live = state.get("live")
-            if live is None:
-                live = await quotes.live_quotes(positions)
-            m = analysis.market_view(positions, live) if "market" in routes else market
-            led = (
-                analysis.ledger_view(
-                    await db.list_transactions(),
-                    await db.list_subscriptions(),
-                    await db.list_debts(),
-                    await db.get_settings(),
-                    positions,
-                    live,
-                )
-                if "ledger" in routes
-                else ledger
-            )
-            flags = analysis.risk_checks(m, led, state.get("lang", "zh"))
-            level = "L2 建议" if flags else "L1 洞察"
-            answer = result["answer"].strip()
-            # 主动理财引导：基于确定性风控 code 给一句下一步动作（差异化「主动 Agent」）
-            advice = analysis.next_step_advice(flags, True, state.get("lang", "zh"))
-            if advice:
-                answer = answer.rstrip() + "\n\n" + advice
-            disclaimer = (
-                analysis.DISCLAIMER_EN
-                if state.get("lang") == "en"
-                else analysis.DISCLAIMER
-            )
-            if disclaimer not in answer:
-                answer = answer + "\n\n— " + disclaimer
-            return {
-                "result": {
-                    "answer": answer,
-                    "level": level,
-                    "route": route,
-                    "route_reason": reason,
-                    "metrics": service._metrics_from(m, led),
-                    "flags": flags,
-                    "llm": "llm",
-                    "tools": result.get("tools_used", []),
-                    "agent_steps": result.get("steps", []),
-                    # 单路由命中时另一项为 None，过滤掉避免前端拿到 null 崩溃
-                    "actions": [
-                        a
-                        for a in (
-                            {"tab": "holdings"} if "market" in routes else None,
-                            {"tab": "ledger"} if "ledger" in routes else None,
-                        )
-                        if a
-                    ],
-                }
-            }
-        except agent.AgentUnavailable:
-            log.warning("agent 工具循环不可用，图内降级确定性成文")
-            # 降级到确定性模板前重新判定空数据：空库不得给「总资产 0 元」假象，
-            # 应走「还没有录入」引导（与确定性模式一致，防止新用户被劝退）。
-            has_data = bool(positions) or bool(
-                await db.fetch_all("SELECT 1 FROM transactions LIMIT 1")
-            )
-
-    # 确定性模式：模板/模型润色成文（流式 text 事件，与旧流程一致）
-    level = "L2 建议" if flags else "L1 洞察"
-    # 体检意图：确定性输出五维报告（无模型也能「帮我体检」，数字仍来自本地内核）。
-    # 空库同样走记账引导，不给「60 分」假象（与 template_answer 的空库保护一致）。
-    wants_health = any(w in q for w in analysis.HEALTH_WORDS)
-    if wants_health and has_data:
-        fallback = analysis.health_report_text(
-            analysis.health_check(
-                market,
-                ledger,
-                flags,
-                await db.list_goals(),
-                lang=state.get("lang", "zh"),
-            ),
-            state.get("lang", "zh"),
-        )
-    elif wants_health:
-        fallback = analysis.no_data_answer(state.get("lang", "zh"))
-    else:
-        fallback = analysis.template_answer(
-            market, ledger, flags, has_data=has_data, lang=state.get("lang", "zh")
-        )
-    history = await service._build_history(tid)
-    system = (
-        "你是用户的个人理财助手。根据给定的持仓与账本数据，用简洁的中文回答用户的问题："
-        "先一句话给结论，再分点列出关键数字，最后提示风险项（如有）。"
-        "不要编造任何未给出的数字，不要给出具体买卖指令。"
-    )
-    if state.get("lang") == "en":
-        system = (
-            "You are the user's personal finance assistant. Based on the holdings and ledger data provided, "
-            "answer the user's question concisely in English: give a one-line conclusion first, "
-            "then list key numbers point by point, and finally note any risks (if any). "
-            "Never invent numbers not provided, and never give specific buy/sell instructions."
-        )
-    if history:
-        system += (
-            "本次附带了同一会话的历史问答，用于理解「那上个月呢」这类省略追问："
-            "历史只作上下文参考，所有数字必须以本轮给定数据为准，不得沿用历史里的数字。"
-        )
-    user_obj: dict[str, Any] = {
-        "question": q,
-        "market": market,
-        "ledger": ledger,
-        "flags": flags,
-        "level": level,
-    }
-    if history:
-        user_obj["history"] = history
-    user = json.dumps(user_obj, ensure_ascii=False)
-
-    await _emit(
-        {
-            "type": "step",
-            "id": "finalize",
-            "label": "Compose answer" if state.get("lang") == "en" else "整理成文",
-            "detail": "Summarize conclusion & figures"
-            if state.get("lang") == "en"
-            else "汇总结论与数字",
-            "phase": "start",
-        }
-    )
-
-    chunks: list[str] = []
-    src = "template"
-    usage: dict[str, int] = {}
-    # 经 service._narrate 调用：兼容不支持 usage_out 的 stream_narrate 实现，
-    # 计量缺失也不影响成文（见 service._narrate 的说明）。
-    async for delta, s in service._narrate(system, user, fallback, usage):
-        if s == "reasoning":
-            # 思考过程单列事件，不混进正文
-            await _emit({"type": "thinking", "data": {"content": delta}})
-            continue
-        src = s
-        chunks.append(delta)
-        await _emit({"type": "text", "delta": delta})
-
-    answer = "".join(chunks).strip() or fallback
-    # 主动理财引导：基于确定性风控 code 给一句下一步动作（差异化「主动 Agent」）
-    advice = analysis.next_step_advice(flags, has_data, state.get("lang", "zh"))
-    if advice:
-        answer = answer.rstrip() + "\n\n" + advice
-    disclaimer = (
-        analysis.DISCLAIMER_EN if state.get("lang") == "en" else analysis.DISCLAIMER
-    )
-    if disclaimer not in answer:
-        answer = answer + "\n\n— " + disclaimer
-
-    await _emit(
-        {
-            "type": "step",
-            "id": "finalize",
-            "label": "Compose answer" if state.get("lang") == "en" else "整理成文",
-            "detail": "Done" if state.get("lang") == "en" else "已完成",
-            "phase": "done",
-        }
-    )
-
-    # 结构化数据卡：前端把数字渲染成对话内嵌小卡（4 宫格 / mini 环形 / 持仓预览），
-    # 不再纯文字叙述。前端不认识就忽略，向后兼容。
-    if has_data and ("market" in routes or "ledger" in routes):
-        await _emit(
-            {
-                "type": "card",
-                "block": {
-                    "kind": "finance_snapshot",
-                    "data": {
-                        "route": route,
-                        "market": market,
-                        "ledger": ledger,
-                        "flags": flags,
-                    },
-                },
-            }
-        )
-
-    return {
-        "result": {
-            "answer": answer,
-            "level": level,
-            "route": route,
-            "route_reason": reason,
-            "metrics": service._metrics_from(market, ledger),
-            "flags": flags,
-            "llm": src,
-            "tools": [],
-            # harness：本轮 token 用量（模型真实回传；模板轮为空 dict）
-            "tokens": usage,
-            # 同上：过滤单路由命中时的 None 项
-            "actions": [
-                a
-                for a in (
-                    {"tab": "holdings"} if "market" in routes else None,
-                    {"tab": "ledger"} if "ledger" in routes else None,
-                )
-                if a
-            ],
-        }
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -751,23 +209,6 @@ async def finalize(state: AgentState) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _supervisor_route(state: AgentState) -> str:
-    r = state.get("route") or ""
-    if r == "bookkeeping":
-        return "record"
-    if r == "nl_cancel":
-        return "nl_cancel"
-    if r == "memory":
-        return "memory"
-    if r == "action":
-        return "action"
-    if r == "general":
-        return "general"
-    if r == "enterprise":
-        return "enterprise"
-    if r == "studio_admin":
-        return "studio_admin"
-    return "finance"
 
 
 def _build_graph() -> Any:
@@ -962,4 +403,23 @@ from .agent_nodes_action import (  # noqa: F401,E402 — 供 _build_graph 与外
     studio_admin,
 )
 from .agent_nodes_collect import collect_ledger, collect_market, risk  # noqa: F401,E402
+from .agent_nodes_final import finalize  # noqa: F401,E402
 
+# ---------------------------------------------------------------------------
+# 监督/收尾节点与 HITL 挂起存储已拆到独立模块；import 触发并以同名属性保留
+# ---------------------------------------------------------------------------
+from .agent_nodes_super import (  # noqa: F401,E402
+    _supervisor_route,
+    supervisor,
+)
+from .agent_pending import (  # noqa: F401,E402
+    _PENDING_APPROVAL_TTL_MINUTES,
+    _close_pending_conn,
+    _delete_pending,
+    _load_pending,
+    _pending_confirm_context,
+    _pending_conn,
+    _pending_cutoff,
+    _pending_sql,
+    _save_pending,
+)

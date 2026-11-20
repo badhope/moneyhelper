@@ -105,6 +105,10 @@
   `_match_position_by_name`、`_ACTION_STOP`）进 `tools_action.py`，门面 re-export 保持
   `tools.run_action`；测试里两处 `quote_now` 补丁改打 `tools_action`（函数搬走后原补丁
   会 AttributeError 或静默失效）。
+- `agent_graph.py` 965 → 411 行：监督节点进 `agent_nodes_super.py`，收尾节点进
+  `agent_nodes_final.py`，HITL 挂起存储（token→thread_id 的 sqlite 表）进
+  `agent_pending.py`。`_PENDING_DB` 的真源仍留在主文件——测试夹具直接改这个值指向
+  临时库，搬走会让待确认 token 连到真实库。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
