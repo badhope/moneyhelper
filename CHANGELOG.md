@@ -398,6 +398,9 @@
 - `analysis_health.py`：`health_check` 225 行的单函数按五维拆成 `_dim_portfolio` /
   `_dim_cashflow` / `_dim_debt` / `_dim_emergency` / `_dim_goals` 五个纯函数（各 ≤ 45 行），
   `health_check` 降到 55 行只做汇总与加权；输出字段与文案逐字未变。
+- `agent.py` 374 → 342 行（`run_agent` 306 → 274 行）：`agent_turn.py` 承接
+  `RepeatGuard`（同工具同参数连击守卫）、`final_answer_result`（终答收口）与
+  `wrap_up_answer`（轮次用尽兜底成文）；流式实现经门面动态取，测试替换照旧生效。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 

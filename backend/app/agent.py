@@ -23,7 +23,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import time
 from typing import Any
@@ -39,6 +38,7 @@ from .agent_errors import AgentUnavailable  # noqa: F401 — 对外同名导出
 from .agent_prompts import AGENT_SYSTEM, GENERAL_SYSTEM  # noqa: F401 — 对外同名导出
 from .agent_stream import Emit, _now_ms, _stream_final_answer  # noqa: F401 — run_agent 使用
 from .agent_studio import studio_post_answer, studio_pre_tool  # noqa: F401 — 对外同名导出
+from .agent_turn import RepeatGuard, final_answer_result, wrap_up_answer
 from .observability import timed
 from .tool_schemas import validate_tool_args
 
@@ -103,9 +103,7 @@ async def run_agent(    question: str,
     )
     # 循环检测：模型有时会反复用完全相同的参数调同一个工具（尤其工具持续报错时），
     # 白烧 token 也拿不到新信息。连续 3 次完全相同则中断并如实说明。
-    _repeat_key: tuple[str, str] | None = None
-    _repeat_count = 0
-    _MAX_REPEAT = 3
+    _guard = RepeatGuard(max_repeat=3)
 
     for _turn in range(turn_cap):
         try:
@@ -131,19 +129,16 @@ async def run_agent(    question: str,
         if not tool_calls:
             # 最终回答：流式输出（逐 token 推送到前端 markdown 渲染）
             # 先尝试流式；失败时退回非流式兜底
-            full_answer = await _stream_final_answer(
-                client, cfg, messages, tool_schemas, emit
+            return await final_answer_result(
+                client,
+                cfg,
+                messages,
+                tool_schemas,
+                emit,
+                steps=steps,
+                used_tools=used_tools,
+                tool_counts=tool_counts,
             )
-            if not full_answer:
-                raise AgentUnavailable("模型未产出回答")
-            await studio_post_answer(full_answer)
-            return {
-                "answer": full_answer,
-                "steps": steps,
-                "tools_used": used_tools,
-                "tool_counts": tool_counts,
-                "llm": "llm",
-            }
 
         # 模型要求调用工具：先原样回填 assistant 消息，再执行工具并回填结果。
         # 若模型在调用工具的同时给出说明（如"我来查一下"），作为 thinking 过程展示。
@@ -251,12 +246,8 @@ async def run_agent(    question: str,
             tool_counts[name] = tool_counts.get(name, 0) + 1
             used_tools.append(name)
             # 同工具 + 同参数连续重复检测（在真正执行前判定，避免第三次无效调用）
-            _key = (name, json.dumps(args, sort_keys=True, ensure_ascii=False, default=str))
-            if _key == _repeat_key:
-                _repeat_count += 1
-            else:
-                _repeat_key, _repeat_count = _key, 1
-            if _repeat_count >= _MAX_REPEAT:
+            _repeat_count = _guard.hit(name, args)
+            if _guard.exhausted(_repeat_count):
                 await emit({
                     "type": "thinking",
                     "data": {"content": f"检测到重复调用 {name}，已停止以避免空转。"},
@@ -333,33 +324,10 @@ async def run_agent(    question: str,
             # 兼容旧契约：agent_step 仍发（summary 聚合）
             await emit({"type": "agent_step", "name": name, "args": args, "summary": summary})
 
-    # 轮次用尽：不要让整次问答作废。这里再给一次"禁止调工具"的收尾请求，
-    # 让模型基于已取到的工具结果成文；失败才抛出降级。
-    wrap_up = [
-        *messages,
-        {
-            "role": "system",
-            "content": "工具调用轮次已用尽。请基于上面已经拿到的工具结果直接回答，不要再请求调用工具；"
-            "如果信息不足，就说明缺少什么。",
-        },
-    ]
-    # 收尾预算刻意收紧（20s）：此时用户已经等了几十秒，再挂 2 分钟不如
-    # 立刻给确定性模板。轮次用尽通常意味着模型在数据里绕圈，多等也无益。
-    try:
-        final = await asyncio.wait_for(
-            _stream_final_answer(client, cfg, wrap_up, None, emit, timeout=20.0),
-            timeout=25.0,
-        )
-    except (Exception, asyncio.TimeoutError):  # noqa: BLE001 — 收尾失败走调用方降级
-        final = ""
-    if final:
-        return {
-            "answer": final,
-            "steps": steps,
-            "tools_used": sorted({s["name"] for s in steps}),
-            "llm": "llm",
-        }
-    raise AgentUnavailable(f"工具循环超过 {MAX_TURNS} 轮未收敛")
+    # 轮次用尽：不要让整次问答作废，交给收尾请求兜底成文（失败抛降级）。
+    return await wrap_up_answer(
+        client, cfg, messages, emit, steps=steps, max_turns=MAX_TURNS
+    )
 
 from .agent_history import _compress_history  # noqa: F401,E402 — run_agent 使用
 from .agent_tooling import (  # noqa: F401,E402 — 对外同名导出
