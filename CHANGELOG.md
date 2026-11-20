@@ -201,6 +201,11 @@
   `prepare_series`/`_position_size`）进 `backtest_series.py`，双均线进 `backtest_ma.py`，
   定投进 `backtest_dca.py`，策略分发与结果叙述（`run_backtest`/`backtest_text`）进
   `backtest_report.py`；`calculations/__init__` 的六个导出名不变。
+- `agent.py` 484 → 374 行：说明书常量与 supervisor 指令文件加载进 `agent_prompts.py`，
+  `AgentUnavailable` 进 `agent_errors.py`（原先散落各调用方 `except agent.AgentUnavailable`，
+  统一到一个源头避免双份异常类），时钟与流式收尾进 `agent_stream.py`，Studio 两个 Hook
+  入口进 `agent_studio.py`。`run_agent` 主体仍留门面；`Emit` 类型随流式模块走并由门面
+  re-export，调用方 `from .agent import Emit` 不变。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。

@@ -25,9 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import pathlib
 import time
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 from . import db, llm, mcp_client, tools
@@ -37,6 +35,10 @@ from . import db, llm, mcp_client, tools
 #
 # 判定改为由 tool_policy 统一回答（而不是手写集合）：新增工具时不必记得
 # 同步这个集合，未知工具默认 ASK（fail-closed），不会被意外暴露给模型。
+from .agent_errors import AgentUnavailable  # noqa: F401 — 对外同名导出
+from .agent_prompts import AGENT_SYSTEM, GENERAL_SYSTEM  # noqa: F401 — 对外同名导出
+from .agent_stream import Emit, _now_ms, _stream_final_answer  # noqa: F401 — run_agent 使用
+from .agent_studio import studio_post_answer, studio_pre_tool  # noqa: F401 — 对外同名导出
 from .observability import timed
 from .tool_schemas import validate_tool_args
 
@@ -50,118 +52,6 @@ from .tool_schemas import validate_tool_args
 # 这是「先 Agent 后财务」的落点：通用 Agent 内核不依赖任何财务能力。
 
 # 通用 Agent 内核说明书（general 分支用）：领域无关的自主 agent 行为规则。
-GENERAL_SYSTEM = (
-    "You are an autonomous general-purpose agent. Rules:\n"
-    "1. Need a real fact, date, time, or the latest news? Call a tool to fetch it — never invent it.\n"
-    "2. You may call several independent tools in one turn and continue after their results return.\n"
-    "3. Give a one-line conclusion first, then the key points, in the user's language.\n"
-    "4. If a tool fails or returns nothing, say so plainly rather than guessing.\n"
-    "You have only general-purpose tools (web_search, get_now) and NO access to the user's financial "
-    "data — for portfolio/ledger/finance questions say you don't have that data."
-)
-
-Emit = Callable[[dict[str, Any]], Awaitable[None]]
-
-
-_AGENTS_DIR = pathlib.Path(__file__).parent / "agents"
-
-def _load_instructions(agent_name: str) -> str:
-    """从 agents/<name>/instructions.md 读系统提示词。"""
-    p = _AGENTS_DIR / agent_name / "instructions.md"
-    if not p.exists():
-        return ""
-    return p.read_text(encoding="utf-8").strip()
-
-AGENT_SYSTEM = _load_instructions("supervisor")
-
-
-class AgentUnavailable(Exception):
-    """模型未配置或工具循环失败：调用方应降级到确定性路径。"""
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
-
-
-
-
-async def _stream_final_answer(
-    client: Any,
-    cfg: dict[str, Any],
-    messages: list[dict[str, Any]],
-    tool_schemas: list[dict[str, Any]],
-    emit: Emit,
-    timeout: float = 120.0,
-) -> str:
-    """流式生成最终回答。返回完整文本；失败时退回非流式兜底。"""
-    full_parts: list[str] = []
-    try:
-        stream = await client.chat.completions.create(
-            model=cfg["model"] or "gpt-4o-mini",
-            messages=messages,
-            tools=tool_schemas,
-            tool_choice="auto",
-            temperature=0.2,
-            stream=True,
-            timeout=timeout,
-        )
-        async for chunk in stream:
-            delta = chunk.choices[0].delta.content if chunk.choices else None
-            if delta:
-                full_parts.append(delta)
-                # 逐 token 流式推送前端
-                await emit({
-                    "type": "token",
-                    "data": {"content": delta},
-                    "node": "finalize",
-                })
-    except Exception:
-        # 流式失败时退回非流式兜底
-        try:
-            resp = await client.chat.completions.create(
-                model=cfg["model"] or "gpt-4o-mini",
-                messages=messages,
-                tools=tool_schemas,
-                tool_choice="auto",
-                temperature=0.2,
-                stream=False,
-            )
-            content = (resp.choices[0].message.content or "").strip()
-            if content:
-                # 一次性推出去（没有逐 token 的流式，但内容完整）
-                await emit({
-                    "type": "token",
-                    "data": {"content": content},
-                    "node": "finalize",
-                })
-                return content
-        except Exception as exc:
-            raise AgentUnavailable(f"模型最终成文失败：{type(exc).__name__}") from exc
-        return ""
-
-    return "".join(full_parts).strip()
-
-
-
-
-async def studio_pre_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
-    """Studio pre_tool Hook 的统一入口（配置异常时放行，安全默认由内置 Hook 保证）。"""
-    try:
-        from .studio import store as studio_store
-
-        return await studio_store.run_pre_tool(name, args)
-    except Exception:  # noqa: BLE001 — Hook 失败不阻断正常工具
-        return {"blocked": False, "reason": "", "events": []}
-
-
-async def studio_post_answer(answer: str) -> list[dict[str, Any]]:
-    """Studio post_answer Hook：只做审计/告警，不修改回答内容。"""
-    try:
-        from .studio import store as studio_store
-
-        return await studio_store.run_post_answer(answer)
-    except Exception:  # noqa: BLE001
-        return []
 
 
 async def run_agent(    question: str,
