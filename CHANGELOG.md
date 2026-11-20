@@ -127,6 +127,9 @@
 - `db/gl.py` 657 → 50 行门面：科目与会计期间（建账、建期、结账、期间归属）进
   `gl_accounts.py`，凭证（校验、记账、过账、反冲、试算表）进 `gl_entries.py`。
   凭证侧依赖期间侧的 `_open_period_for_date` / `gl_get_period`，单向依赖不开环。
+- `db/banking.py` 648 → 41 行门面：付款进 `banking_payments.py`、流水导入与匹配进
+  `banking_bank.py`、对账进 `banking_recon.py`；`_money/_payment/_bank` 三个行转元的
+  助手随各自域走，门面仍导出全部旧名。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
