@@ -25,7 +25,6 @@ from . import db
 from . import tool_policy as _policy
 from . import tools as xtools
 from .logging_utils import get_logger
-from .provenance import record_provenance
 
 log = get_logger(__name__)
 
@@ -92,81 +91,8 @@ def _tool():
 # ---------------------------------------------------------------------------
 
 
-@_tool()
-async def get_market_view() -> str:
-    """查询用户持仓组合：总市值、累计盈亏、前几大持仓、集中度告警。"""
-    return await xtools.tool_get_market_view({})
+# 该域包装器已拆到 mcp_views.py，见文件末尾导入。
 
-
-@_tool()
-async def get_ledger_view() -> str:
-    """查询用户账本：本月收入、支出、结余、储蓄率、支出分类、订阅、负债、应急金。"""
-    return await xtools.tool_get_ledger_view({})
-
-
-@_tool()
-async def get_risk_flags() -> str:
-    """运行风控规则：集中度超限、应急金不足、高息负债、负债收入比偏高、储蓄率偏低等告警。"""
-    return await xtools.tool_get_risk_flags({})
-
-
-@_tool()
-async def get_budget(month: str = "") -> str:
-    """查询预算设置与实时使用情况。month 格式 YYYY-MM，省略=本月。"""
-    return await xtools.tool_get_budget({"month": month})
-
-
-@_tool()
-async def get_trend(months: int = 6) -> str:
-    """查询近几个月收支趋势。months 范围 1-24，默认 6。"""
-    return await xtools.tool_get_trend({"months": months})
-
-
-@_tool()
-async def get_goals() -> str:
-    """查询用户的财务目标：目标金额、已存金额、进度百分比、距截止月、建议月存。"""
-    return await xtools.tool_get_goals({})
-
-
-@_tool()
-async def get_health_check() -> str:
-    """跑一次结构化财务体检：资产配置 / 现金流 / 负债 / 应急金 / 目标进度 五个维度评分与建议。"""
-    return await xtools.tool_get_health_check({})
-
-
-# ---------------------------------------------------------------------------
-# 投资策略工具（与 LLM function calling 同源，数字由确定性引擎算出）
-# ---------------------------------------------------------------------------
-
-
-@_tool()
-async def get_portfolio_risk(benchmark: str = "sh000300") -> str:
-    """组合风险指标：年化波动率、夏普、索提诺、最大回撤、Calmar、Beta/Alpha、VaR，并与基准对比。benchmark 可选 sh000300/sh000001/sz399001/sz399006。"""
-    return await xtools.tool_get_portfolio_risk({"benchmark": benchmark})
-
-
-@_tool()
-async def get_rebalance_plan(band_pct: float = 5.0) -> str:
-    """再平衡建议：对照目标配置给出偏离度与应买/应卖金额、约多少股。band_pct 为容忍带百分比。"""
-    return await xtools.tool_get_rebalance_plan({"band_pct": band_pct})
-
-
-@_tool()
-async def get_valuation(symbols: str = "") -> str:
-    """估值位置分位：当前价在近 750 个交易日区间中的位置（0=最低，100=最高）。symbols 为逗号分隔代码，省略=全部持仓。"""
-    return await xtools.tool_get_valuation({"symbols": symbols})
-
-
-@_tool()
-async def get_dca_plans() -> str:
-    """定投计划与回测：每期金额、累计投入、份额、成本线、当前盈亏、下一期扣款日。"""
-    return await xtools.tool_get_dca_plans({})
-
-
-@_tool()
-async def get_fire_plan() -> str:
-    """FIRE 进度：目标本金、当前完成度、储蓄率、按复利估算的达成年限。"""
-    return await xtools.tool_get_fire_plan({})
 
 
 # ---------------------------------------------------------------------------
@@ -174,40 +100,8 @@ async def get_fire_plan() -> str:
 # ---------------------------------------------------------------------------
 
 
-@_tool()
-async def search_symbol(query: str) -> str:
-    """搜索 A股/基金/指数（按代码或名称，如「茅台」「600519」）。"""
-    return await xtools.tool_search_symbol({"query": query})
+# 该域包装器已拆到 mcp_market.py，见文件末尾导入。
 
-
-@_tool()
-async def get_quote(symbol: str) -> str:
-    """查询单只标的实时行情：现价、涨跌幅、来源（东财/新浪）。symbol 为 6 位代码如 600519。"""
-    return await xtools.tool_get_quote({"symbol": symbol})
-
-
-@_tool()
-async def get_kline(symbol: str, period: str = "daily", limit: int = 60) -> str:
-    """查询某标的的 K 线走势。symbol=6 位代码，period=daily/weekly/monthly，limit=返回点数（10-500）。"""
-    return await xtools.tool_get_kline({"symbol": symbol, "period": period, "limit": limit})
-
-
-@_tool()
-async def add_to_watchlist(symbol: str, name: str = "", kind: str = "股票") -> str:
-    """把标的加入自选。name 省略时自动从实时行情获取名称。"""
-    return await xtools.tool_add_watchlist({"symbol": symbol, "name": name, "kind": kind})
-
-
-@_tool()
-async def remove_from_watchlist(symbol: str) -> str:
-    """自选列表移除标的。"""
-    return await xtools.tool_remove_watchlist({"symbol": symbol})
-
-
-@_tool()
-async def get_watchlist() -> str:
-    """查询自选列表及其实时行情。"""
-    return await xtools.tool_get_watchlist({})
 
 
 
@@ -240,82 +134,8 @@ async def get_now() -> str:
     return await xtools.tool_get_now({})
 
 
-@_tool()
-async def web_search(q: str) -> str:
-    """联网搜索（免 key，Bing 接口，国内可达）。q 为搜索关键词。"""
-    return await xtools.tool_web_search({"q": q})
+# 该域包装器已拆到 mcp_research.py，见文件末尾导入。
 
-
-# ---------------------------------------------------------------------------
-# 投研 / 财报工具（v4.0：确定性技术面 + 回测 + 三表分析）
-# ---------------------------------------------------------------------------
-
-
-@_tool()
-async def research_analyze(symbol: str, period: str = "daily", limit: int = 180) -> str:
-    """股票技术面研报：MA/MACD/RSI/BOLL/KDJ 指标快照 + 规则信号 + 多空倾向 + 文字结论。symbol 为 6 位代码，period 可选 daily/weekly/monthly。"""
-    return await xtools.tool_research_analyze(
-        {"symbol": symbol, "period": period, "limit": limit}
-    )
-
-
-@_tool()
-async def research_backtest(
-    symbol: str,
-    strategy: str = "ma_cross",
-    fast: int = 5,
-    slow: int = 20,
-    invest_amount: float = 1000.0,
-    freq_days: int = 5,
-) -> str:
-    """策略历史回测：ma_cross（双均线）或 dca（定投），输出收益/年化/最大回撤/夏普/胜率/盈亏比。symbol 为 6 位代码。"""
-    return await xtools.tool_research_backtest(
-        {
-            "symbol": symbol,
-            "strategy": strategy,
-            "fast": fast,
-            "slow": slow,
-            "invest_amount": invest_amount,
-            "freq_days": freq_days,
-        }
-    )
-
-
-@_tool()
-async def statements_analyze(payload: dict) -> str:
-    """财报分析：输入标准化三表 JSON（{company, currency, periods:[{period, balance_sheet, income_statement, cashflow_statement}]}），输出 20+ 指标、杜邦拆解、异常预警与文字报告。"""
-    return await xtools.tool_statements_analyze({"payload": payload})
-
-
-@_tool()
-async def research_forecast(symbol: str, period: str = "daily", days: int = 20) -> str:
-    """价格统计预测：线性趋势 + 年化波动率 + 蒙特卡洛 GBM 分位区间（固定种子可复现）。symbol 为 6 位代码，days 为预测根数。"""
-    return await xtools.tool_research_forecast({"symbol": symbol, "period": period, "days": days})
-
-
-# ---------------------------------------------------------------------------
-# 团队模拟盘工具（v4.2：事件溯源式虚拟账户）
-# ---------------------------------------------------------------------------
-
-
-@_tool()
-async def paper_open(name: str = "模拟账户", initial_cash: float = 100000.0) -> str:
-    """团队模拟盘开户：为成员创建虚拟账户（独立初始资金，最小 1000）。"""
-    return await xtools.tool_paper_open({"name": name, "initial_cash": initial_cash})
-
-
-@_tool()
-async def paper_trade(account_id: str, symbol: str, side: str, price: float, shares: float) -> str:
-    """团队模拟盘下单：买入/卖出虚拟持仓（A股整手、含佣金与印花税）。side 为 buy/sell。"""
-    return await xtools.tool_paper_trade(
-        {"account_id": account_id, "symbol": symbol, "side": side, "price": price, "shares": shares}
-    )
-
-
-@_tool()
-async def paper_overview() -> str:
-    """团队模拟盘总览：账户收益率排行、团队汇总、持仓摘要。"""
-    return await xtools.tool_paper_overview({})
 
 
 # ---------------------------------------------------------------------------
@@ -323,151 +143,8 @@ async def paper_overview() -> str:
 # ---------------------------------------------------------------------------
 
 
-@_tool()
-async def connect_catalog() -> str:
-    """连接中心目录：支持哪些外部平台（行情/券商/银行/支付/发票/公司财税）、接入方式与当前连接状态。"""
-    return await xtools.tool_connect_catalog({})
+# 该域包装器已拆到 mcp_connect.py，见文件末尾导入。
 
-
-@_tool()
-async def connect_sync(
-    connector_id: str,
-    label: str = "",
-    account_ref: str = "",
-    sync: bool = True,
-) -> str:
-    """建立/刷新一个外部连接：公开源立即拉数据；登录类返回官方入口与一次性配对码。"""
-    return await xtools.tool_connect_sync(
-        {"connector_id": connector_id, "label": label, "account_ref": account_ref, "sync": sync}
-    )
-
-
-@_tool()
-async def connect_fund_nav(codes: str) -> str:
-    """查场外基金最新净值（公开接口免登录），多个代码逗号分隔。"""
-    return await xtools.tool_connect_fund_nav({"codes": codes})
-
-
-@_tool()
-async def connect_order(
-    symbol: str,
-    side: str,
-    price: float,
-    shares: float,
-    mode: str = "paper",
-    name: str = "",
-    connector_id: str = "",
-    execute: bool = False,
-) -> str:
-    """生成交易指令：paper=模拟盘（可立即成交），live=只出交接单由用户在券商页面下单。"""
-    return await xtools.tool_connect_order(
-        {
-            "symbol": symbol,
-            "side": side,
-            "price": price,
-            "shares": shares,
-            "mode": mode,
-            "name": name,
-            "connector_id": connector_id,
-            "execute": execute,
-        }
-    )
-
-# ---------------------------------------------------------------------------
-# v4.5 深化：财税 / 现金流 / 风控 / 对账 / 发票 / 市场温度 / 条件单
-# ---------------------------------------------------------------------------
-
-
-@_tool()
-async def tax_calc(kind: str = "summary", revenue: float = 0, sales: float = 0, cost: float = 0,
-                   purchases: float = 0, expenses: float = 0, vat_rate: float = 0.13,
-                   vat_simple: bool = False, location: str = "city", cit_category: str = "standard",
-                   monthly_salary: float = 0, gross_salary: float = 0, months: int = 1,
-                   social_insurance: float = 0, housing_fund: float = 0,
-                   special_additional: float = 0, payroll_gross: float = 0) -> str:
-    """税负测算：vat 增值税 / cit 企业所得税 / iit 个税 / payroll 工资 / summary 综合税负。"""
-    return await xtools.tool_tax_calc({
-        "kind": kind, "revenue": revenue, "sales": sales, "cost": cost, "purchases": purchases,
-        "expenses": expenses, "vat_rate": vat_rate, "vat_simple": vat_simple, "location": location,
-        "cit_category": cit_category, "monthly_salary": monthly_salary, "gross_salary": gross_salary,
-        "months": months, "social_insurance": social_insurance, "housing_fund": housing_fund,
-        "special_additional": special_additional, "payroll_gross": payroll_gross,
-    })
-
-
-@_tool()
-async def cashflow_forecast(months_ahead: int = 3, opening_balance: float = 0) -> str:
-    """现金流三档预测（悲观/中性/乐观），基于真实流水的月度净流入分布。"""
-    return await xtools.tool_cashflow_forecast({"months_ahead": months_ahead, "opening_balance": opening_balance})
-
-
-@_tool()
-async def scan_subscriptions() -> str:
-    """识别订阅扣款：周期、金额、下次扣款日、涨价标记。"""
-    return await xtools.tool_scan_subscriptions({})
-
-
-@_tool()
-async def scan_anomalies(lookback_days: int = 180) -> str:
-    """异常扣款检测：中位数 + MAD 判离群，输出异常倍数与建议。"""
-    return await xtools.tool_scan_anomalies({"lookback_days": lookback_days})
-
-
-@_tool()
-async def debt_payoff_plan(
-    extra_payment: float = 0,
-    method: str = "avalanche",
-    compare: bool = False,
-) -> str:
-    """债务清偿规划：逐月摊还模拟，给出还清顺序、月数、总利息与可省利息。
-
-    method: avalanche（按利率从高到低，省利息最多）/ snowball（按余额从小到大）。
-    compare=true 同时返回两种方法的对比。数据来自账本已有负债记录。
-    """
-    return await xtools.tool_debt_payoff_plan(
-        {"extra_payment": extra_payment, "method": method, "compare": compare}
-    )
-
-
-@_tool()
-async def pretrade_check(symbol: str, side: str, price: float, shares: float) -> str:
-    """下单前风控：涨跌停/整手/T+1/集中度/日限额/重复单。"""
-    return await xtools.tool_pretrade_check({"symbol": symbol, "side": side, "price": price, "shares": shares})
-
-
-@_tool()
-async def import_brokerage_holdings(content: str, apply: bool = False, file_name: str = "holdings.csv") -> str:
-    """导入券商持仓对账单 CSV：预览或直接合并进持仓。"""
-    return await xtools.tool_import_brokerage_holdings({"content": content, "apply": apply, "file_name": file_name})
-
-
-@_tool()
-async def parse_invoice(text: str, file_name: str = "invoice-text") -> str:
-    """解析并归档发票票面文本：代码/号码/日期/价税合计/购销方。"""
-    return await xtools.tool_parse_invoice({"text": text, "file_name": file_name})
-
-
-@_tool()
-async def market_breadth() -> str:
-    """市场温度：涨跌家数、涨跌停数量、情绪温度 0-100。"""
-    return await xtools.tool_market_breadth({})
-
-
-@_tool()
-async def stock_profile(symbol: str) -> str:
-    """个股档案：PE/PB、市值、换手率、量比、振幅、涨跌停价。"""
-    return await xtools.tool_stock_profile({"symbol": symbol})
-
-
-@_tool()
-async def conditional_order(symbol: str, side: str, trigger_type: str, trigger_value: float,
-                            price: float, shares: float, mode: str = "paper", name: str = "") -> str:
-    """创建条件单：触发后生成待确认交易意图，不直接下单。"""
-    return await xtools.tool_conditional_order({
-        "symbol": symbol, "side": side, "trigger_type": trigger_type,
-        "trigger_value": trigger_value, "price": price, "shares": shares,
-        "mode": mode, "name": name,
-    })
 
 
 
@@ -548,219 +225,8 @@ def system_prompt_resource() -> str:
 # ---------------------------------------------------------------------------
 
 
-async def _compute_net_worth() -> str:
-    """计算用户当前净值（确定性的，不依赖 LLM）。"""
-    from .calculations.net_worth import calculate_net_worth
+# 该域包装器已拆到 mcp_analytics.py，见文件末尾导入。
 
-    positions = await db.list_positions()
-    debts = await db.list_debts()
-    snap = calculate_net_worth(positions=positions, debts=debts)
-    return json.dumps({
-        "date": str(snap.date),
-        "total_assets": snap.total_assets,
-        "total_liabilities": snap.total_liabilities,
-        "net_worth": snap.net_worth,
-        "asset_breakdown": snap.asset_breakdown,
-        "liability_breakdown": snap.liability_breakdown,
-    }, ensure_ascii=False)
-
-
-async def _compute_financial_health() -> str:
-    """财务健康评分：**复用 analysis.health_check 的同一实现**。
-
-    历史问题：这里曾用 calculations.calculate_health_score（连续打分），
-    而 REST /api/calculations/health、/api/health-check 与体检页用
-    analysis.health_check（定性折算）。同一份数据 MCP 报 54/D、界面报 83/B，
-    AI 又会把 MCP 的数字当事实复述给用户——同一个产品给出两套结论。
-
-    现在只有一条口径：进 analysis，出什么就报什么。
-    """
-    from . import analysis, quotes
-
-    positions = await db.list_positions()
-    txns = await db.list_transactions()
-    debts = await db.list_debts()
-    subs = await db.list_subscriptions()
-    settings = await db.get_settings()
-
-    try:
-        live = await quotes.live_quotes(positions)
-    except Exception:  # noqa: BLE001 — 行情失败退回快照价，评分仍可给
-        live = {p["symbol"]: float(p.get("last", 0)) for p in positions}
-
-    market = analysis.market_view(positions, live)
-    ledger = analysis.ledger_view(txns, subs, debts, settings, positions, live)
-    flags = analysis.risk_checks(market, ledger, "zh")
-    report = analysis.health_check(market, ledger, flags, await db.list_goals(), "zh")
-
-    return json.dumps(
-        {
-            "score": report.get("score", 0),
-            "grade": report.get("grade", "-"),
-            "summary": report.get("summary", ""),
-            "dimensions": report.get("dimensions", []),
-            "source": "analysis.health_check",
-            "note": "与 /api/calculations/health、体检页同一口径",
-        },
-        ensure_ascii=False,
-    )
-
-
-async def _compute_returns(months: int = 6) -> str:
-    """计算收益率（简单收益率从持仓现值 vs 成本）。"""
-    from .calculations.returns import calculate_simple_return
-
-    positions = await db.list_positions()
-
-    # 非现金持仓总成本 / 总市值
-    total_cost = 0.0
-    total_value = 0.0
-    for p in positions:
-        if p.get("kind") == "现金":
-            continue
-        shares = float(p.get("shares", 0))
-        cost = float(p.get("cost", 0))
-        last = float(p.get("last", 0))
-        total_cost += shares * cost
-        total_value += shares * last
-
-    pnl = total_value - total_cost
-    pnl_pct = (pnl / total_cost * 100) if total_cost > 0 else 0.0
-
-    # 简单收益率：用历史流水做粗略估算
-    simple_return = 0.0
-    if total_cost > 0:
-        try:
-            simple_return = calculate_simple_return(total_cost, total_value)
-        except ValueError:
-            simple_return = 0.0
-
-    return json.dumps({
-        "months": months,
-        "total_cost": round(total_cost, 2),
-        "total_market_value": round(total_value, 2),
-        "unrealized_pnl": round(pnl, 2),
-        "unrealized_pnl_pct": round(pnl_pct, 2),
-        "simple_return": round(simple_return, 6),
-    }, ensure_ascii=False)
-
-
-async def _compute_goal_progress() -> str:
-    """查询所有财务目标的进度（on_track/逾期/完成）。"""
-    from .calculations.goals import calculate_goal_progress
-
-    goals = await db.list_goals()
-    positions = await db.list_positions()
-    txs = await db.list_transactions()
-    progress = calculate_goal_progress(goals, positions, txs)
-    return json.dumps([{
-        "name": g.name,
-        "target": g.target_amount,
-        "current": g.current_amount,
-        "progress_pct": g.progress_pct,
-        "on_track": g.on_track,
-        "months_remaining": g.months_remaining,
-        "required_monthly": g.required_monthly,
-    } for g in progress], ensure_ascii=False)
-
-
-async def _import_transactions(source: str, csv_text: str) -> str:
-    """批量导入交易：解析 CSV + 去重 + 写入 + 审计。"""
-    from .csvimport import classify as _auto_classify
-    from .import_parsers import get_parser
-
-    parser = get_parser(source)
-    result = parser.parse(csv_text)
-
-    # 自动分类
-    for t in result.transactions:
-        if t.category in ("", "其他", "未分类"):
-            t.category = _auto_classify(t.item) or "其他"
-
-    # 去重
-    existing = await db.list_transactions()
-    existing_keys = {(r["date"], round(r["amount"], 2), r["item"]) for r in existing}
-    unique_txs = []
-    for t in result.transactions:
-        key = (t.date, round(t.amount, 2), t.item)
-        if key in existing_keys:
-            continue
-        existing_keys.add(key)
-        unique_txs.append(t)
-
-    # 写入
-    imported = 0
-    for t in unique_txs:
-        await db.add_transaction(t.date, t.item, t.category, t.amount)
-        imported += 1
-
-    # 审计
-    await record_provenance(
-        action="import_transactions",
-        entity_type="transaction",
-        entity_id=f"batch:mcp:{imported}",
-        before=None,
-        after={"imported": imported, "source": source, "total_in_csv": len(result.transactions)},
-        source="mcp",
-    )
-
-    return json.dumps({
-        "imported": imported,
-        "skipped": len(result.transactions) - imported,
-        "errors": result.errors,
-    }, ensure_ascii=False)
-
-
-@_tool()
-async def get_net_worth() -> str:
-    """查询用户当前净值（总资产 - 总负债）。返回资产/负债明细。"""
-    return await _compute_net_worth()
-
-
-@_tool()
-async def get_financial_health() -> str:
-    """查询财务健康评分（0-100）及五维度拆解（储蓄率/DTI/应急金/集中度/投资多样性）。"""
-    return await _compute_financial_health()
-
-
-@_tool()
-async def get_returns(months: int = 6) -> str:
-    """查询收益率数据：总成本、总市值、未实现盈亏、简单收益率。months 参数预留用于未来 XIRR 区间计算。"""
-    return await _compute_returns(months)
-
-
-@_tool()
-async def get_goal_progress() -> str:
-    """查询所有财务目标进度：目标金额、已存金额、进度百分比、是否达标、所需月存。"""
-    return await _compute_goal_progress()
-
-
-@_tool()
-async def import_transactions(source: str, csv_text: str) -> str:
-    """批量导入交易记录（source: generic/wechat/alipay，csv_text: CSV 文本内容）。自动去重、分类并记录审计日志。"""
-    return await _import_transactions(source, csv_text)
-
-
-@_tool()
-async def get_family_summary() -> str:
-    """查询家庭整体汇总（总收入/总支出/各成员占比/未结清借贷）"""
-    try:
-        summary = await db.family_summary()
-        return json.dumps(summary, ensure_ascii=False)
-    except Exception as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
-
-
-@_tool()
-async def get_provenance(entity_type: str = "", entity_id: str = "", limit: int = 20) -> str:
-    """查询操作审计日志（按实体类型/ID 过滤）。返回最近的操作记录（时间/动作/来源/前后快照）。"""
-    from .provenance import get_provenances as _get_prov
-    rows = await _get_prov(
-        entity_type=entity_type or None,
-        entity_id=entity_id or None,
-        limit=min(limit, 200),
-    )
-    return json.dumps({"count": len(rows), "provenances": rows}, ensure_ascii=False)
 
 
 
@@ -1006,40 +472,8 @@ if __name__ == "__main__":
 # ---------------------------------------------------------------------------
 
 
-@_tool()
-async def categorize_bills(rows: list) -> str:
-    """账单智能归类：按规则引擎给交易打分类，返回命中规则与兜底比例。"""
-    return await xtools.tool_categorize_bills({"rows": rows})
+# 该域包装器已拆到 mcp_broker.py，见文件末尾导入。
 
-
-@_tool()
-async def broker_status() -> str:
-    """券商执行层状态：交易开关、dry-run、适配器可用性与缺失项。"""
-    return await xtools.tool_broker_status({})
-
-
-@_tool()
-async def broker_preview_order(symbol: str, side: str, quantity: int, limit_price: float) -> str:
-    """券商下单预检：跑全部护栏，返回放行结果与确认令牌（默认 dry-run 不下单）。"""
-    return await xtools.tool_broker_preview_order(
-        {"symbol": symbol, "side": side, "quantity": quantity, "limit_price": limit_price}
-    )
-
-
-@_tool()
-async def broker_submit_order(symbol: str, side: str, quantity: int, limit_price: float,
-                              confirmation_token: str = "") -> str:
-    """券商报单：需预检令牌；默认 dry-run 只返回模拟结果。"""
-    return await xtools.tool_broker_submit_order({
-        "symbol": symbol, "side": side, "quantity": quantity,
-        "limit_price": limit_price, "confirmation_token": confirmation_token,
-    })
-
-
-@_tool()
-async def invoice_vision_status() -> str:
-    """探测发票识别能力：二维码 / OCR / PDF 表格。"""
-    return await xtools.tool_invoice_vision_status({})
 
 
 
@@ -1298,6 +732,71 @@ async def run_longtask(task_id: str, max_stages: int = 0) -> str:
 # ---------------------------------------------------------------------------
 # 包装器分域模块：import 即注册（@_tool 装饰器副作用），同时保留同名属性
 # ---------------------------------------------------------------------------
+from .mcp_analytics import (  # noqa: F401,E402 — 注册副作用 + 同名属性
+    get_family_summary,
+    get_financial_health,
+    get_goal_progress,
+    get_net_worth,
+    get_provenance,
+    get_returns,
+    import_transactions,
+)
+from .mcp_broker import (  # noqa: F401,E402 — 注册副作用 + 同名属性
+    broker_preview_order,
+    broker_status,
+    broker_submit_order,
+    categorize_bills,
+    invoice_vision_status,
+)
+from .mcp_connect import (  # noqa: F401,E402 — 注册副作用 + 同名属性
+    cashflow_forecast,
+    conditional_order,
+    connect_catalog,
+    connect_fund_nav,
+    connect_order,
+    connect_sync,
+    debt_payoff_plan,
+    import_brokerage_holdings,
+    market_breadth,
+    parse_invoice,
+    pretrade_check,
+    scan_anomalies,
+    scan_subscriptions,
+    stock_profile,
+    tax_calc,
+)
+from .mcp_market import (  # noqa: F401,E402 — 注册副作用 + 同名属性
+    add_to_watchlist,
+    get_kline,
+    get_quote,
+    get_watchlist,
+    remove_from_watchlist,
+    search_symbol,
+)
+from .mcp_research import (  # noqa: F401,E402 — 注册副作用 + 同名属性
+    paper_open,
+    paper_overview,
+    paper_trade,
+    research_analyze,
+    research_backtest,
+    research_forecast,
+    statements_analyze,
+    web_search,
+)
+from .mcp_views import (  # noqa: F401,E402 — 注册副作用 + 同名属性
+    get_budget,
+    get_dca_plans,
+    get_fire_plan,
+    get_goals,
+    get_health_check,
+    get_ledger_view,
+    get_market_view,
+    get_portfolio_risk,
+    get_rebalance_plan,
+    get_risk_flags,
+    get_trend,
+    get_valuation,
+)
 from .mcp_writes import (  # noqa: F401,E402 — 注册副作用 + 测试访问 _confirm_write
     _confirm_write,
     get_lessons,
@@ -1308,3 +807,4 @@ from .mcp_writes import (  # noqa: F401,E402 — 注册副作用 + 测试访问 
     sell_position,
     set_setting,
 )
+
