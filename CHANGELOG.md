@@ -112,6 +112,10 @@
 - `db/_core.py` 944 → 530 行：多租户迁移族（补列、`_TENANT_TABLES` 重建、复合主键/
   唯一键重组、陈旧临时表清理）整体进 `db/migrate.py`。迁移函数不自己持有连接，一律
   `_core._db` / `_core._conn()` 取当前连接，测试换库后立即生效。
+- `routes/studio.py` 671 → 307 行：市场进 `studio_market.py`、权限与核心守先进
+  `studio_permissions.py`、看门狗/内置工具/诊断/主角色/命令进 `studio_settings.py`、
+  资产 CRUD 进 `studio_assets.py`。子路由按「市场 → 权限 → 设置 → 资产」挂载，
+  资产始终最后——`/api/studio/{kind}` 会遮蔽同级静态路径，顺序错了就 404。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
