@@ -175,6 +175,11 @@
   `startup` 探活）整体进 `mcp_mount.py`。mcp 实例、`_tool` 装饰器、`_apply_shared_schemas`
   与各域包装器的 import 注册仍留门面——九个子模块都从 `mcp_server` 取 `_tool`/`mcp`，
   搬走会让「import 即注册」断链；门面末尾 re-export 三个挂载入口，`main.py` 调用不变。
+- `analysis.py` 497 → 38 行门面：风控规则与下一步建议进 `analysis_rules.py`（阈值常量
+  `DTI_WARN_PCT`/`SAVINGS_RATE_WARN_PCT` 仍从 `analysis_views` 取真源，避免两份口径），
+  空库引导与模板叙述进 `analysis_template.py`，仪表盘快照（行情+账本取数、`_build_actions`、
+  `invalidate_dashboard_cache`）与 10 秒 TTL 缓存实例一并进 `analysis_dashboard.py`——
+  缓存对象必须跟着失效函数走，拆成两处就会出现"清了缓存仍命中旧值"。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
