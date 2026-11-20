@@ -156,6 +156,10 @@
 - `broker_live.py` 512 → 21 行门面：基类（凭据注入/连接状态/本地预检）进
   `broker_live_base.py`，四个真实通道 futu / longport / tiger / ibkr 各自独立成模块；
   门面保留同名类导出，`broker_adapter` 的注册表按名取类的口径不变。
+- `calculations/debt_payoff.py` 511 → 181 行门面：数据契约与分位舍入口径（Method/阈值/
+  `_cents`/DebtItem/MonthRow/PayoffPlan）进 `debt_payoff_types.py`，入参归一进
+  `debt_payoff_input.py`，逐月摊还模拟与排序引擎进 `debt_payoff_engine.py`；门面只留
+  `plan_payoff`/`compare_methods` 并 re-export 类型与小工具。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
