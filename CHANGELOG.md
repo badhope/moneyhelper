@@ -120,6 +120,9 @@
   数据探查进 `internal_tools_data.py`、来源评分进 `internal_tools_score.py`，共享错误
   回执进 `internal_tools_common.py`；`INTERNAL_TOOL_SPECS`/`INPUTS` 注册表与
   `run_internal_tool` 调度留在主文件，impl 仍指向同名函数。
+- `calculations/strategies.py` 606 → 25 行门面：指标（波动/ATR/唐奇安）进
+  `strategies_indicators.py`，统一执行引擎与四套策略进 `strategies_backtest.py`；
+  基准曲线等私有 helper 一并从门面导出（回归测试直接 import）。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
