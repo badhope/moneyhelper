@@ -352,6 +352,8 @@
   （单笔增删改与撤销快照）、`ledger_merge.py`（同组合并）。
 - `db/portfolio.py` 337 → 27 行：`portfolio_write.py`（持仓增删改/追加）、
   `portfolio_merge.py`（同名合并）、`watchlist.py`（自选股）。
+- `db/family.py` 337 → 37 行：`family_members.py`（成员 CRUD）、`family_loans.py`
+  （借款生命周期）、`family_summary.py`（净资产/未结借款汇总）。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
