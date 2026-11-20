@@ -302,6 +302,10 @@
   `_execute_order`）、`dept_secretary.py`（交叉对账口径、`reconcile`、`_verdict`、
   `_secretary`）。执行器仍按名字从门面解析（`getattr(_facade.department_mod(), …)`），
   测试替换 `department._run_risk` 照样生效。
+- `db/connect_deep.py` 404 → 60 行：`connect_invoices.py`（发票指纹/落库/状态/汇总）、
+  `connect_imports.py`（交割单导入批次）、`connect_conditionals.py`（条件单状态机与
+  上限守卫）、`connect_risk.py`（风控默认值与区间校验）。门面保留 `_now`（带偏移）
+  守住时间戳策略表。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
