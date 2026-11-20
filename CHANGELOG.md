@@ -188,6 +188,10 @@
   `eval_bank_types.py`，50 道题正文进 `eval_bank_questions.py`（纯数据，改题只动这里）。
   拆分后题库与拆分前逐字比对（去空白 5804 字符全等，id 序列 50 条一致），
   `get_questions`/`question_count` 与 `QUESTIONS` 口径不变。
+- `connect/catalog.py` 488 → 30 行门面：枚举（KINDS/AUTOMATION/CATEGORIES）与 `_c` 条目
+  构造器进 `catalog_base.py`，31 条内置连接器清单进 `catalog_connectors.py`（只保留官方
+  入口，拒绝第三方聚合站）。清单与拆分前逐字比对（去空白 6919 字符全等），
+  统计口径 total=31 / auto=7 / semi=23 / manual=1 / trade=9 不变。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
