@@ -320,6 +320,10 @@
 - `connect/quote_tencent.py` 395 → 31 行：`quote_tencent_core.py`（字段表/缓存/批量
   行情/单只快照）、`_profile.py`、`_minute.py`、`_kline.py`（前复权备源）、
   `_breadth.py`（market_breadth 聚合）。缓存对象仍在 core 就地增删，跨模块引用不会分裂。
+- `connect/service.py` 389 → 34 行：`service_common.py`（租户收件目录）、
+  `service_bookmarklet.py`（回传书签）、`service_sync.py`（公开源/收件箱/配对码三路同步）、
+  `service_inbox.py`（扫描解析去重入账归档）、`service_intents.py`（paper 落单与
+  live 交接单）。子模块依赖单向：common ← inbox ← sync。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
