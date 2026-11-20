@@ -206,6 +206,11 @@
   统一到一个源头避免双份异常类），时钟与流式收尾进 `agent_stream.py`，Studio 两个 Hook
   入口进 `agent_studio.py`。`run_agent` 主体仍留门面；`Emit` 类型随流式模块走并由门面
   re-export，调用方 `from .agent import Emit` 不变。
+- `connect/store.py` 475 → 44 行门面：状态枚举/配额常量/JSON 助手进 `store_common.py`，
+  账户 CRUD 与同步时间戳进 `store_connections.py`，配对码进 `store_pairing.py`，
+  同步任务三段式进 `store_jobs.py`，交易意图状态机进 `store_intents.py`。
+  时间戳策略守卫要求门面仍暴露 `_now`（AWARE=now_iso），故门面显式重导出时钟；
+  其余同名函数一律 re-export，调用方零改动。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
