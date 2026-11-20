@@ -317,6 +317,9 @@
 - `calculations/financial_statements.py` 396 → 16 行：`financial_statements_metrics.py`
   （三表→单期指标）、`_analysis.py`（多期入口与杜邦）、`_alerts.py`（预警规则与阈值）、
   `_report.py`（模板化中英文叙述）。预警阈值只留在 `_alerts`，门面 re-export 旧入口。
+- `connect/quote_tencent.py` 395 → 31 行：`quote_tencent_core.py`（字段表/缓存/批量
+  行情/单只快照）、`_profile.py`、`_minute.py`、`_kline.py`（前复权备源）、
+  `_breadth.py`（market_breadth 聚合）。缓存对象仍在 core 就地增删，跨模块引用不会分裂。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
