@@ -192,6 +192,11 @@
   构造器进 `catalog_base.py`，31 条内置连接器清单进 `catalog_connectors.py`（只保留官方
   入口，拒绝第三方聚合站）。清单与拆分前逐字比对（去空白 6919 字符全等），
   统计口径 total=31 / auto=7 / semi=23 / manual=1 / trade=9 不变。
+- `tool_impl_deep.py` 484 → 96 行门面：财税与现金流域（税负/现金流预测/订阅识别/债务清偿/
+  异常扣款）进 `tool_impl_deep_fiscal.py`，交易与单据域（下单前风控/券商持仓导入/发票解析/
+  条件单）进 `tool_impl_deep_trade.py`，执行层与票据能力（账单归类/券商状态与预检报单/
+  发票视觉探测）进 `tool_impl_deep_broker.py`；门面只留 `DEEP_TOOL_NAMES` 文案与
+  `DEEP_TOOL_IMPL` 组装（16 条，name 与 impl 键集双向核对一致）。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
