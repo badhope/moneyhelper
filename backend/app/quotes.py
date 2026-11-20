@@ -1,10 +1,9 @@
-"""行情层：异步、可插拔、失败降级。
+"""行情层门面：异步、可插拔、失败降级。
 
-- snapshot：用组合库里的 `last` 快照价（零网络、可复现）。
-- eastmoney：东方财富 push2 批量行情（免 key），httpx 异步请求，4s 超时。
-- sina：新浪 hq.sinajs.cn 备源（需 Referer），东财不可用时自动切换。
-- auto：优先东财，失败降级新浪，再降级快照。不做同步探测线程（旧实现会阻塞事件循环最长 16s）。
-- kline()：东财 push2his 日/周/月 K 线（前复权），按需拉取 + 300s 缓存，失败返回 None。
+- 快照/批量行情/单股报价在本文件；指数行情在 `quotes_indices.py`，今日盈亏在
+  `quotes_pnl.py`，K 线在 `quotes_kline.py`；数据源适配在 `quotes_sources.py`。
+- 被回归测试 monkeypatch 注入的主函数（live_quotes / quote_now / kline）与数据源
+  helper 均从本模块同名导出，补丁口径不变。
 """
 
 from __future__ import annotations
@@ -19,7 +18,23 @@ import httpx
 from cachetools import TTLCache
 
 from . import db
-from .quotes_sources import (
+from .quotes_indices import (  # noqa: F401,E402
+    INDICES,
+    _indices_cache,
+    _sina_indices,
+    indices_quotes,
+)
+from .quotes_kline import (  # noqa: F401,E402
+    _KLINE_FIELDS,
+    KLINE_URL,
+    KLINE_URL_HTTP,
+    KLT,
+    _fetch_kline,
+    _kline_cache,
+    _parse_kline_rows,
+)
+from .quotes_pnl import _today_pnl_cache, portfolio_today_pnl  # noqa: F401,E402
+from .quotes_sources import (  # noqa: F401,E402
     _SINA_HEADERS,
     _UA,
     EASTMONEY_URL,
@@ -33,13 +48,9 @@ from .quotes_sources import (
     _to_sina,
 )
 
-# 行情缓存：TTLCache 自动管理 TTL 过期与 LRU 淘汰，替代自建 dict + time.time() 比较
-# maxsize 256 覆盖常规持仓组合数；ttl 30s 与行情源刷新频率一致
 _live_cache = TTLCache[str, tuple[dict[str, float], str]](maxsize=256, ttl=30.0)
-# 离网模式开关（ContextVar）：CLI / 脚本 / 离线场景用它强制走快照价，
-# 而不必去改用户的持久化设置（那是给界面用的偏好，不该被一次性脚本改写）。
-_offline: ContextVar[bool] = ContextVar("quotes_offline", default=False)
 
+_offline: ContextVar[bool] = ContextVar("quotes_offline", default=False)
 
 @contextmanager
 def snapshot_only():
@@ -55,15 +66,12 @@ def snapshot_only():
 
 _last_source = "snapshot"
 
-
 def last_source() -> str:
     """最近一次取价实际生效的来源：eastmoney | sina | snapshot。"""
     return _last_source
 
-
 def _snapshot(positions: list[dict[str, Any]]) -> dict[str, float]:
     return {p["symbol"]: float(p["last"]) for p in positions}
-
 
 async def live_quotes(positions: list[dict[str, Any]]) -> dict[str, float]:
     """按设置取行情：auto/eastmoney → 东财（失败降级新浪 → 快照）；snapshot → 快照价。
@@ -98,218 +106,9 @@ async def live_quotes(positions: list[dict[str, Any]]) -> dict[str, float]:
     _live_cache[key] = (got, _last_source)
     return got
 
-
-# invalidate_quotes_cache 已移至文件末尾统一实现（见 _ALL_CACHES 注册表）
-
-
-# ---------------------------------------------------------------------------
-# 大盘指数（东财 push2 ulist，与个股行情同源同缓存策略）：
-# 上证指数 / 深证成指 / 创业板指 / 沪深300，失败返回 []，由前端隐藏行情条。
-# ---------------------------------------------------------------------------
-
-# symbol → (东财 secid, 显示名)
-INDICES: dict[str, tuple[str, str]] = {
-    "sh000001": ("1.000001", "上证指数"),
-    "sz399001": ("0.399001", "深证成指"),
-    "sz399006": ("0.399006", "创业板指"),
-    "sh000300": ("1.000300", "沪深300"),
-}
-_indices_cache = TTLCache[str, list[dict[str, Any]]](maxsize=1, ttl=30.0)
-
-
-async def indices_quotes() -> list[dict[str, Any]]:
-    """大盘指数快照：[{symbol, name, price, change, change_pct}]；失败返回 []。
-
-    东财 push2 在部分网络（尤其本机运营商出口）会被直接重置，实测整条行情条消失。
-    因此失败后降级新浪 hq.sinajs.cn（与个股备源同一域名，已证明可达）。
-    """
-    cached = _indices_cache.get("v")
-    if cached is not None:
-        return cached
-
-    params = {
-        "fltt": "2",
-        "invt": "2",
-        "fields": "f2,f3,f4,f12,f14",
-        "secids": ",".join(secid for secid, _ in INDICES.values()),
-        "ut": "fa5fd1943c7b386f172d6893dbfba10b",
-    }
-    headers = {"User-Agent": "Mozilla/5.0 (moneyhelper)"}
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            resp = await client.get(EASTMONEY_URL, params=params, headers=headers)
-            resp.raise_for_status()
-            payload = resp.json()
-    except Exception:  # noqa: BLE001 — 东财失败降级新浪，不影响其他功能
-        out = await _sina_indices()
-        if out:
-            _indices_cache["v"] = out
-        return out
-
-    diff = ((payload or {}).get("data") or {}).get("diff") or []
-    if isinstance(diff, dict):
-        diff = list(diff.values())
-    by_code = {secid.split(".", 1)[1]: (sym, name) for sym, (secid, name) in INDICES.items()}
-
-    out: list[dict[str, Any]] = []
-    for item in diff:
-        if not isinstance(item, dict):
-            continue
-        code = str(item.get("f12") or "")
-        meta = by_code.get(code)
-        if not meta:
-            continue
-        px = _parse_price(item.get("f2"))
-        if px is None:
-            continue
-        sym, name = meta
-        out.append(
-            {
-                "symbol": sym,
-                "name": name,
-                "price": px,
-                "change": _num(item.get("f4")),
-                "change_pct": _num(item.get("f3")),
-            }
-        )
-    if not out:
-        out = await _sina_indices()
-    if out:
-        _indices_cache["v"] = out
-    return out
-
-
-async def _sina_indices() -> list[dict[str, Any]]:
-    """新浪指数备源：批量拉取四大指数，GBK 解码后按昨收算涨跌。"""
-    names = {sym: name for sym, (_secid, name) in INDICES.items()}
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            resp = await client.get(
-                SINA_URL + ",".join(names),
-                headers=_SINA_HEADERS,
-            )
-            resp.raise_for_status()
-            resp.encoding = "gbk"
-            text = resp.text
-    except Exception:  # noqa: BLE001 — 备源也失败则隐藏行情条
-        return []
-
-    out: list[dict[str, Any]] = []
-    for line in text.splitlines():
-        if "=" not in line:
-            continue
-        head, _, body = line.partition("=")
-        sym = head.replace("var hq_str_", "").strip()
-        if sym not in names:
-            continue
-        parts = body.strip().strip(";").strip('"').split(",")
-        if len(parts) < 4:
-            continue
-        try:
-            prev = float(parts[2])
-            now = float(parts[3])
-        except ValueError:
-            continue
-        # 集合竞价/停牌时段现价为 0：跳过而不是算出 -100% 的假涨跌
-        if prev <= 0 or now <= 0:
-            continue
-        out.append(
-            {
-                "symbol": sym,
-                "name": names[sym],
-                "price": round(now, 2),
-                "change": round(now - prev, 2),
-                "change_pct": round((now / prev - 1) * 100, 2),
-            }
-        )
-    return out
-
-
-# ---------------------------------------------------------------------------
-# 今日盈亏（东财 f2 最新 / f18 昨收）：仅非现金且可映射的持仓，
-# 失败/不可映射一律不参与，返回空则前端显示 "--"。
-# ---------------------------------------------------------------------------
-
-_today_pnl_cache = TTLCache[str, tuple[dict[str, float], float]](maxsize=1, ttl=30.0)
-
-
-async def portfolio_today_pnl(positions: list[dict[str, Any]]) -> dict[str, Any]:
-    """今日盈亏：{total, items:{symbol: pnl}}；网络失败返回 {total: 0, items: {}}。"""
-    cached = _today_pnl_cache.get("v")
-    if cached is not None:
-        return {"total": cached[1], "items": cached[0]}
-
-    code_to_symbol: dict[str, str] = {}
-    secids: list[str] = []
-    for p in positions:
-        if p.get("kind") == "现金":
-            continue
-        sid = _to_secid(p["symbol"])
-        if sid:
-            code_to_symbol[sid.split(".", 1)[1]] = p["symbol"]
-            secids.append(sid)
-    items: dict[str, float] = {}
-    total = 0.0
-    if secids:
-        params = {
-            "fltt": "2",
-            "invt": "2",
-            "fields": "f2,f18,f12",
-            "secids": ",".join(secids),
-            "ut": "fa5fd1943c7b386f172d6893dbfba10b",
-        }
-        headers = {"User-Agent": "Mozilla/5.0 (moneyhelper)"}
-        try:
-            async with httpx.AsyncClient(timeout=4.0) as client:
-                resp = await client.get(EASTMONEY_URL, params=params, headers=headers)
-                resp.raise_for_status()
-                payload = resp.json()
-        except Exception:  # noqa: BLE001 — 今日盈亏失败不影响其他
-            payload = None
-        if payload is not None:
-            diff = ((payload or {}).get("data") or {}).get("diff") or []
-            if isinstance(diff, dict):
-                diff = list(diff.values())
-            pos_by_symbol = {p["symbol"]: p for p in positions}
-            for item in diff:
-                if not isinstance(item, dict):
-                    continue
-                sym = code_to_symbol.get(str(item.get("f12") or ""))
-                if not sym or sym not in pos_by_symbol:
-                    continue
-                last = _parse_price(item.get("f2"))
-                prev = _parse_price(item.get("f18"))
-                if last is None or prev is None:
-                    continue
-                pnl = float(pos_by_symbol[sym].get("shares") or 0) * (last - prev)
-                items[sym] = round(pnl, 2)
-                total += pnl
-        # 东财不可用 → 新浪备源（现价 - 昨收）× 份额
-        if not items and secids:
-            non_cash = [p for p in positions if p.get("kind") != "现金"]
-            quotes = await _sina_quotes([p["symbol"] for p in non_cash])
-            prev = await _sina_prev_close([p["symbol"] for p in non_cash])
-            if quotes and prev:
-                for p in non_cash:
-                    q, pr = quotes.get(p["symbol"]), prev.get(p["symbol"])
-                    if q is None or pr is None:
-                        continue
-                    pnl = float(p.get("shares") or 0) * (q - pr)
-                    items[p["symbol"]] = round(pnl, 2)
-                    total += pnl
-    total = round(total, 2)
-    _today_pnl_cache["v"] = (items, total)
-    return {"total": total, "items": items}
-
-
-# ---------------------------------------------------------------------------
-# 单股实时报价（自选用）：东财优先，失败降级新浪；30s 缓存。
-# ---------------------------------------------------------------------------
-
 _quote_cache = TTLCache[str, dict[str, Any] | None](maxsize=128, ttl=30.0)
 
 SINGLE_QUOTE_URL = "https://push2.eastmoney.com/api/qt/stock/get"
-
 
 async def quote_now(symbol: str) -> dict[str, Any] | None:
     """单只标的最新行情：{symbol, name, price, change, change_pct, source}；不可用返回 None。
@@ -383,80 +182,17 @@ async def quote_now(symbol: str) -> dict[str, Any] | None:
     _quote_cache[key] = out
     return out
 
-
-# ---------------------------------------------------------------------------
-# K 线（东财 push2his）：日/周/月 K，前复权。失败一律返回 None，由调用方降级。
-# ---------------------------------------------------------------------------
-
-KLT = {"daily": 101, "weekly": 102, "monthly": 103}
-KLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
-# 回退：部分网络对 push2his 的 HTTPS 握手会被中间设备重置（实测 curl 正常、
-# httpx TLS 被断），同一路径的 HTTP 端点仍可用。K 线是公开只读行情，HTTP 无泄密风险。
-KLINE_URL_HTTP = "http://push2his.eastmoney.com/api/qt/stock/kline/get"
-_kline_cache = TTLCache[tuple[str, str, int], dict[str, Any]](maxsize=64, ttl=300.0)
-
-# f51..f61 固定顺序：日期,开,收,高,低,成交量,成交额,振幅,涨跌幅,涨跌额,换手率
-_KLINE_FIELDS = (
-    "date",
-    "open",
-    "close",
-    "high",
-    "low",
-    "volume",
-    "amount",
-    "amplitude",
-    "pct_change",
-    "change",
-    "turnover",
+_ALL_CACHES: tuple[TTLCache[Any, Any], ...] = (
+    _live_cache,
+    _kline_cache,
+    _indices_cache,
+    _today_pnl_cache,
+    _quote_cache,
 )
 
-
-
-
-def _parse_kline_rows(rows: list[Any]) -> list[dict[str, Any]]:
-    """东财 kline 字符串数组 → 结构化点；坏行跳过，不影响其余。"""
-    out: list[dict[str, Any]] = []
-    for row in rows:
-        if not isinstance(row, str):
-            continue
-        parts = row.split(",")
-        if len(parts) < 11:
-            continue
-        point: dict[str, Any] = {"date": parts[0].strip()}
-        for key, raw in zip(_KLINE_FIELDS[1:], parts[1:11], strict=False):
-            point[key] = _num(raw)
-        if point["close"] is None:
-            continue
-        out.append(point)
-    return out
-
-
-async def _fetch_kline(secid: str, klt: int, limit: int) -> list[str]:
-    params = {
-        "secid": secid,
-        "klt": str(klt),
-        "fqt": "1",  # 前复权
-        "beg": "19900101",
-        "end": "20500101",
-        "lmt": str(max(1, min(limit, 1000))),
-        "fields1": "f1,f2,f3,f4,f5,f6",
-        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
-        "ut": "fa5fd1943c7b386f172d6893dbfba10b",
-    }
-    headers = {"User-Agent": "Mozilla/5.0 (moneyhelper)"}
-    last_exc: Exception | None = None
-    for url in (KLINE_URL, KLINE_URL_HTTP):
-        try:
-            async with httpx.AsyncClient(timeout=6.0) as client:
-                resp = await client.get(url, params=params, headers=headers)
-                resp.raise_for_status()
-                data = (resp.json() or {}).get("data") or {}
-            rows = data.get("klines") or []
-            return [r for r in rows if isinstance(r, str)]
-        except Exception as exc:  # noqa: BLE001 — 换下一个端点重试
-            last_exc = exc
-    raise last_exc if last_exc else RuntimeError("kline fetch failed")
-
+async def invalidate_quotes_cache() -> None:
+    for _c in _ALL_CACHES:
+        _c.clear()
 
 async def kline(
     symbol: str, period: str = "daily", limit: int = 120
@@ -490,30 +226,6 @@ async def kline(
     }
     _kline_cache[key] = out
     return out
-
-
-# ---------------------------------------------------------------------------
-# 统一缓存失效入口：所有 TTLCache 实例集中注册，失效只需调 invalidate_quotes_cache()
-# ---------------------------------------------------------------------------
-_ALL_CACHES: tuple[TTLCache[Any, Any], ...] = (
-    _live_cache,
-    _kline_cache,
-    _indices_cache,
-    _today_pnl_cache,
-    _quote_cache,
-)
-
-
-async def invalidate_quotes_cache() -> None:
-    for _c in _ALL_CACHES:
-        _c.clear()
-
-
-# ---------------------------------------------------------------------------
-# 指数日线（基准对比用）：INDICES 里的 secid 直接复用，不走 _to_secid。
-# 与个股 K 线共用同一份缓存与 HTTP→HTTPS 回退逻辑。
-# ---------------------------------------------------------------------------
-
 
 async def index_kline(symbol: str, limit: int = 750) -> dict[str, Any] | None:
     """基准指数日线。symbol 形如 sh000300（见 INDICES）。不可用返回 None。"""
