@@ -362,6 +362,9 @@
 - `tool_schemas.py` 373 → 108 行：基类 `_In` 与 schema 清洗移到 `schemas_base.py`，
   六个 `schemas_*.py` 改从基类模块继承，本文件只做域合并与 `input_schema` /
   `validate_tool_args` / `function_schema` 三个对外接口，循环导入消失。
+- `agent_graph.py` 335 → 183 行：`agent_graph_run.py` 承接 `get_graph` / `run_graph` /
+  `resume_action`，emit ContextVar、HITL 注册表、图构建器一律经门面动态取，
+  门面末尾 re-export 三件套，测试对 `_CHECKPOINT_DB` / `_PENDING_DB` / `_HITL_THREADS` 的替换照旧生效。
 
 ### 切片 12：AI 财务能力实测 + 企业域对话
 
