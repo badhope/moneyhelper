@@ -130,6 +130,9 @@
   `backup_restore_core.py`，计划与资产表（预算/目标/定投/财报/记忆/观察/审计/纸面/净值）进
   `backup_restore_extra.py`，MCP 服务器/偏好白名单/会话历史进 `backup_restore_prefs.py`；
   总账-报销-采购-付款-银行的 map 重映射链仍留在主事务壳内。
+- `service_routing.py` 570 → 128 行门面：词表与阈值进 `routing_vocab.py`，意图判定
+  （财务词/企业取数/追问/记账/记忆/自选/审批回执）进 `routing_intent.py`，一句话记账与
+  记忆写入进 `routing_nl.py`；`route_question` 规则路由与 `classify_question_llm` 兜底留在门面。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
