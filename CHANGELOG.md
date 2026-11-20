@@ -160,6 +160,10 @@
   `_cents`/DebtItem/MonthRow/PayoffPlan）进 `debt_payoff_types.py`，入参归一进
   `debt_payoff_input.py`，逐月摊还模拟与排序引擎进 `debt_payoff_engine.py`；门面只留
   `plan_payoff`/`compare_methods` 并 re-export 类型与小工具。
+- `calculations/tax.py` 500 → 45 行门面：增值税及附加进 `tax_vat.py`，企业所得税进
+  `tax_cit.py`，个税累计预扣进 `tax_iit.py`，工资核算进 `tax_payroll.py`，月末清单与
+  税负汇总进 `tax_reports.py`，数值舍入口径进 `tax_common.py`；税率表与 `@dataclass`
+  装饰器随它们各自的函数一并迁移。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
