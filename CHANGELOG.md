@@ -151,6 +151,12 @@
   `_core._conn()`，测试 patch `_core._conn`/`_core._db` 照旧生效。`close_db` 改为委托
   `readpool.reset_pool_state()` 清池与循环标记；`_read_conns` 以同一列表对象在门面转出，
   现有「关库后池为空」断言不变。
+- `frontend/src/lib/api.ts` 1462 → 12 行门面：按域拆到 `api/` 下——`client.ts`（341，
+  口令/超时/401 重试/下载/SSE 断线重连）、`personal.ts`（217，目标/记忆/技能/体检/日志/
+  审计/溯源/附件/撤销）、`family.ts`（267，家庭/借贷/组织/租户切换，含 `orgQuery`）、
+  `gl.ts`（243，总账+报销）、`banking.ts`（198，付款与流水）、`procurement.ts`（167，
+  采购应付）、`longtask.ts`（85，长任务）。门面只 `export *`，组件侧 `from "../lib/api"`
+  的 134 个导出名与类型全部不变；`tsc --noEmit` 0 错、前端 214 测试与构建均通过。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
