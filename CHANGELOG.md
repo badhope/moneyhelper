@@ -116,6 +116,9 @@
   `studio_permissions.py`、看门狗/内置工具/诊断/主角色/命令进 `studio_settings.py`、
   资产 CRUD 进 `studio_assets.py`。子路由按「市场 → 权限 → 设置 → 资产」挂载，
   资产始终最后——`/api/studio/{kind}` 会遮蔽同级静态路径，顺序错了就 404。
+- `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
+  `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
+  时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
 
 拆分后的坑都记在测试里：测试用 `monkeypatch.setattr(tools, "fetch_kline")` 注入行情，
 函数搬走后这个补丁打不到子模块（改为逐子模块 patch）；MCP 包装器的 AST 覆盖检查原先
