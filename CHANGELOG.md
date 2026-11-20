@@ -145,6 +145,10 @@
 - `db/procurement.py` 541 → 24 行门面：供应商进 `procurement_vendor.py`，采购单进
   `procurement_po.py`，应付单与付款进 `procurement_payable.py`，金额/日期小工具进
   `procurement_common.py`；门面保留 `_now` 时钟导出以满足时间戳策略守卫。
+- `routes/ledger.py` 540 → 73 行门面：持仓增删改/合并/追加进 `ledger_positions.py`，流水
+  增删改查/按月合并/一句话记账进 `ledger_transactions.py`，通用 CSV 导入与预算体检进
+  `ledger_imports.py`，撤回三件套与快照描述进 `ledger_undo.py`；门面按原文件顺序 include
+  子路由，通配路径 `/api/{entity:path}/batch-undo` 匹配顺序不变。
 - `db/org.py` 667 → 150 行：租户解析与概览进 `org_tenant.py`、部门与岗位校验/增删改进
   `org_dept.py`、成员增删改进 `org_member.py`；常量与 `_text/_status/_role` 校验留在门面。
   时间戳策略测试要求门面仍暴露 `_now`，故门面显式重导出统一时钟。
