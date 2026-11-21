@@ -50,6 +50,21 @@ async def ask_agui(payload: dict):
     return await _ask_impl(payload, protocol="agui")
 
 
+# 只放一个短标记，不把指令正文拼进问题：指令里一旦出现「股价」「茅台」等示例词，
+# 会被路由词表当成理财问题（实测「AI 新闻」被答成持仓行情并追加投资免责声明）。
+# 详细规则由 agent.run_agent 以 system 消息注入，问题本身保持用户原话。
+WEB_SEARCH_MARKER = "［联网搜索］"
+
+
+def _compose_question(question: str, attached_text: str = "", web_search: bool = False) -> str:
+    """把附件正文与联网标记拼进本轮问题；落库仍用原 question。"""
+    return (
+        question
+        + ("\n\n" + attached_text if attached_text else "")
+        + ("\n\n" + WEB_SEARCH_MARKER if web_search else "")
+    ).strip()
+
+
 async def _ask_impl(payload: dict, protocol: str = "internal"):
     question = ((payload or {}).get("question") or "").strip()
     if not question:
@@ -59,6 +74,8 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
     thread_id = ((payload or {}).get("thread_id") or "").strip() or uuid.uuid4().hex
     regenerate = bool((payload or {}).get("regenerate"))
     lang = ((payload or {}).get("lang") or "zh").strip() or "zh"
+    # 联网搜索开关：只在用户显式开启时追加指令；不改变原问题落库内容
+    web_search = bool((payload or {}).get("web_search"))
     # @提及附件：前端把附件 id 传过来，正文前附加其内容供模型理解
     att_ids = (payload or {}).get("attachments") or []
     attached_text = ""
@@ -84,9 +101,7 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
             except Exception:  # noqa: BLE001 — 删除失败则退化为普通追加
                 log.exception("delete_last_run failed")
         # @提及附件：把附件内容附加到问题正文，供 agent/模板理解
-        full_question = (
-            question + ("\n\n" + attached_text if attached_text else "")
-        ).strip()
+        full_question = _compose_question(question, attached_text, web_search)
         result = await service.run_question(
             full_question, emit, thread_id=thread_id, lang=lang
         )

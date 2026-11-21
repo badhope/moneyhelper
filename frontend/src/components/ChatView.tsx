@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ArrowDown, BarChart3, Clock3, CreditCard, Gauge, Sparkles, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowDown, BarChart3, Clock3, CreditCard, Gauge, Sparkles, Trash2, Wallet, type LucideIcon } from "lucide-react";
 import { useBootstrap, useDashboard, store } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { api } from "@/lib/api";
@@ -26,12 +26,14 @@ export function ChatView({
   onNewSession,
   onOpenSettings,
   onNavigate,
+  onDeleteSession,
 }: {
   threadId: string;
   locateRunId?: number | null;
   onLocateDone?: () => void;
   onNewSession: () => void;
   onOpenSettings: () => void;
+  onDeleteSession?: () => void;
   onNavigate: (tab: string) => void;
 }) {
   const { t: tr } = useI18n();
@@ -43,7 +45,7 @@ export function ChatView({
   const {
     messages, input, setInput, attachments,
     showSteps, exportOn, scrolledUp, handleListScroll,
-    voiceOn, voiceOutputOn, suggestions, hasData,
+    voiceOn, voiceOutputOn, suggestions, hasData, webSearch, setWebSearch,
     stream, streamingMsg, finishedMessages,
     bubbleCallbacks, listening, scrollNow,
     stableSend, stableSendInput, stableStop, stableToggleVoice,
@@ -112,6 +114,18 @@ export function ChatView({
                     <Clock3 className="h-3 w-3" />
                     {tr("chat.ctxUpdated", { t: updatedLabel })}
                   </span>
+                  {onDeleteSession && (
+                    <button
+                      type="button"
+                      onClick={onDeleteSession}
+                      aria-label={tr("chat.deleteChat")}
+                      title={tr("chat.deleteChat")}
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      <span className="hidden sm:inline">{tr("chat.deleteChat")}</span>
+                    </button>
+                  )}
                 </div>
               )}
               {empty ? (
@@ -189,6 +203,8 @@ export function ChatView({
           busy={stream.isPending}
           listening={listening}
           voiceOn={voiceOn}
+          webSearch={webSearch}
+          onToggleWebSearch={() => setWebSearch((v) => !v)}
           llmConfigured={!!bootstrap?.health?.llm_configured}
           inputRef={inputRef}
           onToggleVoice={stableToggleVoice}

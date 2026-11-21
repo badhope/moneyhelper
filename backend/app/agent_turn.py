@@ -57,8 +57,10 @@ async def final_answer_result(
         agent as _facade,  # 门面取流式实现：测试替换 `agent._stream_final_answer` 生效
     )
 
+    # 终答必须关掉工具面：否则部分模型会把「再搜一次」写成正文里的 XML
+    # <tool_call>…</tool_call>，前端直接展示成乱码（联网搜索开启时实测出现）。
     full_answer = await _facade._stream_final_answer(  # noqa: SLF001
-        client, cfg, messages, tool_schemas, emit
+        client, cfg, messages, None, emit
     )
     if not full_answer:
         raise AgentUnavailable("模型未产出回答")

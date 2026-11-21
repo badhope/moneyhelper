@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState, type RefObject } from "react";
 import {
   ArrowUp,
   BarChart3,
+  Globe,
   CreditCard,
   LayoutDashboard,
   Mic,
@@ -37,6 +38,9 @@ export interface ChatInputProps {
   enabledModels?: string[];
   /** 快捷切换模型：写入设置 ai_base_url + ai_model */
   onSwitchModel?: (base: string, model: string) => void;
+  /** 联网搜索开关：开启后后端优先调用 web_search 并标注来源 */
+  webSearch?: boolean;
+  onToggleWebSearch?: () => void;
   /** @提及附件：已选附件列表 + 上传/移除 */
   attachments?: { id: number; filename: string; kind: string }[];
   onAddAttachment?: (file: File) => Promise<unknown>;
@@ -69,6 +73,8 @@ export const ChatInput = memo(
     onSend,
     onStop,
     onSlashCommand,
+    webSearch,
+    onToggleWebSearch,
     attachments,
     onAddAttachment,
     onRemoveAttachment,
@@ -192,6 +198,27 @@ export const ChatInput = memo(
                   </select>
                 </label>
               )}
+              <button
+                type="button"
+                aria-label={tr("chat.webSearch")}
+                aria-pressed={Boolean(webSearch)}
+                title={tr("chat.webSearchHint")}
+                onClick={onToggleWebSearch}
+                className={cn(
+                  "mb-0.5 inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-full px-2 transition-colors",
+                  webSearch
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground/55 hover:bg-accent hover:text-foreground",
+                )}
+              >
+                <Globe className="h-[17px] w-[17px]" />
+                <span className="text-[12px] font-medium max-sm:hidden">
+                  {tr("chat.webSearch")}
+                </span>
+                <span className="text-[12px] font-medium sm:hidden">
+                  {tr("chat.webSearchShort")}
+                </span>
+              </button>
               <label
                 className="mb-0.5 inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground/55 transition-colors hover:bg-accent hover:text-foreground"
                 title={tr("chat.attach")}

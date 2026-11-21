@@ -154,6 +154,101 @@ def _load_ddgs() -> Any:
     return duckduckgo_search
 
 
+def _so_search(q: str, max_results: int = 5) -> list[dict[str, str]]:
+    """360 搜索兜底：Bing 对「人工智能 今日新闻」会切词成「人工」，返回百科词条，
+    此时换 360 取新闻/资讯结果。返回 title/snippet/url，失败抛异常由调用方兜底。"""
+    import html
+    import re
+    import urllib.parse
+    import urllib.request
+
+    url = "https://www.so.com/s?q=" + urllib.parse.quote(q)
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+            ),
+            "Accept-Language": "zh-CN,zh;q=0.9",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310 — 固定 https 域名
+        html_text = resp.read().decode("utf-8", "ignore")
+    out: list[dict[str, str]] = []
+    starts = [m.start() for m in re.finditer(r'<li class="res-list', html_text)]
+    for i, start in enumerate(starts):
+        block = html_text[start : starts[i + 1] if i + 1 < len(starts) else start + 3000]
+        m = re.search(r'<h3[^>]*>.*?<a[^>]+href="([^"]+)"(.*?)>(.*?)</a>', block, flags=re.S)
+        if not m:
+            continue
+        link, attrs, raw_title = m.group(1), m.group(2), m.group(3)
+        md = re.search(r'data-mdurl="([^"]+)"', attrs)
+        if md:
+            link = md.group(1)
+        title = html.unescape(re.sub(r"<[^>]+>", "", raw_title)).strip()
+        sn = re.search(r'<p class="res-desc"[^>]*>(.*?)</p>', block, flags=re.S)
+        snippet = (
+            html.unescape(re.sub(r"<[^>]+>", "", sn.group(1)))
+            .replace("\xa0", " ")
+            .strip(" ：")
+            if sn
+            else ""
+        )
+        if title and link.startswith("http"):
+            out.append(
+                {"title": title, "snippet": snippet, "url": html.unescape(link)}
+            )
+        if len(out) >= max_results:
+            break
+    return out
+
+
+def _bing_search(q: str, max_results: int = 5) -> list[dict[str, str]]:
+    """Bing 网页搜索兜底（cn.bing.com 国内可达）。返回 title/snippet/url，失败抛异常由调用方兜底。"""
+    import html
+    import re
+    import urllib.parse
+    import urllib.request
+
+    url = "https://cn.bing.com/search?" + urllib.parse.urlencode(
+        {"q": q, "setlang": "zh-Hans", "count": max_results}
+    )
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+            ),
+            "Accept-Language": "zh-CN,zh;q=0.9",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310 — 固定 https 域名
+        html_text = resp.read().decode("utf-8", "ignore")
+    out: list[dict[str, str]] = []
+    for block in re.findall(r'<li class="b_algo".*?</li>', html_text, flags=re.S):
+        m = re.search(r'<h2[^>]*>.*?<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', block, flags=re.S)
+        if not m:
+            continue
+        link = html.unescape(m.group(1))
+        title = html.unescape(re.sub(r"<[^>]+>", "", m.group(2))).strip()
+        sn = re.search(r'<p[^>]*>(.*?)</p>', block, flags=re.S)
+        snippet = (
+            html.unescape(re.sub(r"<[^>]+>", "", sn.group(1)))
+            .replace("\u2002", " ")
+            .replace("阅读更多", "")
+            .strip(" ：")
+            if sn
+            else ""
+        )
+        if title:
+            out.append({"title": title, "snippet": snippet, "url": link})
+        if len(out) >= max_results:
+            break
+    return out
+
+
 async def tool_web_search(args: dict[str, Any]) -> str:
     """联网搜索（免 key，DuckDuckGo 即时答案 API）；失败返回明确提示，绝不抛错。
 
@@ -163,24 +258,61 @@ async def tool_web_search(args: dict[str, Any]) -> str:
     q = str((args or {}).get("q") or "").strip()
     if not q:
         return "缺少搜索关键词（q）。"
-    # duckduckgo_search 同步调用在异步上下文：run_in_executor 避免阻塞事件循环
+    # 国内环境优先 Bing（cn.bing.com 直连可达，通常 <2s）；DuckDuckGo 仅作兜底，
+    # 因为它在国内经常 20s 超时或 BuilderError，先试它会把首字拖到 40s 以上。
+    loop = asyncio.get_running_loop()
+    results: list[dict[str, str]] = []
     try:
-        DDGS = _load_ddgs().DDGS
+        results = await loop.run_in_executor(None, _bing_search, q)
+    except Exception:  # noqa: BLE001 — 回退到免 key 的 DuckDuckGo
+        results = []
+    # Bing 的中文切词对「人工智能 今日新闻」会退化成「人工」，返回汉语词典词条；
+    # 有新闻/时效意图且结果明显是辞书时，换 360 再取一次。
+    news_intent = any(w in q for w in ("新闻", "最新", "今日", "消息", "动态", "热点"))
+    junk = sum(1 for r in results if ("百科" in r["title"] or "汉典" in r["title"]))
+    if news_intent and (not results or junk >= max(2, len(results) // 2)):
+        # 「人工智能 今日新闻」在 Bing 会被切成「人工」；换成更稳的短词再试一次。
+        alt_q = q.replace("人工智能", "AI").replace("今日", "").strip()
+        if alt_q and alt_q != q:
+            try:
+                alt = await loop.run_in_executor(None, _bing_search, alt_q)
+                if alt:
+                    results = alt
+            except Exception:  # noqa: BLE001 — 变体失败就继续用 360
+                pass
+    junk = sum(1 for r in results if ("百科" in r["title"] or "汉典" in r["title"]))
+    if news_intent and (not results or junk >= max(2, len(results) // 2)):
+        try:
+            alt = await loop.run_in_executor(None, _so_search, q)
+            if alt:
+                results = alt
+        except Exception:  # noqa: BLE001 — 360 不可用就保留已有结果
+            pass
+    if not results:
+        try:
+            DDGS = _load_ddgs().DDGS
 
-        loop = asyncio.get_running_loop()
+            def _search() -> list[dict[str, str]]:
+                with DDGS() as ddgs:
+                    return [
+                        {
+                            "title": r.get("title", ""),
+                            "snippet": r.get("body", ""),
+                            "url": r.get("href", ""),
+                        }
+                        for r in ddgs.text(q, region="wt-wt", safesearch="moderate", max_results=5)
+                        if r.get("title")
+                    ]
 
-        def _search() -> list[dict[str, str]]:
-            with DDGS() as ddgs:
-                return [
-                    {"title": r.get("title", ""), "snippet": r.get("body", "")}
-                    for r in ddgs.text(q, region="wt-wt", safesearch="moderate", max_results=5)
-                    if r.get("title")
-                ]
-
-        results = await loop.run_in_executor(None, _search)
-    except Exception as exc:  # noqa: BLE001 — 联网失败必须兜底，绝不拖垮对话
-        return f"联网搜索暂时不可用：{type(exc).__name__}。请稍后再试。"
+            results = await loop.run_in_executor(None, _search)
+        except Exception as exc:  # noqa: BLE001 — 联网失败必须兜底，绝不拖垮对话
+            return f"联网搜索暂时不可用：{type(exc).__name__}。请稍后再试。"
     if not results:
         return f"未找到「{q}」的相关结果，换个说法再试试。"
-    lines = [f"- {r['title']}" + (f"：{r['snippet']}" if r.get("snippet") else "") for r in results]
-    return "搜索结果：\n" + "\n".join(lines)
+    lines = [
+        f"- {r['title']}"
+        + (f"：{r['snippet']}" if r.get("snippet") else "")
+        + (f"（{r['url']}）" if r.get("url") else "")
+        for r in results
+    ]
+    return "搜索结果（请在回答中用这些链接标注来源）：\n" + "\n".join(lines)

@@ -483,20 +483,21 @@ function BubbleInner({
             )}
 
             {/* 操作条：对齐 ChatGPT——放在回答下方，默认半透明，悬停/聚焦变清晰 */}
-            <div className="mt-1.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100 max-sm:opacity-100">
+            <div className="mt-1.5 flex flex-wrap items-center gap-0.5 opacity-70 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100 max-sm:opacity-100">
               <button
                 type="button"
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
-                aria-label={tr("chat.copyMd")}
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+                aria-label={tr("chat.copy")}
                 title={tr("chat.copyMd")}
                 onClick={() => onExport(m, "copy")}
               >
                 <Copy className="h-3.5 w-3.5" />
+                <span className="text-[11px]">{tr("chat.copy")}</span>
               </button>
               {speech.supported && (
                 <button
                   type="button"
-                  className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
                   aria-label={tr("chat.speak")}
                   title={tr("chat.speak")}
                   disabled={busy}
@@ -507,13 +508,14 @@ function BubbleInner({
               )}
               <button
                 type="button"
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
-                aria-label={tr("chat.regenerate")}
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+                aria-label={tr("chat.retry")}
                 title={tr("chat.regenerate")}
                 disabled={busy}
                 onClick={() => onRegenerate(m)}
               >
                 <RotateCcw className="h-3.5 w-3.5" />
+                <span className="text-[11px]">{tr("chat.retry")}</span>
               </button>
               {exportOn && (
                 <button

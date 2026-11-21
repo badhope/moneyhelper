@@ -136,7 +136,7 @@ export function SessionSidebar({
           }
         }}
         className={cn(
-          "group relative flex h-9 items-center gap-2 rounded-lg px-2 text-[13.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "group relative flex h-9 items-center gap-2 rounded-lg pl-2 pr-12 text-[13.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           active
             ? "bg-foreground/[0.07] font-medium text-foreground"
             : "text-foreground/80 hover:bg-foreground/[0.05]",
@@ -147,7 +147,7 @@ export function SessionSidebar({
               英文界面直接显示它就是中英混排，因此按当前语言替换占位标题。 */}
           {s.title === "新会话" ? t("sidebar.newSession") : s.title}
         </span>
-        <span className="absolute right-1 flex items-center gap-0.5 rounded-md bg-inherit pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <span className="absolute right-1 flex items-center gap-0.5 rounded-md bg-inherit pl-1 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-sm:opacity-100">
           <button
             type="button"
             aria-label={t("sidebar.rename")}

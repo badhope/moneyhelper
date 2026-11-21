@@ -45,6 +45,8 @@ export function useChatView({
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<{ id: number; filename: string; kind: string }[]>([]);
   const [showSteps, setShowSteps] = useState(false);
+  // 联网搜索开关：只在用户显式开启时走外网，默认关（隐私优先）
+  const [webSearch, setWebSearch] = useState(false);
   const [showSessions, setShowSessions] = useState(false);
   const [sessionSearch, setSessionSearch] = useState("");
 
@@ -63,6 +65,7 @@ export function useChatView({
     regenerate: boolean;
     lang: string;
     attachments: string[];
+    web_search: boolean;
   }>({
     run: (payload, onEvent, signal) =>
       apiStream("/api/ask", { ...payload, thread_id: threadId }, onEvent, signal),
@@ -164,6 +167,7 @@ export function useChatView({
         regenerate: regen,
         lang: tr("chat.locale"),
         attachments: attachments.map((a) => String(a.id)),
+        web_search: webSearch,
       },
       onEvent: (ev: Record<string, unknown>) => {
         if (!cleared) {
@@ -280,6 +284,7 @@ export function useChatView({
   return {
     // state
     messages, input, setInput, attachments, setAttachments,
+    webSearch, setWebSearch,
     showSteps, showSessions, sessionSearch, setSessionSearch,
     scrolledUp, handleListScroll,
     // derived

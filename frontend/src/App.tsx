@@ -331,6 +331,10 @@ export default function App() {
                         onLocateDone={() => setLocateRunId(null)}
                         onNewSession={() => { void newSession(); }}
                         onOpenSettings={() => setSettingsOpen(true)}
+                        onDeleteSession={() => {
+                          const s = sessions.find((x) => x.thread_id === activeThread);
+                          if (s) setPendingDelete({ id: s.id, threadId: s.thread_id });
+                        }}
                         onNavigate={openData}
                       />
                     ) : (

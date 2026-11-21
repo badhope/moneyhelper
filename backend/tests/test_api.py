@@ -1735,3 +1735,30 @@ def test_smalltalk_reply_is_instant_and_finance_safe() -> None:
     assert "记账" in (_smalltalk_reply("你好，用一句话告诉我你能帮我做什么", "zh") or "")
     assert "咖啡" in (_smalltalk_reply("你好", "zh") or "")
     assert _smalltalk_reply("帮我写一份预算方案", "zh") is None
+
+def test_web_search_flag_only_appends_directive_when_enabled() -> None:
+    """联网开关：只在问题末尾加短标记，指令走 system，绝不能把「股价」等词污染路由。"""
+    from app.agent import WEB_SEARCH_INSTRUCTION
+    from app.routes.qa import WEB_SEARCH_MARKER, _compose_question
+
+    assert _compose_question("今天有什么 AI 新闻") == "今天有什么 AI 新闻"
+    assert "附件正文" in _compose_question("看这个", "附件正文", False)
+    on = _compose_question("今天有什么 AI 新闻", "", True)
+    assert on.endswith(WEB_SEARCH_MARKER)
+    assert "股价" not in on and "来源链接" not in on
+    assert "1–2 次" in WEB_SEARCH_INSTRUCTION and "简短中文关键词" in WEB_SEARCH_INSTRUCTION
+    from app.service_routing import looks_like_non_finance, route_question
+
+    assert looks_like_non_finance(on) is True
+    assert route_question(on)[0] == "general"
+
+
+
+def test_news_question_is_not_misrouted_as_market() -> None:
+    """时事/资讯类问题必须跳过「是不是理财」的模型判域，避免追加持仓卡与投资免责声明。"""
+    from app.service_routing import looks_like_non_finance
+
+    for q in ("人工智能 今日新闻 用三点概括并附来源", "今天人工智能领域有什么新消息？"):
+        assert looks_like_non_finance(q) is True
+    # 含财务词的新闻仍走财务分支，不能被这条规则吞掉
+    assert looks_like_non_finance("今天的股票新闻怎么样") is False

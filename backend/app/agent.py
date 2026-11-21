@@ -59,6 +59,15 @@ _log = get_logger("agent")
 # 通用 Agent 内核说明书（general 分支用）：领域无关的自主 agent 行为规则。
 
 
+# 联网搜索开启时追加到 system 的规则（不拼进用户问题，避免污染意图路由）。
+WEB_SEARCH_INSTRUCTION = (
+    "用户已开启联网搜索：涉及事实、价格、政策或新闻时，先调用 web_search 核实；"
+    "检索词用简短中文关键词，不要先猜公司名或型号；最多检索 1–2 次，"
+    "拿到结果就直接作答，并在回答中用来源链接标注；"
+    "查不到就说明查不到，不要凭记忆编造。"
+)
+
+
 async def run_agent(    question: str,
     emit: Emit,
     history: list[dict[str, str]] | None = None,
@@ -78,6 +87,10 @@ async def run_agent(    question: str,
     if cfg is None:
         raise AgentUnavailable("未接入模型")
 
+    web_on = "联网搜索已开启" in question
+    if web_on:
+        question = question.replace("\n\n［联网搜索］", "").replace("［联网搜索］", "").strip()
+
     # 超时走 LLM_TIMEOUT（默认 60s）：本地 CPU 模型 prefill 7k token 就要几分钟，
     # 写死 60s 会把"模型在算"误判成"模型不可用"。
     client = llm._get_client(cfg)  # noqa: SLF001 — LiteLLM 后端
@@ -91,6 +104,8 @@ async def run_agent(    question: str,
         history=history,
         cfg=cfg,
     )
+    if web_on:
+        messages.append({"role": "system", "content": WEB_SEARCH_INSTRUCTION})
     # 工具轮次上限与失败反思重试（设置中心控制，默认与历史一致）
     turn_cap = max(1, min(int((_s.get("agent_tool_turns") or MAX_TURNS) or MAX_TURNS), 30))
     reflect = (_s.get("agent_reflect") or "on") != "off"
@@ -116,6 +131,20 @@ async def run_agent(    question: str,
     tool_schemas, tool_map, internal_impl, mcp_schemas = await build_toolset(
         tools_list, impl_map
     )
+    # 用户显式开启「联网搜索」：无论财务还是通用分支，都给工具面补上 web_search
+    if web_on:
+        names = {str((t.get("function") or {}).get("name")) for t in tool_schemas}
+        if "web_search" not in names:
+            from .agent_tooling import GENERAL_IMPL as _GENERAL_IMPL
+            from .agent_tooling import GENERAL_TOOLS as _GENERAL_TOOLS
+
+            web_schema = next(
+                (t for t in _GENERAL_TOOLS if (t.get("function") or {}).get("name") == "web_search"),
+                None,
+            )
+            if web_schema is not None:
+                tool_schemas = tool_schemas + [web_schema]
+                internal_impl["web_search"] = _GENERAL_IMPL["web_search"]
     # 小模型工具面裁剪（默认关闭）：LLM_TOOL_LIMIT>0 时按问题相关度只保留前 N 个。
     # 实测 2B 级模型在 40 个工具的 schema 下一个工具都不调，压到个位数才稳定命中。
     limit = llm_tool_limit()
@@ -128,8 +157,21 @@ async def run_agent(    question: str,
     # 循环检测：模型有时会反复用完全相同的参数调同一个工具（尤其工具持续报错时），
     # 白烧 token 也拿不到新信息。连续 3 次完全相同则中断并如实说明。
     _guard = RepeatGuard(max_repeat=3)
+    web_calls = 0
 
     for _turn in range(turn_cap):
+        # 联网检索硬上限 2 次：提示词已要求「1–2 次」，但小模型仍会连搜 4–5 次，
+        # 每轮工具决策 6–10s，用户要等 80s 才看到第一个字。到 2 次就从工具面摘掉
+        # web_search，逼它用已有结果成文。
+        if web_calls >= 2:
+            before = len(tool_schemas)
+            tool_schemas = [
+                t
+                for t in tool_schemas
+                if (t.get("function") or {}).get("name") != "web_search"
+            ]
+            if len(tool_schemas) != before:
+                _log.info("agent.web_search capped at %s calls", web_calls)
         try:
             with timed("llm.tool_loop", model=cfg.get("model", ""), turn=_turn):
                 resp = await client.chat.completions.create(
@@ -188,6 +230,8 @@ async def run_agent(    question: str,
         )
         for tc in tool_calls:
             name = tc.function.name
+            if name == "web_search":
+                web_calls += 1
             # P2 MCP：外部 MCP 工具（server 名一致时才走 MCP 调用）
             mcp_hit = mcp_client.resolve_mcp_tool(name) if mcp_schemas else None
             # MCP 工具同样受写操作禁令约束：外部服务器可能暴露与本地写工具同义的能力
