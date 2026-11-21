@@ -38,9 +38,14 @@ from .agent_errors import AgentUnavailable  # noqa: F401 — 对外同名导出
 from .agent_prompts import AGENT_SYSTEM, GENERAL_SYSTEM  # noqa: F401 — 对外同名导出
 from .agent_stream import Emit, _now_ms, _stream_final_answer  # noqa: F401 — run_agent 使用
 from .agent_studio import studio_post_answer, studio_pre_tool  # noqa: F401 — 对外同名导出
+from .agent_tool_rank import rank_tools
 from .agent_turn import RepeatGuard, final_answer_result, wrap_up_answer
+from .llm_client import llm_tool_limit
+from .logging_utils import get_logger
 from .observability import timed
 from .tool_schemas import validate_tool_args
+
+_log = get_logger("agent")
 
 # 只按「内置财务工具」过滤，不能把外部 MCP 工具误伤：
 # `mcp__search_symbol` 之类的名字不在内置表里，若按「未登记即排除」处理，
@@ -73,7 +78,9 @@ async def run_agent(    question: str,
     if cfg is None:
         raise AgentUnavailable("未接入模型")
 
-    client = llm._get_client(cfg, timeout=60.0)  # noqa: SLF001 — LiteLLM 后端
+    # 超时走 LLM_TIMEOUT（默认 60s）：本地 CPU 模型 prefill 7k token 就要几分钟，
+    # 写死 60s 会把"模型在算"误判成"模型不可用"。
+    client = llm._get_client(cfg)  # noqa: SLF001 — LiteLLM 后端
     from .agent_context import build_turn_context
 
     messages, role_temperature, _s = await build_turn_context(
@@ -101,6 +108,15 @@ async def run_agent(    question: str,
     tool_schemas, tool_map, internal_impl, mcp_schemas = await build_toolset(
         tools_list, impl_map
     )
+    # 小模型工具面裁剪（默认关闭）：LLM_TOOL_LIMIT>0 时按问题相关度只保留前 N 个。
+    # 实测 2B 级模型在 40 个工具的 schema 下一个工具都不调，压到个位数才稳定命中。
+    limit = llm_tool_limit()
+    if limit and len(tool_schemas) > limit:
+        kept = rank_tools(question, tool_schemas, limit)
+        names = [str((s.get("function") or {}).get("name")) for s in kept]
+        tool_schemas = kept
+        tool_map = {k: v for k, v in tool_map.items() if k in names}
+        _log.info("agent.tool_rank kept=%s of %s", names, len(tool_map))
     # 循环检测：模型有时会反复用完全相同的参数调同一个工具（尤其工具持续报错时），
     # 白烧 token 也拿不到新信息。连续 3 次完全相同则中断并如实说明。
     _guard = RepeatGuard(max_repeat=3)
@@ -118,7 +134,7 @@ async def run_agent(    question: str,
                     max_tokens=2048,
                     # 429/5xx 由 LiteLLM 自动重试（与流式路径一致）
                     num_retries=2,
-                    timeout=60,
+                    timeout=llm.llm_timeout(),
                 )
         except Exception as exc:  # noqa: BLE001 — 端点失败/不支持 tools → 降级
             raise AgentUnavailable(f"模型调用失败：{type(exc).__name__}") from exc

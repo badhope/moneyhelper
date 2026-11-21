@@ -18,14 +18,18 @@ test.describe("数据浮层", () => {
   });
 
   test("从对话跳转持仓浮层：种子持仓可见", async ({ page }) => {
-    // 已接入模型的机器上该问答走 agent 路径，给足超时
-    test.setTimeout(60_000);
+    // 已接入模型的机器上该问答走 agent 路径；本地 CPU 2B 模型一轮 1-3 分钟，
+    // 整例超时必须跟着放宽，否则 locator 的 240s 等待会被 60s 的用例超时先掐断。
+    test.setTimeout(process.env.E2E_WITH_LLM === "1" ? 300_000 : 60_000);
     await page.goto("/");
     const field = page.getByPlaceholder(/问点什么/);
     await field.fill("我的持仓怎么样");
     await field.press("Enter");
-    // 确定性/模型回答都带「去持仓页」chip
-    await page.getByRole("button", { name: "去持仓页" }).first().click({ timeout: 45_000 });
+    // 确定性/模型回答都带「去持仓页」chip。
+    // 本地 2B 模型在纯 CPU 上 prefill 就要几十秒，E2E_WITH_LLM=1 时放宽等待；
+    // 默认路径（无模型）仍然是 45s，避免把真故障拖成三分钟。
+    const wait = process.env.E2E_WITH_LLM === "1" ? 240_000 : 45_000;
+    await page.getByRole("button", { name: "去持仓页" }).first().click({ timeout: wait });
     await expect(page.getByRole("tab", { name: "持仓" })).toHaveAttribute("aria-selected", "true", {
       timeout: 15_000,
     });

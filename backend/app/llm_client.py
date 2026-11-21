@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 from typing import Any
 
 import litellm
@@ -25,10 +27,10 @@ class _CompatClient:
     LiteLLM 返回的对象都有（choices[0].message 是 ChatCompletionMessage 形态）。
     """
 
-    def __init__(self, cfg: dict[str, Any], timeout: float = 60.0) -> None:
+    def __init__(self, cfg: dict[str, Any], timeout: float | None = None) -> None:
         self._cfg = cfg
-        self._timeout = timeout
-        self.chat = _CompatChat(cfg, timeout)
+        self._timeout = llm_timeout(timeout)
+        self.chat = _CompatChat(cfg, self._timeout)
 
 class _CompatChat:
     def __init__(self, cfg: dict[str, Any], timeout: float) -> None:
@@ -83,6 +85,15 @@ class _CompatCompletions:
         if max_tokens:
             litellm_kwargs["max_tokens"] = max_tokens
 
+        # 可选透传体（LLM_EXTRA_BODY，JSON）：本地/国产端点的采样与模板开关差异很大，
+        # 例如 MiniCPM5 默认 Think 会把 token 全花在推理里、一个工具都不调，
+        # 需要 {"chat_template_kwargs":{"enable_thinking":false}} 才走 No-Think。
+        # 放在环境变量而不是写死：不同端点（vLLM/SGLang/llama.cpp）支持的字段不同，
+        # 写死一个就等于把某家的私有字段塞进通用请求。
+        extra = _extra_body()
+        if extra:
+            litellm_kwargs["extra_body"] = extra
+
         # api_base / api_key 对所有提供商统一传入（OpenAI 兼容端点都需要）
         litellm_kwargs["api_base"] = cfg.get("base") or None
         if cfg.get("key"):
@@ -96,7 +107,55 @@ class _CompatCompletions:
         response = await litellm.acompletion(**litellm_kwargs)
         return response
 
-def _sdk(cfg: dict[str, Any], timeout: float = 60.0) -> _CompatClient:
+def _extra_body() -> dict[str, Any] | None:
+    """解析 LLM_EXTRA_BODY（JSON 对象）；非法时只告警、不影响主流程。"""
+    raw = os.getenv("LLM_EXTRA_BODY", "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        _log.warning("LLM_EXTRA_BODY 不是合法 JSON，已忽略")
+        return None
+    return parsed if isinstance(parsed, dict) and parsed else None
+
+
+def llm_timeout(explicit: float | None = None) -> float:
+    """单次模型调用超时（秒）。
+
+    为什么必须可配：本地 CPU 跑 2B 模型时，7k token 的 prefill 就要 3 分钟，
+    写死 60s 会让每一轮都超时、整轮降级成模板——看起来像"模型不会调工具"，
+    实际是请求根本没跑完。云端小模型不需要改；自托管大 prompt 才需要调大。
+    LLM_TIMEOUT 取值范围夹到 [5, 600]，防手滑写成 0 或 10^6。
+    """
+    if explicit is not None:
+        return max(5.0, min(float(explicit), 600.0))
+    raw = os.getenv("LLM_TIMEOUT", "").strip()
+    try:
+        return max(5.0, min(float(raw), 600.0)) if raw else 60.0
+    except ValueError:
+        _log.warning("LLM_TIMEOUT 不是数字，已按默认 60s 处理")
+        return 60.0
+
+
+def llm_tool_limit() -> int:
+    """单轮暴露给模型的工具数上限（0 = 不限制，保持历史行为）。
+
+    小模型（2B 级）在 40 个工具的 schema 下会放弃选择、直接凭上下文作答；
+    压到个位数后能稳定命中正确工具。云端大模型不需要这个开关。
+    上限夹到 [0, 40]，避免手滑写成巨大值等于关闭。
+    """
+    raw = os.getenv("LLM_TOOL_LIMIT", "").strip()
+    if not raw:
+        return 0
+    try:
+        return max(0, min(int(raw), 40))
+    except ValueError:
+        _log.warning("LLM_TOOL_LIMIT 不是整数，已按 0（不限制）处理")
+        return 0
+
+
+def _sdk(cfg: dict[str, Any], timeout: float | None = None) -> _CompatClient:
     """构造兼容客户端（供 agent.py 使用：保持 client.chat.completions.create(...) 调用形态）。"""
     return _CompatClient(cfg, timeout)
 
@@ -104,7 +163,7 @@ _client_singleton: _CompatClient | None = None
 
 _client_singleton_cfg_key: str | None = None
 
-def _get_client(cfg: dict[str, Any], timeout: float = 60.0) -> _CompatClient:
+def _get_client(cfg: dict[str, Any], timeout: float | None = None) -> _CompatClient:
     """获取/重建兼容 client（配置变更时重建）。
 
     指纹必须包含 api_key：用户在设置页换了密钥但模型名与端点没变时，
@@ -113,8 +172,9 @@ def _get_client(cfg: dict[str, Any], timeout: float = 60.0) -> _CompatClient:
     """
     global _client_singleton, _client_singleton_cfg_key
     key_hash = hashlib.sha256(str(cfg.get("key") or "").encode()).hexdigest()[:8]
-    key = f"{cfg['litellm_model']}:{cfg.get('base', '')}:{key_hash}:{timeout}"
+    resolved = llm_timeout(timeout)
+    key = f"{cfg['litellm_model']}:{cfg.get('base', '')}:{key_hash}:{resolved}"
     if _client_singleton is None or _client_singleton_cfg_key != key:
-        _client_singleton = _sdk(cfg, timeout)
+        _client_singleton = _sdk(cfg, resolved)
         _client_singleton_cfg_key = key
     return _client_singleton

@@ -11,6 +11,9 @@ Moneyhelper 分两层配置：**环境变量**（启动前，`backend/.env`，�
 | `LLM_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI 兼容端点。国产推荐：DeepSeek / 豆包（火山方舟）/ 通义千问 / 云知声（详见下方「AI 端点速查」） |
 | `LLM_API_KEY` | 空 | 模型密钥；也可不配，启动后在设置页填 |
 | `LLM_MODEL` | `deepseek-chat` | 模型名 |
+| `LLM_TIMEOUT` | `60` | 单次模型调用超时（秒，夹在 5-600）。自托管小模型跑在 CPU 上时，7k token 的 prefill 就要几分钟，写死 60s 会把"正在算"误判成"模型不可用"、整轮降级成模板 |
+| `LLM_TOOL_LIMIT` | `0` | 单轮暴露给模型的工具数上限（0 = 不限制）。2B 级模型在 40 个工具的 schema 下会放弃选择、直接凭上下文编答案；压到个位数（如 `6`）能稳定命中正确工具 |
+| `LLM_EXTRA_BODY` | 空 | 透传给端点的额外请求体（JSON）。不同推理框架的模板开关不同，例如 MiniCPM5 需要 `{"chat_template_kwargs":{"enable_thinking":false}}` 才会直接输出 tool_call，而不是把 token 全花在 `<think>` 里 |
 | `API_TOKEN` | 空 | 访问口令。空 = 不鉴权（仅限本机/内网）；设置后 `/api/*` 需 Bearer/`?token=`，前端弹口令框 |
 | `ALLOWED_HOSTS` | 空 | 未设口令时额外放行的 Host（逗号分隔）。默认只放行本机 |
 | `MCP_ENABLE` | `1` | 是否挂载 MCP Server。`/mcp` 提供 Streamable HTTP，`/mcp-sse/sse` 兼容旧客户端；鉴权与来源校验与主应用一致 |

@@ -218,6 +218,8 @@ from .llm_client import (  # noqa: F401,E402
     _CompatCompletions,
     _get_client,
     _sdk,
+    llm_timeout,
+    llm_tool_limit,
 )
 from .llm_stream import (  # noqa: F401,E402 — 对外同名导出
     json_complete,

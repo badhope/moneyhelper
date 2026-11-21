@@ -11,6 +11,9 @@ All optional; the app runs fully without them (deterministic templates back ever
 | `LLM_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI-compatible endpoint. CN presets: DeepSeek / Doubao (Volcano Ark) / Qwen / Unisound (see cheat-sheet below) |
 | `LLM_API_KEY` | empty | Model key; or leave empty and fill it in the Settings page after startup |
 | `LLM_MODEL` | `deepseek-chat` | Model name |
+| `LLM_TIMEOUT` | `60` | Per-call timeout in seconds (clamped to 5-600). A 2B model on CPU needs minutes just to prefill a 7k-token prompt; a hard 60s turns "still computing" into "model unavailable" and silently degrades to templates |
+| `LLM_TOOL_LIMIT` | `0` | Max tools exposed per turn (0 = unlimited). Small models give up choosing when handed 40 tool schemas and answer from context instead; capping to a single digit (e.g. `6`) makes the right tool get picked |
+| `LLM_EXTRA_BODY` | empty | Extra JSON body forwarded to the endpoint. Serving stacks differ, e.g. MiniCPM5 needs `{"chat_template_kwargs":{"enable_thinking":false}}` to emit tool_calls instead of spending all tokens inside `<think>` |
 | `API_TOKEN` | empty | Access token. Empty = no auth (localhost/LAN only); set → every `/api/*` requires Bearer/`?token=`, frontend shows a passcode dialog |
 | `ALLOWED_HOSTS` | empty | Extra hosts allowed when no token is set (comma-separated). Localhost only by default |
 | `CORS_ALLOW_ALL` | empty | Debug: allow the frontend dev origin (`1`). Not needed for same-origin production |
