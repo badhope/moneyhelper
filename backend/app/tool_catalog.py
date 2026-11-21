@@ -67,7 +67,10 @@ FINANCE_TOOL_NAMES: tuple[tuple[str, str], ...] = (
     ("research_backtest",
      "策略回测：对某只 A 股/ETF 跑双均线或定投策略的历史回测（收益/回撤/夏普/胜率）。适合回答「双均线策略在 XX 上表现如何」「定投 XX 划不划算」。"),
     ("statements_analyze",
-     "财报分析：输入标准化三表 JSON，输出 20+ 财务指标、杜邦拆解、同比趋势与异常预警。适合用户提供公司财务数据时做深度分析。"),
+     "财报分析：输入标准化三表 JSON，输出 20+ 财务指标、杜邦拆解、同比趋势与异常预警。适合用户提供公司财务数据时做深度分析。"
+     "payload 结构：{periods:[{period,balance_sheet:{total_assets,total_liabilities,total_equity,current_assets,current_liabilities},"
+     "income_statement:{revenue,gross_profit,operating_profit,net_profit},cashflow_statement:{operating_cashflow}}]}；"
+     "用户口头报数字时也先按此结构组装再调用，不要传扁平键值。"),
     ("research_forecast",
      "统计预测：对某只 A 股/ETF 输出未来 N 期线性趋势、年化波动率与蒙特卡洛分位区间（固定种子可复现）。适合回答「XX 未来走势区间大概多少」「预测一下 XX 的价格带」。输出为统计情景推演，不是保证价位。"),
     ("paper_open",

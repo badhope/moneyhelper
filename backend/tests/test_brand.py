@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 from pathlib import Path
 
@@ -59,21 +60,22 @@ COMPAT_ALLOWLIST = {
 
 
 def _iter_text_files():
-    for path in REPO.rglob("*"):
-        if path.is_dir():
-            continue
-        if any(part in SKIP_DIRS for part in path.parts):
-            continue
-        if path.relative_to(REPO) in COMPAT_ALLOWLIST:
-            continue
-        if path.suffix.lower() not in TEXT_SUFFIXES and path.name not in {
-            "Dockerfile", "LICENSE", "Makefile",
-        }:
-            continue
-        try:
-            yield path, path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
-            continue
+    # 用 os.walk 并在下钻前剪枝：node_modules/.git 动辄几万个文件，
+    # rglob 会把它们全遍历一遍再逐个跳过，慢到撞 30s 超时（本机实测）。
+    for dirpath, dirnames, filenames in os.walk(REPO, topdown=True):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        for filename in filenames:
+            path = Path(dirpath) / filename
+            if path.relative_to(REPO) in COMPAT_ALLOWLIST:
+                continue
+            if path.suffix.lower() not in TEXT_SUFFIXES and path.name not in {
+                "Dockerfile", "LICENSE", "Makefile",
+            }:
+                continue
+            try:
+                yield path, path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
 
 
 def test_no_legacy_brand_tokens() -> None:
