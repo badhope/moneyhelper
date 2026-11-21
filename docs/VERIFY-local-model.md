@@ -144,3 +144,64 @@ PYTHONPATH=backend LLM_TOOL_LIMIT=6 ... python3 scripts/probe_tool_matrix.py --m
 - 支出按负数入库（`-35`），报表与预算都按符号计算；验收断言取绝对值。
 - 备份目录跟 `MONEYHELPER_DATA_DIR` 走，不跟 `MONEYHELPER_DB_PATH` 走：
   只改库路径时备份仍落 `backend/data/backups`，跑隔离验收要同时设数据目录。
+
+## 协议面 / 路由面 / 安全面（真服务，不是单测 mock）
+
+三个探针都自己拉起 `uvicorn`、用隔离库，跑完 `SIGTERM` 收尾。
+
+### MCP 协议（`scripts/probe_mcp.py`）—— 9/9
+
+真 MCP 客户端（`mcp.client.streamable_http`）握手 → `tools/list` → 调用 →
+prompt → resource：
+
+| 检查 | 结果 |
+|---|---|
+| initialize | `moneyhelper-finance` |
+| tools/list | **82 个**工具（比对话侧 40 个多得多，写工具也在这条链上） |
+| get_quote | 贵州茅台 600519 现价 1485.75 (+1.75%)，来源新浪 |
+| add_to_watchlist → get_watchlist | 落库可见 |
+| 大额记账（20000 元，客户端不支持 elicitation） | fail-closed："已取消…账本未改动"，账本无 20000 |
+| prompts / resources | 3 + 3，均能列出与读取 |
+
+### REST 路由（`scripts/probe_routes.py`）—— 0 个 5xx
+
+按 OpenAPI 清单逐条打，不看单测覆盖：
+
+- 无路径参数的 GET：**126 条全部 <500**
+- 无路径参数的 POST（空体，跳过 AI/搜索/回测/研究等外部依赖项）：**101 条全部 <500**
+  （422 属正常参数校验，4xx 属业务拒绝）
+- 全库共 341 条路由（GET 144 / POST 152 / DELETE 26 / PUT 12 / PATCH 7）；
+  带路径参数的写路由由单测覆盖，不做盲打。
+
+### 安全面（`scripts/probe_security.py`）—— 9/9
+
+配 `API_TOKEN` 起真服务后从外部打：
+
+| 检查 | 结果 |
+|---|---|
+| 无口令读 `/api/settings` | 401 |
+| Bearer / query 口令 | 200 |
+| 错误口令 | 401 |
+| 无口令写 `/api/watchlist` | 401 |
+| **MCP 子应用无口令** | 401（mount 绕过主 middleware，自己走同一闸） |
+| 单 IP 限流 | 200 次/分，第 201 次起 429（实测 429×17） |
+| 登录防爆破 | 5 次/60s，第 6 次 429 |
+| 路径穿越（3 种写法） | 全 404，未吐出 `/etc/passwd` |
+
+## 覆盖矩阵（当前口径）
+
+| 面 | 状态 |
+|---|---|
+| 后端单测 | 1857 passed |
+| 前端 | tsc 通过 / vitest 214 / build 17.9s |
+| E2E | 64 passed / 1 skipped |
+| 只读工具（真模型） | 40/40 |
+| 写工具（直连实现 + 查库） | 21/21 |
+| 压力抽样 | 8/8 |
+| MCP 协议 | 9/9（82 工具） |
+| REST 无参 GET/POST | 126 + 101，0 个 5xx |
+| 安全面 | 9/9 |
+
+未覆盖（如实列出）：带路径参数的写路由逐条、14 个主页面/53 组件全态视觉、
+云端模型路径（无凭证）、ranked 40 题全量（2B+CPU 单题约 10 分钟）、
+GitHub/Gitee 同步（仓库只有 GitCode remote）。

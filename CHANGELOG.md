@@ -25,6 +25,12 @@
   conditional_orders/connect_intents/connect_connections/invoices，备份验"密文无明文 + 口令可解回"。
 - 单测：单行发票字段不串、预检不报单且无 token 仍被拦。
 
+### 验收补记（同日）
+
+- `scripts/probe_mcp.py`：真 MCP 客户端 9/9（82 工具、行情可取、大额写 fail-closed、prompt/resource 可读）。
+- `scripts/probe_routes.py`：无参 GET 126 条 + 空体 POST 101 条，0 个 5xx。
+- `scripts/probe_security.py`：口令闸/MCP 闸/限流/登录防爆破/路径穿越 9/9。
+
 ## [4.16.9] - 2026-11-21（真模型逐工具验收：工具选择与裁剪修正）
 
 用本地 MiniCPM5-2B（llama.cpp，OpenAI 兼容端点，关闭思考链）把 40 个只读工具
