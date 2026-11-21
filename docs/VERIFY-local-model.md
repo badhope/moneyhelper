@@ -215,9 +215,9 @@ prompt → resource：
 
 | 面 | 状态 |
 |---|---|
-| 后端单测 | 1857 passed |
+| 后端单测 | 1857 passed（本轮改动后复跑） |
 | 前端 | tsc 通过 / vitest 214 / build 17.9s |
-| E2E | 64 passed / 1 skipped |
+| E2E | 64 passed / 1 skipped（3.8 min，本轮复跑） |
 | 只读工具（真模型） | 40/40 |
 | 写工具（直连实现 + 查库） | 21/21 |
 | 压力抽样 | 8/8 |
@@ -227,6 +227,11 @@ prompt → resource：
 | 备份恢复闭环 | 9/9 |
 | MCP SSE 传输 | 10/10（含 SSE） |
 
-未覆盖（如实列出）：带路径参数的写路由逐条、14 个主页面/53 组件全态视觉、
-云端模型路径（无凭证）、ranked 40 题全量（2B+CPU 单题约 10 分钟）、
-GitHub/Gitee 同步（仓库只有 GitCode remote）。
+未覆盖（如实列出）：
+
+- 带路径参数的写路由逐条（DELETE/PUT/PATCH 共 45 条，由单测覆盖，未盲打）
+- 14 个主页面/53 组件的全状态视觉矩阵（E2E 已覆盖交互与主要分支）
+- 云端模型路径（无 API Key，无法验 DeepSeek/Qwen 在线链路）
+- ranked 全量 40 题（2B + CPU 单题约 10 分钟，抽样与单测已覆盖工具选择）
+- Docker 镜像构建（当前机器无 docker）、Windows EXE 打包（需 Windows/打包链路）
+- GitHub/Gitee 同步（仓库只有 GitCode remote，其余两平台无凭据）
