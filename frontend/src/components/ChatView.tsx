@@ -123,7 +123,8 @@ export function ChatView({
                       className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
                     >
                       <Trash2 className="h-3 w-3" />
-                      <span className="hidden sm:inline">{tr("chat.deleteChat")}</span>
+                      <span className="sm:hidden">{tr("chat.deleteShort")}</span>
+<span className="hidden sm:inline">{tr("chat.deleteChat")}</span>
                     </button>
                   )}
                 </div>

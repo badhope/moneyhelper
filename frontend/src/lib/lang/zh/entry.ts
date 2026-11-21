@@ -255,6 +255,7 @@ export const zh_entry: Record<string, string> = {
   "chat.webSearch": "联网搜索",
   "chat.webSearchHint": "开启后优先联网核实最新信息，并在回答里标注来源",
   "chat.webSearchShort": "联网",
+  "chat.deleteShort": "删除",
   "chat.deleteChat": "删除会话",
   "chat.copy": "复制",
   "chat.retry": "重试",
