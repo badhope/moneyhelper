@@ -79,6 +79,20 @@ async def main() -> int:
                 ok = ("确认" in big or "拒绝" in big or "approval" in big.lower()) and "20000" not in after
                 rows.append({"case": "big write fail-closed", "ok": ok, "detail": big[:100]})
 
+                # 无必填参数的工具有多少就能空跑多少：空库下不许报 isError/空白
+                zero = [t for t in tools if not (t.inputSchema or {}).get("required")]
+                failed = []
+                for t in zero:
+                    try:
+                        rr = await session.call_tool(t.name, {})
+                        txt = "\n".join(getattr(c, "text", "") for c in rr.content).strip()
+                        if rr.isError or not txt:
+                            failed.append(f"{t.name}:{'isError' if rr.isError else '空'}:{txt[:50]}")
+                    except Exception as exc:  # noqa: BLE001
+                        failed.append(f"{t.name}:{type(exc).__name__}")
+                rows.append({"case": "无参工具空库全跑", "ok": not failed,
+                             "detail": f"{len(zero)} 个，失败 {failed[:4]}"})
+
                 prompts = (await session.list_prompts()).prompts
                 rows.append({"case": "prompts/list", "ok": len(prompts) >= 3, "detail": f"{len(prompts)} 个"})
                 got = await session.get_prompt(prompts[0].name, {})

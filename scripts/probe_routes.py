@@ -90,20 +90,45 @@ async def main() -> int:
                 if r.status_code >= 500:
                     bad_posts.append((p, f"{r.status_code} {r.text[:80]}"))
 
+            # 带路径参数的路由：占位值打一遍，只抓 5xx（404/422 是正常的"没有这个对象"）
+            import re as _re
+
+            param_routes = []
+            for p, item in paths.items():
+                if "{" not in p or any(k in p for k in SKIP):
+                    continue
+                filled = _re.sub(r"{[^}]+}", "probe-missing-id", p)
+                for m in ("get", "post", "put", "patch", "delete"):
+                    if m in item:
+                        param_routes.append((m, p, filled))
+            bad_params = []
+            for m, p, filled in param_routes:
+                try:
+                    r = await c.request(m.upper(), filled, json={} if m != "get" else None)
+                except Exception as exc:  # noqa: BLE001
+                    bad_params.append((m.upper(), p, f"EXC {type(exc).__name__}"))
+                    continue
+                if r.status_code >= 500:
+                    bad_params.append((m.upper(), p, f"{r.status_code} {r.text[:60]}"))
+
         print(f"GET 路由 {len(targets)} 条，5xx {len(bad)} 条", flush=True)
         for p, why in bad_posts:
             print("✗ POST", p, "—", why, flush=True)
         print(f"POST 路由 {len(posts)} 条（空体），5xx {len(bad_posts)} 条", flush=True)
+        for m, p, why in bad_params:
+            print("✗ PARAM", m, p, "—", why, flush=True)
+        print(f"带参路由 {len(param_routes)} 条（占位值），5xx {len(bad_params)} 条", flush=True)
         for p, why in bad:
             print("✗", p, "—", why, flush=True)
         out = ROOT / ".tmp" / "routes_sweep.json"
         out.write_text(
-            json.dumps({"get_total": len(targets), "get_bad": bad, "post_total": len(posts), "post_bad": bad_posts},
+            json.dumps({"get_total": len(targets), "get_bad": bad, "post_total": len(posts), "post_bad": bad_posts,
+                        "param_total": len(param_routes), "param_bad": bad_params},
                        ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         print("写入", out)
-        return 1 if (bad or bad_posts) else 0
+        return 1 if (bad or bad_posts or bad_params) else 0
     finally:
         try:
             os.killpg(proc.pid, signal.SIGTERM)

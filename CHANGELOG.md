@@ -2,6 +2,29 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.11] - 2026-11-21（继续验：MCP 备份注解、并发确认事务、调度器/断网降级）
+
+### 修复
+
+- **MCP `backup_now` 返回注解错误**：包装层写 `-> str`，实现返回
+  `{"answer","passphrase"}`，FastMCP 按注解校验 → `Output validation error`，
+  MCP 客户端备份功能实际不可用。改为 `dict[str, str]`，新增 AST 级注解审计
+  （`test_mcp_return_annotations.py`），防同类"注解说谎"。
+- **并发「确认」偶发事务被提前提交**：赢家 `BEGIN IMMEDIATE` 批量入账期间，
+  输家 `save_run` / pending 状态写入的 `COMMIT` 结束同一连接上的事务，赢家
+  `COMMIT` 报 `cannot commit - no transaction is active`。把 `save_run` 与
+  `claim/mark/force_pending_action` 纳入 `get_write_lock()`，与批量事务共用写锁。
+
+### 验收补记
+
+- `scripts/probe_scheduler.py`：空库 skip、晨报成文归档、订阅提醒每月去重、
+  7 个 job 注册、报告时间生效，8/8。
+- `scripts/probe_llm_down.py`：模型端点断开时产品入口 13.2s 给出确定性答案，
+  底层抛 `AgentUnavailable` 由图内降级接住，5/5。
+- `scripts/probe_routes.py` 扩到带路径参数：126 GET + 101 POST + 96 带参，0 个 5xx。
+- `scripts/probe_mcp.py` 扩到 11/11：新增 49 个无参工具空库全跑（曾唯一失败的
+  就是 backup_now）。
+
 ## [4.16.10] - 2026-11-21（写工具验收：副作用直连 + 两处补修）
 
 补上"写工具"这块此前没验的空白。写工具不在对话模型的工具集内（`ALLOWED_IMPL`

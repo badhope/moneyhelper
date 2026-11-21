@@ -155,8 +155,14 @@ async def trigger_morning_report(lang: str = "zh") -> str:
 
 
 @_tool()
-async def backup_now(lang: str = "zh") -> str:
-    """生成本地加密备份包（口令只显示一次，不落盘）。"""
+async def backup_now(lang: str = "zh") -> dict[str, str]:
+    """生成本地加密备份包（口令只显示一次，不落盘）。
+
+    返回 {"answer", "passphrase"}：口令必须单独交给调用方，不能拼进 answer
+    （Web 侧从 final 事件单独取，避免口令进问答历史）。这里注解成 dict 而不是
+    str——FastMCP 会按注解校验返回值，写 str 会直接报
+    "Output validation error"，工具在 MCP 侧等于不可用（实测）。
+    """
     return await xtools.tool_backup_now({}, lang=lang)
 
 

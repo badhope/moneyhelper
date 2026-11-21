@@ -235,3 +235,53 @@ prompt → resource：
 - ranked 全量 40 题（2B + CPU 单题约 10 分钟，抽样与单测已覆盖工具选择）
 - Docker 镜像构建（当前机器无 docker）、Windows EXE 打包（需 Windows/打包链路）
 - GitHub/Gitee 同步（仓库只有 GitCode remote，其余两平台无凭据）
+
+## 第二轮继续验：调度器 / 断网降级 / 事务并发 / MCP 注解
+
+### 定时任务（`scripts/probe_scheduler.py`）—— 8/8
+
+按调度器真实入口跑，不是只测单个函数：
+
+| 检查 | 结果 |
+|---|---|
+| 空库生成晨报 | skip（`no_data`），不产出噪音 |
+| 有数据生成晨报 | 335 字，归档到 `cron` 线程 |
+| 订阅提醒 | 3 天后扣款的订阅写入提醒 |
+| 每月去重 | 连跑两次仍只有 1 条 |
+| 调度器启动 | 7 个 job（含 2 个默认技能动作） |
+| job 齐全 | morning_report / subs_due_check / connect_auto_sync / connect_inbox_scan / month_end_close |
+| 报告时间生效 | 设置 07:30 → `cron[hour='7', minute='30']` |
+
+### 断网降级（`scripts/probe_llm_down.py`）—— 5/5
+
+把 `LLM_BASE_URL` 指向关闭端口：
+
+- 产品入口 `service.run_question` **13.2 秒给出 218 字确定性答案**（总市值 148,575、浮亏 1,425），不抛异常、不空白；
+- 底层 `agent.run_agent` 按设计抛 `AgentUnavailable`，由图内降级接住——两层职责清晰；
+- 工具层仍拒绝把 `ai_base_url` 改到内网地址（防数据外带）。
+
+### 事务并发（跑全量时偶发 1 次失败，已修）
+
+`test_chat_nl_concurrent_confirm_records_once`（并发两个「确认」只允许一笔入账）
+在整轮里偶发 `cannot commit - no transaction is active`。定位：赢家持有写锁做
+`BEGIN IMMEDIATE` 批量入账时，输家保存问答记录 `save_run` 的 `COMMIT` 把赢家
+事务提前提交了；`claim/mark/force` 三个 pending 状态写入同样没走写锁。
+
+修法：`history_pending` 的 pending 状态写入、`save_run` 都纳入 `get_write_lock()`，
+与批量事务共用同一把写锁。改后 `test_api.py` 连跑 4 次全绿，全量 1859 passed。
+
+### MCP 返回值注解（真调一遍才发现）
+
+82 个工具里 `backup_now` 一调就 `Output validation error`：包装层注解写 `str`，
+底层返回 `{"answer","passphrase"}`，FastMCP 按注解校验直接判错——备份在 MCP 侧
+等于不可用。修正注解为 `dict[str, str]`，并加两道回归：
+
+- `test_mcp_admin.py::test_backup_tool_declares_dict_output`
+- `test_mcp_return_annotations.py`：AST 扫描所有 `mcp_*.py` 包装层，凡是直接
+  `return await xtools.tool_x(...)` 的，注解必须与 `tool_x` 一致（这类"注解说谎"
+  只有真调或静态比对才能发现）。
+
+### 其余补测
+
+- REST 带路径参数路由（占位 id）：**96 条，0 个 5xx**（404/422 属正常）
+- MCP 无必填参数工具空库全跑：**49 个，0 失败**（修 backup 前唯一报错项就是它）

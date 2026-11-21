@@ -13,6 +13,7 @@ from ._core import (
     _clamp_limit,
     _conn,
     fetch_all,
+    get_write_lock,
 )
 from .history_sessions import upsert_session
 from .tenant import current_user_id
@@ -35,8 +36,11 @@ async def save_run(
     conn = await _conn()
     created = datetime.now().astimezone().isoformat(timespec="seconds")
     usage = tokens if isinstance(tokens, dict) else {}
-    cur = await conn.execute(
-        "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,route,llm,route_reason,tools,actions,tokens_in,tokens_out)"
+    # 共用写锁：单条 commit 会把并发批量事务（BEGIN IMMEDIATE）提前提交掉，
+    # 对方 COMMIT 时报 "no transaction is active"（并发确认入账实测）。
+    async with get_write_lock():
+        cur = await conn.execute(
+            "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,route,llm,route_reason,tools,actions,tokens_in,tokens_out)"
         " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             current_user_id(),
@@ -53,9 +57,9 @@ async def save_run(
             json.dumps(actions or [], ensure_ascii=False),
             int(usage.get("prompt") or 0),
             int(usage.get("completion") or 0),
-        ),
-    )
-    await conn.commit()
+            ),
+        )
+        await conn.commit()
     if not skip_session:
         # 会话列表只收录真实对话；定时晨报等系统归档（thread_id='cron'）不建会话，
         # 晨报历史仍按 thread_id='cron' 从 runs 表读取，不污染「问AI」会话列表。

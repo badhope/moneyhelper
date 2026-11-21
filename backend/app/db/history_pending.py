@@ -14,6 +14,7 @@ from ._core import (
     _conn,
     _now_iso,
     fetch_all,
+    get_write_lock,
     uuid_hex,
 )
 from .tenant import current_user_id
@@ -113,12 +114,15 @@ async def get_pending_action(token: str) -> dict[str, Any] | None:
     # 惰性过期：到期未确认的标记 expired 并作废
     if str(row["expires_at"] or "") < _now_iso():
         conn = await _conn()
-        await conn.execute(
-            "UPDATE pending_actions SET status='expired'"
-            " WHERE user_id=? AND token=? AND status='pending'",
-            (current_user_id(), token),
-        )
-        await conn.commit()
+        # 必须和批量入账共用写锁：这里单独 commit 会把并发批量事务的
+        # BEGIN IMMEDIATE 提前提交掉，对方 COMMIT 时报 "no transaction is active"。
+        async with get_write_lock():
+            await conn.execute(
+                "UPDATE pending_actions SET status='expired'"
+                " WHERE user_id=? AND token=? AND status='pending'",
+                (current_user_id(), token),
+            )
+            await conn.commit()
         return None
     return {
         "token": row["token"],
@@ -147,12 +151,13 @@ async def claim_pending_action(token: str) -> dict[str, Any] | None:
         await mark_pending_action(token, "expired")
         return None
     conn = await _conn()
-    cur = await conn.execute(
-        "UPDATE pending_actions SET status='consumed'"
-        " WHERE user_id=? AND token=? AND status='pending'",
-        (current_user_id(), token),
-    )
-    await conn.commit()
+    async with get_write_lock():
+        cur = await conn.execute(
+            "UPDATE pending_actions SET status='consumed'"
+            " WHERE user_id=? AND token=? AND status='pending'",
+            (current_user_id(), token),
+        )
+        await conn.commit()
     if cur.rowcount != 1:
         return None
     return {
@@ -171,20 +176,22 @@ async def force_pending_status(token: str, status: str) -> dict[str, Any]:
     对已被 claim 消费的行是空操作；这里需要覆盖已消费行，才能如实记录失败。
     """
     conn = await _conn()
-    cur = await conn.execute(
-        "UPDATE pending_actions SET status=? WHERE user_id=? AND token=?",
-        (status, current_user_id(), token),
-    )
-    await conn.commit()
+    async with get_write_lock():
+        cur = await conn.execute(
+            "UPDATE pending_actions SET status=? WHERE user_id=? AND token=?",
+            (status, current_user_id(), token),
+        )
+        await conn.commit()
     return {"ok": True, "changed": cur.rowcount}
 
 async def mark_pending_action(token: str, status: str) -> dict[str, Any]:
     conn = await _conn()
-    cur = await conn.execute(
-        "UPDATE pending_actions SET status=? WHERE user_id=? AND token=? AND status='pending'",
-        (status, current_user_id(), token),
-    )
-    await conn.commit()
+    async with get_write_lock():
+        cur = await conn.execute(
+            "UPDATE pending_actions SET status=? WHERE user_id=? AND token=? AND status='pending'",
+            (status, current_user_id(), token),
+        )
+        await conn.commit()
     return {"ok": True, "changed": cur.rowcount}
 
 async def session_usage(thread_id: str) -> dict[str, Any]:

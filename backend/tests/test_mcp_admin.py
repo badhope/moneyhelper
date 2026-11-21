@@ -123,3 +123,17 @@ def test_set_server_enabled(cfg) -> None:
     assert mcp_client.list_servers()[0]["enabled"] is False
     with pytest.raises(ValueError, match="不存在"):
         mcp_client.set_server_enabled("nope", True)
+
+
+def test_backup_tool_declares_dict_output() -> None:
+    """backup_now 返回 {answer, passphrase}，注解必须是 dict。
+
+    注解写 str 时 FastMCP 会做返回值校验并报 "Output validation error"，
+    表现为 MCP 客户端一调备份就失败（实测 82 工具空跑里唯一报错的那个）。
+    """
+    from app import mcp_server
+
+    tool = mcp_server.backup_now
+    fn = getattr(tool, "fn", tool)
+    ann = fn.__annotations__.get("return")
+    assert ann is dict or ann == "dict[str, str]", f"backup_now 返回注解是 {ann}"
