@@ -8,6 +8,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from .numeric import to_float
+
 CONCENTRATION_MAX_PCT = 40.0
 DTI_WARN_PCT = 40.0
 SAVINGS_RATE_WARN_PCT = 20.0
@@ -181,8 +183,4 @@ def ledger_view(
     }
 
 
-def _num(raw: Any, default: float = 0.0) -> float:
-    try:
-        return float(raw or 0)
-    except (TypeError, ValueError):
-        return default
+_num = to_float

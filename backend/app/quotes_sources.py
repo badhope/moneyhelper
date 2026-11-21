@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 
 from . import symbols
+from .numeric import to_float
 
 EASTMONEY_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get"
 SINA_URL = "https://hq.sinajs.cn/list="
@@ -128,14 +129,5 @@ async def _sina_prev_close(symbols: list[str]) -> dict[str, float]:
     """新浪备源昨收（字段 2），供今日盈亏在备源下计算。"""
     return await _sina_fields(symbols, 2)
 
-def _num(raw: Any) -> float | None:
-    """数值解析：允许 0 与负数（涨跌额/涨跌幅需要负值），只排除缺失与占位符。
 
-    不能复用 _parse_price：价格必须为正，但涨跌额/涨跌幅下跌时就是负数。
-    """
-    if raw is None or raw == "-" or raw == "" or isinstance(raw, bool):
-        return None
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return None
+_num = to_float

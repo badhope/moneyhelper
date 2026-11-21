@@ -74,3 +74,38 @@ export function StatTile({
     </div>
   );
 }
+
+/**
+ * 单行指标：左标签右数值，涨跌色可选。
+ *
+ * 此前策略页 `MetricRow` 与总览 `StatRow` 各写一份，差别只有"有没有下边框"
+ * 和"数值区要不要固定宽度"。两个参数收进来，别再分叉。
+ */
+export function StatRow({
+  label,
+  value,
+  tone = "default",
+  divided = false,
+  fixedWidth = false,
+}: {
+  label: string;
+  value: string;
+  tone?: "up" | "down" | "default";
+  /** 行间加分隔线（策略指标列表用） */
+  divided?: boolean;
+  /** 数值区固定宽度、右对齐（总览资产负债两行用） */
+  fixedWidth?: boolean;
+}) {
+  const color = tone === "up" ? "text-up" : tone === "down" ? "text-down" : "text-foreground";
+  return (
+    <div
+      className={cn(
+        "flex items-baseline gap-2 py-0.5",
+        divided ? "justify-between border-b border-border/40" : "gap-3",
+      )}
+    >
+      <span className="flex-1 text-muted-foreground">{label}</span>
+      <span className={cn("tabular-nums", color, fixedWidth && "w-24 shrink-0 text-right")}>{value}</span>
+    </div>
+  );
+}

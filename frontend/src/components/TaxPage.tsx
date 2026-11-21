@@ -28,6 +28,7 @@ import { PillTabs } from "@/components/ui/pill-tabs";
 import { Segmented } from "@/components/ui/segmented";
 import { useI18n } from "@/lib/i18n";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
+import { StatTile } from "@/components/ui/stat";
 import { cn } from "@/lib/utils";
 import {
   useAnomalies,
@@ -72,14 +73,11 @@ function Field({
   );
 }
 
-function ResultGrid({ items }: { items: { label: string; value: string; tone?: string }[] }) {
+function ResultGrid({ items }: { items: { label: string; value: string; tone?: "up" | "down" | "default" }[] }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       {items.map((x) => (
-        <div key={x.label} className="rounded-lg bg-muted/25 px-2.5 py-2">
-          <div className="text-[10.5px] text-muted-foreground">{x.label}</div>
-          <div className={cn("mt-0.5 text-[14px] font-bold tabular-nums", x.tone)}>{x.value}</div>
-        </div>
+        <StatTile key={x.label} label={x.label} value={x.value} tone={x.tone ?? "default"} />
       ))}
     </div>
   );
@@ -168,7 +166,7 @@ function VatPanel() {
                 { label: t("tax.inputVat"), value: fmtMoney(res.input_vat) },
                 { label: t("tax.vatPayable"), value: fmtMoney(res.vat_payable) },
                 { label: t("tax.surcharge"), value: fmtMoney(res.surcharge) },
-                { label: t("tax.total"), value: fmtMoney(res.total), tone: "text-foreground" },
+                { label: t("tax.total"), value: fmtMoney(res.total), tone: "default" },
               ]}
             />
             {res.surcharge_detail ? (
@@ -388,7 +386,7 @@ function PayrollPanel() {
                 { label: t("tax.grossSalary"), value: fmtMoney(res.gross) },
                 { label: t("tax.employeeTotal"), value: fmtMoney(res.employee_total) },
                 { label: t("tax.income_tax"), value: fmtMoney(res.income_tax) },
-                { label: t("tax.netPay"), value: fmtMoney(res.net_pay), tone: "text-foreground" },
+                { label: t("tax.netPay"), value: fmtMoney(res.net_pay), tone: "default" },
                 // income_tax 是累计口径：months>1 时把"期间实发合计"一并给出，
                 // 否则用户看到的实发只对应一个月，而税对应 N 个月。
                 ...(payload().months > 1 && res.period_net_pay != null

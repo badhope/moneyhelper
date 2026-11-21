@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEChart, usePalette } from "@/lib/charts";
 import { useI18n } from "@/lib/i18n";
+import { StatRow } from "@/components/ui/stat";
 import { fmtMoney } from "@/lib/format";
 import { useNetWorth, type NetWorthBreakdown } from "@/lib/use-calculations";
 import type { EChartsCoreOption } from "echarts/core";
@@ -33,21 +34,6 @@ function NetWorthPie({ breakdown }: { breakdown: NetWorthBreakdown["asset_breakd
   }, [breakdown, palette]);
   useEChart(ref, option, [option]);
   return <div ref={ref} className="h-44 w-full" />;
-}
-
-function StatRow({ label, value, tone }: { label: string; value: number; tone?: "up" | "down" }) {
-  return (
-    <div className="flex items-baseline gap-3 text-xs">
-      <span className="flex-1 text-muted-foreground">{label}</span>
-      <span
-        className={`w-24 shrink-0 text-right tabular-nums ${
-          tone === "up" ? "text-up" : tone === "down" ? "text-down" : "text-foreground"
-        }`}
-      >
-        {fmtMoney(value)}
-      </span>
-    </div>
-  );
 }
 
 export function NetWorthCard() {
@@ -105,7 +91,7 @@ export function NetWorthCard() {
           </div>
         ) : null}
         <div className={hasPieData ? "w-full space-y-2" : "grid grid-cols-2 gap-x-6 gap-y-1.5"}>
-          <StatRow label={tr("netWorth.assets")} value={data.total_assets} tone="up" />
+          <StatRow label={tr("netWorth.assets")} value={fmtMoney(data.total_assets)} tone="up" fixedWidth />
           {Object.entries(assets).map(([label, value], i) => (
             <div key={label} className="flex items-baseline gap-3 text-xs">
               <span className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -118,7 +104,7 @@ export function NetWorthCard() {
               <span className="w-24 shrink-0 text-right tabular-nums text-foreground">{fmtMoney(value)}</span>
             </div>
           ))}
-          <StatRow label={tr("netWorth.liability")} value={data.total_liabilities} tone="down" />
+          <StatRow label={tr("netWorth.liability")} value={fmtMoney(data.total_liabilities)} tone="down" fixedWidth />
         </div>
       </div>
 

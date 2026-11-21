@@ -44,6 +44,7 @@ import { StatCell } from "@/components/ui/stat";
 import { useEChart, usePalette, useCandleColors, axisLabelColor } from "@/lib/charts";
 import { useTheme } from "@/lib/theme";
 import { fmtMoney, fmtPct } from "@/lib/format";
+import { StatTile as TechnicalCard } from "@/components/ui/stat";
 import { cn } from "@/lib/utils";
 import {
   useResearchAnalyze,
@@ -87,17 +88,6 @@ const CH = {
   strategy: "research.chart.strategy",
   buyHold: "research.chart.buyHold",
 } as const;
-
-function TechnicalCard({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "up" | "down" | "muted" }) {
-  const cls = tone === "up" ? "text-up" : tone === "down" ? "text-down" : tone === "muted" ? "text-muted-foreground" : "text-foreground";
-  return (
-    <div className="min-w-0 rounded-lg bg-muted/25 px-3 py-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 truncate text-[15px] font-semibold tabular-nums num-in", cls)}>{value}</div>
-      {hint ? <div className="mt-0.5 truncate text-[11px] text-muted-foreground/80">{hint}</div> : null}
-    </div>
-  );
-}
 
 /** K 线主图：蜡烛（A股红涨绿跌）+ MA + 布林带（多序列 toggle）+ 周期切换 + 缩放重置 */
 function KlineChart({ series, period, onPeriod }: { series: TechnicalResult["series"]; period: string; onPeriod: (p: "daily" | "weekly" | "monthly") => void }) {

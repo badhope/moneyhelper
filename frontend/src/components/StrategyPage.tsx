@@ -21,7 +21,7 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import { StatTile as MetricCell } from "@/components/ui/stat";
+import { StatRow, StatTile as MetricCell } from "@/components/ui/stat";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -272,15 +272,8 @@ function RiskSection({ benchmark, onBenchmark }: { benchmark: string; onBenchmar
   );
 }
 
-function MetricRow({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2 border-b border-border/40 py-0.5">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={cn("tabular-nums", tone === "up" ? "text-up" : tone === "down" ? "text-down" : "text-foreground")}>
-        {value}
-      </span>
-    </div>
-  );
+function MetricRow(props: { label: string; value: string; tone?: "up" | "down" }) {
+  return <StatRow divided {...props} />;
 }
 
 /** 再平衡块：目标配置编辑 + 漂移清单 */

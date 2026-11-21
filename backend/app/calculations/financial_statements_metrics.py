@@ -4,21 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..numeric import to_float
+
 GOODWILL_WARN_RATIO = 0.20
 OCF_NP_WARN_RATIO = 0.50
 DEBT_RATIO_WARN = 0.70
 CURRENT_RATIO_WARN = 1.0
 GROSS_MARGIN_DROP_PCT = 5.0
 
-
-def _num(raw: Any) -> float | None:
-    """数值解析：None/空/非数字 → None；0 与负数合法。"""
-    if raw is None or raw == "" or raw == "-" or isinstance(raw, bool):
-        return None
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return None
+_num = to_float
 
 
 def _pct(n: float | None, d: float | None) -> float | None:

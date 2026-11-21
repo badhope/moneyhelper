@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..numeric import to_float
 from .technical_types import (
     BOLL_PERIOD,
     BOLL_STD,
@@ -22,19 +23,7 @@ def _closes(points: list[dict[str, Any]]) -> list[float]:
     return [float(p["close"]) for p in points if _num(p.get("close")) is not None]
 
 
-def _num(raw: Any) -> float | None:
-    """宽松数值解析：缺失/占位符/非数值一律 None，绝不抛异常。
-
-    行情层只保证 close 非空（quotes._parse_kline_rows 会跳过 close 缺失的行），
-    high/low/open/volume 都可能是 None（东财用 "-" 占位）。指标函数直接 float()
-    会在停牌/新股等残缺行上抛 TypeError，把整个投研接口打成 500（实测）。
-    """
-    if raw is None or isinstance(raw, bool):
-        return None
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return None
+_num = to_float
 
 
 def ema(values: list[float], span: int) -> list[float | None]:
