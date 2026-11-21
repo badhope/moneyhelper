@@ -125,6 +125,9 @@ async def supervisor(state: AgentState) -> dict[str, Any]:
         return {"route": "bookkeeping", "reason": reason, "parsed": parsed}
 
     if route == "general":
+        # 明显闲聊/写作/编程不再让模型判域：那次分类调用实测要 8–10s，是首字延迟大头
+        if service.looks_like_non_finance(q):
+            return {"route": "general", "reason": reason, "mode": "deterministic"}
         # 规则未命中且模型可用：让模型兜底判一次是否其实是理财问题（如「茅台现在多少钱」）
         if await llm.llm_available():
             llm_route = await service.classify_question_llm(q, state.get("lang", "zh"))

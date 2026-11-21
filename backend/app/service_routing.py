@@ -107,6 +107,33 @@ def route_question(question: str, lang: str = "zh") -> tuple[str, str]:
     return "general", "这句不是理财问题，按通用问答回复"
 
 
+_FINANCE_HINTS = (
+    "钱", "账", "预算", "支出", "收入", "负债", "持仓", "股票", "基金", "行情", "理财",
+    "税", "报销", "发票", "工资", "消费", "房贷", "信用卡", "订阅", "现金流", "报表",
+    "资产", "投资", "分红", "利息", "还款", "存款", "余额", "花费", "开销",
+)
+
+_NON_FINANCE_HINTS = (
+    "你好", "您好", "谢谢", "你是谁", "你能做什么", "你能帮我做什么", "介绍一下你",
+    "自我介绍", "怎么用", "帮我写", "写一段", "写个", "翻译", "润色", "改写",
+    "代码", "报错", "python", "sql", "作文", "文案", "笑话", "天气", "几点",
+)
+
+
+def looks_like_non_finance(question: str) -> bool:
+    """明显的闲聊/写作/编程：不需要模型再判一次「这是不是理财问题」。
+
+    判定必须“双确认”：命中非理财特征，且完全不含财务词。宁可漏判走模型兜底，
+    也不能把「写一份预算方案」这类财务写作误判成闲聊。
+    """
+    q = question.strip().lower()
+    if not q or len(q) > 60:
+        return False
+    if any(h in q for h in _FINANCE_HINTS):
+        return False
+    return any(h in q for h in _NON_FINANCE_HINTS)
+
+
 async def classify_question_llm(question: str, lang: str = "zh") -> str | None:
     """规则未命中时的模型兜底分类：market / ledger / both / goal / enterprise / general。
 

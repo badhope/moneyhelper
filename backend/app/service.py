@@ -28,6 +28,51 @@ log = get_logger(__name__)
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
 
 
+# 通用分支里真正需要联网/时钟的问题才装载工具；纯闲聊/自我介绍/写作直接流式成文，
+# 省掉一轮「先让模型决定要不要调工具」的非流式调用（实测占首字延迟的大头）。
+_GENERAL_TOOL_HINTS = (
+    "几点", "现在", "今天", "明天", "昨天", "日期", "星期", "新闻", "最新", "搜索",
+    "查一下", "查查", "联网", "天气", "汇率", "股价", "比分", "实时", "热搜",
+)
+
+
+_CAPABILITY_ZH = (
+    "我是 Moneyhelper。你可以：1）一句话记账（「咖啡 28」）或 CSV 导入账单；"
+    "2）查本月收支、预算执行与现金流；3）看持仓、行情与组合风险；"
+    "4）生成晨报与定时产出；5）用财务部门做多租户总账、报销与采购。"
+    "直接说你要做的事就行。"
+)
+_CAPABILITY_EN = (
+    "I'm Moneyhelper. I can record expenses in one sentence or import CSV bills, "
+    "review monthly income/expenses, budgets and cash flow, track holdings and portfolio risk, "
+    "produce morning briefs on a schedule, and run a multi-tenant finance department "
+    "(ledger, expenses, procurement). Just tell me what you need."
+)
+
+
+def _smalltalk_reply(question: str, lang: str) -> str | None:
+    """打招呼/问能力这类固定问题直接回，不等模型：这是产品门面，不该让用户等 10s。"""
+    q = question.strip().lower().rstrip("？?！!。. ")
+    if len(q) > 24:
+        return None
+    zh = lang == "zh"
+    capability = ("你能做什么", "能帮我做什么", "你会什么", "你是谁", "介绍一下你自己", "介绍下你自己")
+    if any(k in q for k in capability):
+        return _CAPABILITY_ZH if zh else _CAPABILITY_EN
+    greeting = ("你好", "您好", "hi", "hello", "在吗", "早上好", "晚上好")
+    if len(q) <= 8 and any(k in q for k in greeting):
+        return (
+            "你好，我是 Moneyhelper。可以直接说「记一笔：咖啡 28」，或问「这个月钱花到哪了」。"
+            if zh
+            else "Hi, I'm Moneyhelper. Try “coffee 28” to record an expense, or ask where your money went this month."
+        )
+    return None
+
+
+def _general_needs_tools(question: str) -> bool:
+    return any(h in question for h in _GENERAL_TOOL_HINTS)
+
+
 GENERAL_SYSTEM = (
     "你是一个通用 AI 助手，同时具备个人理财工具的能力。"
     "普通问题（写作、翻译、编程、闲聊等）直接正常回答；"
@@ -95,18 +140,33 @@ async def _run_general(
     """
     history = await _build_history(thread_id, only_route="general")
 
+    reply = _smalltalk_reply(question, lang)
+    if reply:
+        await emit({"type": "text", "delta": reply})
+        return {
+            "answer": reply,
+            "level": "",
+            "route": "general",
+            "route_reason": reason,
+            "metrics": {},
+            "flags": [],
+            "llm": "template",
+        }
+
     from . import agent as agent_mod
 
     if await llm.llm_available():
         try:
+            # 不需要外部事实的问题不给工具：run_agent 会跳过工具轮、直接流式出字。
+            tools = agent_mod.GENERAL_TOOLS if _general_needs_tools(question) else []
             result = await agent_mod.run_agent(
                 question,
                 emit,
                 history,
                 lang,
                 system=agent_mod.GENERAL_SYSTEM,
-                tools_list=agent_mod.GENERAL_TOOLS,
-                impl_map=agent_mod.GENERAL_IMPL,
+                tools_list=tools,
+                impl_map=agent_mod.GENERAL_IMPL if tools else {},
                 inject_memories=False,
             )
             result.update(
@@ -256,6 +316,7 @@ from .service_routing import (  # noqa: F401,E402 — 对外同名导出
     _try_nl_add,
     _try_save_memory,
     classify_question_llm,
+    looks_like_non_finance,
     route_question,
 )
 

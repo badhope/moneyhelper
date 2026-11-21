@@ -103,6 +103,14 @@ async def run_agent(    question: str,
     # （对齐 Claude Code 的 progressive disclosure：长会话摘要兜底，防 context window 溢出）
     messages = await _compress_history(messages, cfg)
 
+    # 明确「本轮不给工具」：通用闲聊直接一次流式成文，跳掉工具决策轮
+    #（这一轮非流式调用要等模型完整输出 tool_calls 判定，是首字延迟的主要来源）。
+    if tools_list is not None and len(tools_list) == 0:
+        return await final_answer_result(
+            client, cfg, messages, [], emit,
+            steps=[], used_tools=[], tool_counts={},
+        )
+
     from .agent_toolset import build_toolset
 
     tool_schemas, tool_map, internal_impl, mcp_schemas = await build_toolset(

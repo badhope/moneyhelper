@@ -237,8 +237,28 @@ async def test_general_with_llm_uses_general_agent(client, monkeypatch) -> None:
     assert final["route"] == "general"
     assert final["answer"] == "通用回复"
     assert captured["system"] == agent_mod.GENERAL_SYSTEM
-    assert captured["tools_list"] is agent_mod.GENERAL_TOOLS
+    # 写作类问题不需要外部事实：不再装工具，直接流式成文（省一轮工具决策）
+    assert captured["tools_list"] == []
     assert captured["inject_memories"] is False
+
+
+async def test_general_time_question_keeps_tools(client, monkeypatch) -> None:
+    """问时间/新闻才装载通用工具，不能为了快把联网能力关掉。"""
+    from app import agent as agent_mod
+
+    captured: dict = {}
+
+    async def fake_run_agent(question, emit, history=None, lang="zh", **kw):
+        captured["tools_list"] = kw.get("tools_list")
+        return {"answer": "现在是 10 点", "llm": "llm"}
+
+    async def fake_available() -> bool:
+        return True
+
+    monkeypatch.setattr(agent_mod, "run_agent", fake_run_agent)
+    monkeypatch.setattr(service.llm, "llm_available", fake_available)
+    await _ask(client, "现在几点了？")
+    assert captured["tools_list"] is agent_mod.GENERAL_TOOLS
 
 
 async def test_general_model_failure_shows_honest_fallback(client, monkeypatch) -> None:
@@ -1706,3 +1726,12 @@ async def test_import_commit_rejects_invalid_calendar_date(client) -> None:
     assert r.status_code == 400, f"{r.status_code} {r.text}"
     after = len((await client.get("/api/export")).json().get("transactions") or [])
     assert after == before, f"坏批次写入了 {after - before} 条"
+
+
+def test_smalltalk_reply_is_instant_and_finance_safe() -> None:
+    """门面问题直接回，但财务写作不能被当成闲聊吞掉。"""
+    from app.service import _smalltalk_reply
+
+    assert "记账" in (_smalltalk_reply("你好，用一句话告诉我你能帮我做什么", "zh") or "")
+    assert "咖啡" in (_smalltalk_reply("你好", "zh") or "")
+    assert _smalltalk_reply("帮我写一份预算方案", "zh") is None
