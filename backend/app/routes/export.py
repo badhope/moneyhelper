@@ -93,12 +93,14 @@ async def export_csv() -> StreamingResponse:
         return "'" + v if v and v[0] in "=+-@" else v
 
     for r in rows:
+        # 金额不套 _safe：负数是支出常态，加前导单引号会让 Excel 整列变文本、
+        # SUM 全为 0（实测 '-35.5）。数字本身也不可能被当成公式执行。
         writer.writerow(
             [
                 _safe(r["date"]),
                 _safe(r["item"]),
                 _safe(r["category"]),
-                _safe(r["amount"]),
+                r["amount"],
             ]
         )
     data = "\ufeff" + buf.getvalue()

@@ -1137,6 +1137,16 @@ async def test_export_csv(client) -> None:
     text = r.text
     assert text.startswith("\ufeff日期")
     assert "项目" in text and "分类" in text and "金额" in text
+    # 金额列必须是可解析的纯数字：负数是支出常态，套公式注入前缀（'）会让
+    # Excel 整列变文本、SUM 归零（实测 '-35.5）。
+    import csv as _csv
+    import io as _io
+
+    table = list(_csv.reader(_io.StringIO(text.lstrip("\ufeff"))))
+    amounts = [row[-1] for row in table[1:] if row]
+    for a in amounts:
+        assert not a.startswith("'"), f"金额被加了前缀：{a}"
+        float(a)  # 不可解析即失败
 
 
 async def test_budgets_lifecycle(client) -> None:

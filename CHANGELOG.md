@@ -2,6 +2,19 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.12] - 2026-11-21（CSV 金额列被写成文本）
+
+### 修复
+
+- **CSV 导出金额带单引号**：防公式注入的 `_safe()` 无差别套在金额列，负数支出
+  导出成 `'-35.5`，Excel 打开整列变文本、`SUM` 为 0。改为只转义文本列
+  （日期/项目/分类），金额输出原始数值；`test_export_csv` 增加金额可 float
+  解析的回归断言。
+
+### 验收补记
+
+- `scripts/probe_export.py`：BOM、逗号/引号/换行保真、金额数值、HTML 报表、
+  备份导入往返，8/8。
 ## [4.16.11] - 2026-11-21（继续验：MCP 备份注解、并发确认事务、调度器/断网降级）
 
 ### 修复
