@@ -79,8 +79,12 @@ async def import_csv_commit(payload: dict) -> dict:
         except (TypeError, ValueError):
             errors.append({"row": idx, "item": item, "reason": "金额不是数字"})
             continue
-        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
-            errors.append({"row": idx, "item": item, "reason": "日期格式应为 YYYY-MM-DD"})
+        # 格式对不等于日期真实：2026-13-45 过了正则但在 DB 层才炸成 500。
+        # 用户传错日期属参数错误，必须在这里拦成 400 并带行号。
+        try:
+            datetime.strptime(date, "%Y-%m-%d")
+        except ValueError:
+            errors.append({"row": idx, "item": item, "reason": "日期不是有效日历日"})
             continue
         if not math.isfinite(amount) or amount == 0:
             errors.append({"row": idx, "item": item, "reason": "金额必须是有限非零数字"})

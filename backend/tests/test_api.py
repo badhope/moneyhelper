@@ -1541,6 +1541,9 @@ async def test_generic_csv_import_path_not_shadowed(client) -> None:
     for key in ("columns", "mapping", "preview", "rows", "total", "skipped"):
         assert key in d, f"缺少字段 {key}"
     assert d["total"] == 2 and len(d["rows"]) == 2
+    # 「项目」列表头要真的被当下说明列用：否则每条都落成「其他」，用户丢摘要
+    assert d["rows"][0]["item"] == "午饭"
+    assert d["rows"][1]["item"] == "工资"
 
     # /api/import/csv 仍由源感知解析提供（契约不变：preview.transactions）
     r2 = await client.post("/api/import/csv", json={"content": csv_text, "source": "generic"})
@@ -1688,3 +1691,18 @@ async def test_nl_add_invalid_date_not_500(client) -> None:
     r = await client.post("/api/nl-add", json={"text": "2026年13月40日 打车10元"})
     assert r.status_code == 200
     assert r.json()["transaction"]["amount"] == -10
+
+
+async def test_import_commit_rejects_invalid_calendar_date(client) -> None:
+    """2026-13-45 格式合法但日历非法：必须是 400 参数错误，且整批不写入。"""
+    before = len((await client.get("/api/export")).json().get("transactions") or [])
+    r = await client.post(
+        "/api/import/commit",
+        json={"rows": [
+            {"date": "2026-11-20", "item": "正常", "category": "其他", "amount": -10},
+            {"date": "2026-13-45", "item": "坏日期", "category": "其他", "amount": -20},
+        ]},
+    )
+    assert r.status_code == 400, f"{r.status_code} {r.text}"
+    after = len((await client.get("/api/export")).json().get("transactions") or [])
+    assert after == before, f"坏批次写入了 {after - before} 条"

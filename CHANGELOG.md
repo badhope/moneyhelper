@@ -2,6 +2,26 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.13] - 2026-11-21（多租户隔离 + CSV 账单导入验收）
+
+### 修复
+
+- **「项目」列表头不被识别为说明列**：`csvimport.DESC_KEYS` 缺「项目」，
+  `detect_mapping` 的 desc 落到 -1，导入后每条 `item` 都成「其他」，账单标题
+  全丢。已补关键词；`test_generic_csv_import_path_not_shadowed` 增加 `item`
+  必须等于原始项目的断言（旧测试只断言条数，所以漏了这个 bug）。
+- **非法日历日被报成 500**：`/api/import/commit` 仅用正则校格式，
+  `2026-13-45` 过正则后在 DB 层抛 `ValueError` → 500。改为 `datetime.strptime`
+  校验真实日历日，返回 400 并带行号/原因，整批零写入；新增
+  `test_import_commit_rejects_invalid_calendar_date` 覆盖该分支。
+
+### 新增
+
+- `scripts/probe_tenant.py`：双账号 HTTP 隔离验收 8/8（导出互不可见、未登录 401、
+  越权查用户列表 403 / 管理员 200、篡改 JWT 401）。
+- `scripts/probe_import.py`：通用 CSV 账单导入验收 6/6（列映射、引号内逗号、
+  批量入账、落库条数、坏批次 400 整批拒绝、零写入）。
+
 ## [4.16.12] - 2026-11-21（CSV 金额列被写成文本）
 
 ### 修复

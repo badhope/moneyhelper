@@ -303,3 +303,41 @@ prompt → resource：
 **又抓到一个真 bug（已修）**：CSV 的公式注入防护无差别套在金额列上，负数支出
 被写成 `'-35.5`，Excel 打开整列变文本、`SUM` 全为 0。改为只对文本列做前缀
 转义，金额写原始数值；`test_export_csv` 增加"金额必须可 float 解析"的断言。
+
+### 多租户隔离（`scripts/probe_tenant.py`）—— 8/8
+
+种两个用户（tenant_a / admin、tenant_b / user）各写一条流水，走 HTTP 登录取 JWT：
+
+| 检查 | 结果 |
+|---|---|
+| A 导出 | 只含「A 的午餐」，看不到 B 的房租 |
+| B 导出 | 只含「B 的房租」，看不到 A 的流水 |
+| 未登录读数据 | 401 |
+| 普通用户看用户列表 | 403 |
+| 管理员看用户列表 | 200 |
+| 篡改 JWT 尾字符 | 401 |
+
+### CSV 账单导入（`scripts/probe_import.py`）—— 6/6
+
+用 `日期,项目,金额` 三列表头（字段内带引号逗号）打 `/api/import/generic`，
+再逐条 commit 到账本，最后用 `/api/export` 反查落库结果。抓到两个真 bug：
+
+1. **「项目」列表头不被认成说明列**：`csvimport.DESC_KEYS` 少了「项目」，
+   `detect_mapping` 的 desc 返回 -1，导入后每条 `item` 都落成「其他」，用户账单
+   标题全丢。补进 `DESC_KEYS` 后 `item` 恢复为 `午饭, 加辣` / `工资`（顺带证明
+   引号内逗号没被拆列）。既有回归只用这组表头断言了总条数，没断言 `item`，
+   所以这个 bug 长期没被抓住——现已补断言。
+2. **非法日历日返回 500**：`/api/import/commit` 只用正则校 `YYYY-MM-DD` 格式，
+   `2026-13-45` 过正则后在 DB 层抛 `ValueError`，被兜成 500，把用户传参错误
+   报成服务端故障。改为在路由里 `datetime.strptime` 校验真实日历日，落进已有
+   `errors` 分支 → **400** + `{"ok":false,"error":"1 行数据不合法，已整批取消…",
+   "errors":[{row,item,reason:"日期不是有效日历日"}]}`。
+
+原子性验证方式也纠正了：原先拿"坏批次"先打 parse 接口，非法日期行在
+`_is_real_date` 阶段就被过滤成 `skipped`，交给 commit 的全是合法行，"整批拒绝"
+根本测不到。改为直接 POST `{rows:[合法行, 坏日期行]}` → 400，账本 2→2 零写入；
+好批次 200、`imported` 两条、导出确为 2 条。
+
+**契约不一致（已记录，未改）**：通用 `/api/import/commit` 的 `imported` 是
+`[{ok,id}…]` 列表，源感知 `/api/import/csv` 的 commit 里 `imported` 是整数计数，
+前端两条路径不能共用同一段取值逻辑。
