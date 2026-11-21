@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { MotionConfig } from "framer-motion";
 import { PanelLeftOpen, X } from "lucide-react";
 import { SessionSidebar } from "@/components/SessionSidebar";
@@ -24,7 +24,11 @@ import { MobileTabBar } from "@/components/MobileTabBar";
 
 // 首屏只需要 TopBar + 会话栏 + 对话区。以下面板都是"点开才用"，
 // 静态引入会把它们的依赖（Dashboard 的图表、部门看板、设置表单）压进主包。
-const ChatView = lazy(() => import("@/components/ChatView").then((m) => ({ default: m.ChatView })));
+const loadChatView = () => import("@/components/ChatView").then((m) => ({ default: m.ChatView }));
+const ChatView = lazy(loadChatView);
+// 对话是首屏主界面：应用一启动就并行拉取该 chunk，避免恢复会话后又卡在
+// Suspense 的「正在准备会话…」——那几秒会被误读成"对话没启动"。
+void loadChatView();
 const SettingsView = lazy(() => import("@/components/SettingsView").then((m) => ({ default: m.SettingsView })));
 const FinancePage = lazy(() => import("@/components/FinancePage").then((m) => ({ default: m.FinancePage })));
 const ScheduledOutputsPanel = lazy(() =>
@@ -49,7 +53,14 @@ export default function App() {
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [settingsCloseConfirm, setSettingsCloseConfirm] = useState(false);
 
-  const [activeThread, setActiveThread] = useState<string | null>(null);
+  // 刷新后先恢复上次会话：会话列表/首条消息都要等网络，若不恢复，
+  // 首屏会先停在「正在准备会话…」，用户会以为对话没启动。
+  const [activeThread, setActiveThread] = useState<string | null>(() => {
+    const saved = localStorage.getItem("wo.thread");
+    return saved || null;
+  });
+  // 本次新开的线程还没被后端落库，校验时不能当成「已删除」清掉
+  const pendingThreadRef = useRef<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<{ id: number; threadId: string } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -126,7 +137,14 @@ export default function App() {
    * 后端 upsert_session 才会真正建会话（标题也由首个问题决定）。
    */
   const newSession = useCallback(() => {
-    setActiveThread(`__new_${Date.now()}`);
+    // 用真正的线程 id：发送首条消息后后端直接沿用它建会话，刷新也能恢复，
+    // 不再出现「临时 __new_ 前缀被当成已删除、首屏一直准备中」。
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    pendingThreadRef.current.add(id);
+    setActiveThread(id);
   }, []);
 
   const openChat = useCallback(
@@ -177,10 +195,23 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (activeThread) return;
+    if (activeThread) localStorage.setItem("wo.thread", activeThread);
+    else localStorage.removeItem("wo.thread");
+  }, [activeThread]);
+
+  useEffect(() => {
     // 会话列表加载完成前不下结论：否则会把「加载中」误判为「没有任何会话」，
     // 每次打开都新建垃圾会话，且首发消息可能滞留在 __tmp_ 线程。
     if (sessionsLoading) return;
+    if (activeThread) {
+      // 只做「曾开过则移出待定」，不在首屏清空：首请求可能因鉴权未就绪失败，
+      // 列表短暂为空时清掉 last thread，会把用户打回「正在准备会话…」。
+      // 真被删掉的会话由 deleteSession 自己切换，不靠这里猜。
+      if (sessions.some((s) => s.thread_id === activeThread)) {
+        pendingThreadRef.current.delete(activeThread);
+      }
+      return;
+    }
     if (sessions.length > 0) setActiveThread(sessions[0].thread_id);
     else void newSession();
   }, [activeThread, sessions, sessionsLoading, newSession]);

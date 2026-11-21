@@ -2,6 +2,19 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.17] - 2026-11-22（对话主页秒开：恢复上次会话 + 新建用真线程 id）
+
+### 修复
+
+- **刷新后主对话停在「正在准备会话…」**：原先首屏不读上次会话，等 `/api/sessions`
+  回来才渲染；首请求若因鉴权未就绪失败，列表短暂为空还会把会话清掉。现在首屏
+  直接从 `localStorage.wo.thread` 恢复上次线程，列表只做校验不反写。
+- **「新对话」把临时 `__new_<timestamp>` 写成永久 thread_id**：每开一个新会话，
+  数据库里就多一条带内部前缀的线程，刷新时又被当成临时状态丢掉。改为
+  `crypto.randomUUID()`，后端首条消息沿用同一 id 建会话，刷新可恢复。
+- **对话 chunk 懒加载导致二次白屏**：应用启动即预取 ChatView chunk，恢复会话时
+  不再额外等一次 Suspense。
+
 ## [4.16.16] - 2026-11-22（财务域内置资产包：44 → 59 条）
 
 ### 新增

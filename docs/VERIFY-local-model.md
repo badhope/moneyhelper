@@ -419,3 +419,10 @@ Studio 货架新增两条只读 MCP，任何用户打开「市场」都能看到
 - 系统提示词页：月度财务复盘、大额消费决策清单、订阅与自动扣款审计已安装启用。
 - 插件（MCP）页：`已启用 2 / 13 台`，列表含 `aktools`、`china-stock`（默认停用）。
 - 复核命令：`PYTHONPATH=backend python3 -c "from app.studio import market; print(len(market.catalog()))"` → 59。
+
+## 对话主页秒开与真实线程 id（4.16.17，浏览器实测）
+
+- 刷新后首屏直接恢复 `localStorage.wo.thread`，实测约 0.3s 从「正在准备会话…」进入上次对话。
+- 点「新对话」→ 发送「你好，用一句话告诉我你能帮我做什么」→ 侧栏出现第 3 个会话，
+  `/api/sessions` 返回 `thread_id=18059145-094e-4e0e-ad4a-b4c25fd56f36`（UUID，不再带 `__new_` 前缀）。
+- 再刷新一次，首屏仍回到该会话，历史消息完整。
