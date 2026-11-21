@@ -89,6 +89,20 @@ async def main() -> int:
                 if resources:
                     rr = await session.read_resource(resources[0].uri)
                     rows.append({"case": "resources/read", "ok": bool(rr.contents), "detail": str(resources[0].uri)})
+
+        # 第二条传输：HTTP+SSE（旧客户端接的 /mcp-sse，保留一个版本期）
+        from mcp import ClientSession
+        from mcp.client.sse import sse_client
+
+        async with sse_client(f"http://127.0.0.1:{PORT}/mcp-sse/sse") as (sr, sw):
+            async with ClientSession(sr, sw) as sse_session:
+                await sse_session.initialize()
+                sse_tools = (await sse_session.list_tools()).tools
+                got = await sse_session.call_tool("get_watchlist", {})
+                text = "\n".join(getattr(c, "text", "") for c in got.content)
+                rows.append({"case": "SSE 传输 handshake+调用",
+                             "ok": len(sse_tools) == len(tools) and ("600519" in text or "自选" in text),
+                             "detail": f"{len(sse_tools)} 个工具"})
     finally:
         try:
             os.killpg(proc.pid, signal.SIGTERM)

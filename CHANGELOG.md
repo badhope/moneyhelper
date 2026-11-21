@@ -31,6 +31,15 @@
 - `scripts/probe_routes.py`：无参 GET 126 条 + 空体 POST 101 条，0 个 5xx。
 - `scripts/probe_security.py`：口令闸/MCP 闸/限流/登录防爆破/路径穿越 9/9。
 
+### 再补：SSE 传输修复 + 备份恢复闭环
+
+- **`/mcp-sse/sse` 此前不可用**：MCP 门卫用 `BaseHTTPMiddleware` 包长连接流，
+  服务端抛 `AssertionError: Unexpected message: http.response.start`、客户端收不到
+  任何 event。改为纯 ASGI 门卫（只判定、不碰 body）后，真 SSE 客户端握手成功、
+  82 工具可列、`get_watchlist` 可调。`scripts/probe_mcp.py` 扩到 10/10（加 SSE）。
+- `scripts/probe_backup_restore.py`：跨两个进程验"备份能还原"——错口令拒绝、
+  自选/流水/持仓/记忆/设置逐项比对、`ai_api_key` 确认不随备份回来，9/9。
+
 ## [4.16.9] - 2026-11-21（真模型逐工具验收：工具选择与裁剪修正）
 
 用本地 MiniCPM5-2B（llama.cpp，OpenAI 兼容端点，关闭思考链）把 40 个只读工具

@@ -149,7 +149,7 @@ PYTHONPATH=backend LLM_TOOL_LIMIT=6 ... python3 scripts/probe_tool_matrix.py --m
 
 三个探针都自己拉起 `uvicorn`、用隔离库，跑完 `SIGTERM` 收尾。
 
-### MCP 协议（`scripts/probe_mcp.py`）—— 9/9
+### MCP 协议（`scripts/probe_mcp.py`）—— 10/10
 
 真 MCP 客户端（`mcp.client.streamable_http`）握手 → `tools/list` → 调用 →
 prompt → resource：
@@ -162,6 +162,16 @@ prompt → resource：
 | add_to_watchlist → get_watchlist | 落库可见 |
 | 大额记账（20000 元，客户端不支持 elicitation） | fail-closed："已取消…账本未改动"，账本无 20000 |
 | prompts / resources | 3 + 3，均能列出与读取 |
+| **SSE 传输**（/mcp-sse/sse） | 82 个工具，`get_watchlist` 调用成功 |
+
+**这里挖出一个真 bug（已修）**：SSE 端点此前**完全不可用**——`_McpAuthGuard`
+用的是 `BaseHTTPMiddleware`，它会把响应重新组装成事件流，长连接 SSE 经它一转，
+服务端直接抛 `AssertionError: Unexpected message: http.response.start`，
+客户端只看到连接挂住、一个 event 都收不到（实测 8s 超时）。改成纯 ASGI 门卫
+（只做口令/来源判定，不碰 body）后，SSE 握手与调用恢复正常。
+遗留：客户端断开时日志里仍会出现一次该 Assertion（CORS/限流等
+`BaseHTTPMiddleware` 与流式响应断连的已知不兼容），不影响功能；彻底消除需把
+整条中间件链改纯 ASGI，已记入待办。
 
 ### REST 路由（`scripts/probe_routes.py`）—— 0 个 5xx
 
@@ -188,6 +198,19 @@ prompt → resource：
 | 登录防爆破 | 5 次/60s，第 6 次 429 |
 | 路径穿越（3 种写法） | 全 404，未吐出 `/etc/passwd` |
 
+## 备份 → 恢复闭环（`scripts/probe_backup_restore.py`）—— 9/9
+
+两阶段跨进程（避开"同进程换库无效"的坑）：先造 8 类数据并生成加密备份，
+再换全新库解密恢复，逐项比对。
+
+| 检查 | 结果 |
+|---|---|
+| 错口令 | 拒绝（不产出半份数据） |
+| 自选/流水/持仓/记忆 | 1 / 2 / 1 / 1 条，值与符号一致（支出仍为负） |
+| 设置 | `color_scheme=us` 还原 |
+| **`ai_api_key` 不随备份回来** | 恢复后为空（导出侧主动剥离） |
+| 恢复计数 | positions 1、transactions 2、paper_accounts 1、paper_trades 1、settings 25 |
+
 ## 覆盖矩阵（当前口径）
 
 | 面 | 状态 |
@@ -201,6 +224,8 @@ prompt → resource：
 | MCP 协议 | 9/9（82 工具） |
 | REST 无参 GET/POST | 126 + 101，0 个 5xx |
 | 安全面 | 9/9 |
+| 备份恢复闭环 | 9/9 |
+| MCP SSE 传输 | 10/10（含 SSE） |
 
 未覆盖（如实列出）：带路径参数的写路由逐条、14 个主页面/53 组件全态视觉、
 云端模型路径（无凭证）、ranked 40 题全量（2B+CPU 单题约 10 分钟）、

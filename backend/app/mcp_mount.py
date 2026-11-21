@@ -148,7 +148,7 @@ def mount_to_app(app: Any, holder: dict[str, Any] | None = None) -> None:
         holder = {"built": built}
     streamable = _DynamicMcp(holder)
 
-    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request
     from starlette.responses import JSONResponse
 
     # /mcp 走 app.mount 会绕过主 app 的 @app.middleware("http") 中间件链，
@@ -156,14 +156,32 @@ def mount_to_app(app: Any, holder: dict[str, Any] | None = None) -> None:
     # 白名单），否则就会出现"主站有防护、MCP 侧裸奔"的第二条信任边界。
     from .middleware import auth_gate, host_guard_check
 
-    class _McpAuthGuard(BaseHTTPMiddleware):
-        async def dispatch(self, request, call_next):
+    class _McpAuthGuard:
+        """纯 ASGI 的 MCP 门卫：过闸后把原始 scope 直接转发下去。
+
+        为什么不用 BaseHTTPMiddleware：它会把响应重新组装成事件流再吐出去，
+        而 SSE（`/mcp-sse/sse`）是长连接流式响应，经它一转就会在服务端抛
+        `AssertionError: Unexpected message: http.response.start`，客户端只看到
+        连接挂住（实测超时，收不到任何 event）。纯 ASGI 只做判定、不碰 body，
+        SSE 与 Streamable HTTP 都能原样流出去。
+        """
+
+        def __init__(self, app):
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            if scope["type"] != "http":
+                await self.app(scope, receive, send)
+                return
+            request = Request(scope)
             gate = await auth_gate(request)
             if isinstance(gate, JSONResponse):
-                return gate
+                await gate(scope, receive, send)
+                return
             denied = host_guard_check(request)
             if denied is not None:
-                return JSONResponse({"error": denied}, status_code=403)
+                await JSONResponse({"error": denied}, status_code=403)(scope, receive, send)
+                return
             # 租户接线：auth_gate 返回的 tenant_id 必须写进 ContextVar，
             # 否则 MCP 工具里的 db.* 全部落到默认租户 0——多用户实例里
             # 用户 B 拿自己的 JWT 调 MCP，读写的是用户 A 的账本（跨租户读写）。
@@ -171,7 +189,7 @@ def mount_to_app(app: Any, holder: dict[str, Any] | None = None) -> None:
 
             token = set_current_user_id(gate)
             try:
-                return await call_next(request)
+                await self.app(scope, receive, send)
             finally:
                 reset_current_user_id(token)
 
