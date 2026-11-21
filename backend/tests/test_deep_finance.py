@@ -449,6 +449,22 @@ def test_parse_invoice_text_fields() -> None:
     assert inv["confidence"] == "high"
 
 
+def test_parse_invoice_single_line_no_field_bleed() -> None:
+    """单行票面（OCR 常见）：代码/号码不能互相吞数字，购销方不能为空。"""
+    from app.import_parsers.invoice import parse_invoice_text
+
+    text = (
+        "发票代码 011002100311 发票号码 12345678 开票日期 2026-11-20 "
+        "价税合计 1060.00 元 购买方 某某科技有限公司 销售方 某某商贸有限公司"
+    )
+    inv = parse_invoice_text(text).to_dict()
+    assert inv["invoice_code"] == "011002100311"
+    assert inv["invoice_number"] == "12345678"
+    assert inv["total_amount"] == 1060.0
+    assert inv["buyer"] == "某某科技有限公司"
+    assert inv["seller"] == "某某商贸有限公司"
+
+
 def test_parse_invoice_missing_fields_low_confidence() -> None:
     from app.import_parsers.invoice import parse_invoice_text
 

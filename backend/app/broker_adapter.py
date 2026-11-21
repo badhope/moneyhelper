@@ -181,10 +181,15 @@ def guarded_submit(
     daily_used_amount: float = 0.0,
     portfolio_value: float = 0.0,
     position_value: float = 0.0,
+    preview_only: bool = False,
 ) -> dict[str, Any]:
     """唯一允许报单的入口：先过全部护栏，再调 adapter.submit()。
 
     返回 {ok, stage, message, result}；stage 标明在哪一步被拦下，便于前端解释。
+
+    ``preview_only=True`` 只给"预检取令牌"用：预检本身不下单，但要先生成
+    token 交给调用方；若预检也校验 token，dry_run=false 时会出现"要令牌
+    才能拿令牌"的死锁。预检只走 adapter.preview()，绝不进 submit()。
     """
     g = {**DEFAULT_GUARDRAILS, **(guardrails or {})}
 
@@ -225,17 +230,19 @@ def guarded_submit(
                 "result": None,
             }
 
-    if not g.get("dry_run"):
+    if not preview_only and not g.get("dry_run"):
         err = consume_confirmation(confirmation_token, req)
         if err:
             return {"ok": False, "stage": "confirmation", "message": err, "result": None}
 
-    if g.get("dry_run"):
+    if preview_only or g.get("dry_run"):
         result = adapter.preview(req)
         return {
             "ok": True,
-            "stage": "dry_run",
-            "message": "dry-run：未真实报单（trading.dry_run=true）",
+            "stage": "dry_run" if g.get("dry_run") else "preview",
+            "message": "dry-run：未真实报单（trading.dry_run=true）"
+            if g.get("dry_run")
+            else "preview：仅预检，未报单",
             "result": result.to_dict(),
         }
 

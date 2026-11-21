@@ -358,6 +358,39 @@ def test_confirmation_binds_order_content() -> None:
     assert "不一致" in out["message"]
 
 
+def test_preview_only_bypasses_token_without_submitting() -> None:
+    """预检要能签发 token：dry_run=false 时若预检也查 token，就永远拿不到 token。
+
+    同时预检绝不能走到 submit()（那样"预检"就真报单了），只走 adapter.preview。
+    """
+    g = {**ba.default_guardrails(), "trading_enabled": True, "broker": "paper", "dry_run": False}
+    adapter = ba.build_adapter("paper")
+    req = _req()
+
+    # 预检若误走 submit()，这里会直接炸
+    def _boom(_req):
+        raise AssertionError("preview_only 走了真实报单")
+
+    orig_submit = adapter.submit
+    adapter.submit = _boom  # type: ignore[method-assign]
+    try:
+        out = ba.guarded_submit(adapter=adapter, req=req, guardrails=g, preview_only=True)
+    finally:
+        adapter.submit = orig_submit  # type: ignore[method-assign]
+    assert out["ok"] is True
+    assert out["stage"] == "preview"  # 不是 dry_run，更不是 submitted
+
+    # 无 token 的真实报单依旧被拦
+    blocked = ba.guarded_submit(adapter=adapter, req=req, guardrails=g)
+    assert blocked["stage"] == "confirmation"
+
+    # 用预检后签发的 token 可以报单
+    ok = ba.guarded_submit(
+        adapter=adapter, req=req, guardrails=g, confirmation_token=ba.issue_confirmation(req).token
+    )
+    assert ok["stage"] == "submitted"
+
+
 def test_guardrail_broker_mismatch() -> None:
     g = {**ba.default_guardrails(), "trading_enabled": True, "broker": "xtquant"}
     out = ba.guarded_submit(adapter=ba.build_adapter("paper"), req=_req(), guardrails=g)

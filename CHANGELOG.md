@@ -2,6 +2,29 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.10] - 2026-11-21（写工具验收：副作用直连 + 两处补修）
+
+补上"写工具"这块此前没验的空白。写工具不在对话模型的工具集内（`ALLOWED_IMPL`
+只有 40 个只读工具），真实路径是 `tool_policy` 判 ASK → 确认 → 执行；所以
+改成直连 `TOOL_IMPL` 执行、再用 `db` / `connect` 反查落库结果，21 个用例全过。
+
+### 修复
+
+- 发票解析：单行票面（OCR 常见）里"发票代码…发票号码…开票日期…"会被
+  `[^\n]{1,80}` 连成一片，代码/号码（可到 20 位）互相吞数字、购销方取空。
+  改为抽值后按下一个已知字段标签截断，并补 `购买方`/`销售方` 无"名称"后缀别名。
+- 券商预检取令牌死锁：`dry_run=false` 时预检同样要求确认令牌，导致
+  "要 token 才能拿 token"，真实报单无法起步。`guarded_submit` 新增
+  `preview_only`：预检跳过令牌校验、只走 `adapter.preview()`（绝不进
+  `submit()`），护栏照跑，之后由路由签发 token。
+
+### 新增
+
+- `scripts/probe_write_effects.py`：19 个写工具 → 21 条用例（含令牌绑定/缺失两条负例），
+  断言落到表：watchlist/transactions/positions/user_memory/settings/paper_trades/
+  conditional_orders/connect_intents/connect_connections/invoices，备份验"密文无明文 + 口令可解回"。
+- 单测：单行发票字段不串、预检不报单且无 token 仍被拦。
+
 ## [4.16.9] - 2026-11-21（真模型逐工具验收：工具选择与裁剪修正）
 
 用本地 MiniCPM5-2B（llama.cpp，OpenAI 兼容端点，关闭思考链）把 40 个只读工具

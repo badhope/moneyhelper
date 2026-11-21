@@ -36,7 +36,27 @@ _FIELD_ALIASES: tuple[tuple[str, str], ...] = (
     ("销售方名称", "seller"),
     ("项目名称", "item"),
     ("校验码", "checksum"),
+    # 票面也常只印「购买方」「销售方」，没有「名称」后缀；放最后，让更具体的标签先命中
+    ("购买方", "buyer"),
+    ("销售方", "seller"),
 )
+
+
+def _cut_at_next_label(raw: str, label: str) -> str:
+    """截到下一个字段标签为止。
+
+    单行票面（OCR 结果常把整张票压成一行）里，`发票代码 011... 发票号码 123...`
+    会被 ``[^\\n]{1,80}`` 一口气吃成 "011...12345678..."，导致代码/号码互相污染。
+    这里按已知标签做右边界，缺失时才退回原值。
+    """
+    end = len(raw)
+    for other, _attr in _FIELD_ALIASES:
+        if other == label:
+            continue
+        pos = raw.find(other)
+        if 0 < pos < end:
+            end = pos
+    return raw[:end].strip()
 
 _AMOUNT_RE = re.compile(r"[¥￥]?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)")
 _DATE_RE = re.compile(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日")
@@ -128,7 +148,7 @@ def parse_invoice_text(text: str, source_format: str = "text") -> Invoice:
         m = re.search(rf"{label}\s*[:：]?\s*([^\n]{{1,80}})", compact)
         if not m:
             continue
-        raw = m.group(1).strip()
+        raw = _cut_at_next_label(m.group(1).strip(), label)
         if attr in ("total_amount", "tax_amount"):
             value = _norm_amount(raw)
             if value is not None:

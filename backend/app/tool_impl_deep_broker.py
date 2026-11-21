@@ -56,6 +56,7 @@ async def tool_broker_preview_order(args: dict[str, Any]) -> str:
         guardrails=g,
         portfolio_value=total,
         position_value=position_value,
+        preview_only=True,
     )
     if out["ok"] and not g["dry_run"]:
         conf = broker_adapter.issue_confirmation(req, int(g["confirmation_ttl_seconds"]))

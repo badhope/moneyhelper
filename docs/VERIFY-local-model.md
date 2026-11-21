@@ -92,3 +92,55 @@ PYTHONPATH=backend LLM_TOOL_LIMIT=6 ... python3 scripts/probe_tool_matrix.py --m
 `get_kline` 返回 60 个点，数据回填后下一轮 prefill 变长，单题实测 925s。
 这是 2B + CPU 的硬件边界，不是逻辑缺陷；本地部署建议 `LLM_TOOL_LIMIT=6`、
 工具轮次上限压到 3。
+
+## 写工具验收：21/21（不经模型，直连实现 + 查库）
+
+写工具**不在** agent 的 `ALLOWED_IMPL` 里（对话模型只拿 40 个只读工具），
+真实路径是 `tool_policy` 判 ASK → 前端确认 → 执行。所以"让模型逐个调写工具"
+既不符合设计，也测不出真正的风险：写工具的风险是"回话说成功了，库里没变"。
+
+改为 `scripts/probe_write_effects.py` 直连 `tool_registry.TOOL_IMPL`，每个用例
+先执行、再用 `db` / `connect` 反查落库结果：
+
+    rm -rf .tmp/wdata && rm -f .tmp/write_effects.db*
+    PYTHONPATH=backend \
+      MONEYHELPER_DB_PATH=$PWD/.tmp/write_effects.db \
+      MONEYHELPER_DATA_DIR=$PWD/.tmp/wdata \
+      MONEYHELPER_TRADING_ENABLED=1 MONEYHELPER_TRADING_DRY_RUN=0 \
+      python3 scripts/probe_write_effects.py
+
+| 组 | 用例 | 断言 |
+|---|---|---|
+| 自选 | 加/删 600519 | 表里出现、再消失 |
+| 记账 | "午饭 35 元微信" | 流水落库、金额 -35（支出负数） |
+| 持仓 | 记买入 100 → 卖 50 | 份额 100 → 50 |
+| 记忆 | "明年买房首付 30 万" | `user_memory` 含"买房" |
+| 设置 | 涨跌色改 us | `settings.color_scheme=us` |
+| 模拟盘 | 开户 + 买 100 股 | 账户与成交都在（整手 100 股校验生效） |
+| 备份 | 生成加密包 | 文件落在 `BACKUP_DIR`、密文无明文标的、口令能解回持仓 |
+| 券商 | 预检 → 无令牌 / 持令牌 / 换标的 | 预检签 token；无 token 与换标的都被拦在 `confirmation` |
+| 条件单 | 1600 触发卖 | `conditional_orders` 出现 watching 行 |
+| 连接 | 意图 + 东财行情连接 | `connect_intents` / `connect_connections` 落库 |
+| 导入 | 券商 CSV `apply=true` | 持仓出现 000001 |
+| 发票 | 单行票面文本 | 归档成功且字段不串 |
+| 分类 | 4 条账单 | 返回带分类，不写库 |
+| 晨报 | 空库生成 | 有内容 |
+
+结果：**21/21 通过**（单次约 6 秒，备份 PBKDF2 600k 迭代约 1.6 秒）。
+
+### 这轮挖出的两个真 bug（已修）
+
+1. **单行发票字段互相污染**：OCR 常把整张票压成一行，`发票代码 011002100311 发票号码 12345678` 会被
+   `[^\n]{1,80}` 一口气吃成 20 位，代码/号码互相吞数字；购销方也取不到。
+   修法：抽值后按下一个已知字段标签截断（`_cut_at_next_label`），并补
+   `购买方` / `销售方` 无"名称"后缀的别名；补单行票面单测。
+2. **预检取令牌死锁**：`dry_run=false` 时预检也走 `guarded_submit` 的令牌校验，
+   于是"要 token 才能拿 token"，真实报单永远迈不出第一步。修法：`guarded_submit`
+   新增 `preview_only`，预检跳过令牌校验且只调 `adapter.preview()`（绝不进
+   `submit()`），护栏仍然全跑；补单测断言"预检不报单 + 无 token 仍拦 + 持 token 可报"。
+
+### 顺带确认的边界（不是 bug）
+
+- 支出按负数入库（`-35`），报表与预算都按符号计算；验收断言取绝对值。
+- 备份目录跟 `MONEYHELPER_DATA_DIR` 走，不跟 `MONEYHELPER_DB_PATH` 走：
+  只改库路径时备份仍落 `backend/data/backups`，跑隔离验收要同时设数据目录。
