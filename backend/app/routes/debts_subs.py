@@ -34,6 +34,13 @@ async def remove_debt(name: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
+@router.get("/api/subscriptions")
+async def subscriptions_list() -> dict:
+    """订阅列表（供前端总览页卡片使用）。"""
+    items = await db.list_subscriptions()
+    return {"subscriptions": items}
+
+
 @router.post("/api/subscriptions")
 async def create_subscription(payload: dict) -> dict:
     return await crud.create_entity(

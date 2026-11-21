@@ -98,8 +98,3 @@ async def search(q: str, limit: int = 8) -> dict:
     return {"items": _parse_suggest(body, limit)}
 
 
-@router.get("/api/subscriptions")
-async def subscriptions_list() -> dict:
-    """订阅列表（供前端总览页卡片使用）。"""
-    items = await db.list_subscriptions()
-    return {"subscriptions": items}
