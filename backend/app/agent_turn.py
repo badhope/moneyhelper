@@ -14,6 +14,13 @@ from .agent_stream import Emit
 from .agent_studio import studio_post_answer
 
 
+def _wrapup_budget() -> float:
+    """收尾成文预算：跟着 LLM_TIMEOUT 缩放，夹在 [20, 90] 秒。"""
+    from .llm_client import llm_timeout
+
+    return max(20.0, min(90.0, llm_timeout() / 3))
+
+
 class RepeatGuard:
     """同工具 + 同参数连续重复守卫：返回该调用的连续次数，达上限即叫停。"""
 
@@ -83,15 +90,18 @@ async def wrap_up_answer(
             "如果信息不足，就说明缺少什么。",
         },
     ]
-    # 收尾预算刻意收紧（20s）：此时用户已等了几十秒，再挂 2 分钟不如立刻给确定性模板。
+    # 收尾预算：云端 60s 超时下仍是 20s（用户已经等了一会儿，再挂两分钟不如
+    # 立刻给确定性模板）；本机慢模型把 LLM_TIMEOUT 调到 240s，20s 根本不够生成
+    # 一段收尾话，实测直接变成"模型未产出回答"。所以按总超时的 1/3 缩放。
+    budget = _wrapup_budget()
     from . import agent as _facade  # 同上：门面取，保证测试替换生效
 
     try:
         final = await asyncio.wait_for(
             _facade._stream_final_answer(  # noqa: SLF001
-                client, cfg, wrap_up, None, emit, timeout=20.0
+                client, cfg, wrap_up, None, emit, timeout=budget
             ),
-            timeout=25.0,
+            timeout=budget + 5.0,
         )
     except (Exception, asyncio.TimeoutError):  # noqa: BLE001 — 收尾失败走调用方降级
         final = ""

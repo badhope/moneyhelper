@@ -52,8 +52,6 @@ from .tools_enterprise import (  # noqa: F401
 
 # 行情/自选/持仓已拆到 tools_market；re-export 含进程内写锁（routes/ledger 直接引用）。
 from .tools_market import (  # noqa: F401
-    _SEARCH_HEADERS,
-    _SEARCH_URL,
     _position_write_lock,
     tool_add_watchlist,
     tool_get_quote,

@@ -41,7 +41,7 @@ ALIASES: dict[str, tuple[str, ...]] = {
     "get_lessons": ("踩坑", "教训", "经验库"),
     "get_health_check": ("体检", "健康状况", "全面看看"),
     "search_symbol": ("代码", "叫什么", "哪只"),
-    "get_quote": ("多少钱一股", "现价", "股价", "涨了吗"),
+    "get_quote": ("多少钱一股", "现价", "股价", "涨了吗", "price", "报价", "行情怎样"),
     "get_watchlist": ("自选", "关注的票"),
     "get_portfolio_risk": ("波动", "回撤", "夏普", "跑赢大盘"),
     "get_rebalance_plan": ("调仓", "再平衡", "加减仓"),

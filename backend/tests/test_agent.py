@@ -282,7 +282,8 @@ async def test_agent_loop_cap(temp_db, monkeypatch):
     llm._cfg = {"base": "http://mock.invalid/v1", "key": "sk-test", "model": "gpt-4o-mini", "provider": "openai", "litellm_model": "openai/gpt-4o-mini"}
     with pytest.raises(agent.AgentUnavailable):
         await agent.run_agent("我的持仓怎么样", lambda e: _noop())
-    assert n["turns"] <= agent.MAX_TURNS + 1
+    # 上限 = 工具轮次 + 收尾成文 + 流式空时的非流式兜底（多一次请求）
+    assert n["turns"] <= agent.MAX_TURNS + 2
 
 
 async def test_agent_survives_unknown_tool(temp_db, monkeypatch):

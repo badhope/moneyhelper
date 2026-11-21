@@ -72,45 +72,17 @@ async def get_quote(symbol: str) -> dict:
 
 
 async def _fetch_suggest(kw: str) -> dict:
-    """向东财 suggest 拉原始响应。单独抽出便于测试替换（也便于以后换源）。"""
-    import os
+    """向东财 suggest 拉原始响应。保留这层壳：测试用它替换网络请求。"""
+    from ..connect.search_suggest import fetch_suggest
 
-    import httpx
-
-    token = os.getenv("EASTMONEY_SEARCH_TOKEN", "D43BF722C8E33BDC906FB84D85E326E8")
-    params = {"input": kw, "type": "14", "token": token}
-    headers = {
-        "User-Agent": "Mozilla/5.0 (moneyhelper)",
-        "Referer": "https://quote.eastmoney.com/",
-    }
-    async with httpx.AsyncClient(timeout=4.0) as client:
-        resp = await client.get(
-            "https://searchapi.eastmoney.com/api/suggest/get",
-            params=params,
-            headers=headers,
-        )
-        resp.raise_for_status()
-        return resp.json() or {}
+    return await fetch_suggest(kw)
 
 
 def _parse_suggest(body: dict, limit: int) -> list[dict]:
-    """解析 suggest 响应。
+    """解析 suggest 响应（实现与 Agent 工具共用，避免两处口径漂移）。"""
+    from ..connect.search_suggest import parse_suggest
 
-    真实返回是顶层 {"QuotationCodeTable": {...}}；早期代码按 {"data": {...}} 取值，
-    导致搜索永远返回空列表。这里两种形态都接受。
-    """
-    table = body.get("QuotationCodeTable") or (body.get("data") or {}).get("QuotationCodeTable") or {}
-    rows = table.get("Data") or []
-    out: list[dict] = []
-    for r in rows[: max(1, min(limit, 20))]:
-        code = str(r.get("Code") or "").strip()
-        name = str(r.get("Name") or "").strip()
-        if not code or not name:
-            continue
-        stype = str(r.get("SecurityTypeName") or "")
-        kind = "基金" if "基金" in stype else ("指数" if "指" in stype else "股票")
-        out.append({"symbol": code, "name": name, "kind": kind})
-    return out
+    return parse_suggest(body, limit)
 
 
 @router.get("/api/search")

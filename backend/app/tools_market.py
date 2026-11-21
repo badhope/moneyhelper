@@ -7,51 +7,37 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
-
-import httpx
 
 from . import db
 from .provenance import record_provenance
 from .quotes import quote_now
-
-_SEARCH_URL = "https://searchapi.eastmoney.com/api/suggest/get"
-_SEARCH_HEADERS = {"User-Agent": "Mozilla/5.0 (moneyhelper)", "Referer": "https://quote.eastmoney.com/"}
 
 # 进程内持仓写锁：防止 tool_sell_position / tool_append_position 的 read-then-write 竞态
 _position_write_lock = asyncio.Lock()
 
 
 async def tool_search_symbol(args: dict[str, Any]) -> str:
-    """搜 A股/基金/指数（东财 suggest）；网络失败返回明确提示。"""
+    """搜 A股/基金/指数（东财 suggest）；网络失败返回明确提示。
+
+    解析与 `/api/search` 共用 `connect.search_suggest`：两边各写一份的后果是
+    "网页能搜到、对话里说没找到"——路由那份修过，工具这份漏了。
+    """
+    from .connect.search_suggest import fetch_suggest, parse_suggest
+
     kw = str(args.get("query") or "").strip()
     if not kw:
         return "需要提供搜索关键词，例如「茅台」「600519」"
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            resp = await client.get(
-                _SEARCH_URL,
-                params={"input": kw, "type": "14", "token": os.getenv("EASTMONEY_SEARCH_TOKEN", "D43BF722C8E33BDC906FB84D85E326E8")},
-                headers=_SEARCH_HEADERS,
-            )
-            resp.raise_for_status()
-            data = (resp.json() or {}).get("data") or {}
-        rows = ((data.get("QuotationCodeTable") or {}).get("Data") or [])[:8]
+        body = await fetch_suggest(kw)
     except Exception:  # noqa: BLE001 — 搜索失败给可读提示
         return "搜索服务暂时不可用（网络或行情源问题），请稍后再试"
-    lines = []
-    for r in rows:
-        code = str(r.get("Code") or "").strip()
-        name = str(r.get("Name") or "").strip()
-        if not code or not name:
-            continue
-        stype = str(r.get("SecurityTypeName") or "")
-        kind = "基金" if "基金" in stype else ("指数" if "指" in stype else "股票")
-        lines.append(f"{name}（{code}，{kind}）")
-    if not lines:
+    hits = parse_suggest(body, 8)
+    if not hits:
         return f"没有找到「{kw}」，试试完整代码或名称"
-    return "搜索结果：\n" + "\n".join(lines)
+    return "搜索结果：\n" + "\n".join(f"{h['name']}（{h['symbol']}，{h['kind']}）" for h in hits)
+
+
 async def tool_get_quote(args: dict[str, Any]) -> str:
     """单只标的实时行情（东财优先、新浪备源）。"""
     symbol = str(args.get("symbol") or "").strip().upper()

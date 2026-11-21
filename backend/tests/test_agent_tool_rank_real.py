@@ -36,6 +36,7 @@ CASES = [
     ("有多少报销还在等审批？", "get_expense_queue"),
     ("公司有哪些部门，多少人？", "get_org_overview"),
     ("我那些长任务跑到哪一步了？", "list_longtasks"),
+    ("600519 现在 price 多少？", "get_quote"),
 ]
 
 
