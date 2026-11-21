@@ -151,6 +151,10 @@ def test_market_catalog_has_research_and_mcp() -> None:
     assert len([i for i in items if i["kind"] == "mcp"]) >= 5
     research = [i for i in items if i["category"].startswith("科研")]
     assert len(research) >= 8
+    finance = [i for i in items if i["category"].startswith("财务")]
+    assert len(finance) >= 12
+    assert any(i["id"] == "skill-zero-budget" for i in finance)
+    assert any(i["id"] == "role-family-cfo" for i in finance)
 
 
 async def test_install_market_item(temp_db) -> None:

@@ -1,7 +1,7 @@
 {
   "name": "moneyhelper-frontend",
   "private": true,
-  "version": "4.16.15",
+  "version": "4.16.16",
   "type": "module",
   "scripts": {
     "dev": "vite",

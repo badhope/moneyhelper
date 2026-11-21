@@ -96,5 +96,6 @@ from .installer_market import (  # noqa: F401,E402 — 对外同名导出
 from .installer_seed import (  # noqa: F401,E402
     repair_mcp_config,
     seed_default_bundle,
+    seed_domain_pack,
 )
 from .installer_templates import template_for  # noqa: F401,E402

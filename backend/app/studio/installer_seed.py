@@ -69,6 +69,64 @@ async def seed_default_bundle() -> dict[str, Any]:
     return {"seeded": True, "assets": saved, "mcp_configured": mcp_names}
 
 
+async def seed_domain_pack() -> dict[str, Any]:
+    """补装「财务域内置包」：老库已过首次预装，仍要一次性补齐领域条目。
+
+    只装一次（domain_finance 标记），之后用户删掉/关掉不会被重启复活。
+    只处理 category 以「财务」开头的非 MCP 条目，不动科研资产。
+    """
+    cfg = await store.get_config()
+    marketplace = cfg.setdefault("marketplace", {"installed": {}})
+    if marketplace.get("domain_finance_seeded"):
+        return {"seeded": False, "reason": "already"}
+    installed = marketplace.setdefault("installed", {})
+    saved = 0
+    finance_mcp = {"mcp-aktools", "mcp-china-stock"}
+    mcp_added: list[str] = []
+    for item in market.catalog():
+        if item["kind"] == "mcp":
+            if item["id"] not in finance_mcp or item["id"] in installed:
+                continue
+            server = dict(item.get("server") or {})
+            name = str(server.get("name") or "")
+            raw = mcp_client.raw_servers()
+            if name and not any(e.get("name") == name for e in raw):
+                raw.append({**server, "enabled": False})
+                try:
+                    mcp_client.save_servers(raw)
+                    mcp_added.append(name)
+                except ValueError as exc:
+                    log.warning("studio.seed finance mcp failed (%s): %s", item["id"], exc)
+                    continue
+            installed[item["id"]] = {
+                "kind": "mcp",
+                "installed_at": store.now_iso(),
+                "enabled": False,
+            }
+            continue
+        if item["id"] in installed:
+            continue
+        if not str(item.get("category") or "").startswith("财务"):
+            continue
+        try:
+            asset = dict(item.get("asset") or {})
+            asset.setdefault("enabled", True)
+            asset.setdefault("builtin", False)
+            await store.upsert_asset(item["kind"], item["id"], asset)
+            installed[item["id"]] = {
+                "kind": item["kind"],
+                "installed_at": store.now_iso(),
+                "enabled": True,
+            }
+            saved += 1
+        except Exception as exc:  # noqa: BLE001
+            log.warning("studio.seed finance failed (%s): %s", item["id"], exc)
+    marketplace["domain_finance_seeded"] = True
+    await store.mutate_config(lambda c: c.update({"marketplace": marketplace}))
+    log.info("studio.seed_domain_pack assets=%s mcp=%s", saved, mcp_added)
+    return {"seeded": True, "assets": saved, "mcp": mcp_added}
+
+
 async def repair_mcp_config() -> dict[str, Any]:
     """修复 MCP 配置漂移：已安装过的市场条目若从 mcp.json 里消失，重新补回。
 

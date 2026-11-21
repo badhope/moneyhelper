@@ -119,6 +119,9 @@ async def lifespan(app_ref: FastAPI):
 
     try:
         await studio_installer.seed_default_bundle()
+        domain = await studio_installer.seed_domain_pack()
+        if domain.get("assets"):
+            log.info("studio.domain_pack assets=%s", domain["assets"])
         # 修复 MCP 配置漂移（mcp.json 在 data/ 下，与 DB 里的 seeded 标记不同生命周期）
         repaired = await studio_installer.repair_mcp_config()
         if repaired.get("repaired"):
