@@ -2,6 +2,25 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.15] - 2026-11-22（内置模型端点 + 一键拉取模型下拉）
+
+### 新增
+
+- **内置聚合模型端点**：目录默认带 `https://api.qs.al/v1`，含
+  `glm-5.3-flash` / `deepseek-v4.1-flash` / `glm-5.3` / `kimi-k3`，默认点亮最省的
+  GLM-5.3 Flash；OpenAI / Anthropic / Gemini 从目录移除（国内直连更稳）。
+- **`POST /api/models/probe`**：按 base+key 现场拉 `/models`，设置页新增
+  「拉取可用模型」按钮与下拉，拉到后自动选最省的一档；不回显 key、不落日志。
+- **Studio 内置 MCP**：`mcp-aktools`（AKShare 财经数据）、`mcp-china-stock`
+  （A 股/港股/基金研究，只读、不下单）。
+
+### 修复
+
+- **未设 `VAULT_PASSPHRASE` 时 API Key 存不进去**：启动时自动生成并持久化
+  数据目录下的 `.vault_key`（0600），仍不降级明文；显式环境变量优先。
+- **点「启用 AI 回答」会清空刚输入的 API Key**：该开关走即时保存会刷新整表表单，
+  未保存输入被重置。改为只写 `ai_enabled`、不刷新表单。
+
 ## [4.16.14] - 2026-11-22（写路由真实实参验收）
 
 ### 新增

@@ -1,40 +1,45 @@
-"""模型目录：设置页展示的精选清单与默认点亮项（纯数据，无外部依赖）。"""
+"""模型目录：设置页展示的精选清单与默认点亮项（纯数据，无外部依赖）。
+
+只保留国内可直连的 OpenAI 兼容聚合端点：国外平台（OpenAI / Anthropic /
+Gemini）已从目录移除——用户在国内，跨境外网端点既慢又常被风控拦截。
+"""
 
 from __future__ import annotations
 
+# 内置聚合端点：一个 base + 一个 key 就能列出全部可用模型
+QSAI_BASE = "https://api.qs.al/v1"
+
 
 def model_catalog() -> list[dict[str, str]]:
-    """返回模型目录（LiteLLM 支持的模型清单的精选子集）。
-    含 OpenAI / Anthropic / DeepSeek / Google / 通义 五大供应商。
-    """
+    """返回模型目录（OpenAI 兼容端点精选子集）。"""
     return [
         {
-            "id": "gpt-4o-mini",
-            "name": "GPT-4o mini",
-            "provider": "OpenAI",
-            "base": "https://api.openai.com/v1",
-            "model": "gpt-4o-mini",
+            "id": "glm-5.3-flash",
+            "name": "GLM-5.3 Flash（内置·最省）",
+            "provider": "QSAI 内置",
+            "base": QSAI_BASE,
+            "model": "glm-5.3-flash",
         },
         {
-            "id": "gpt-4o",
-            "name": "GPT-4o",
-            "provider": "OpenAI",
-            "base": "https://api.openai.com/v1",
-            "model": "gpt-4o",
+            "id": "deepseek-v4.1-flash",
+            "name": "DeepSeek V4.1 Flash（内置）",
+            "provider": "QSAI 内置",
+            "base": QSAI_BASE,
+            "model": "deepseek-v4.1-flash",
         },
         {
-            "id": "claude-3-5-sonnet-latest",
-            "name": "Claude 3.5 Sonnet",
-            "provider": "Anthropic",
-            "base": "https://api.anthropic.com/v1",
-            "model": "claude-3-5-sonnet-latest",
+            "id": "kimi-k3",
+            "name": "Kimi K3（内置）",
+            "provider": "QSAI 内置",
+            "base": QSAI_BASE,
+            "model": "kimi-k3",
         },
         {
-            "id": "claude-3-5-haiku-latest",
-            "name": "Claude 3.5 Haiku（快速廉价）",
-            "provider": "Anthropic",
-            "base": "https://api.anthropic.com/v1",
-            "model": "claude-3-5-haiku-latest",
+            "id": "glm-5.3",
+            "name": "GLM-5.3（内置·旗舰）",
+            "provider": "QSAI 内置",
+            "base": QSAI_BASE,
+            "model": "glm-5.3",
         },
         {
             "id": "deepseek-chat",
@@ -49,13 +54,6 @@ def model_catalog() -> list[dict[str, str]]:
             "provider": "DeepSeek",
             "base": "https://api.deepseek.com/v1",
             "model": "deepseek-reasoner",
-        },
-        {
-            "id": "gemini-2.0-flash",
-            "name": "Gemini 2.0 Flash",
-            "provider": "Google",
-            "base": "https://generativelanguage.googleapis.com/v1beta/openai",
-            "model": "gemini-2.0-flash",
         },
         {
             "id": "qwen-plus",
@@ -73,11 +71,13 @@ def model_catalog() -> list[dict[str, str]]:
         },
     ]
 
-def default_enabled_models() -> list[str]:
-    """默认点亮模型清单。"""
-    return ["gpt-4o-mini", "deepseek-chat"]
 
-# LiteLLM 的 provider/model 前缀映射（通义/豆包走 openai 兼容端点）
+def default_enabled_models() -> list[str]:
+    """默认点亮模型清单：内置最省的一档，开箱即用不烧钱。"""
+    return ["glm-5.3-flash", "deepseek-v4.1-flash"]
+
+
+# LiteLLM 的 provider/model 前缀映射（通义/豆包/聚合端点走 openai 兼容通道）
 _PROVIDER_PREFIX: dict[str, str] = {
     "openai": "openai",
     "deepseek": "deepseek",
@@ -85,5 +85,5 @@ _PROVIDER_PREFIX: dict[str, str] = {
     "gemini": "gemini",
     "qwen": "openai",  # 通义千问 OpenAI 兼容 → 用 openai provider + 自定义 base_url
     "doubao": "openai",  # 豆包 OpenAI 兼容 → 用 openai provider + 自定义 base_url
+    "qsai": "openai",  # 内置聚合端点 OpenAI 兼容
 }
-

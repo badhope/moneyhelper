@@ -31,6 +31,10 @@ export function AiSection({
 }) {
   const { t } = useI18n();
   const [providerSel, setProviderSel] = useState<ProviderKey>("custom");
+  // 现场拉取：base+key 打 /models，返回什么就让人从下拉里挑，不再靠手打模型名
+  const [remoteModels, setRemoteModels] = useState<{ id: string; owned_by: string }[]>([]);
+  const [probing, setProbing] = useState(false);
+  const [probeErr, setProbeErr] = useState("");
   const catalog = modelCatalog ?? [];
   // 本地勾选状态：点亮/禁用候选模型（不立即保存，点「保存 AI 配置」时统一写入）
   const [enabledSet, setEnabledSet] = useState<Set<string>>(
@@ -73,7 +77,20 @@ export function AiSection({
     >
       <div className="space-y-3">
         <Row label={t("settings.aiEnable")} hint={t("settings.aiEnableHint")}>
-          <Switch checked={form.ai_enabled === "on"} onChange={() => onToggle("ai_enabled")} label={t("settings.aiEnable")} />
+          <Switch
+            checked={form.ai_enabled === "on"}
+            onChange={() => {
+              // 不走 onToggle：那个走 refreshBootstrap 会把刚粘进来的 API Key 冲掉
+              // （实测 bug：填完 key 再点启用，key 输入框直接空掉，保存时静默丢 key）
+              const v = form.ai_enabled === "on" ? "off" : "on";
+              onField("ai_enabled", v);
+              void api("/api/settings", {
+                method: "PUT",
+                body: JSON.stringify({ settings: { ai_enabled: v } }),
+              });
+            }}
+            label={t("settings.aiEnable")}
+          />
         </Row>
         <Row label={t("settings.aiProvider")} hint={t("settings.aiProviderHint")}>
           <Segmented
@@ -87,12 +104,10 @@ export function AiSection({
               }
             }}
             options={[
+              { value: "qs", label: "内置模型" },
               { value: "deepseek", label: "DeepSeek" },
               { value: "doubao", label: "豆包" },
               { value: "qwen", label: "通义" },
-              { value: "openai", label: "OpenAI" },
-              { value: "gemini", label: "Gemini" },
-              { value: "claude", label: "Claude" },
               { value: "custom", label: t("settings.aiCustom") },
             ]}
           />
@@ -129,6 +144,70 @@ export function AiSection({
             placeholder={t("settings.aiModelPh")}
             spellCheck={false}
           />
+        </div>
+        <div className="rounded-lg border border-input/70 p-2.5 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">连上端点后拉一次可用模型，直接从下拉里挑</span>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={probing}
+              onClick={async () => {
+                setProbing(true);
+                setProbeErr("");
+                try {
+                  const r = await api<{ ok: boolean; count?: number; models?: { id: string; owned_by: string }[]; error?: string }>(
+                    "/api/models/probe",
+                    {
+                      method: "POST",
+                      body: JSON.stringify({
+                        base_url: (form.ai_base_url ?? "").trim(),
+                        api_key: form.ai_api_key === "********" ? "" : (form.ai_api_key ?? "").trim(),
+                      }),
+                    },
+                  );
+                  if (!r.ok) {
+                    setRemoteModels([]);
+                    setProbeErr(r.error || "拉取失败");
+                  } else {
+                    setRemoteModels(r.models ?? []);
+                    const list = r.models ?? [];
+                    // 便宜的优先：GLM Flash 单价最低，其次任何 flash，最后才取第一个
+                    const cheap =
+                      list.find((m) => /glm.*flash/i.test(m.id)) ??
+                      list.find((m) => /flash/i.test(m.id)) ??
+                      list[0];
+                    if (cheap) onField("ai_model", cheap.id);
+                  }
+                } catch (e) {
+                  setProbeErr(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setProbing(false);
+                }
+              }}
+            >
+              {probing ? "拉取中…" : "拉取可用模型"}
+            </Button>
+          </div>
+          {remoteModels.length > 0 && (
+            <select
+              className={inputCls}
+              value={form.ai_model ?? ""}
+              onChange={(e) => onField("ai_model", e.target.value)}
+              aria-label="选择模型"
+            >
+              {remoteModels.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.id}{m.owned_by ? `（${m.owned_by}）` : ""}
+                </option>
+              ))}
+            </select>
+          )}
+          {remoteModels.length > 0 && (
+            <div className="text-xs text-muted-foreground">拉到 {remoteModels.length} 个模型，已默认选中最省的一档（flash）</div>
+          )}
+          {probeErr && <div className="text-xs text-destructive">{probeErr}</div>}
         </div>
         {catalog.length > 0 && (
           <div className="pt-2 border-t border-border/60">

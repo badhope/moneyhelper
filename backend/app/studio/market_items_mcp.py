@@ -27,6 +27,32 @@ ITEMS: tuple[dict[str, Any], ...] = (
     },
 
     {
+        "id": "mcp-aktools",
+        "aliases": ["akshare", "财经", "A股", "行情", "aktools"],
+        "name": "AKTools（AKShare 财经数据）",
+        "kind": "mcp",
+        "category": "MCP",
+        "source": "AKShare 官方",
+        "url": "https://akshare.akfamily.xyz/index.html",
+        "stars": 12000,
+        "description": "把 AKShare 近千个财经接口包成 MCP：A股/基金/期货/宏观都能用中文自然语言取数，只读不改账。",
+        "server": {"name": "aktools", "command": "uvx", "args": ["--from", "aktools", "aktools-mcp"]},
+    },
+
+    {
+        "id": "mcp-china-stock",
+        "aliases": ["股票研究", "A股", "港股", "基金", "多因子"],
+        "name": "China A-Stock MCP（A股研究）",
+        "kind": "mcp",
+        "category": "MCP",
+        "source": "PyPI",
+        "url": "https://pypi.org/project/china-a-stock-mcp/",
+        "stars": 300,
+        "description": "标的搜索、行情快照、K线技术指标、基本面财务、资金流向与基金数据；明确不下单、不荐股。",
+        "server": {"name": "china-stock", "command": "uvx", "args": ["china-a-stock-mcp"]},
+    },
+
+    {
         "id": "mcp-filesystem",
         "aliases": ["文件", "文件系统", "filesystem", "目录"],
         "name": "Filesystem MCP（只读文件）",

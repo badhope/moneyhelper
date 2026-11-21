@@ -131,9 +131,9 @@ async def test_model_catalog_and_defaults() -> None:
 
 async def test_enabled_models_validation(_temp_db) -> None:
     """put_settings 只收目录内合法模型；非法项报错不写入。"""
-    r = await put_settings({"settings": {"enabled_models": "deepseek-chat,gpt-4o-mini"}})
+    r = await put_settings({"settings": {"enabled_models": "glm-5.3-flash,deepseek-v4.1-flash"}})
     assert not r["errors"], r["errors"]
-    assert r["applied"]["enabled_models"] == "deepseek-chat,gpt-4o-mini"
+    assert r["applied"]["enabled_models"] == "glm-5.3-flash,deepseek-v4.1-flash"
 
     r2 = await put_settings({"settings": {"enabled_models": "not-a-model"}})
     assert any("没有可用的模型" in e for e in r2["errors"])

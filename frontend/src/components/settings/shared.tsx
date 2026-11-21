@@ -5,12 +5,11 @@ export { inputCls, labelCls } from "@/components/ui/field";
 
 /** 供应商预设（与后端 app/llm.py PROVIDERS 一致）：快捷选择自动填入 base/model，可手动改 */
 export const PRESET_PROVIDERS = {
+  // 内置聚合端点：一个 key 拉全部模型，国内直连
+  qs: { base: "https://api.qs.al/v1", model: "glm-5.3-flash" },
   deepseek: { base: "https://api.deepseek.com/v1", model: "deepseek-chat" },
   doubao: { base: "https://ark.cn-beijing.volces.com/api/v3", model: "" },
   qwen: { base: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
-  openai: { base: "https://api.openai.com/v1", model: "gpt-4o-mini" },
-  gemini: { base: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash" },
-  claude: { base: "https://api.anthropic.com/v1", model: "claude-3-5-sonnet-latest" },
 } as const;
 export type ProviderKey = keyof typeof PRESET_PROVIDERS | "custom";
 

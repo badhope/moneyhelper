@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter
+import httpx
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from .. import db, llm, scheduler
+from ..auth_guard import require_instance_admin
 from ..middleware import metrics_body
 from .settings import _mask_secret
 
@@ -85,3 +88,49 @@ async def bootstrap() -> dict:
         "model_catalog": llm.model_catalog(),
         "enabled_models": _enabled_model_list(settings),
     }
+
+
+
+class _ModelProbeReq(BaseModel):
+    base_url: str
+    api_key: str = ""
+
+
+@router.post("/api/models/probe")
+async def probe_models(
+    req: _ModelProbeReq,
+    _admin: dict = Depends(require_instance_admin),
+) -> dict:
+    """按用户填的 base_url + key 现场拉一次 /models，供设置页下拉选择。
+
+    只返回模型 id 与归属方，不回显 key、不落日志。key 为空时回落到
+    进程环境里的 LLM_API_KEY（部署者已配好的场景）。
+    """
+    base = (req.base_url or "").strip().rstrip("/")
+    if not base.startswith(("http://", "https://")):
+        return {"ok": False, "error": "base_url 必须以 http:// 或 https:// 开头", "models": []}
+    key = (req.api_key or "").strip() or os.getenv("LLM_API_KEY", "").strip()
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as c:
+            r = await c.get(f"{base}/models", headers=headers)
+    except Exception as exc:  # noqa: BLE001 — 网络错误统一回报，不抛 5xx
+        return {"ok": False, "error": f"连接失败：{type(exc).__name__}", "models": []}
+    if r.status_code != 200:
+        return {"ok": False, "error": f"端点返回 HTTP {r.status_code}", "models": []}
+    try:
+        payload = r.json()
+    except Exception:  # noqa: BLE001
+        return {"ok": False, "error": "返回内容不是 JSON", "models": []}
+    rows = payload.get("data") if isinstance(payload, dict) else payload
+    if not isinstance(rows, list):
+        return {"ok": False, "error": "返回结构里没有 data 数组", "models": []}
+    models = [
+        {
+            "id": str(m.get("id") or "").strip(),
+            "owned_by": str(m.get("owned_by") or "").strip(),
+        }
+        for m in rows
+        if isinstance(m, dict) and str(m.get("id") or "").strip()
+    ]
+    return {"ok": True, "count": len(models), "models": models}

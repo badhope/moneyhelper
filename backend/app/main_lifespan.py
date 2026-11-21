@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -54,12 +55,42 @@ async def _maybe_create_admin() -> None:
             log.warning("Admin creation failed: %s", e)
 
 
+def _local_vault_passphrase() -> str:
+    """本机自动口令：生成一次、落在数据目录（0600），重启后仍能解开旧密文。
+
+    仍然不降级明文：口令只是从"部署者手填"变成"本机自管"。想换口令/搬机器，
+    显式设 VAULT_PASSPHRASE 即可，旧密文会按新口令解不开（预期行为）。
+    """
+    try:
+        from .db.db_paths import data_dir
+
+        path = data_dir() / ".vault_key"
+        if path.exists():
+            value = path.read_text(encoding="utf-8").strip()
+            if len(value) >= 8:
+                return value
+        value = secrets.token_hex(24)
+        path.write_text(value, encoding="utf-8")
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+        log.info("vault: 未设 VAULT_PASSPHRASE，已生成本机口令 %s（0600）", path.name)
+        return value
+    except Exception as e:  # noqa: BLE001 — 生成失败就退回旧的"拒绝保存"行为
+        log.warning("vault: 本机口令生成失败：%s", e)
+        return ""
+
+
 @asynccontextmanager
 async def lifespan(app_ref: FastAPI):
     log.info("moneyhelper backend starting up")
     await db.init_db()
-    # vault 初始化：从环境变量取主口令（可选；未设则 ai_api_key 将拒绝加密存储）
+    # vault 初始化：优先环境变量；没设时用本机自动生成并持久化的口令，
+    # 否则单机用户连 API Key 都存不进去（fail-closed 会把"能存"直接变成"不能存"）。
     vault_pass = os.getenv("VAULT_PASSPHRASE", "").strip()
+    if not vault_pass:
+        vault_pass = _local_vault_passphrase()
     if vault_pass:
         try:
             vault.init_master_passphrase(vault_pass)

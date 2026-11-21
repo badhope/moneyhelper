@@ -368,3 +368,44 @@ prompt → resource：
 不进 `with` 上下文时券商凭据保存永远 503；总账删除要用真凭证 id（先建科目
 1001/2001 + open 期间再建草稿），部门/岗位必须建在当前租户（本机模式是 0，
 写死 1 会得到"不存在或不属于当前租户"）。
+
+### 内置模型端点与「拉取可用模型」下拉（UI 真键盘鼠标实操）—— 已通
+
+按用户给的聚合端点 `https://api.qs.al/v1` 实拉一次 `/models`，返回 4 个模型：
+`deepseek-v4.1-flash`、`glm-5.3-flash`、`glm-5.3`、`kimi-k3`。
+
+- 目录（`llm_catalog.py`）改成只留国内可直连端点：内置聚合 + DeepSeek + 通义；
+  OpenAI / Anthropic / Gemini 全部移除（跨境端点在国内既慢又易被风控）。
+- 默认点亮 `glm-5.3-flash` + `deepseek-v4.1-flash`；前者按官方价 0.8 元/2.8 元
+  每百万 token，是四个里最省的，下拉默认选它。
+- 新增 `POST /api/models/probe`：现场按 base+key 拉 `/models`，只回 id/归属方，
+  不回显 key、不落日志；网络失败/HTTP 非 200 都返回 `{ok:false,error}`，不抛 5xx。
+- 设置页新增「拉取可用模型」按钮与模型下拉：拉到就选最省的一档，不再手打模型名。
+
+实操路径（浏览器里真点、真敲键盘）：设置 → AI 与自动化 → AI 回答 → 供应商选
+「内置模型」→ 粘贴 base 与 key → 点「拉取可用模型」→ 下拉选 `glm-5.3-flash`
+→ 启用 AI → 保存。保存后 `/api/bootstrap` 里 `ai_enabled=on`、`ai_base_url`
+正确、`ai_api_key=********`、`enabled_models=[glm-5.3-flash, deepseek-v4.1-flash]`、
+`health.llm_configured=true`；在应用内问「你现在是什么模型」，模型回
+「我是 GLM 大语言模型，由智谱（Z.ai）训练开发」——端到端通了。
+
+**实操抓到两个真 bug（已修）**：
+
+1. **没设 `VAULT_PASSPHRASE` 就存不进 key**：`/api/settings` 返回
+   `VAULT_NOT_INITIALIZED`，但界面只弹一句失败，key 实际没落库（`ai_api_key` 为空）。
+   改为启动时若未设环境变量，就在数据目录生成 `.vault_key`（0600、持久化），
+   仍然拒绝明文降级；显式设 `VAULT_PASSPHRASE` 仍优先，搬机器想换口令也走它。
+2. **填完 key 再点「启用 AI 回答」，刚粘的 key 被清空**：该开关走即时保存 →
+   `refreshBootstrap()` → 表单被整表重置，未保存的输入全丢，保存时静默丢 key。
+   AI 开关改为只写 `ai_enabled`、不刷新整表。
+
+### 内置 MCP 预设（中文财经数据，已进货架）
+
+Studio 货架新增两条只读 MCP，任何用户打开「市场」都能看到：
+
+| 条目 | 作用 |
+|---|---|
+| `mcp-aktools` | AKTools / AKShare 近千个财经接口（A股/基金/期货/宏观） |
+| `mcp-china-stock` | A股/港股/基金研究：行情、K线、财务、资金流；明确不下单不荐股 |
+
+两者都用 `uvx` 拉起、只读，不碰账本；装在 MCP 栏里，由用户自己决定启不启用。
