@@ -179,6 +179,8 @@ CREATE TABLE IF NOT EXISTS attachments (
     kind        TEXT NOT NULL DEFAULT 'text',   -- text / csv / pdf
     size        INTEGER NOT NULL DEFAULT 0,
     content     TEXT NOT NULL DEFAULT '',       -- 提取后的文本内容（上限）
+    mime        TEXT NOT NULL DEFAULT '',       -- image/png、application/pdf；文本为空
+    data        TEXT NOT NULL DEFAULT '',       -- 二进制附件的 base64；文本为空
     indexed     INTEGER NOT NULL DEFAULT 0,     -- 1 = 加入知识库（问答时参与检索）
     created_at  TEXT NOT NULL
 );

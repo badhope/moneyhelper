@@ -89,12 +89,20 @@ async def _restore_extra_tables(
         " VALUES(:user_id,:ts,:action,:method,:path,:status,:actor,:detail,"
         ":duration_ms,:prev_hash,:entry_hash)",
     )
+    # 兼容旧备份：4.16.30 之前没有 mime/data，用空串补齐，避免整包恢复失败
+    att_rows = data.get("attachments")
+    if isinstance(att_rows, list):
+        att_rows = [
+            {**r, "mime": r.get("mime", ""), "data": r.get("data", "")}
+            if isinstance(r, dict) else r
+            for r in att_rows
+        ]
     counts["attachments"] = await _restore_table(
         conn,
         "attachments",
-        data.get("attachments"),
-        "INSERT INTO attachments(user_id,id,filename,kind,size,content,indexed,created_at)"
-        " VALUES(:user_id,:id,:filename,:kind,:size,:content,:indexed,:created_at)",
+        att_rows,
+        "INSERT INTO attachments(user_id,id,filename,kind,size,content,mime,data,indexed,created_at)"
+        " VALUES(:user_id,:id,:filename,:kind,:size,:content,:mime,:data,:indexed,:created_at)",
     )
     counts["conversation_summary"] = await _restore_table(
         conn,

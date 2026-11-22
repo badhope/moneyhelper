@@ -2,6 +2,24 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.30] - 2026-11-22（工作台看得见：图片和 PDF 直接摊开）
+
+### 新增
+
+- **图片预览**：工作台文件区支持上传 `png / jpg / jpeg / webp / gif`，点开即见原图，按比例铺满预览区，不再只看到一行文件名。图片图标单独区分，搜索、下载、删除都沿用原有入口。
+- **PDF 预览**：`pdf` 不再被上传拦下，选中后在面板内嵌显示，能滚动翻页；顶部仍可下载原文件。
+- **二进制附件底座**：附件表增加 `mime` 与 base64 `data`，新增 `GET /api/attachments/{id}/raw` 按原始字节返回；上传时校验文件头，改后缀冒充图片会被拒绝，SVG 不开放，避免脚本内联。文本附件上限 2MB，图片/PDF 上限 8MB。
+- **备份兼容**：旧备份恢复时自动补空 `mime/data`，不会因为多了两列整包失败。
+
+### 说明
+
+- 图片与 PDF 只做预览和下载，不提取正文，也不进知识库索引；要让模型读 PDF 内容，仍需另做文本抽取。
+- 预览地址是短时 Object URL，切换文件或关闭面板即回收，不会长期占用内存。
+
+### 截图
+
+- `docs/screenshots/95-workbench-image.png`、`docs/screenshots/96-workbench-pdf.png`。
+
 ## [4.16.29] - 2026-11-22（会话批量管理：不用一条条点归档和删除）
 
 ### 新增

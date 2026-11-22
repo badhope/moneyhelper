@@ -1,7 +1,7 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, Download, FileText, Loader2 } from "lucide-react";
-import { getAttachment, saveBlob, type AttachmentItem } from "@/lib/api";
+import { apiBlob, getAttachment, saveBlob, type AttachmentItem } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { fmtDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -107,6 +107,24 @@ export function PreviewPane({
     staleTime: 60_000,
   });
 
+  const isImage = selected?.kind === "image" || (selected?.mime ?? "").startsWith("image/");
+  const isPdf = selected?.kind === "pdf" || selected?.mime === "application/pdf";
+  const binary = isImage || isPdf;
+  const rawQ = useQuery({
+    queryKey: ["/api/attachments", selected?.id, "raw"],
+    queryFn: () => apiBlob(`/api/attachments/${selected!.id}/raw`),
+    enabled: Boolean(selected && binary),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const rawUrl = useMemo(
+    () => (rawQ.data ? URL.createObjectURL(rawQ.data) : ""),
+    [rawQ.data],
+  );
+  useEffect(() => () => {
+    if (rawUrl) URL.revokeObjectURL(rawUrl);
+  }, [rawUrl]);
+
   if (!selected) {
     return (
       <div className="flex h-full flex-col items-center justify-center px-6 text-center">
@@ -135,6 +153,11 @@ export function PreviewPane({
     } else toast(t("workbench.copyFailed"), "error");
   };
   const download = () => {
+    if (binary) {
+      if (rawQ.data) saveBlob(rawQ.data, selected.filename);
+      else toast(t("workbench.readFailed"), "error");
+      return;
+    }
     saveBlob(new Blob([content], { type: "text/plain;charset=utf-8" }), selected.filename);
   };
 
@@ -154,7 +177,7 @@ export function PreviewPane({
           <button
             type="button"
             onClick={copy}
-            disabled={!content}
+            disabled={!content || binary}
             aria-label={t("workbench.copy")}
             title={t("workbench.copy")}
             className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
@@ -164,7 +187,7 @@ export function PreviewPane({
           <button
             type="button"
             onClick={download}
-            disabled={!content}
+            disabled={binary ? !rawQ.data : !content}
             aria-label={t("workbench.download")}
             title={t("workbench.download")}
             className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
@@ -190,6 +213,39 @@ export function PreviewPane({
               {t("workbench.retry")}
             </button>
           </div>
+        ) : binary ? (
+          rawQ.isPending ? (
+            <div className="flex items-center justify-center gap-2 py-12 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("workbench.reading")}
+            </div>
+          ) : rawQ.isError || !rawUrl ? (
+            <div className="py-12 text-center">
+              <p className="text-xs text-red-600 dark:text-red-400">{t("workbench.readFailed")}</p>
+              <button
+                type="button"
+                onClick={() => void rawQ.refetch()}
+                className="mt-2 rounded-md border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-accent"
+              >
+                {t("workbench.retry")}
+              </button>
+            </div>
+          ) : isImage ? (
+            <div className="flex min-h-[18rem] items-center justify-center overflow-auto rounded-lg border border-border bg-muted/20 p-2">
+              <img
+                src={rawUrl}
+                alt={selected.filename}
+                className="max-h-[68vh] max-w-full rounded object-contain"
+              />
+            </div>
+          ) : isPdf ? (
+            <iframe
+              title={selected.filename}
+              src={rawUrl}
+              className="h-[68vh] w-full rounded-lg border border-border bg-white"
+            />
+          ) : (
+            <p className="py-10 text-center text-xs text-muted-foreground">{t("workbench.previewEmpty")}</p>
+          )
         ) : !content.trim() ? (
           <p className="py-10 text-center text-xs text-muted-foreground">{t("workbench.previewEmpty")}</p>
         ) : ext === "md" || ext === "markdown" ? (
@@ -224,7 +280,7 @@ export function PreviewPane({
           </pre>
         )}
 
-        {detail.data && content.length >= 6000 && (
+        {!binary && detail.data && content.length >= 6000 && (
           <p className={cn("mt-3 rounded-md bg-amber-500/10 px-2 py-1.5 text-[10.5px] text-amber-700 dark:text-amber-400")}>
             {t("workbench.truncated")}
           </p>

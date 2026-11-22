@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import base64
+
 from app import db
 from httpx import AsyncClient
 
@@ -97,11 +99,39 @@ async def test_attachment_rejects_non_multipart(client: AsyncClient) -> None:
     assert "multipart" in r.json()["error"]
 
 
-async def test_attachment_rejects_pdf(client: AsyncClient) -> None:
-    files = {"file": ("doc.pdf", b"%PDF-1.4 fake", "application/pdf")}
+async def test_attachment_pdf_preview(client: AsyncClient) -> None:
+    files = {"file": ("doc.pdf", b"%PDF-1.4\n% fake pdf body\n", "application/pdf")}
     r = await client.post("/api/attachments", files=files)
+    assert r.status_code == 200, r.text
+    att_id = r.json()["id"]
+    detail = (await client.get(f"/api/attachments/{att_id}")).json()
+    assert detail["kind"] == "pdf" and detail["mime"] == "application/pdf"
+    assert detail["has_data"] is True
+    raw = await client.get(f"/api/attachments/{att_id}/raw")
+    assert raw.status_code == 200
+    assert raw.headers["content-type"].startswith("application/pdf")
+    assert raw.content.startswith(b"%PDF-")
+
+
+async def test_attachment_image_preview(client: AsyncClient) -> None:
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    )
+    files = {"file": ("pixel.png", png, "image/png")}
+    r = await client.post("/api/attachments", files=files)
+    assert r.status_code == 200, r.text
+    att_id = r.json()["id"]
+    detail = (await client.get(f"/api/attachments/{att_id}")).json()
+    assert detail["kind"] == "image" and detail["mime"] == "image/png"
+    raw = await client.get(f"/api/attachments/{att_id}/raw")
+    assert raw.status_code == 200
+    assert raw.headers["content-type"].startswith("image/png")
+    assert raw.content.startswith(b"\x89PNG")
+
+    # 扩展名与文件头不一致必须拒绝，避免伪装成图片的 HTML/可执行内容内联
+    bad = {"file": ("fake.png", b"<html><script>x</script></html>", "image/png")}
+    r = await client.post("/api/attachments", files=bad)
     assert r.status_code == 415
-    assert "PDF" in r.json()["error"]
 
 
 async def test_attachment_rejects_empty(client: AsyncClient) -> None:

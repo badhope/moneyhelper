@@ -178,15 +178,20 @@ export const listProvenance = (params: {
 export interface AttachmentItem {
   id: number;
   filename: string;
+  /** text / csv / image / pdf */
   kind: string;
+  /** 二进制附件的 MIME；文本为空 */
+  mime?: string;
   size: number;
   /** 0/1：是否已加入知识库（参与检索） */
   indexed: number;
   created_at: string;
 }
 export interface AttachmentDetail extends AttachmentItem {
-  /** 正文（后端只存前 6000 字） */
+  /** 正文（后端只存前 6000 字；图片/PDF 为空） */
   content: string;
+  /** 是否有原始字节（图片/PDF 预览与下载用） */
+  has_data?: boolean;
 }
 export const getAttachment = (id: number) =>
   api<AttachmentDetail>(`/api/attachments/${id}`);

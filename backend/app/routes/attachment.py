@@ -6,15 +6,44 @@
 
 from __future__ import annotations
 
+import base64
+from urllib.parse import quote
+
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from .. import db
 
 router = APIRouter()
 
-# 附件大小上限：文本/CSV 场景 2MB 足够，超过多半是误传二进制
-MAX_UPLOAD_BYTES = 2 * 1024 * 1024
+# 文本 / CSV：2MB 足够；图片 / PDF 单独放宽到 8MB，仍不把整块读进内存两次
+MAX_TEXT_UPLOAD_BYTES = 2 * 1024 * 1024
+MAX_BINARY_UPLOAD_BYTES = 8 * 1024 * 1024
+
+# 只接受浏览器能安全内联渲染的类型；SVG 明确排除（可携带脚本）
+BINARY_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".pdf": "application/pdf",
+}
+
+
+def _matches_type(raw: bytes, ext: str) -> bool:
+    """扩展名与文件头必须一致，避免把 exe/HTML 改名成 png 后内联执行。"""
+    if ext == ".pdf":
+        return raw.startswith(b"%PDF-")
+    if ext == ".png":
+        return raw.startswith(b"\x89PNG\r\n\x1a\n")
+    if ext in {".jpg", ".jpeg"}:
+        return raw.startswith(b"\xff\xd8\xff")
+    if ext == ".gif":
+        return raw.startswith(b"GIF87a") or raw.startswith(b"GIF89a")
+    if ext == ".webp":
+        return raw[:4] == b"RIFF" and raw[8:12] == b"WEBP"
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -29,10 +58,10 @@ async def attachments(limit: int = 50) -> dict:
 
 @router.post("/api/attachments")
 async def upload_attachment(request: Request) -> dict:
-    """上传附件（multipart/form-data，字段 file）。文本/CSV 直接提取。
+    """上传附件（multipart/form-data，字段 file）。
 
-    不宣称 PDF 支持：没有 PDF 解析依赖时静默把二进制当文本是更糟的体验，
-    这里明确拒绝并给出可行动的提示。
+    文本 / CSV 提取正文；PNG/JPG/WEBP/GIF/PDF 原样存 base64，供工作台预览与下载。
+    二进制附件不参与知识库检索（content 为空），避免把 base64 当正文喂给模型。
     """
     content_type = (request.headers.get("content-type") or "").lower()
     if not content_type.startswith("multipart/form-data"):
@@ -47,27 +76,44 @@ async def upload_attachment(request: Request) -> dict:
     if upload is None or not hasattr(upload, "filename"):
         return JSONResponse({"error": "缺少 file 字段"}, status_code=400)
     filename = str(upload.filename or "未命名")
-    # 只读上限 +1 字节：既能判断是否超限，又不会把超大文件整块读进内存。
-    # 注意 Starlette 解析 multipart 时已把内容暂存到临时文件/spooled 缓冲，
-    # 所以这里防的是"应用层把整个文件读进内存"，不是网络层的 body 大小
-    # （后者需要反代层限制 client_max_body_size）。
-    raw = await upload.read(MAX_UPLOAD_BYTES + 1)
-    size = len(raw)
-    if size > MAX_UPLOAD_BYTES:
-        return JSONResponse(
-            {"error": f"附件过大（最多 {MAX_UPLOAD_BYTES // 1024 // 1024}MB）"},
-            status_code=400,
-        )
     lower = filename.lower()
-    if lower.endswith(".pdf"):
+    ext = "." + lower.rsplit(".", 1)[-1] if "." in lower else ""
+
+    if ext in BINARY_TYPES:
+        raw = await upload.read(MAX_BINARY_UPLOAD_BYTES + 1)
+        size = len(raw)
+        if size > MAX_BINARY_UPLOAD_BYTES:
+            return JSONResponse(
+                {"error": f"附件过大（图片/PDF 最多 {MAX_BINARY_UPLOAD_BYTES // 1024 // 1024}MB）"},
+                status_code=400,
+            )
+        if not raw:
+            return JSONResponse({"error": "文件为空"}, status_code=400)
+        if not _matches_type(raw, ext):
+            return JSONResponse(
+                {"error": "文件内容与扩展名不一致，已拒绝（仅支持真实 PNG/JPG/WEBP/GIF/PDF）"},
+                status_code=415,
+            )
+        kind = "pdf" if ext == ".pdf" else "image"
+        return await db.add_binary_attachment(
+            filename,
+            kind,
+            size,
+            BINARY_TYPES[ext],
+            base64.b64encode(raw).decode("ascii"),
+        )
+
+    raw = await upload.read(MAX_TEXT_UPLOAD_BYTES + 1)
+    size = len(raw)
+    if size > MAX_TEXT_UPLOAD_BYTES:
         return JSONResponse(
-            {"error": "暂不支持 PDF 解析，请上传 .txt / .md / .csv 文本文件"},
-            status_code=415,
+            {"error": f"附件过大（最多 {MAX_TEXT_UPLOAD_BYTES // 1024 // 1024}MB）"},
+            status_code=400,
         )
     text = raw.decode("utf-8", errors="replace")
     if not text.strip():
         return JSONResponse(
-            {"error": "无法读取该文件内容（仅支持 UTF-8 文本 / CSV）"}, status_code=400
+            {"error": "无法读取该文件内容（支持 UTF-8 文本 / CSV / 图片 / PDF）"}, status_code=400
         )
     kind = "csv" if lower.endswith(".csv") else "text"
     return await db.add_attachment(filename, kind, size, text)
@@ -91,7 +137,34 @@ async def attachment_detail(att_id: int) -> dict:
         "indexed": row["indexed"],
         "created_at": row["created_at"],
         "content": row["content"],
+        "mime": row.get("mime", ""),
+        "has_data": bool(row.get("data")),
     }
+
+
+@router.get("/api/attachments/{att_id}/raw")
+async def attachment_raw(att_id: int) -> Response:
+    """原始字节：图片/PDF 预览与下载。
+
+    只返回数据库里已校验过的受限 MIME；不允许 SVG/HTML 等可执行内容内联。
+    """
+    row = await db.get_attachment_blob(int(att_id))
+    if not row or not row.get("data"):
+        return JSONResponse({"error": "附件不存在或没有原始数据"}, status_code=404)
+    try:
+        payload = base64.b64decode(row["data"], validate=True)
+    except Exception:  # noqa: BLE001 — 数据损坏给 404 而不是崩
+        return JSONResponse({"error": "附件数据损坏"}, status_code=404)
+    name = quote(str(row.get("filename") or "attachment"))
+    return Response(
+        content=payload,
+        media_type=str(row.get("mime") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{name}",
+            "Cache-Control": "private, max-age=300",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.post("/api/attachments/{att_id}/index")

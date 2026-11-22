@@ -229,7 +229,7 @@ export const ChatInput = memo(
                   type="file"
                   ref={fileRef}
                   className="hidden"
-                  accept=".txt,.md,.json,.csv,.log"
+                  accept=".txt,.md,.json,.csv,.log,.png,.jpg,.jpeg,.webp,.gif,.pdf"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) {

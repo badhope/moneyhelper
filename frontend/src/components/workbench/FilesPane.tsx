@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import {
-  Braces, FileCode2, FileSpreadsheet, FileText, Loader2, RefreshCw, Search, Upload,
+  Braces, FileCode2, FileImage, FileSpreadsheet, FileText, Loader2, RefreshCw, Search, Upload,
 } from "lucide-react";
 import type { AttachmentItem } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
@@ -12,6 +12,7 @@ function FileIcon({ name }: { name: string }) {
   if (ext === "csv") return <FileSpreadsheet className="h-4 w-4" />;
   if (ext === "json") return <Braces className="h-4 w-4" />;
   if (ext === "html" || ext === "htm") return <FileCode2 className="h-4 w-4" />;
+  if (["png", "jpg", "jpeg", "webp", "gif"].includes(ext)) return <FileImage className="h-4 w-4" />;
   return <FileText className="h-4 w-4" />;
 }
 
@@ -86,7 +87,7 @@ export function FilesPane({
             ref={fileRef}
             type="file"
             className="hidden"
-            accept=".txt,.md,.csv,.json,.log,.html,.htm"
+            accept=".txt,.md,.csv,.json,.log,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,.pdf"
             onChange={(e) => {
               const f = e.target.files?.[0];
               e.target.value = "";

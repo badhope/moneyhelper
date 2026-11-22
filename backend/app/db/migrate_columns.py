@@ -33,7 +33,11 @@ async def _migrate_add_columns() -> None:
         # 主动遗忘：记录每次被注入/使用的时间，便于按未使用时长清理
         "user_memory": {"last_used": "TEXT NOT NULL DEFAULT ''"},
         # 知识库：附件可标记为「入库」，问答时按 BM25 检索其片段
-        "attachments": {"indexed": "INTEGER NOT NULL DEFAULT 0"},
+        "attachments": {
+            "indexed": "INTEGER NOT NULL DEFAULT 0",
+            "mime": "TEXT NOT NULL DEFAULT ''",
+            "data": "TEXT NOT NULL DEFAULT ''",
+        },
         # 审计哈希链：旧库补列；历史行没有哈希，验链时作为 legacy 前缀跳过
         "audit_logs": {
             "prev_hash": "TEXT NOT NULL DEFAULT ''",

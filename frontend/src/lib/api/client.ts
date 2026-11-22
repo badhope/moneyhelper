@@ -146,6 +146,13 @@ export function saveBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(a.href);
 }
 
+/** 读取二进制响应（图片/PDF 预览）：必须走统一 request 才能带口令与 401 处理。 */
+export async function apiBlob(path: string, opts: ApiOptions = {}): Promise<Blob> {
+  const resp = await request(path, {}, false, opts.timeoutMs ?? REQUEST_TIMEOUT_MS);
+  if (!resp.ok) throw new Error(await responseDetail(resp, true));
+  return resp.blob();
+}
+
 /** 下载类接口统一入口：必须走 fetch 才能带上 Authorization。
  *  以前直接用 `<a href="/api/export/report">`，浏览器不会附带 Bearer 头，
  *  配了口令或启用了账号体系时后端返回 401，但 a.click() 不报错，

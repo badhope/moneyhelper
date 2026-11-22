@@ -264,6 +264,39 @@ async def add_attachment(
     return {"ok": True, "id": cur.lastrowid}
 
 
+async def add_binary_attachment(
+    filename: str, kind: str, size: int, mime: str, data_b64: str
+) -> dict[str, Any]:
+    """图片/PDF：正文为空，原始字节以 base64 存在 data；不参与知识库检索。"""
+    conn = await _conn()
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    cur = await conn.execute(
+        "INSERT INTO attachments(user_id,filename,kind,size,content,mime,data,indexed,created_at)"
+        " VALUES(?,?,?,?,?,?,?,0,?)",
+        (
+            current_user_id(),
+            str(filename)[:200],
+            str(kind)[:20] or "file",
+            int(size or 0),
+            "",
+            str(mime)[:80],
+            data_b64,
+            now,
+        ),
+    )
+    await _mark_user_data(conn)
+    await conn.commit()
+    return {"ok": True, "id": cur.lastrowid}
+
+
+async def get_attachment_blob(att_id: int) -> dict[str, Any] | None:
+    rows = await fetch_all(
+        "SELECT id,filename,mime,data FROM attachments WHERE user_id=? AND id=?",
+        (current_user_id(), int(att_id)),
+    )
+    return rows[0] if rows else None
+
+
 async def get_attachment(att_id: int) -> dict[str, Any] | None:
     rows = await fetch_all(
         "SELECT * FROM attachments WHERE user_id=? AND id=?",
