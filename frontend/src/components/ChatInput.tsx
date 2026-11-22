@@ -10,6 +10,7 @@ import {
   Plus,
   Settings,
   Square,
+  Upload,
   Wallet,
   X,
 } from "lucide-react";
@@ -17,6 +18,11 @@ import { useI18n } from "@/lib/i18n";
 import { cn, errMsg } from "@/lib/utils";
 import { useToast } from "@/lib/toast";
 import type { BootstrapData } from "@/lib/types";
+import {
+  CHAT_ATTACHMENT_ACCEPT,
+  hasFileDrag,
+  pickAttachmentFiles,
+} from "@/lib/chat-attachments";
 
 export interface ChatInputProps {
   input: string;
@@ -95,6 +101,7 @@ export const ChatInput = memo(
     );
     const [uploading, setUploading] = useState(false);
     const [focused, setFocused] = useState(false);
+    const [dragging, setDragging] = useState(false);
 
     const slashQ = input.startsWith("/") ? input.trim().slice(1).toLowerCase() : "";
     const slashItems = SLASH_ITEMS.filter((it) => tr(it.key).toLowerCase().includes(slashQ));
@@ -117,6 +124,24 @@ export const ChatInput = memo(
 
     const canSend = Boolean(input.trim()) && !busy;
     const hasAttachments = Boolean(attachments && attachments.length > 0);
+
+    /** 文件选择、粘贴、拖拽共用；多选用 allSettled，不让一个坏文件拖垮整批。 */
+    const addFiles = async (files: File[]) => {
+      if (!files.length || !onAddAttachment) return;
+      const { accepted, rejected } = pickAttachmentFiles(files);
+      if (rejected.length) {
+        toast(`${tr("chat.attachUnsupported")}：${rejected.slice(0, 3).join("、")}`, "error");
+      }
+      if (!accepted.length) return;
+      setUploading(true);
+      try {
+        const results = await Promise.allSettled(accepted.map((f) => onAddAttachment(f)));
+        const failed = results.find((r) => r.status === "rejected");
+        if (failed?.status === "rejected") toast(errMsg(failed.reason), "error");
+      } finally {
+        setUploading(false);
+      }
+    };
 
     return (
       <div className="shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-4">
@@ -148,13 +173,43 @@ export const ChatInput = memo(
           )}
 
           <div
+            onDragEnter={(e) => {
+              if (!hasFileDrag(e.dataTransfer.types)) return;
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragOver={(e) => {
+              if (!hasFileDrag(e.dataTransfer.types)) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+              if (!dragging) setDragging(true);
+            }}
+            onDragLeave={(e) => {
+              const next = e.relatedTarget as Node | null;
+              if (next && e.currentTarget.contains(next)) return;
+              setDragging(false);
+            }}
+            onDrop={(e) => {
+              if (!hasFileDrag(e.dataTransfer.types)) return;
+              e.preventDefault();
+              setDragging(false);
+              void addFiles(Array.from(e.dataTransfer.files ?? []));
+            }}
             className={cn(
-              "rounded-[26px] border bg-card px-3 py-2.5 transition-shadow",
+              "relative rounded-[26px] border bg-card px-3 py-2.5 transition-shadow",
               focused || hasAttachments || input
                 ? "border-border shadow-[0_2px_10px_rgb(0_0_0/0.06)]"
                 : "border-transparent bg-muted/60 shadow-none",
             )}
           >
+            {dragging && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center rounded-[26px] border-2 border-dashed border-primary/45 bg-card/95 text-center">
+                <Upload className="mb-1.5 h-5 w-5 text-primary" />
+                <span className="text-[13px] font-medium text-foreground">{tr("chat.dropHere")}</span>
+                <span className="mt-0.5 text-[11px] text-muted-foreground">{tr("chat.dropHint")}</span>
+              </div>
+            )}
+
             {hasAttachments && (
               <div className="mb-1.5 flex flex-wrap gap-1.5 px-0.5">
                 {attachments!.map((a) => (
@@ -221,7 +276,7 @@ export const ChatInput = memo(
               </button>
               <label
                 className="mb-0.5 inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground/55 transition-colors hover:bg-accent hover:text-foreground"
-                title={tr("chat.attach")}
+                title={tr("chat.attachHint")}
               >
                 <Paperclip className="h-[18px] w-[18px]" />
                 <span className="sr-only">{tr("chat.attach")}</span>
@@ -229,15 +284,11 @@ export const ChatInput = memo(
                   type="file"
                   ref={fileRef}
                   className="hidden"
-                  accept=".txt,.md,.json,.csv,.log,.png,.jpg,.jpeg,.webp,.gif,.pdf"
+                  accept={CHAT_ATTACHMENT_ACCEPT}
+                  multiple
                   onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      setUploading(true);
-                      onAddAttachment?.(f)
-                        .catch((err) => toast(errMsg(err), "error"))
-                        .finally(() => setUploading(false));
-                    }
+                    const picked = Array.from(e.target.files ?? []);
+                    if (picked.length) void addFiles(picked);
                     e.target.value = "";
                   }}
                 />
@@ -249,6 +300,13 @@ export const ChatInput = memo(
                 onChange={(e) => onInputChange(e.target.value)}
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
+                onPaste={(e) => {
+                  const pasted = Array.from(e.clipboardData.files ?? []);
+                  if (!pasted.length) return;
+                  // 截图粘贴通常没有文本；纯图片时吞掉默认行为，避免多插一个换行。
+                  if (!e.clipboardData.getData("text/plain")) e.preventDefault();
+                  void addFiles(pasted);
+                }}
                 onKeyDown={(e) => {
                   if (slashOpen) {
                     if (e.key === "ArrowDown") {
