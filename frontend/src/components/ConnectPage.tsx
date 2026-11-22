@@ -81,6 +81,7 @@ import {
   useSyncConnection,
   type Connector,
   type Connection,
+  type ControlTier,
   type MoverItem,
   type TradeIntent,
 } from "@/lib/use-connect";
@@ -108,6 +109,16 @@ const STATUS_STYLE: Record<string, string> = {
   expiring: "warn",
   error: "danger",
   disabled: "muted",
+};
+
+/** 控制级别的视觉语义：只读是中性，导入/回传是蓝色，逐笔确认是琥珀色。
+ *  没有任何“全自动转账”级别——不存在的权限不画成绿色。 */
+const CONTROL_STYLE: Record<ControlTier, string> = {
+  read: "border-border bg-muted/40 text-muted-foreground",
+  import: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  handoff: "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
+  manual: "border-border bg-muted/40 text-muted-foreground",
+  confirm: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
 };
 
 function ConnectorCard({
@@ -142,6 +153,15 @@ function ConnectorCard({
             <Badge variant={auto ? "ok" : item.automation === "semi" ? "warn" : "muted"} className="shrink-0 px-1.5 py-0 text-[10px]">
               {t(`connect.auto.${item.automation}`)}
             </Badge>
+            <span
+              className={cn(
+                "shrink-0 rounded-full border px-1.5 py-0 text-[10px]",
+                CONTROL_STYLE[item.control],
+              )}
+              title={t(`connect.controlHint.${item.control}`)}
+            >
+              {t(`connect.control.${item.control}`)}
+            </span>
           </div>
           <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
             <Kind className="h-3 w-3" />
@@ -227,6 +247,75 @@ function ConnectorCard({
         )}
       </div>
     </div>
+  );
+}
+
+const CONTROL_TIERS: ControlTier[] = ["read", "import", "handoff", "manual", "confirm"];
+
+/** 账号接入的总说明：能接什么、接到什么程度、哪些动作永远不会交给模型。
+ *  这张卡不是权限开关，权限仍由连接器 kind/supports_trade 决定；它只把真实边界说清楚。 */
+function AccountGatewayCard({
+  counts,
+  total,
+}: {
+  counts?: Record<ControlTier, number>;
+  total: number;
+}) {
+  const { t } = useI18n();
+  const icon: Record<ControlTier, typeof ShieldCheck> = {
+    read: ShieldCheck,
+    import: FileSpreadsheet,
+    handoff: Link2,
+    manual: ExternalLink,
+    confirm: CheckCircle2,
+  };
+  const tint: Record<ControlTier, string> = {
+    read: "text-emerald-600 dark:text-emerald-400",
+    import: "text-sky-600 dark:text-sky-400",
+    handoff: "text-indigo-600 dark:text-indigo-400",
+    manual: "text-muted-foreground",
+    confirm: "text-amber-600 dark:text-amber-400",
+  };
+  return (
+    <Card className="border-primary/25 bg-primary/[0.025] p-[var(--card-pad)]">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-[13px] font-semibold">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            {t("connect.accountTitle")}
+          </div>
+          <p className="mt-1 max-w-3xl text-[11.5px] leading-relaxed text-muted-foreground">
+            {t("connect.accountDesc")}
+          </p>
+        </div>
+        <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] text-muted-foreground">
+          {t("connect.accountBadge")}
+        </span>
+      </div>
+
+      <div className="mt-2.5 grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+        {CONTROL_TIERS.map((tier) => {
+          const Icon = icon[tier];
+          const n = counts?.[tier] ?? 0;
+          return (
+            <div key={tier} className="rounded-lg border border-border/70 bg-card px-2 py-1.5">
+              <div className="flex items-center gap-1 text-[10.5px] font-medium">
+                <Icon className={cn("h-3 w-3", tint[tier])} />
+                <span>{t(`connect.control.${tier}`)}</span>
+                <span className="ml-auto tabular-nums text-muted-foreground">{n}</span>
+              </div>
+              <div className="mt-0.5 truncate text-[9.5px] text-muted-foreground/80">
+                {t(`connect.controlHint.${tier}`)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-2 border-t border-border/60 pt-2 text-[10.5px] leading-relaxed text-muted-foreground">
+        {t("connect.accountSafety", { total })}
+      </p>
+    </Card>
   );
 }
 
@@ -536,6 +625,10 @@ export function ConnectPage() {
               <span className="text-muted-foreground">{t("connect.statAuto")}</span>{" "}
               <span className="font-semibold tabular-nums">{autoCount}</span>
             </div>
+            <Button size="sm" variant="outline" onClick={() => setTab("connectors")}>
+              <Plug className="mr-1 h-3.5 w-3.5" />
+              {t("connect.openAccounts")}
+            </Button>
             <Button size="sm" variant="outline" disabled={syncAll.isPending} onClick={() => void syncAll.mutateAsync().then(() => toast(t("connect.syncOk"), "ok")).catch((e) => toast(errMsg(e), "error"))}>
               <RefreshCw className={cn("mr-1 h-3.5 w-3.5", syncAll.isPending && "animate-spin")} />
               {t("connect.syncAll")}
@@ -740,6 +833,7 @@ export function ConnectPage() {
       {/* 2. 连接器目录 */}
       {tab === "connectors" && (
         <div className="space-y-4">
+          <AccountGatewayCard counts={catalog?.counts.control} total={total} />
           {(catalog?.groups ?? []).map((g) => (
             <div key={g.key}>
               <div className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-semibold text-foreground/85">

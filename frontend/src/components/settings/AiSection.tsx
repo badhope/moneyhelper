@@ -249,6 +249,7 @@ export function AiSection({
         <LocalModelSection
           baseUrl={form.ai_base_url ?? ""}
           apiKey={form.ai_api_key ?? ""}
+          model={form.ai_model ?? ""}
           onPick={(patch) => {
             if (patch.ai_base_url !== undefined) onField("ai_base_url", patch.ai_base_url);
             if (patch.ai_model !== undefined) onField("ai_model", patch.ai_model);

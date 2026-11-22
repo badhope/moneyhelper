@@ -96,6 +96,8 @@ async def test_catalog_groups_and_counts(client) -> None:
     pay = next(g for g in body["groups"] if g["key"] == "pay")
     alipay = next(i for i in pay["items"] if i["id"] == "alipay")
     assert alipay["kind"] == "browser_login"
+    assert alipay["control"] == "handoff"
+    assert body["counts"]["control"]["handoff"] >= 1
     assert alipay["connections"] == []
 
 

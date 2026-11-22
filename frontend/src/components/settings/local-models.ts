@@ -80,6 +80,29 @@ export interface LocalModel {
   endpoints: Record<EngineId, string>;
 }
 
+/** 把模型 id 归一成可比较的形式：忽略大小写、首尾空白和常见路径前缀。 */
+export function normalizeModelId(value: string): string {
+  return value.trim().toLowerCase().replace(/^\//, "");
+}
+
+/**
+ * 在探测返回的模型清单里找当前配置的模型。
+ * 精确匹配优先；找不到时允许 llama.cpp 这类把本地路径当 id 的端点按文件名包含匹配。
+ * 匹配不到返回 null，界面据此显示“未安装”，绝不推断。
+ */
+export function findInstalledModel(
+  current: string,
+  models: { id: string }[],
+): string | null {
+  const wanted = normalizeModelId(current);
+  if (!wanted) return null;
+  const exact = models.find((m) => normalizeModelId(m.id) === wanted);
+  if (exact) return exact.id;
+  if (wanted.length < 6) return null;
+  const loose = models.find((m) => normalizeModelId(m.id).includes(wanted));
+  return loose ? loose.id : null;
+}
+
 export const LOCAL_MODELS: LocalModel[] = [
   {
     id: "minicpm5-2b",
@@ -147,6 +170,40 @@ export const LOCAL_MODELS: LocalModel[] = [
       lmstudio: "Llama-3.2-3B-Instruct",
       llamacpp: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
       vllm: "meta-llama/Llama-3.2-3B-Instruct",
+    },
+  },
+  {
+    id: "phi4-mini",
+    name: "Phi-4 mini 3.8B",
+    params: "3.8B",
+    size: "Q4 · 约 2.5GB",
+    note: {
+      zh: "微软小模型，函数调用与英文推理稳；中文财务语境不如 Qwen。",
+      en: "Microsoft's small model with solid function calling and English reasoning; weaker Chinese finance wording than Qwen.",
+    },
+    downloadUrl: "https://huggingface.co/microsoft/Phi-4-mini-instruct",
+    endpoints: {
+      ollama: "phi4-mini:3.8b",
+      lmstudio: "microsoft/Phi-4-mini-instruct-GGUF",
+      llamacpp: "Phi-4-mini-instruct-Q4_K_M.gguf",
+      vllm: "microsoft/Phi-4-mini-instruct",
+    },
+  },
+  {
+    id: "qwen25-3b",
+    name: "Qwen2.5 3B Instruct",
+    params: "3B",
+    size: "Q4 · 约 2.0GB",
+    note: {
+      zh: "老一档但生态成熟，低配机稳定；中文理解仍强于 Llama 3.2。",
+      en: "An older but mature 3B option for low-end machines; Chinese understanding still beats Llama 3.2.",
+    },
+    downloadUrl: "https://ollama.com/library/qwen2.5",
+    endpoints: {
+      ollama: "qwen2.5:3b-instruct",
+      lmstudio: "Qwen2.5-3B-Instruct-GGUF",
+      llamacpp: "Qwen2.5-3B-Instruct-Q4_K_M.gguf",
+      vllm: "Qwen/Qwen2.5-3B-Instruct",
     },
   },
 ];

@@ -22,6 +22,7 @@ async def tool_connect_catalog(_args: dict[str, Any]) -> str:
                 "name": i["name"],
                 "kind": i["kind"],
                 "automation": i["automation"],
+                "control": i["control"],
                 "capabilities": i["capabilities"],
                 "supports_trade": i["supports_trade"],
             }
@@ -37,7 +38,7 @@ async def tool_connect_catalog(_args: dict[str, Any]) -> str:
                 {"id": c["id"], "connector_id": c["connector_id"], "label": c["label"], "status": c["status"]}
                 for c in connections
             ],
-            "hint": "用户说「连一下支付宝/招商银行」时，用 connect_sync 建连接；需要登录的平台会自动给出配对码与官方入口。",
+            "hint": "用户说「连一下支付宝/招商银行」时，用 connect_sync 建连接；需要登录的平台会自动给出配对码与官方入口。control=read/import/handoff/manual 只代表读取或导入，confirm 只允许起草交易指令；任何平台都不代登录、代转账、代下实盘单。",
         },
         ensure_ascii=False,
     )

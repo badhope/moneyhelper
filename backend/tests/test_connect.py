@@ -42,7 +42,17 @@ def test_catalog_shape_and_categories() -> None:
     for c in hub.CONNECTORS:
         assert c["kind"] in hub.catalog.KINDS
         assert c["automation"] in hub.catalog.AUTOMATION
+        assert c["control"] in hub.catalog.CONTROL_TIERS
         assert c["capabilities"], c["id"]
+    # 控制级别不是装饰：支付/银行停在配对或手动导出，交易只到逐笔确认
+    assert hub.get_connector("alipay")["control"] == "handoff"
+    assert hub.get_connector("wechat_pay")["control"] == "import"
+    assert hub.get_connector("cmb")["control"] == "manual"
+    assert hub.get_connector("eastmoney_fund")["control"] == "read"
+    trade = next(c for c in hub.CONNECTORS if c["supports_trade"])
+    assert trade["control"] == "confirm"
+    assert cat["counts"]["control"]["read"] > 0
+    assert cat["counts"]["control"]["confirm"] > 0
 
 
 def test_connector_lookup_returns_copy() -> None:

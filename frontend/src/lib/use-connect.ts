@@ -13,6 +13,8 @@ import { api, SLOW_REQUEST_TIMEOUT_MS } from "@/lib/api";
 
 export type ConnectorKind = "public_api" | "deep_link" | "browser_login" | "file_import" | "gateway";
 export type Automation = "auto" | "semi" | "manual";
+/** 控制级别：只读 / 文件导入 / 配对回传 / 官方入口 / 逐笔确认（绝不代下单、代转账） */
+export type ControlTier = "read" | "import" | "handoff" | "manual" | "confirm";
 
 export interface Connection {
   id: string;
@@ -35,6 +37,7 @@ export interface Connector {
   category: string;
   kind: ConnectorKind;
   automation: Automation;
+  control: ControlTier;
   capabilities: string[];
   login_url: string;
   data_url: string;
@@ -49,9 +52,17 @@ export interface Connector {
 
 export interface CatalogResponse {
   groups: { key: string; label: string; items: Connector[] }[];
-  counts: { total: number; auto: number; semi: number; manual: number; trade: number };
+  counts: {
+    total: number;
+    auto: number;
+    semi: number;
+    manual: number;
+    trade: number;
+    control: Record<ControlTier, number>;
+  };
   kinds: ConnectorKind[];
   automation: Automation[];
+  controls: ControlTier[];
   connections: Connection[];
   kinds_label: Record<string, string>;
 }

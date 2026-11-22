@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .catalog_base import AUTOMATION, CATEGORIES, KINDS  # noqa: F401 — 对外同名导出
+from .catalog_base import AUTOMATION, CATEGORIES, CONTROL_TIERS, KINDS  # noqa: F401 — 对外同名导出
 from .catalog_connectors import CONNECTORS  # noqa: F401 — 对外同名导出
 
 _BY_ID = {c["id"]: c for c in CONNECTORS}
@@ -34,5 +34,15 @@ def grouped_catalog() -> dict[str, Any]:
         "semi": sum(1 for c in CONNECTORS if c["automation"] == "semi"),
         "manual": sum(1 for c in CONNECTORS if c["automation"] == "manual"),
         "trade": sum(1 for c in CONNECTORS if c["supports_trade"]),
+        "control": {
+            tier: sum(1 for c in CONNECTORS if c["control"] == tier)
+            for tier in CONTROL_TIERS
+        },
     }
-    return {"groups": groups, "counts": counts, "kinds": list(KINDS), "automation": list(AUTOMATION)}
+    return {
+        "groups": groups,
+        "counts": counts,
+        "kinds": list(KINDS),
+        "automation": list(AUTOMATION),
+        "controls": list(CONTROL_TIERS),
+    }
