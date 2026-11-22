@@ -6,9 +6,22 @@
  */
 
 export const OPEN_URL_EVENT = "moneyhelper:open-url";
+export const OPEN_ATTACHMENT_EVENT = "moneyhelper:open-attachment";
 
 export interface OpenUrlDetail {
   url: string;
+}
+
+export interface OpenAttachmentDetail {
+  id: number;
+}
+
+/** 聊天里的附件胶囊点击后，把右侧工作台拉到这张附件的预览。 */
+export function requestOpenAttachment(id: number): void {
+  if (!Number.isFinite(id) || id <= 0) return;
+  window.dispatchEvent(
+    new CustomEvent<OpenAttachmentDetail>(OPEN_ATTACHMENT_EVENT, { detail: { id } }),
+  );
 }
 
 /** 把输入变成安全 URL；中文/空格按搜索词处理，其余补 https://。 */

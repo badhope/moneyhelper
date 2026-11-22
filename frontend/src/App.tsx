@@ -23,7 +23,7 @@ import { MobileDrawer } from "@/components/MobileDrawer";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { WorkbenchRail } from "@/components/workbench/WorkbenchRail";
 import { RemoteControlPanel } from "@/components/RemoteControlPanel";
-import { OPEN_URL_EVENT } from "@/lib/workbench";
+import { OPEN_ATTACHMENT_EVENT, OPEN_URL_EVENT } from "@/lib/workbench";
 
 // 首屏只需要 TopBar + 会话栏 + 对话区。以下面板都是"点开才用"，
 // 静态引入会把它们的依赖（Dashboard 的图表、部门看板、设置表单）压进主包。
@@ -121,7 +121,9 @@ export default function App() {
     return typeof window !== "undefined" ? window.matchMedia("(min-width: 1280px)").matches : false;
   });
   const [railRequest, setRailRequest] = useState<{ url: string; id: number } | null>(null);
+  const [railAttachment, setRailAttachment] = useState<{ attachmentId: number; requestId: number } | null>(null);
   const railReqId = useRef(0);
+  const railAttachId = useRef(0);
 
   useEffect(() => {
     try {
@@ -148,6 +150,19 @@ export default function App() {
     };
     window.addEventListener(OPEN_URL_EVENT, onOpenUrl);
     return () => window.removeEventListener(OPEN_URL_EVENT, onOpenUrl);
+  }, []);
+
+  // 聊天附件胶囊点击：打开右栏并落到那张附件的预览，不再让用户去文件区翻。
+  useEffect(() => {
+    const onOpenAttachment = (e: Event) => {
+      const id = (e as CustomEvent<{ id?: number }>).detail?.id;
+      if (!id) return;
+      railAttachId.current += 1;
+      setRailAttachment({ attachmentId: id, requestId: railAttachId.current });
+      setRailOpen(true);
+    };
+    window.addEventListener(OPEN_ATTACHMENT_EVENT, onOpenAttachment);
+    return () => window.removeEventListener(OPEN_ATTACHMENT_EVENT, onOpenAttachment);
   }, []);
 
   useEffect(() => {
@@ -483,6 +498,7 @@ export default function App() {
               open={railOpen}
               onClose={() => setRailOpen(false)}
               externalUrl={railRequest}
+              attachmentRequest={railAttachment}
             />
           </div>
 

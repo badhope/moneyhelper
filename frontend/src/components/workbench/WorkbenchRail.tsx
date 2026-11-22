@@ -34,11 +34,14 @@ export function WorkbenchRail({
   open,
   onClose,
   externalUrl,
+  attachmentRequest,
 }: {
   open: boolean;
   onClose: () => void;
   /** 回答内链接触发：{url,id}，id 变化即重新导航。 */
   externalUrl: { url: string; id: number } | null;
+  /** 聊天附件胶囊触发：requestId 变化即切到该附件预览。 */
+  attachmentRequest: { attachmentId: number; requestId: number } | null;
 }) {
   const { t } = useI18n();
   const { toast } = useToast();
@@ -71,13 +74,23 @@ export function WorkbenchRail({
       if (selectedId !== null) setSelectedId(null);
       return;
     }
+    // 刚点击附件但列表还在刷新：先等目标出现，别立刻回落到第一条。
+    if (attachmentRequest?.attachmentId === selectedId && !items.some((a) => a.id === selectedId)) return;
     if (!items.some((a) => a.id === selectedId)) setSelectedId(items[0].id);
-  }, [items, selectedId]);
+  }, [items, selectedId, attachmentRequest?.attachmentId]);
 
   useEffect(() => {
     if (!externalUrl?.id) return;
     setTab("browser");
   }, [externalUrl?.id]);
+
+  useEffect(() => {
+    if (!attachmentRequest?.requestId) return;
+    setSelectedId(attachmentRequest.attachmentId);
+    setTab("preview");
+    // 胶囊可能刚上传完成，列表还停在旧缓存；按 id 先选，再拉最新列表。
+    void qc.invalidateQueries({ queryKey: ["/api/attachments"] });
+  }, [attachmentRequest?.requestId, attachmentRequest?.attachmentId, qc]);
 
   useEffect(() => {
     if (!open) return;

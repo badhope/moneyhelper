@@ -13,6 +13,7 @@ import { FinishedMessages } from "@/components/FinishedMessages";
 import { useChatView } from "@/components/chat-view-state";
 import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { requestOpenAttachment } from "@/lib/workbench";
 
 /** 搜索命中：把关键词附近 60 字截出来，避免结果行被超长回答撑爆。 */
 function snippet(text: string, q: string): string {
@@ -399,6 +400,7 @@ export function ChatView({
           attachments={attachments}
           onAddAttachment={(f) => uploadAttachment(f).then(() => void store.bump())}
           onRemoveAttachment={removeAttachment}
+          onOpenAttachment={requestOpenAttachment}
           onSlashCommand={(id) => {
             if (id === "new-session") onNewSession();
             else onNavigate(id.replace(/^go-/, ""));

@@ -192,6 +192,7 @@ export const en_settings2: Record<string, string> = {
   "chat.dropHere": "Drop to attach",
   "chat.dropHint": "Text, CSV, images, PDF",
   "chat.removeAttachment": "Remove attachment",
+  "chat.openAttachment": "Preview in workbench",
   "settings.refresh": "Refresh",
   "settings.confirm": "Confirm",
   "settings.aiBaseUrl": "Base URL",

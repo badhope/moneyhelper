@@ -192,6 +192,7 @@ export const zh_settings2: Record<string, string> = {
   "chat.dropHere": "松手即上传",
   "chat.dropHint": "文本、CSV、图片、PDF",
   "chat.removeAttachment": "移除附件",
+  "chat.openAttachment": "在工作台预览",
   "settings.refresh": "刷新",
   "settings.confirm": "确认",
   "settings.aiBaseUrl": "接口地址（Base URL）",

@@ -51,6 +51,8 @@ export interface ChatInputProps {
   attachments?: { id: number; filename: string; kind: string }[];
   onAddAttachment?: (file: File) => Promise<unknown>;
   onRemoveAttachment?: (id: number) => void;
+  /** 点附件胶囊：打开工作台预览。 */
+  onOpenAttachment?: (id: number) => void;
 }
 
 const SLASH_ITEMS = [
@@ -84,6 +86,7 @@ export const ChatInput = memo(
     attachments,
     onAddAttachment,
     onRemoveAttachment,
+    onOpenAttachment,
     llmConfigured,
     onOpenSettings,
     modelName,
@@ -215,15 +218,22 @@ export const ChatInput = memo(
                 {attachments!.map((a) => (
                   <span
                     key={a.id}
-                    className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1 text-[12px] text-foreground/80"
+                    className="inline-flex max-w-full items-center gap-1 rounded-lg border border-border bg-background py-1 pl-2 pr-1 text-[12px] text-foreground/80"
                   >
-                    <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    <span className="max-w-[11rem] truncate">{a.filename}</span>
+                    <button
+                      type="button"
+                      onClick={() => onOpenAttachment?.(a.id)}
+                      title={tr("chat.openAttachment")}
+                      className="inline-flex min-w-0 items-center gap-1.5 rounded text-left hover:text-primary"
+                    >
+                      <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="max-w-[11rem] truncate">{a.filename}</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => onRemoveAttachment?.(a.id)}
                       aria-label={tr("chat.removeAttachment")}
-                      className="rounded text-muted-foreground hover:text-red-600"
+                      className="rounded p-0.5 text-muted-foreground hover:text-red-600"
                     >
                       <X className="h-3 w-3" />
                     </button>
