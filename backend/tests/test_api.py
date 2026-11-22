@@ -1297,6 +1297,44 @@ async def test_sessions_lifecycle(client) -> None:
     assert runs == []
 
 
+async def test_sessions_batch(client) -> None:
+    """批量归档/取消归档/删除：一次请求处理多条，删除连带清 runs。"""
+    ids = []
+    threads = []
+    for q in ("批量一", "批量二"):
+        r = await client.post("/api/sessions")
+        sid, tid = r.json()["id"], r.json()["thread_id"]
+        ids.append(sid)
+        threads.append(tid)
+        async with client.stream(
+            "POST", "/api/ask", json={"question": q, "thread_id": tid}
+        ) as resp:
+            await resp.aread()
+
+    r = await client.post(
+        "/api/sessions/batch", json={"action": "archive", "ids": ids}
+    )
+    assert r.status_code == 200 and r.json()["done"] == 2
+    sess = (await client.get("/api/sessions")).json()["sessions"]
+    assert all(s["archived"] == 1 for s in sess if s["id"] in ids)
+
+    r = await client.post(
+        "/api/sessions/batch", json={"action": "unarchive", "ids": ids}
+    )
+    assert r.status_code == 200
+    sess = (await client.get("/api/sessions")).json()["sessions"]
+    assert all(s["archived"] == 0 for s in sess if s["id"] in ids)
+
+    r = await client.post(
+        "/api/sessions/batch", json={"action": "delete", "ids": ids}
+    )
+    assert r.status_code == 200 and r.json()["done"] == 2
+    sess = (await client.get("/api/sessions")).json()["sessions"]
+    assert all(s["id"] not in ids for s in sess)
+    for tid in threads:
+        assert (await client.get(f"/api/history?thread_id={tid}")).json()["runs"] == []
+
+
 async def test_history_truncate_from_run(client) -> None:
     """编辑并重发：从指定轮次截断，只留之前的历史。"""
     tid = "truncate-1"

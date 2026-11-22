@@ -6,7 +6,9 @@ import {
   ArchiveRestore,
   Building2,
   Check,
+  CheckSquare,
   Inbox,
+  ListChecks,
   LayoutGrid,
   MessageCircle,
   PanelLeftClose,
@@ -16,6 +18,7 @@ import {
   Plus,
   Search,
   Settings,
+  Square,
   Sunrise,
   Trash2,
   X,
@@ -26,6 +29,8 @@ import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useScheduledOutputs } from "@/lib/inbox";
 import { MorningReportDialog } from "@/components/MorningReportDialog";
+import { ConfirmDialog } from "@/components/ui/confirm";
+import { api } from "@/lib/api";
 import type { SessionItem } from "@/lib/types";
 
 type Bucket = "today" | "week" | "older";
@@ -78,6 +83,10 @@ export function SessionSidebar({
   const [q, setQ] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [batchConfirm, setBatchConfirm] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -126,6 +135,41 @@ export function SessionSidebar({
     }
   };
 
+  const activeId = sessions.find((s) => s.thread_id === activeThread)?.id;
+  const toggleSelect = (id: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const allSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id));
+
+  const batchAction = async (action: "archive" | "delete") => {
+    if (selected.size === 0 || batchBusy) return;
+    const ids = Array.from(selected);
+    setBatchBusy(true);
+    try {
+      await api("/api/sessions/batch", {
+        method: "POST",
+        body: JSON.stringify({ action, ids }),
+      });
+      if ((action === "archive" || action === "delete") && activeId && ids.includes(activeId)) {
+        onSelect(null);
+      }
+      await store.refreshSessions();
+      setSelected(new Set());
+      setSelecting(false);
+      setBatchConfirm(false);
+    } catch {
+      /* 失败保留选择，用户可重试 */
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
   const renderSession = (s: SessionItem) => {
     const active = s.thread_id === activeThread;
     if (editing === s.id) {
@@ -155,6 +199,29 @@ export function SessionSidebar({
             <Check className="h-3.5 w-3.5" />
           </button>
         </div>
+      );
+    }
+    if (selecting) {
+      const checked = selected.has(s.id);
+      return (
+        <button
+          key={s.id}
+          type="button"
+          onClick={(e) => toggleSelect(s.id, e)}
+          aria-pressed={checked}
+          aria-label={`${checked ? t("sidebar.unselect") : t("sidebar.selectOne")}：${s.title}`}
+          className={cn(
+            "flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-[13.5px] transition-colors",
+            checked ? "bg-primary/10 text-foreground" : "text-foreground/80 hover:bg-foreground/[0.05]",
+          )}
+        >
+          {checked ? (
+            <CheckSquare className="h-4 w-4 shrink-0 text-primary" />
+          ) : (
+            <Square className="h-4 w-4 shrink-0 text-muted-foreground" />
+          )}
+          <span className="min-w-0 flex-1 truncate">{s.title}</span>
+        </button>
       );
     }
     return (
@@ -281,7 +348,67 @@ export function SessionSidebar({
           >
             <Search className="h-4 w-4" />
           </button>
+          <button
+            type="button"
+            aria-label={t("sidebar.select")}
+            aria-pressed={selecting}
+            title={t("sidebar.select")}
+            onClick={() => {
+              setSelecting((v) => !v);
+              setSelected(new Set());
+            }}
+            className={cn(
+              "rounded-lg p-2 transition-colors hover:bg-foreground/[0.05] hover:text-foreground",
+              selecting ? "bg-primary/10 text-primary" : "text-muted-foreground",
+            )}
+          >
+            <ListChecks className="h-4 w-4" />
+          </button>
         </div>
+
+        {selecting && (
+          <div className="mt-1 flex items-center gap-1 rounded-lg bg-foreground/[0.04] px-1.5 py-1">
+            <button
+              type="button"
+              onClick={() => setSelected(allSelected ? new Set() : new Set(filtered.map((s) => s.id)))}
+              className="rounded px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              {allSelected ? t("sidebar.clearAll") : t("sidebar.selectAll")}
+            </button>
+            <span className="text-[11px] tabular-nums text-muted-foreground">
+              {t("sidebar.selected", { n: selected.size })}
+            </span>
+            <button
+              type="button"
+              disabled={selected.size === 0 || batchBusy}
+              aria-label={t("sidebar.batchArchive")}
+              title={t("sidebar.batchArchive")}
+              onClick={() => void batchAction("archive")}
+              className="ml-auto rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
+            >
+              <Archive className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={selected.size === 0 || batchBusy}
+              aria-label={t("sidebar.batchDelete")}
+              title={t("sidebar.batchDelete")}
+              onClick={() => setBatchConfirm(true)}
+              className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-30 dark:hover:bg-red-950/40"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-label={t("sidebar.cancelSelect")}
+              title={t("sidebar.cancelSelect")}
+              onClick={() => { setSelecting(false); setSelected(new Set()); }}
+              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         {searchOpen && (
           <div className="relative mt-1">
@@ -412,6 +539,17 @@ export function SessionSidebar({
           <span className="truncate">{t("sidebar.localData")}</span>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={batchConfirm}
+        onOpenChange={setBatchConfirm}
+        title={t("sidebar.batchDeleteTitle")}
+        description={t("sidebar.batchDeleteDesc", { n: selected.size })}
+        confirmText={t("sidebar.batchDelete")}
+        cancelText={t("sidebar.cancelSelect")}
+        danger
+        onConfirm={() => void batchAction("delete")}
+      />
 
       <MorningReportDialog open={reportOpen} onOpenChange={setReportOpen} />
     </div>

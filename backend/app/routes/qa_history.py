@@ -51,6 +51,39 @@ async def create_session(payload: dict | None = None) -> dict:
     title = str((payload or {}).get("title") or "新会话").strip()
     return await db.create_session(title=title)
 
+@router.post("/api/sessions/batch")
+async def batch_sessions(payload: dict) -> dict:
+    """批量归档/取消归档/置顶/删除；返回实际处理条数。
+
+    逐条复用单会话逻辑，保证删除会话时 runs 与摘要一起清掉；最多 100 条，
+    避免误传超大数组把请求拖成分钟级。
+    """
+    action = str(payload.get("action") or "").strip()
+    ids = payload.get("ids") or []
+    if action not in {"archive", "unarchive", "pin", "unpin", "delete"}:
+        return JSONResponse({"error": "不支持的批量动作"}, status_code=400)
+    if not isinstance(ids, list) or not ids:
+        return JSONResponse({"error": "ids 不能为空"}, status_code=400)
+    try:
+        clean = [int(x) for x in ids[:100]]
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "ids 必须是整数数组"}, status_code=400)
+    done = 0
+    for sid in clean:
+        if action == "delete":
+            await db.delete_session(sid)
+        elif action == "archive":
+            await db.update_session_flags(sid, archived=True, pinned=False)
+        elif action == "unarchive":
+            await db.update_session_flags(sid, archived=False)
+        elif action == "pin":
+            await db.update_session_flags(sid, pinned=True)
+        else:
+            await db.update_session_flags(sid, pinned=False)
+        done += 1
+    return {"ok": True, "done": done}
+
+
 @router.patch("/api/sessions/{session_id}")
 async def update_session(session_id: int, payload: dict) -> dict:
     """改标题 / 置顶 / 归档；只传其中一个也能单独生效。"""
