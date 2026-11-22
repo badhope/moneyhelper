@@ -469,3 +469,11 @@ Studio 货架新增两条只读 MCP，任何用户打开「市场」都能看到
 - 修复后同一问题给出三个方向（红利低波、宽基分批、黄金/债券对冲）、代表 ETF、风险与适合人群；
   实测仍需约 70s、28 次工具调用，速度偏慢但结论完整。
 - 截图：`docs/screenshots/75-invest-advice-qa.png`。
+
+## 右侧工作台（4.16.24，浏览器实测）
+
+- 文件页列出两份实测附件（投资方向备忘.md / ETF行情快照.csv），搜索、上传、刷新均可用。
+- 预览页：Markdown 渲染出标题/引用/列表；CSV 渲染为四行表格并提示「左右滑动看完整列」。
+- 浏览器页：输入 quote.eastmoney.com 能在右栏加载东方财富；finance.sina.com.cn 也能加载。站点自身弹窗广告会盖住 iframe 内容，属目标站行为，不是右栏故障。
+- 回答内链接触发 `moneyhelper:open-url`：右栏收起时也能自动展开并切到浏览器页。
+- 截图：`docs/screenshots/76-workbench-preview.png`、`77-workbench-browser.png`。

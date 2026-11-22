@@ -184,6 +184,12 @@ export interface AttachmentItem {
   indexed: number;
   created_at: string;
 }
+export interface AttachmentDetail extends AttachmentItem {
+  /** 正文（后端只存前 6000 字） */
+  content: string;
+}
+export const getAttachment = (id: number) =>
+  api<AttachmentDetail>(`/api/attachments/${id}`);
 export const listAttachments = () =>
   api<{ attachments: AttachmentItem[] }>("/api/attachments").then((r) => r.attachments);
 export const uploadAttachment = (file: File) => {

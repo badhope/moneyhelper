@@ -27,6 +27,7 @@ import { useI18n } from "@/lib/i18n";
 import { useSpeech } from "@/lib/use-speech";
 import { useTheme } from "@/lib/theme";
 import type { AgentToolStep, AgentPlanStep, AnswerMeta } from "@/lib/types";
+import { OPEN_URL_EVENT } from "@/lib/workbench";
 
 // 注册常用语言（PrismLight 按需，控制包体积）
 SyntaxHighlighter.registerLanguage("javascript", javascript);
@@ -238,6 +239,27 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
 
 /** 复用给 ReactMarkdown 的 components：代码块走 CodeBlock，行内代码保持原样。 */
 const MD_COMPONENTS: Components = {
+  // 外链不跳走当前页：交给右侧工作台的浏览器。带 Ctrl/Cmd/Shift 时保留系统行为，
+  // 想在新标签页打开的人仍然可以开。
+  a({ href, children, ...props }: any) {
+    const external = /^https?:\/\//i.test(String(href ?? ""));
+    return (
+      <a
+        href={href}
+        {...props}
+        onClick={(e) => {
+          if (!external) return;
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          window.dispatchEvent(
+            new CustomEvent(OPEN_URL_EVENT, { detail: { url: String(href) } }),
+          );
+        }}
+      >
+        {children}
+      </a>
+    );
+  },
   // react-markdown 运行时传给 code 的 props 含非标准 inline 字段，类型缺省故用 any 收窄
   code({ className, children, ...props }: any) {
     const inline = Boolean((props as { inline?: boolean }).inline);

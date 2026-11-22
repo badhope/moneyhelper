@@ -1,5 +1,8 @@
-import { ArrowLeft, ChevronDown, Languages, Menu, Moon, Settings, SquarePen, Sun } from "lucide-react";
+import {
+  ArrowLeft, ChevronDown, Languages, Menu, Moon, PanelRightClose, PanelRightOpen, Settings, SquarePen, Sun,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { BrandLogo, BRAND } from "@/lib/brand";
 import { useI18n } from "@/lib/i18n";
@@ -22,6 +25,8 @@ export function TopBar({
   enabledModels,
   onSwitchModel,
   onTenantChanged,
+  railOpen,
+  onToggleRail,
 }: {
   onOpenSettings?: () => void;
   /** 移动端：打开左侧导航抽屉（会话列表/新建/部门/收件箱） */
@@ -35,6 +40,9 @@ export function TopBar({
   onSwitchModel?: (base: string, model: string) => void;
   /** 切换工作租户后回调（切片 7b）：用于刷新企业域数据 */
   onTenantChanged?: () => void;
+  /** 右侧工作台（文件/预览/浏览器）是否展开 */
+  railOpen?: boolean;
+  onToggleRail?: () => void;
 }) {
   const { resolved, setTheme } = useTheme();
   const { lang, setLang, t } = useI18n();
@@ -113,6 +121,25 @@ export function TopBar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t("chat.newSession")}</TooltipContent>
+          </Tooltip>
+        )}
+        {onToggleRail && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-9 w-9 hover:text-foreground",
+                  railOpen ? "text-primary" : "text-foreground/60",
+                )}
+                aria-label={railOpen ? t("workbench.close") : t("workbench.open")}
+                onClick={onToggleRail}
+              >
+                {railOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{railOpen ? t("workbench.close") : t("workbench.open")}</TooltipContent>
           </Tooltip>
         )}
         <Tooltip>

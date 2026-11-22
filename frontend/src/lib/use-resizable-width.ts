@@ -15,11 +15,14 @@ export function useResizableWidth({
   defaultWidth,
   min = 200,
   max = 420,
+  direction = "left",
 }: {
   storageKey: string;
   defaultWidth: number;
   min?: number;
   max?: number;
+  /** 右侧栏拖左边缘时，鼠标左移应让栏变宽，方向与左侧栏相反。 */
+  direction?: "left" | "right";
 }) {
   const [width, setWidth] = useState<number>(() => {
     try {
@@ -61,9 +64,10 @@ export function useResizableWidth({
     (e: React.PointerEvent) => {
       const start = startRef.current;
       if (!start) return;
-      setWidth(clamp(start.w + (e.clientX - start.x)));
+      const delta = direction === "left" ? e.clientX - start.x : start.x - e.clientX;
+      setWidth(clamp(start.w + delta));
     },
-    [clamp],
+    [clamp, direction],
   );
 
   const endDrag = useCallback(() => {

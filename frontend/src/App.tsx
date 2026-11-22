@@ -21,6 +21,8 @@ import { useResizableWidth } from "@/lib/use-resizable-width";
 import { TopBar } from "@/components/TopBar";
 import { MobileDrawer } from "@/components/MobileDrawer";
 import { MobileTabBar } from "@/components/MobileTabBar";
+import { WorkbenchRail } from "@/components/workbench/WorkbenchRail";
+import { OPEN_URL_EVENT } from "@/lib/workbench";
 
 // 首屏只需要 TopBar + 会话栏 + 对话区。以下面板都是"点开才用"，
 // 静态引入会把它们的依赖（Dashboard 的图表、部门看板、设置表单）压进主包。
@@ -79,6 +81,43 @@ export default function App() {
     max: 420,
   });
   const [locateRunId, setLocateRunId] = useState<number | null>(null);
+
+  // 右侧工作台：文件 / 预览 / 浏览器。
+  // 首次访问按视口决定：宽屏（>=1280）默认展开，窄屏先收起，避免一进来就把
+  // 对话挤成一条缝；用户手动开/关后写 localStorage，后续尊重选择。
+  const [railOpen, setRailOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem("wo.rail");
+      if (saved === "0" || saved === "1") return saved === "1";
+    } catch {
+      /* ignore */
+    }
+    return typeof window !== "undefined" ? window.matchMedia("(min-width: 1280px)").matches : false;
+  });
+  const [railRequest, setRailRequest] = useState<{ url: string; id: number } | null>(null);
+  const railReqId = useRef(0);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("wo.rail", railOpen ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [railOpen]);
+
+  // 回答里的外链不跳走当前页：交给右栏浏览器打开。事件由 Markdown 链接发出，
+  // App 始终监听，所以右栏收起时点链接也能把它拉起来。
+  useEffect(() => {
+    const onOpenUrl = (e: Event) => {
+      const url = (e as CustomEvent<{ url?: string }>).detail?.url;
+      if (!url) return;
+      railReqId.current += 1;
+      setRailRequest({ url, id: railReqId.current });
+      setRailOpen(true);
+    };
+    window.addEventListener(OPEN_URL_EVENT, onOpenUrl);
+    return () => window.removeEventListener(OPEN_URL_EVENT, onOpenUrl);
+  }, []);
 
   const [userCount, setUserCount] = useState<number | null>(null);
   const [authed, setAuthed] = useState<boolean>(!!getToken());
@@ -302,6 +341,8 @@ export default function App() {
                 onOpenNav={() => setMobileNavOpen(true)}
                 onBackToChat={view !== "chat" ? () => setView("chat") : undefined}
                 onTenantChanged={() => setTenantEpoch((n) => n + 1)}
+                railOpen={railOpen}
+                onToggleRail={() => setRailOpen((v) => !v)}
               />
 
               <main className="flex min-h-0 flex-1 pb-[calc(3.25rem+env(safe-area-inset-bottom))] md:pb-0">
@@ -346,6 +387,12 @@ export default function App() {
                 </div>
               </main>
             </div>
+
+            <WorkbenchRail
+              open={railOpen}
+              onClose={() => setRailOpen(false)}
+              externalUrl={railRequest}
+            />
           </div>
 
           {/* 移动端导航抽屉：桌面侧栏在 <md 隐藏，此处提供等价入口（会话列表/新建/部门/收件箱） */}

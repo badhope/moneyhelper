@@ -73,6 +73,27 @@ async def upload_attachment(request: Request) -> dict:
     return await db.add_attachment(filename, kind, size, text)
 
 
+@router.get("/api/attachments/{att_id}")
+async def attachment_detail(att_id: int) -> dict:
+    """单个附件正文：右侧工作台的「预览」读这里。
+
+    列表接口只回元数据（文件名/大小/时间），正文可能 6000 字；把所有正文
+    塞进列表会让文件栏越用越慢。这里按需取，并且只回预览需要的字段。
+    """
+    row = await db.get_attachment(int(att_id))
+    if not row:
+        return JSONResponse({"error": "附件不存在"}, status_code=404)
+    return {
+        "id": row["id"],
+        "filename": row["filename"],
+        "kind": row["kind"],
+        "size": row["size"],
+        "indexed": row["indexed"],
+        "created_at": row["created_at"],
+        "content": row["content"],
+    }
+
+
 @router.post("/api/attachments/{att_id}/index")
 async def index_attachment(att_id: int, payload: dict | None = None) -> dict:
     """把附件加入/移出知识库。加入后问答时会按 BM25 检索其片段。"""

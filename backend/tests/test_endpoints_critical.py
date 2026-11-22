@@ -78,6 +78,11 @@ async def test_attachment_upload_and_delete(client: AsyncClient) -> None:
     assert listed.status_code == 200
     assert any(a["id"] == att_id for a in listed.json()["attachments"])
 
+    detail = await client.get(f"/api/attachments/{att_id}")
+    assert detail.status_code == 200
+    assert detail.json()["filename"] == "note.txt"
+    assert detail.json()["content"] == "hello attachment"
+
     deleted = await client.delete(f"/api/attachments/{att_id}")
     assert deleted.status_code == 200
     assert deleted.json()["deleted"] == 1

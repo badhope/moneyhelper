@@ -2,6 +2,28 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.24] - 2026-11-22（右侧工作台：文件 / 预览 / 浏览器）
+
+### 新增
+
+- **右侧工作台**：对话右边常驻三页签竖栏，不再是「问完一轮就丢」的单向聊天。
+  - **文件**：列出对话里上传过的 txt / md / csv / json / html，按时间倒序，可搜索、可上传、可刷新；
+  - **预览**：Markdown 按渲染结果读，CSV 直接出表格（前 40 行），JSON 自动缩进，HTML 走禁用脚本的沙箱；正文可复制、可下载；
+  - **浏览器**：地址栏 + iframe，回答里的 http(s) 链接点击后直接开在右栏，不再把当前对话页跳走；另有「新窗口」出口应对禁止嵌入的站点。
+- **附件正文接口**：`GET /api/attachments/{id}`，只回预览需要的元数据与正文，避免列表把所有正文塞进一次响应。
+
+### 体验
+
+- 右栏宽度可拖动并持久化，双击分隔条恢复 360px；顶栏新增工作台开关，关掉后主对话恢复整宽。
+- 宽屏（>=1280）首次默认展开，窄屏先收起、点顶栏按钮以覆盖层打开；手机端锁背景滚动。
+- iframe 对同源页面不给 `allow-same-origin`，避免右栏成为 DOM 逃逸口。
+
+### 测试
+
+- 前端 219 tests passed；后端 `test_api.py + test_studio.py + test_endpoints_critical.py` 146 passed。
+- 浏览器实测：文件列表、Markdown 预览、CSV 表格、右栏打开东方财富/新浪财经、回答链接唤出右栏均通过。
+- 截图：`docs/screenshots/76-workbench-preview.png`、`77-workbench-browser.png`。
+
 ## [4.16.23] - 2026-11-22（投资问答不再只回「稍等」：过程停摆强制收尾）
 
 ### 修复
