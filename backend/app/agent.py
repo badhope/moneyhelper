@@ -47,6 +47,16 @@ from .tool_schemas import validate_tool_args
 
 _log = get_logger("agent")
 
+_STALL_MARKERS = ("稍等", "请稍等", "等我", "我先取数", "我再核", "正在分析", "马上给")
+
+def _looks_like_stall(text: str) -> bool:
+    """模型把「过程承诺」当终答：没有 tool_calls，却只回一句「我先取数，稍等」。
+    这种回答看似礼貌，实际用户拿不到任何结论；应当强制它基于已有工具结果成文。"""
+    body = (text or "").strip()
+    if not body or len(body) > 600:
+        return False
+    return any(marker in body for marker in _STALL_MARKERS)
+
 # 只按「内置财务工具」过滤，不能把外部 MCP 工具误伤：
 # `mcp__search_symbol` 之类的名字不在内置表里，若按「未登记即排除」处理，
 # 所有外部只读 MCP 工具都会失效（这曾导致 test_mcp_read_tools_not_blocked 失败）。
@@ -193,6 +203,15 @@ async def run_agent(    question: str,
         tool_calls = getattr(msg, "tool_calls", None)
 
         if not tool_calls:
+            # 有的模型会把「我先取数，稍等」当作终答：没有 tool_calls，也不再继续。
+            # 若直接流式展示，用户等了半分钟只拿到一句过程承诺。检测到这种停摆，
+            # 改为「禁止工具 + 直接给结论」的收尾请求，逼它把已有结果写成答案。
+            if _looks_like_stall(msg.content or ""):
+                _log.info("agent.stall_detected turn=%s content=%r", _turn, (msg.content or "")[:80])
+                return await wrap_up_answer(
+                    client, cfg, messages, emit,
+                    steps=steps, max_turns=turn_cap,
+                )
             # 最终回答：流式输出（逐 token 推送到前端 markdown 渲染）
             # 先尝试流式；失败时退回非流式兜底
             return await final_answer_result(
