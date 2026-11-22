@@ -189,6 +189,12 @@ export interface AttachmentItem {
   has_data?: boolean;
   created_at: string;
 }
+export interface AttachmentHit extends AttachmentItem {
+  /** 正文命中时返回关键词附近片段；文件名命中为空 */
+  snippet: string;
+  match: "filename" | "content";
+}
+
 export interface AttachmentDetail extends AttachmentItem {
   /** 正文（后端只存前 6000 字；图片/PDF 为空） */
   content: string;
@@ -199,6 +205,13 @@ export const getAttachment = (id: number) =>
   api<AttachmentDetail>(`/api/attachments/${id}`);
 export const listAttachments = () =>
   api<{ attachments: AttachmentItem[] }>("/api/attachments").then((r) => r.attachments);
+export const searchAttachments = (q: string, limit = 30) => {
+  const query = q.trim();
+  if (!query) return Promise.resolve([] as AttachmentHit[]);
+  return api<{ results: AttachmentHit[] }>(
+    `/api/attachments/search?q=${encodeURIComponent(query)}&limit=${Math.max(1, Math.min(limit, 50))}`,
+  ).then((r) => (Array.isArray(r.results) ? r.results : []));
+};
 export const uploadAttachment = (file: File) => {
   const fd = new FormData();
   fd.append("file", file);

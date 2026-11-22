@@ -59,6 +59,14 @@ async def attachments(limit: int = 50) -> dict:
     return {"attachments": items}
 
 
+@router.get("/api/attachments/search")
+async def search_attachments(q: str = "", limit: int = 30) -> dict:
+    query = q.strip()[:200]
+    if not query:
+        return {"results": []}
+    return {"results": await db.search_attachments(query, limit)}
+
+
 @router.post("/api/attachments")
 async def upload_attachment(request: Request) -> dict:
     """上传附件（multipart/form-data，字段 file）。

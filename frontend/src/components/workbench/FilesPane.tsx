@@ -1,9 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Braces, Download, FileCode2, FileImage, FileSpreadsheet, FileText, Loader2, RefreshCw,
   Search, Trash2, Upload,
 } from "lucide-react";
-import type { AttachmentItem } from "@/lib/api";
+import { searchAttachments } from "@/lib/api";
+import type { AttachmentHit, AttachmentItem } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
@@ -17,6 +18,20 @@ function FileIcon({ name }: { name: string }) {
   if (ext === "html" || ext === "htm") return <FileCode2 className="h-4 w-4" />;
   if (["png", "jpg", "jpeg", "webp", "gif"].includes(ext)) return <FileImage className="h-4 w-4" />;
   return <FileText className="h-4 w-4" />;
+}
+
+function MatchSnippet({ text, q }: { text: string; q: string }) {
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="rounded bg-primary/15 px-0.5 text-foreground">
+        {text.slice(idx, idx + q.length)}
+      </mark>
+      {text.slice(idx + q.length)}
+    </>
+  );
 }
 
 function sizeLabel(n: number) {
@@ -53,11 +68,52 @@ export function FilesPane({
   const { t } = useI18n();
   const { toast } = useToast();
   const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<AttachmentHit[]>([]);
+  const [searchPending, setSearchPending] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const shown = items.filter((a) =>
-    !query.trim() ? true : a.filename.toLowerCase().includes(query.trim().toLowerCase()),
+  const queryTrim = query.trim();
+  const localShown = items.filter((a) =>
+    !queryTrim ? true : a.filename.toLowerCase().includes(queryTrim.toLowerCase()),
   );
+
+  // 文件名即时过滤；停手 300ms 再查正文，命中片段随结果返回。
+  useEffect(() => {
+    if (!queryTrim) {
+      setHits([]);
+      setSearchPending(false);
+      setSearchFailed(false);
+      return;
+    }
+    let alive = true;
+    setHits([]);
+    setSearchPending(true);
+    setSearchFailed(false);
+    const timer = window.setTimeout(() => {
+      void searchAttachments(queryTrim, 30)
+        .then((rows) => {
+          if (alive) setHits(rows);
+        })
+        .catch(() => {
+          if (!alive) return;
+          setHits([]);
+          setSearchFailed(true);
+        })
+        .finally(() => {
+          if (alive) setSearchPending(false);
+        });
+    }, 300);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+    // 删除/刷新文件后重新搜一次，避免命中列表停在已删记录上
+  }, [queryTrim, items]);
+
+  const serverReady = !searchPending && !searchFailed;
+  const shown: (AttachmentItem & Partial<Pick<AttachmentHit, "snippet" | "match">>)[] =
+    !queryTrim ? items : serverReady ? hits : localShown;
 
   const addFiles = (files: File[]) => {
     const { accepted, rejected } = pickAttachmentFiles(files);
@@ -115,7 +171,12 @@ export function FilesPane({
         </div>
         <div className="flex items-center justify-between text-[11px] text-muted-foreground">
           <span>{t("workbench.fileCount", { n: items.length })}</span>
-          {query.trim() && <span>{t("workbench.matchCount", { n: shown.length })}</span>}
+          {queryTrim && (
+            <span className="inline-flex items-center gap-1">
+              {searchPending && <Loader2 className="h-3 w-3 animate-spin" />}
+              {t("workbench.matchCount", { n: shown.length })}
+            </span>
+          )}
         </div>
       </div>
 
@@ -180,6 +241,13 @@ export function FilesPane({
             </button>
             <p className="mt-2 text-[11px] text-muted-foreground/80">{t("workbench.filesEmptyHint")}</p>
           </div>
+        ) : queryTrim && searchPending && shown.length === 0 ? (
+          <div className="flex items-center justify-center gap-2 px-4 py-10 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            {t("workbench.searching")}
+          </div>
+        ) : queryTrim && searchFailed && shown.length === 0 ? (
+          <p className="px-4 py-10 text-center text-xs text-muted-foreground">{t("workbench.searchFailed")}</p>
         ) : shown.length === 0 ? (
           <p className="px-4 py-10 text-center text-xs text-muted-foreground">{t("workbench.noMatch")}</p>
         ) : (
@@ -206,6 +274,11 @@ export function FilesPane({
                       <span className="mt-0.5 block truncate text-[10.5px] text-muted-foreground">
                         {sizeLabel(a.size)} · {fmtDate(a.created_at)}
                       </span>
+                      {a.match === "content" && a.snippet ? (
+                        <span className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+                          <MatchSnippet text={a.snippet} q={queryTrim} />
+                        </span>
+                      ) : null}
                     </span>
                     {a.indexed ? (
                       <span className="mt-0.5 shrink-0 rounded bg-primary/10 px-1 py-0.5 text-[10px] text-primary">

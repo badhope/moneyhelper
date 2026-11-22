@@ -223,6 +223,48 @@ async def list_attachments(limit: int = 50) -> list[dict[str, Any]]:
     return rows
 
 
+async def search_attachments(q: str, limit: int = 30) -> list[dict[str, Any]]:
+    """按文件名或已提取正文搜附件，返回可直接渲染的元数据与命中片段。"""
+    query = q.strip()
+    if not query:
+        return []
+    esc = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    kw = f"%{esc}%"
+    rows = await fetch_all(
+        "SELECT id, filename, kind, mime, size, indexed, created_at, content,"
+        " CASE WHEN data IS NOT NULL AND data <> '' THEN 1 ELSE 0 END AS has_data"
+        " FROM attachments WHERE user_id=? AND (filename LIKE ? ESCAPE '\\'"
+        " OR content LIKE ? ESCAPE '\\') ORDER BY id DESC LIMIT ?",
+        (current_user_id(), kw, kw, _clamp_limit(limit)),
+    )
+    needle_lower = query.lower()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        content = str(row.pop("content", "") or "")
+        filename = str(row.get("filename") or "")
+        name_hit = needle_lower in filename.lower()
+        if not name_hit:
+            idx = content.lower().find(needle_lower)
+            if idx < 0:
+                continue
+            start = max(0, idx - 30)
+            end = min(len(content), idx + len(query) + 60)
+            # 文件正文里的换行会撑破两行片段，压成单行空白
+            snippet = " ".join(content[start:end].split())
+            if start > 0:
+                snippet = "…" + snippet
+            if end < len(content):
+                snippet += "…"
+            row["snippet"] = snippet
+            row["match"] = "content"
+        else:
+            row["snippet"] = ""
+            row["match"] = "filename"
+        row["has_data"] = bool(row.get("has_data"))
+        out.append(row)
+    return out
+
+
 async def list_indexed_attachments() -> list[dict[str, Any]]:
     """已加入知识库的附件（含正文，供检索切块）。"""
     return await fetch_all(

@@ -1361,6 +1361,30 @@ async def test_history_truncate_from_run(client) -> None:
     assert r.status_code == 404
 
 
+async def test_attachment_search_filename_and_content(client) -> None:
+    """工作台搜索：文件名之外，还能命中已提取的正文并带片段。"""
+    up = await client.post(
+        "/api/attachments",
+        files={"file": ("预算笔记.md", "本月柠檬预算 300 元".encode(), "text/markdown")},
+    )
+    assert up.status_code == 200
+    aid = up.json()["id"]
+
+    by_name = (await client.get("/api/attachments/search?q=预算")).json()["results"]
+    assert by_name and by_name[0]["id"] == aid and by_name[0]["match"] == "filename"
+
+    by_body = (await client.get("/api/attachments/search?q=柠檬")).json()["results"]
+    assert by_body and by_body[0]["id"] == aid
+    assert by_body[0]["match"] == "content"
+    assert "柠檬" in by_body[0]["snippet"]
+    assert "content" not in by_body[0]
+
+    # 通配符按字面处理，不把所有文件都搜出来
+    assert (await client.get("/api/attachments/search?q=%25")).json()["results"] == []
+
+    await client.delete(f"/api/attachments/{aid}")
+
+
 async def test_history_sent_attachments_roundtrip(client) -> None:
     """已发送消息的附件：落库只存引用，刷新能回看；重新生成也不丢。"""
     tid = "att-hist-1"

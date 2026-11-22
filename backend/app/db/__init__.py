@@ -52,6 +52,7 @@ from .audit import (
     list_attachments,
     list_audit_logs,
     list_indexed_attachments,
+    search_attachments,
     set_attachment_indexed,
     verify_audit_chain,
 )
@@ -475,6 +476,7 @@ __all__ = [
     "list_debts",
     "list_goals",
     "list_indexed_attachments",
+    "search_attachments",
     "list_invoices",
     "list_loans",
     "list_members",
