@@ -1,11 +1,14 @@
 import { useRef, useState } from "react";
 import {
-  Braces, FileCode2, FileImage, FileSpreadsheet, FileText, Loader2, RefreshCw, Search, Upload,
+  Braces, Download, FileCode2, FileImage, FileSpreadsheet, FileText, Loader2, RefreshCw,
+  Search, Trash2, Upload,
 } from "lucide-react";
 import type { AttachmentItem } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { CHAT_ATTACHMENT_ACCEPT, hasFileDrag, pickAttachmentFiles } from "@/lib/chat-attachments";
 
 function FileIcon({ name }: { name: string }) {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
@@ -33,6 +36,8 @@ export function FilesPane({
   onRetry,
   onOpen,
   onUpload,
+  onDownload,
+  onDeleteRequest,
 }: {
   items: AttachmentItem[];
   pending: boolean;
@@ -41,14 +46,26 @@ export function FilesPane({
   uploading: boolean;
   onRetry: () => void;
   onOpen: (item: AttachmentItem) => void;
-  onUpload: (file: File) => void;
+  onUpload: (files: File[]) => void;
+  onDownload: (item: AttachmentItem) => void;
+  onDeleteRequest: (item: AttachmentItem) => void;
 }) {
   const { t } = useI18n();
+  const { toast } = useToast();
   const [query, setQuery] = useState("");
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const shown = items.filter((a) =>
     !query.trim() ? true : a.filename.toLowerCase().includes(query.trim().toLowerCase()),
   );
+
+  const addFiles = (files: File[]) => {
+    const { accepted, rejected } = pickAttachmentFiles(files);
+    if (rejected.length) {
+      toast(`${t("workbench.unsupported")}：${rejected.slice(0, 3).join("、")}`, "error");
+    }
+    if (accepted.length) onUpload(accepted);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -87,11 +104,12 @@ export function FilesPane({
             ref={fileRef}
             type="file"
             className="hidden"
-            accept=".txt,.md,.csv,.json,.log,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,.pdf"
+            accept={CHAT_ATTACHMENT_ACCEPT}
+            multiple
             onChange={(e) => {
-              const f = e.target.files?.[0];
+              const picked = Array.from(e.target.files ?? []);
               e.target.value = "";
-              if (f) onUpload(f);
+              if (picked.length) addFiles(picked);
             }}
           />
         </div>
@@ -101,7 +119,38 @@ export function FilesPane({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto scroll-thin p-2">
+      <div
+        className="relative min-h-0 flex-1 overflow-y-auto scroll-thin p-2"
+        onDragEnter={(e) => {
+          if (!hasFileDrag(e.dataTransfer.types)) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragOver={(e) => {
+          if (!hasFileDrag(e.dataTransfer.types)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+          if (!dragging) setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          const next = e.relatedTarget as Node | null;
+          if (next && e.currentTarget.contains(next)) return;
+          setDragging(false);
+        }}
+        onDrop={(e) => {
+          if (!hasFileDrag(e.dataTransfer.types)) return;
+          e.preventDefault();
+          setDragging(false);
+          addFiles(Array.from(e.dataTransfer.files ?? []));
+        }}
+      >
+        {dragging && (
+          <div className="pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary/45 bg-card/95 text-center">
+            <Upload className="mb-1.5 h-5 w-5 text-primary" />
+            <span className="text-[13px] font-medium">{t("workbench.dropTitle")}</span>
+            <span className="mt-0.5 text-[11px] text-muted-foreground">{t("workbench.dropHint")}</span>
+          </div>
+        )}
         {pending ? (
           <div className="flex items-center justify-center gap-2 py-10 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -137,30 +186,54 @@ export function FilesPane({
           <ul className="space-y-1">
             {shown.map((a) => (
               <li key={a.id}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(a)}
-                  aria-current={selectedId === a.id ? "true" : undefined}
+                <div
                   className={cn(
-                    "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent/70",
+                    "group flex items-center rounded-lg transition-colors hover:bg-accent/70",
                     selectedId === a.id && "bg-primary/[0.07] ring-1 ring-primary/20",
                   )}
                 >
-                  <span className="mt-0.5 shrink-0 text-muted-foreground">
-                    <FileIcon name={a.filename} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] text-foreground/90">{a.filename}</span>
-                    <span className="mt-0.5 block truncate text-[10.5px] text-muted-foreground">
-                      {sizeLabel(a.size)} · {fmtDate(a.created_at)}
+                  <button
+                    type="button"
+                    onClick={() => onOpen(a)}
+                    aria-current={selectedId === a.id ? "true" : undefined}
+                    className="flex min-w-0 flex-1 items-start gap-2 rounded-lg px-2.5 py-2 text-left"
+                  >
+                    <span className="mt-0.5 shrink-0 text-muted-foreground">
+                      <FileIcon name={a.filename} />
                     </span>
-                  </span>
-                  {a.indexed ? (
-                    <span className="mt-0.5 shrink-0 rounded bg-primary/10 px-1 py-0.5 text-[10px] text-primary">
-                      {t("workbench.indexed")}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] text-foreground/90">{a.filename}</span>
+                      <span className="mt-0.5 block truncate text-[10.5px] text-muted-foreground">
+                        {sizeLabel(a.size)} · {fmtDate(a.created_at)}
+                      </span>
                     </span>
-                  ) : null}
-                </button>
+                    {a.indexed ? (
+                      <span className="mt-0.5 shrink-0 rounded bg-primary/10 px-1 py-0.5 text-[10px] text-primary">
+                        {t("workbench.indexed")}
+                      </span>
+                    ) : null}
+                  </button>
+                  <div className="mr-1 flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => onDownload(a)}
+                      aria-label={t("workbench.download")}
+                      title={t("workbench.download")}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteRequest(a)}
+                      aria-label={t("workbench.delete")}
+                      title={t("workbench.delete")}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>

@@ -3,7 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Eye, Files, Globe2, X } from "lucide-react";
 import {
+  apiBlob,
+  deleteAttachment,
+  getAttachment,
   listAttachments,
+  saveBlob,
   uploadAttachment,
   type AttachmentItem,
 } from "@/lib/api";
@@ -12,6 +16,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { useResizableWidth } from "@/lib/use-resizable-width";
 import { useToast } from "@/lib/toast";
 import { cn, errMsg } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm";
 import { FilesPane } from "@/components/workbench/FilesPane";
 import { PreviewPane } from "@/components/workbench/PreviewPane";
 import { BrowserPane } from "@/components/workbench/BrowserPane";
@@ -42,6 +47,7 @@ export function WorkbenchRail({
   const [tab, setTab] = useState<WorkbenchTab>("files");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<AttachmentItem | null>(null);
 
   const nav = useResizableWidth({
     storageKey: "wo.workbenchWidth",
@@ -92,20 +98,57 @@ export function WorkbenchRail({
     };
   }, [open, isWide]);
 
-  const upload = async (file: File) => {
+  const upload = async (files: File[]) => {
+    if (!files.length) return;
     setUploading(true);
     try {
-      const r = await uploadAttachment(file);
+      const results = await Promise.allSettled(
+        files.map(async (file) => ({ file, result: await uploadAttachment(file) })),
+      );
+      const ok = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+      const failed = results.find((r) => r.status === "rejected");
       await qc.invalidateQueries({ queryKey: ["/api/attachments"] });
-      if (r?.id) {
-        setSelectedId(r.id);
+      const latest = ok.at(-1)?.result;
+      if (latest?.id) {
+        setSelectedId(latest.id);
         setTab("preview");
       }
-      toast(t("workbench.uploaded", { name: file.name }), "ok");
-    } catch (e) {
-      toast(errMsg(e), "error");
+      if (ok.length === 1) toast(t("workbench.uploaded", { name: ok[0].file.name }), "ok");
+      else if (ok.length > 1) toast(t("workbench.uploadedMany", { n: ok.length }), "ok");
+      if (failed?.status === "rejected") toast(errMsg(failed.reason), "error");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const downloadFile = async (item: AttachmentItem) => {
+    try {
+      if (item.has_data) {
+        saveBlob(await apiBlob(`/api/attachments/${item.id}/raw`), item.filename);
+        return;
+      }
+      const detail = await getAttachment(item.id);
+      if (detail.has_data) {
+        saveBlob(await apiBlob(`/api/attachments/${item.id}/raw`), item.filename);
+        return;
+      }
+      saveBlob(
+        new Blob([detail.content ?? ""], { type: "text/plain;charset=utf-8" }),
+        item.filename,
+      );
+    } catch (e) {
+      toast(errMsg(e), "error");
+    }
+  };
+
+  const removeFile = async (item: AttachmentItem) => {
+    try {
+      await deleteAttachment(item.id);
+      await qc.invalidateQueries({ queryKey: ["/api/attachments"] });
+      if (selectedId === item.id) setSelectedId(null);
+      toast(t("workbench.deleted", { name: item.filename }), "ok");
+    } catch (e) {
+      toast(errMsg(e), "error");
     }
   };
 
@@ -169,7 +212,9 @@ export function WorkbenchRail({
               setSelectedId(item.id);
               setTab("preview");
             }}
-            onUpload={(f) => void upload(f)}
+            onUpload={(files) => void upload(files)}
+            onDownload={(item) => void downloadFile(item)}
+            onDeleteRequest={setPendingDelete}
           />
         )}
         {tab === "preview" && (
@@ -177,6 +222,21 @@ export function WorkbenchRail({
         )}
         {tab === "browser" && <BrowserPane request={externalUrl} />}
       </div>
+      {pendingDelete && (
+        <ConfirmDialog
+          open
+          onOpenChange={(o) => { if (!o) setPendingDelete(null); }}
+          title={t("workbench.deleteTitle", { name: pendingDelete.filename })}
+          description={t("workbench.deleteDesc")}
+          confirmText={t("workbench.delete")}
+          danger
+          onConfirm={() => {
+            const item = pendingDelete;
+            setPendingDelete(null);
+            void removeFile(item);
+          }}
+        />
+      )}
     </>
   );
 

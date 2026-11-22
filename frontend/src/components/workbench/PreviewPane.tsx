@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, Download, FileText, Loader2 } from "lucide-react";
 import { apiBlob, getAttachment, saveBlob, type AttachmentItem } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
+import { errMsg } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
@@ -152,10 +153,18 @@ export function PreviewPane({
       toast(t("workbench.copied"), "ok");
     } else toast(t("workbench.copyFailed"), "error");
   };
-  const download = () => {
+  const download = async () => {
     if (binary) {
       if (rawQ.data) saveBlob(rawQ.data, selected.filename);
       else toast(t("workbench.readFailed"), "error");
+      return;
+    }
+    if (detail.data?.has_data) {
+      try {
+        saveBlob(await apiBlob(`/api/attachments/${selected.id}/raw`), selected.filename);
+      } catch (e) {
+        toast(errMsg(e), "error");
+      }
       return;
     }
     saveBlob(new Blob([content], { type: "text/plain;charset=utf-8" }), selected.filename);
@@ -186,7 +195,7 @@ export function PreviewPane({
           </button>
           <button
             type="button"
-            onClick={download}
+            onClick={() => void download()}
             disabled={binary ? !rawQ.data : !content}
             aria-label={t("workbench.download")}
             title={t("workbench.download")}

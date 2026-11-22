@@ -10,8 +10,9 @@ describe("聊天附件筛选", () => {
       file("b.csv"),
       file("c.PNG"),
       file("d.pdf"),
+      file("e.html"),
     ]);
-    expect(picked.accepted.map((f) => f.name)).toEqual(["a.md", "b.csv", "c.PNG", "d.pdf"]);
+    expect(picked.accepted.map((f) => f.name)).toEqual(["a.md", "b.csv", "c.PNG", "d.pdf", "e.html"]);
     expect(picked.rejected).toEqual([]);
   });
 

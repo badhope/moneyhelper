@@ -53,7 +53,10 @@ def _matches_type(raw: bytes, ext: str) -> bool:
 
 @router.get("/api/attachments")
 async def attachments(limit: int = 50) -> dict:
-    return {"attachments": await db.list_attachments(limit)}
+    items = await db.list_attachments(limit)
+    for item in items:
+        item["has_data"] = bool(item.get("has_data"))
+    return {"attachments": items}
 
 
 @router.post("/api/attachments")
@@ -116,7 +119,15 @@ async def upload_attachment(request: Request) -> dict:
             {"error": "无法读取该文件内容（支持 UTF-8 文本 / CSV / 图片 / PDF）"}, status_code=400
         )
     kind = "csv" if lower.endswith(".csv") else "text"
-    return await db.add_attachment(filename, kind, size, text)
+    # 正文截 6000 字只用于预览/检索；原始字节另存，下载出来的才是完整文件。
+    return await db.add_attachment(
+        filename,
+        kind,
+        size,
+        text,
+        mime="text/plain; charset=utf-8",
+        data_b64=base64.b64encode(raw).decode("ascii"),
+    )
 
 
 @router.get("/api/attachments/{att_id}")

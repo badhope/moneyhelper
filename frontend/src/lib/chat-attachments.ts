@@ -4,9 +4,9 @@
  * 避免用户拖进来一个 Word 后只看到一句英文 415。
  */
 export const CHAT_ATTACHMENT_ACCEPT =
-  ".txt,.md,.json,.csv,.log,.png,.jpg,.jpeg,.webp,.gif,.pdf";
+  ".txt,.md,.json,.csv,.log,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,.pdf";
 
-const ACCEPTED_EXT = /\.(txt|md|json|csv|log|png|jpg|jpeg|webp|gif|pdf)$/i;
+const ACCEPTED_EXT = /\.(txt|md|json|csv|log|html|htm|png|jpg|jpeg|webp|gif|pdf)$/i;
 
 export interface AcceptedAttachmentFiles {
   accepted: File[];

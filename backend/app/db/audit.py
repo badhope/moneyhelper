@@ -215,8 +215,9 @@ async def verify_audit_chain(user_id: int | None = None) -> dict[str, Any]:
 
 async def list_attachments(limit: int = 50) -> list[dict[str, Any]]:
     rows = await fetch_all(
-        "SELECT id, filename, kind, size, indexed, created_at FROM attachments"
-        " WHERE user_id=? ORDER BY id DESC LIMIT ?",
+        "SELECT id, filename, kind, mime, size, indexed, created_at,"
+        " CASE WHEN data IS NOT NULL AND data <> '' THEN 1 ELSE 0 END AS has_data"
+        " FROM attachments WHERE user_id=? ORDER BY id DESC LIMIT ?",
         (current_user_id(), _clamp_limit(limit)),
     )
     return rows
@@ -244,18 +245,27 @@ async def set_attachment_indexed(att_id: int, indexed: bool) -> dict[str, Any]:
 
 
 async def add_attachment(
-    filename: str, kind: str, size: int, content: str
+    filename: str,
+    kind: str,
+    size: int,
+    content: str,
+    mime: str = "",
+    data_b64: str = "",
 ) -> dict[str, Any]:
+    """文本/CSV：正文只截前 6000 字给预览与检索；原始字节另存 data，下载才不丢内容。"""
     conn = await _conn()
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     cur = await conn.execute(
-        "INSERT INTO attachments(user_id,filename,kind,size,content,created_at) VALUES(?,?,?,?,?,?)",
+        "INSERT INTO attachments(user_id,filename,kind,size,content,mime,data,created_at)"
+        " VALUES(?,?,?,?,?,?,?,?)",
         (
             current_user_id(),
             str(filename)[:200],
             str(kind)[:20] or "text",
             int(size or 0),
             content[:6000],
+            str(mime)[:80],
+            data_b64,
             now,
         ),
     )

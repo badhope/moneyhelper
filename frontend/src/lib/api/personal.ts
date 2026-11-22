@@ -185,6 +185,8 @@ export interface AttachmentItem {
   size: number;
   /** 0/1：是否已加入知识库（参与检索） */
   indexed: number;
+  /** 是否保留了原始字节；文本附件下载完整文件靠它 */
+  has_data?: boolean;
   created_at: string;
 }
 export interface AttachmentDetail extends AttachmentItem {

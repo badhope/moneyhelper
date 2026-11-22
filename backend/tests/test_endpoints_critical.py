@@ -78,12 +78,18 @@ async def test_attachment_upload_and_delete(client: AsyncClient) -> None:
 
     listed = await client.get("/api/attachments")
     assert listed.status_code == 200
-    assert any(a["id"] == att_id for a in listed.json()["attachments"])
+    item = next(a for a in listed.json()["attachments"] if a["id"] == att_id)
+    assert item["has_data"] is True
+    assert item["mime"].startswith("text/plain")
 
     detail = await client.get(f"/api/attachments/{att_id}")
     assert detail.status_code == 200
     assert detail.json()["filename"] == "note.txt"
     assert detail.json()["content"] == "hello attachment"
+    assert detail.json()["has_data"] is True
+    raw = await client.get(f"/api/attachments/{att_id}/raw")
+    assert raw.status_code == 200
+    assert raw.content == b"hello attachment"
 
     deleted = await client.delete(f"/api/attachments/{att_id}")
     assert deleted.status_code == 200
@@ -91,6 +97,21 @@ async def test_attachment_upload_and_delete(client: AsyncClient) -> None:
 
     after = await client.get("/api/attachments")
     assert not any(a["id"] == att_id for a in after.json()["attachments"])
+
+
+async def test_attachment_text_download_keeps_full_body(client: AsyncClient) -> None:
+    """预览只存 6000 字，但下载必须拿回原始整份文本。"""
+    body = ("开头\n" + "x" * 7000 + "\n结尾标记\n").encode()
+    files = {"file": ("long.txt", body, "text/plain")}
+    r = await client.post("/api/attachments", files=files)
+    assert r.status_code == 200, r.text
+    att_id = r.json()["id"]
+    detail = (await client.get(f"/api/attachments/{att_id}")).json()
+    assert len(detail["content"]) == 6000
+    raw = await client.get(f"/api/attachments/{att_id}/raw")
+    assert raw.status_code == 200
+    assert raw.content == body
+    assert "结尾标记".encode() in raw.content
 
 
 async def test_attachment_rejects_non_multipart(client: AsyncClient) -> None:
