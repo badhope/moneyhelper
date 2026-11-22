@@ -496,7 +496,7 @@ export function ResearchPage() {
         </div>
         <Button size="sm" onClick={submit} disabled={analyze.isFetching}>
           <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", analyze.isFetching && "animate-spin")} />
-          分析
+          {t("research.analyze")}
         </Button>
       </div>
 
@@ -514,12 +514,18 @@ export function ResearchPage() {
             illustration="search"
             title={t("research.techUnavailable")}
             desc={analyze.data.reason ?? t("research.quoteUnavailable")}
+            actions={
+              <Button size="sm" variant="outline" onClick={() => void analyze.refetch()} disabled={analyze.isFetching}>
+                <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", analyze.isFetching && "animate-spin")} />
+                {t("research.retry")}
+              </Button>
+            }
           />
           <Card className="p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <LineChart className="h-4 w-4 text-primary" />
-                策略回测
+                {t("research.backtest")}
               </div>
               <div className="flex gap-1 rounded-lg bg-muted/40 p-1 text-xs">
                 {(Object.keys(STRATEGY_LABEL_KEYS) as StrategyId[]).map((s) => (
@@ -688,7 +694,7 @@ export function ResearchPage() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <LineChart className="h-4 w-4 text-primary" />
-                策略回测
+                {t("research.backtest")}
               </div>
               <div className="flex gap-1 rounded-lg bg-muted/40 p-1 text-xs">
                 {(Object.keys(STRATEGY_LABEL_KEYS) as StrategyId[]).map((s) => (

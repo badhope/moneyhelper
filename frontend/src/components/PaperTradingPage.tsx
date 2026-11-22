@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/confirm";
 import { useEChart, usePalette, useCandleColors, axisLabelColor } from "@/lib/charts";
 import { useTheme } from "@/lib/theme";
 import { fmtMoney, fmtPct, pnlClass, fmtDate } from "@/lib/format";
@@ -179,6 +180,7 @@ export function PaperTradingPage() {
   const { t } = useI18n();
   const { data, error, loading, reload } = usePaperList();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const detail = usePaperDetail(selectedId);
 
   // 下单表单
@@ -281,7 +283,7 @@ export function PaperTradingPage() {
                 <span className="text-sm font-medium">{t("paper2.n3")}</span>
                 <Badge variant="secondary">{data?.valuation_source === "last_trade" ? t("paper4.lastTrade") : t("paper4.live")}</Badge>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => void reload()} disabled={loading}>
+              <Button variant="ghost" size="sm" aria-label={t("settings.refresh")} title={t("settings.refresh")} onClick={() => void reload()} disabled={loading}>
                 <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
               </Button>
             </div>
@@ -356,10 +358,10 @@ export function PaperTradingPage() {
                   </Badge>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => void detail.reload()} disabled={detail.loading}>
+                  <Button variant="ghost" size="sm" aria-label={t("settings.refresh")} title={t("settings.refresh")} onClick={() => void detail.reload()} disabled={detail.loading}>
                     <RefreshCw className={cn("h-3.5 w-3.5", detail.loading && "animate-spin")} />
                   </Button>
-                  <Button variant="ghost" size="sm" className="text-down" onClick={() => void removeAccount()}>
+                  <Button variant="ghost" size="sm" className="text-down" onClick={() => setDeleteOpen(true)}>
                     <Trash2 className="h-3.5 w-3.5" />
                     {t("paper3.k15")}
                   </Button>
@@ -594,6 +596,16 @@ export function PaperTradingPage() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t("paper3.deleteTitle", { name: selected?.name ?? "" })}
+        description={t("paper3.deleteDesc")}
+        confirmText={t("paper3.k15")}
+        danger
+        onConfirm={() => void removeAccount()}
+      />
     </div>
   );
 }

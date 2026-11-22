@@ -144,6 +144,8 @@ export const zh_settings: Record<string, string> = {
   "org.positions": "岗位",
   "org.members": "成员",
   "org.name": "名称",
+  "org.save": "保存",
+  "org.cancelEdit": "取消编辑",
   "org.code": "编码",
   "org.parent": "上级部门",
   "org.none": "无",

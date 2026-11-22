@@ -39,7 +39,7 @@ async def _kline_points(symbol: str, period: str = "daily", limit: int = 180) ->
     """取 K 线点；不可用返回 ([], 原因)。"""
     res = await quotes.kline(symbol, period, limit)
     if not res or not res.get("points"):
-        return [], "K-line unavailable (network or unsupported symbol)"
+        return [], "行情接口暂时取不到 K 线：可能是网络波动，或该标的暂不支持历史行情"
     return res["points"], None
 
 
@@ -59,7 +59,7 @@ async def research_analyze(
         return {"available": False, "symbol": sym, "reason": err}
     ta = technical_analysis(points)
     if ta is None:
-        return {"available": False, "symbol": sym, "reason": "insufficient price history (<20 bars)"}
+        return {"available": False, "symbol": sym, "reason": "历史 K 线不足 20 根，暂时算不出均线与 RSI 等指标"}
     quote = await quotes.quote_now(sym)
     return {
         "available": True,
@@ -173,7 +173,7 @@ async def research_backtest(
         return {"available": False, "symbol": sym, "strategy": strategy, "reason": err}
     closes, dates = series_from_points(points)
     if len(closes) < 60:
-        return {"available": False, "symbol": sym, "strategy": strategy, "reason": "insufficient price history"}
+        return {"available": False, "symbol": sym, "strategy": strategy, "reason": "历史 K 线不足 60 根，回测样本太短，结论不可靠"}
 
     if strategy == "ma_cross":
         result = backtest_ma_cross(closes, dates, fast=fast, slow=slow)
@@ -188,7 +188,7 @@ async def research_backtest(
     else:
         result = None
     if result is None:
-        return {"available": False, "symbol": sym, "strategy": strategy, "reason": "insufficient price history"}
+        return {"available": False, "symbol": sym, "strategy": strategy, "reason": "历史行情不足，无法计算"}
 
     return {
         "available": True,
@@ -239,11 +239,11 @@ async def research_forecast(
         return {"available": False, "symbol": sym, "reason": err}
     closes, dates = series_from_points(points)
     if len(closes) < 30:
-        return {"available": False, "symbol": sym, "reason": "insufficient price history (<30 bars)"}
+        return {"available": False, "symbol": sym, "reason": "历史 K 线不足 30 根，做不了波动率预测"}
 
     result = forecast(closes, dates=dates, horizon=days)
     if result is None:
-        return {"available": False, "symbol": sym, "reason": "insufficient price history"}
+        return {"available": False, "symbol": sym, "reason": "历史行情不足，无法计算"}
     return {
         "available": True,
         "symbol": sym,

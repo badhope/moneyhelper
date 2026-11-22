@@ -250,8 +250,9 @@ export function MarketView() {
                       <span className="flex justify-end">
                         <button
                           type="button"
-                          className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-red-500/10 hover:text-red-600 group-hover:opacity-100 max-sm:opacity-100"
+                          className="rounded p-1 text-muted-foreground opacity-60 transition-opacity hover:bg-red-500/10 hover:text-red-600 group-hover:opacity-100 max-sm:opacity-100"
                           aria-label={t("market.remove", { name: w.name })}
+                          title={t("market.remove", { name: w.name })}
                           onClick={(e) => {
                             e.stopPropagation();
                             setRemoving(w);

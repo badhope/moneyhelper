@@ -16,7 +16,7 @@ import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
 import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import {
-  ChevronDown, ChevronUp, Copy, Download, Loader2, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
+  Check, ChevronDown, ChevronUp, Copy, Download, Loader2, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/clipboard";
 import { Badge } from "@/components/ui/badge";
@@ -201,23 +201,29 @@ function Thinking({ items, running }: { items: string[]; running?: boolean }) {
 /** 代码块高亮：PrismLight 按需语言 + 明暗主题自适应，带语言标签条与复制按钮。 */
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
   const { resolved } = useTheme();
+  const { t: tr } = useI18n();
+  const [copied, setCopied] = useState(false);
   const style = resolved === "dark" ? oneDark : oneLight;
+  const handleCopy = () => {
+    if (!copyText(code)) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  };
   return (
     <div className="code-block relative my-3 overflow-hidden rounded-lg border border-border">
-      {lang && (
-        <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
-          <span>{lang}</span>
-          <button
-            type="button"
-            aria-label="copy code"
-            title="copy"
-            onClick={() => copyText(code)}
-            className="p-0.5 text-muted-foreground hover:text-foreground"
-          >
-            <Copy className="w-3 h-3" />
-          </button>
-        </div>
-      )}
+      <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+        <span>{lang || "code"}</span>
+        <button
+          type="button"
+          aria-label={copied ? tr("chat.copiedShort") : tr("chat.copy")}
+          title={copied ? tr("chat.copiedShort") : tr("chat.copy")}
+          onClick={handleCopy}
+          className="inline-flex items-center gap-1 rounded px-1 py-0.5 normal-case text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+          <span className="text-[10px]">{copied ? tr("chat.copiedShort") : tr("chat.copy")}</span>
+        </button>
+      </div>
       <SyntaxHighlighter
         language={lang || "text"}
         style={style}

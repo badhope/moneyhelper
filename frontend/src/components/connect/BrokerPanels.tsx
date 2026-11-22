@@ -101,7 +101,7 @@ export function RecategorizeCard() {
           void apply
             .mutateAsync()
             .then((r) => toast(t("connect.recatDone", { n: r.changed, t: r.total }), r.changed ? "ok" : "info"))
-            .catch((e) => toast(String(e), "error"))
+            .catch((e) => toast(errMsg(e), "error"))
         }
       >
         {apply.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}

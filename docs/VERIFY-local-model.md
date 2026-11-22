@@ -445,3 +445,12 @@ Studio 货架新增两条只读 MCP，任何用户打开「市场」都能看到
   `69-chat-copy-toast.png`（点复制出现「已复制到剪贴板」）、
   `70-delete-confirm.png`（顶部删除会话弹确认，取消后会话保留）。
 - 后端只改 Python 需重启；前端改完 `npm run build` 即由后端 StaticFiles 直读，刷新页面生效。
+
+## 全站可发现性与反馈（4.16.21，浏览器实拍复核）
+
+- 投研页取不到 K 线时显示中文诊断「行情接口暂时取不到 K 线…」与「重新分析」按钮，
+  不再直接暴露 `K-line unavailable (network or unsupported symbol)`。
+- 财务体检数据不足空态出现「去记账」「去添加持仓」两个可用入口；加载失败可原地重试。
+- 分组导航点「接入」后主体切到「连接中心」，不再残留上一组的经营报表。
+- 截图：`docs/screenshots/71-research-error-retry.png`、`72-health-empty-actions.png`、
+  `73-connect-group-nav.png`。

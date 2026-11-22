@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -295,6 +296,7 @@ export function ConnectPage() {
   const [fundCodes, setFundCodes] = useState("110011");
   const fundQuery = useFundNav(fundCodes);
 
+  const [pendingDeleteConn, setPendingDeleteConn] = useState<Connection | null>(null);
   const [pairInfo, setPairInfo] = useState<{ title: string; code?: string; bookmarklet?: string; login_url?: string; how_to?: string } | null>(null);
   const [draft, setDraft] = useState({
     symbol: "",
@@ -488,7 +490,7 @@ export function ConnectPage() {
               <span className="text-muted-foreground">{t("connect.statAuto")}</span>{" "}
               <span className="font-semibold tabular-nums">{autoCount}</span>
             </div>
-            <Button size="sm" variant="outline" disabled={syncAll.isPending} onClick={() => void syncAll.mutateAsync().then(() => toast(t("connect.syncOk"), "ok")).catch((e) => toast(String(e), "error"))}>
+            <Button size="sm" variant="outline" disabled={syncAll.isPending} onClick={() => void syncAll.mutateAsync().then(() => toast(t("connect.syncOk"), "ok")).catch((e) => toast(errMsg(e), "error"))}>
               <RefreshCw className={cn("mr-1 h-3.5 w-3.5", syncAll.isPending && "animate-spin")} />
               {t("connect.syncAll")}
             </Button>
@@ -726,7 +728,7 @@ export function ConnectPage() {
                     busy={busy}
                     onCreate={(x) => void doCreate(x)}
                     onSync={(c) => void doSync(c)}
-                    onDelete={(c) => void doDelete(c)}
+                    onDelete={(c) => setPendingDeleteConn(c)}
                     onPair={(x) => void doPair(x)}
                   />
                 ))}
@@ -951,6 +953,20 @@ export function ConnectPage() {
           <ArrowRight className="h-3 w-3" />
         </span>
       </div>
+
+      <ConfirmDialog
+        open={pendingDeleteConn !== null}
+        onOpenChange={(v) => { if (!v) setPendingDeleteConn(null); }}
+        title={t("connect.removeTitle", { name: pendingDeleteConn?.label ?? "" })}
+        description={t("connect.removeDesc")}
+        confirmText={t("connect.removeConfirm")}
+        danger
+        onConfirm={async () => {
+          const target = pendingDeleteConn;
+          setPendingDeleteConn(null);
+          if (target) await doDelete(target);
+        }}
+      />
     </div>
   );
 }

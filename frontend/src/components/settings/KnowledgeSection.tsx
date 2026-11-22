@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen, FileText, Loader2, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm";
 import type { AttachmentItem } from "@/lib/api";
 import { api, listAttachments, SLOW_REQUEST_TIMEOUT_MS, uploadAttachment } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -20,6 +21,7 @@ export function KnowledgeSection() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [uploading, setUploading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<AttachmentItem | null>(null);
 
   const list = useQuery({
     queryKey: ["/api/attachments"],
@@ -60,6 +62,7 @@ export function KnowledgeSection() {
         { method: "POST", body: JSON.stringify({ indexed: !a.indexed }) },
         { timeoutMs: SLOW_REQUEST_TIMEOUT_MS }, // 建/删索引同样是慢操作
       );
+      toast(t(a.indexed ? "knowledge.unindexedOk" : "knowledge.indexedOk"), "ok");
       await refresh();
     } catch (e) {
       toast(errMsg(e), "error");
@@ -135,8 +138,9 @@ export function KnowledgeSection() {
                 <button
                   type="button"
                   aria-label={t("knowledge.delete", { name: a.filename })}
+                  title={t("knowledge.delete", { name: a.filename })}
                   className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-600"
-                  onClick={() => void remove(a)}
+                  onClick={() => setPendingDelete(a)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -149,6 +153,19 @@ export function KnowledgeSection() {
           {t("knowledge.note")}
         </p>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(v) => { if (!v) setPendingDelete(null); }}
+        title={t("knowledge.deleteTitle", { name: pendingDelete?.filename ?? "" })}
+        description={t("knowledge.deleteDesc")}
+        confirmText={t("knowledge.deleteConfirm")}
+        danger
+        onConfirm={async () => {
+          if (pendingDelete) await remove(pendingDelete);
+          setPendingDelete(null);
+        }}
+      />
     </Section>
   );
 }

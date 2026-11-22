@@ -20,6 +20,8 @@ export function MemorySection() {
   const [busy, setBusy] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [forgetOpen, setForgetOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<MemoryItem | null>(null);
+  const [reflectionsClearOpen, setReflectionsClearOpen] = useState(false);
   const [reflections, setReflections] = useState<ReflectionItem[] | null>(null);
   // AI 归纳偏好：多条目建议，逐条「记住」才落库（不搞一键全收，避免噪音）
   const [aiBusy, setAiBusy] = useState(false);
@@ -186,12 +188,9 @@ export function MemorySection() {
               </span>
               <button
                 className="shrink-0 text-muted-foreground hover:text-red-600"
-                onClick={() => {
-                void deleteMemory(m.id)
-                  .then(reload)
-                  .catch((e) => toast(errMsg(e), "error"));
-              }}
+                onClick={() => setPendingDelete(m)}
                 aria-label={t("settings.memDelete", { c: m.content })}
+                title={t("settings.memDeleteShort")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -209,6 +208,40 @@ export function MemorySection() {
         danger
         onOpenChange={setForgetOpen}
         onConfirm={() => void doForget()}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={t("settings.memDeleteTitle")}
+        description={t("settings.memDeleteDesc", { c: pendingDelete?.content ?? "" })}
+        confirmText={t("settings.memDeleteShort")}
+        danger
+        onOpenChange={(v) => { if (!v) setPendingDelete(null); }}
+        onConfirm={() => {
+          const target = pendingDelete;
+          setPendingDelete(null);
+          if (!target) return;
+          void deleteMemory(target.id)
+            .then(() => { toast(t("settings.memDeleted"), "ok"); void reload(); })
+            .catch((e) => toast(errMsg(e), "error"));
+        }}
+      />
+
+      <ConfirmDialog
+        open={reflectionsClearOpen}
+        title={t("settings.reflectionsClearTitle")}
+        description={t("settings.reflectionsClearDesc")}
+        confirmText={t("settings.reflectionsClear")}
+        danger
+        onOpenChange={setReflectionsClearOpen}
+        onConfirm={() => {
+          void clearReflections()
+            .then(() => {
+              toast(t("settings.reflectionsCleared"), "ok");
+              void reload();
+            })
+            .catch((e) => toast(errMsg(e), "error"));
+        }}
       />
 
       <ConfirmDialog
@@ -234,14 +267,7 @@ export function MemorySection() {
         <div className="flex items-center justify-between">
           <div className="text-sm font-medium">{t("settings.reflectionsTitle")}</div>
           {reflections && reflections.length > 0 && (
-            <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={() => {
-              void clearReflections()
-                .then(() => {
-                  toast(t("settings.reflectionsCleared"), "ok");
-                  void reload();
-                })
-                .catch((e) => toast(errMsg(e), "error"));
-            }}>
+            <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={() => setReflectionsClearOpen(true)}>
               {t("settings.reflectionsClear")}
             </Button>
           )}

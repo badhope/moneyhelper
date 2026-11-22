@@ -257,6 +257,7 @@ export const en_entry: Record<string, string> = {
   "chat.webSearchShort": "Web",
   "chat.deleteShort": "Delete",
   "chat.deleteChat": "Delete chat",
+  "chat.copiedShort": "Copied",
   "chat.copy": "Copy",
   "chat.retry": "Retry",
   "chat.regenerate": "Regenerate",

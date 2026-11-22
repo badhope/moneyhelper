@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { HandCoins, Plus, RefreshCw, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm";
 import {
   addMember,
   createMemberLoan,
@@ -45,6 +46,11 @@ export function FamilySection() {
   const [name, setName] = useState("");
   const [role, setRole] = useState<FamilyMember["role"]>("member");
   const [loan, setLoan] = useState({ from: "", to: "", amount: "", note: "" });
+  const [pendingDelete, setPendingDelete] = useState<
+    { kind: "member"; id: number; name: string } |
+    { kind: "loan"; id: number; name: string } |
+    null
+  >(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +81,16 @@ export function FamilySection() {
       await addMember({ display_name: display, role });
       setName("");
       toast(t("family.added"), "ok");
+      await load();
+    } catch (e) {
+      toast(errMsg(e), "error");
+    }
+  };
+
+  const doDeleteLoan = async (id: number) => {
+    try {
+      await deleteMemberLoan(id);
+      toast(t("family.loanDeleted"), "ok");
       await load();
     } catch (e) {
       toast(errMsg(e), "error");
@@ -178,8 +194,9 @@ export function FamilySection() {
                 )}
                 <button
                   type="button"
-                  onClick={() => void doDelete(m.id)}
+                  onClick={() => setPendingDelete({ kind: "member", id: m.id, name: m.display_name })}
                   aria-label={t("family.remove")}
+                  title={t("family.remove")}
                   className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-red-500"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -220,7 +237,7 @@ export function FamilySection() {
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t("family.add")}
         </Button>
-        <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
+        <Button size="sm" variant="outline" aria-label={t("settings.refresh")} title={t("settings.refresh")} onClick={() => void load()} disabled={loading}>
           <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
         </Button>
       </div>
@@ -257,7 +274,7 @@ export function FamilySection() {
                     <button
                       type="button"
                       onClick={() =>
-                        void settleMemberLoan(l.id).then(load).catch((e) => toast(String(e), "error"))
+                        void settleMemberLoan(l.id).then(() => { toast(t("family.loanSettled"), "ok"); return load(); }).catch((e) => toast(errMsg(e), "error"))
                       }
                       className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] hover:bg-accent"
                     >
@@ -266,10 +283,13 @@ export function FamilySection() {
                   )}
                   <button
                     type="button"
-                    onClick={() =>
-                      void deleteMemberLoan(l.id).then(load).catch((e) => toast(String(e), "error"))
-                    }
+                    onClick={() => setPendingDelete({
+                      kind: "loan",
+                      id: l.id,
+                      name: `${l.from_name || `#${l.from_member_id}`} → ${l.to_name || `#${l.to_member_id}`}`,
+                    })}
                     aria-label={t("family.deleteLoan")}
+                    title={t("family.deleteLoan")}
                     className="shrink-0 rounded p-1 text-muted-foreground hover:text-red-500"
                   >
                     <Trash2 className="h-3 w-3" />
@@ -337,6 +357,30 @@ export function FamilySection() {
         </div>
       )}
           <MotionsPanel />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(v) => { if (!v) setPendingDelete(null); }}
+        title={
+          pendingDelete?.kind === "member"
+            ? t("family.deleteMemberTitle", { name: pendingDelete.name })
+            : t("family.deleteLoanTitle", { name: pendingDelete?.name ?? "" })
+        }
+        description={
+          pendingDelete?.kind === "member"
+            ? t("family.deleteMemberDesc")
+            : t("family.deleteLoanDesc")
+        }
+        confirmText={t("family.deleteConfirm")}
+        danger
+        onConfirm={async () => {
+          const target = pendingDelete;
+          setPendingDelete(null);
+          if (!target) return;
+          if (target.kind === "member") await doDelete(target.id);
+          else await doDeleteLoan(target.id);
+        }}
+      />
     </Section>
   );
 }

@@ -52,7 +52,12 @@ export function GroupedNav<T extends string>({
               <button
                 key={g.id}
                 type="button"
-                onClick={() => setOpenGroup(g.id)}
+                onClick={() => {
+                  setOpenGroup(g.id);
+                  // 只展开分组不切内容，会出现「分组高亮在接入、主体仍是经营报表」
+                  // 的错位。点击分组即落到该组第一项，保证文字与内容一致。
+                  if (!g.items.some((i) => i.key === value)) onChange(g.items[0].key);
+                }}
                 aria-pressed={active}
                 className={cn(
                   "relative shrink-0 rounded-full px-3 py-1 text-[12.5px] transition-colors",

@@ -110,10 +110,12 @@ export function SessionSidebar({
             onBlur={() => commitRename(s)}
             className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
             aria-label={t("sidebar.rename")}
+            title={t("sidebar.rename")}
           />
           <button
             type="button"
             aria-label={t("sidebar.rename")}
+            title={t("sidebar.rename")}
             className="p-1 text-muted-foreground hover:text-foreground"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => commitRename(s)}
@@ -151,6 +153,7 @@ export function SessionSidebar({
           <button
             type="button"
             aria-label={t("sidebar.rename")}
+            title={t("sidebar.rename")}
             className="rounded p-1 text-muted-foreground hover:text-foreground"
             onClick={(e) => {
               e.stopPropagation();
@@ -163,6 +166,7 @@ export function SessionSidebar({
           <button
             type="button"
             aria-label={t("sidebar.deleteSession")}
+            title={t("sidebar.deleteSession")}
             className="rounded p-1 text-muted-foreground hover:text-red-600"
             onClick={(e) => {
               e.stopPropagation();

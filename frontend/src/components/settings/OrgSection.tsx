@@ -418,10 +418,10 @@ export function OrgSection() {
                           <option key={x.id} value={x.id}>{x.name}</option>
                         ))}
                     </select>
-                    <Button size="sm" onClick={() => void saveDept()}>
+                    <Button size="sm" aria-label={t("org.save")} title={t("org.save")} onClick={() => void saveDept()}>
                       <Check className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditDept(null)}>
+                    <Button size="sm" variant="outline" aria-label={t("org.cancelEdit")} title={t("org.cancelEdit")} onClick={() => setEditDept(null)}>
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -543,10 +543,10 @@ export function OrgSection() {
                       }
                       placeholder={t("org.roleHint")}
                     />
-                    <Button size="sm" onClick={() => void savePos()}>
+                    <Button size="sm" aria-label={t("org.save")} title={t("org.save")} onClick={() => void savePos()}>
                       <Check className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditPos(null)}>
+                    <Button size="sm" variant="outline" aria-label={t("org.cancelEdit")} title={t("org.cancelEdit")} onClick={() => setEditPos(null)}>
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>

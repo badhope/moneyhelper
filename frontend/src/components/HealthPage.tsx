@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { HeartPulse, Loader2 } from "lucide-react";
 import { fetchHealthCheck } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import type { DataKind } from "@/lib/views";
 import { useI18n } from "@/lib/i18n";
 import { cn, errMsg } from "@/lib/utils";
 import type { HealthReport } from "@/lib/types";
@@ -16,8 +18,9 @@ const STATUS_STYLE: Record<Status, { ring: string; text: string; bg: string }> =
 const asStatus = (s: string): Status => (s === "good" || s === "bad" ? s : "warn");
 
 /** 财务体检整页：评分 + 五维明细。原先是侧栏里的裸文本（直接显示 warn/bad），改为可读的状态卡。 */
-export function HealthPage() {
+export function HealthPage({ onGo }: { onGo?: (kind: DataKind) => void }) {
   const { t } = useI18n();
+  const [nonce, setNonce] = useState(0);
   const [report, setReport] = useState<HealthReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -32,7 +35,7 @@ export function HealthPage() {
     return () => {
       alive = false;
     };
-  }, [t]);
+  }, [t, nonce]);
 
   if (loading) {
     return (
@@ -41,7 +44,16 @@ export function HealthPage() {
       </div>
     );
   }
-  if (error) return <div className="py-8 text-sm text-red-600">{error}</div>;
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/5 px-6 py-10 text-center">
+        <p className="text-sm text-red-600">{error}</p>
+        <Button size="sm" variant="outline" className="mt-3" onClick={() => setNonce((n) => n + 1)}>
+          {t("hc.retry")}
+        </Button>
+      </div>
+    );
+  }
   if (!report) return null;
 
   // 数据不足时后端返回 score=0 + 空 dimensions：不该展示"0 分"（会被误读为极度不健康），
@@ -52,6 +64,12 @@ export function HealthPage() {
         <HeartPulse className="mx-auto h-8 w-8 text-muted-foreground/50" />
         <p className="mt-3 text-sm font-medium">{t("hc.notEnough")}</p>
         <p className="mt-1.5 text-xs text-muted-foreground">{t("notAdvice")}</p>
+        {onGo && (
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Button size="sm" onClick={() => onGo("ledger")}>{t("dash.goLedger")}</Button>
+            <Button size="sm" variant="outline" onClick={() => onGo("holdings")}>{t("hold.emptyBtn")}</Button>
+          </div>
+        )}
       </div>
     );
   }

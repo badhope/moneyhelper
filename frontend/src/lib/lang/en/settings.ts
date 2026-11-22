@@ -144,6 +144,8 @@ export const en_settings: Record<string, string> = {
   "org.positions": "Positions",
   "org.members": "Members",
   "org.name": "Name",
+  "org.save": "Save",
+  "org.cancelEdit": "Cancel edit",
   "org.code": "Code",
   "org.parent": "Parent department",
   "org.none": "None",

@@ -802,11 +802,12 @@ export function EntryView() {
                         <span className={`shrink-0 text-right tabular-nums ${t.amount > 0 ? "text-up" : "text-down"}`}>
                           {fmtMoney(t.amount, true)}
                         </span>
-                        <span className="flex shrink-0 items-center justify-end gap-0.5 sm:opacity-0 sm:transition-opacity sm:group-hover/tx:opacity-100">
+                        <span className="flex shrink-0 items-center justify-end gap-0.5 opacity-60 transition-opacity group-hover/tx:opacity-100">
                           <button
                             className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-primary"
                             onClick={() => setEditingTx({ id: t.id, date: t.date, item: t.item, category: t.category, amount: t.amount })}
                             aria-label={tt("entry.editTx", { item: t.item })}
+                            title={tt("entry.editTx", { item: t.item })}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -814,6 +815,7 @@ export function EntryView() {
                             className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-600"
                             onClick={() => setPendingDelete({ type: "tx", id: t.id, name: t.item })}
                             aria-label={tt("entry.deleteItem", { name: t.item })}
+                            title={tt("entry.deleteItem", { name: t.item })}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

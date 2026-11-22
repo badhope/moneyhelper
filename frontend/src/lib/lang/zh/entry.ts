@@ -257,6 +257,7 @@ export const zh_entry: Record<string, string> = {
   "chat.webSearchShort": "联网",
   "chat.deleteShort": "删除",
   "chat.deleteChat": "删除会话",
+  "chat.copiedShort": "已复制",
   "chat.copy": "复制",
   "chat.retry": "重试",
   "chat.regenerate": "重新生成",

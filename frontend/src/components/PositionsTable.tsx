@@ -134,6 +134,7 @@ export function PositionsTable({
                         className="rounded p-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10"
                         onClick={() => ops.onEdit(r)}
                         aria-label={tr("pos.edit", { name: r.name })}
+                        title={tr("pos.edit", { name: r.name })}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -151,6 +152,7 @@ export function PositionsTable({
                         className="rounded p-0.5 text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
                         onClick={() => ops.onDelete(r)}
                         aria-label={tr("pos.delete", { name: r.name })}
+                        title={tr("pos.delete", { name: r.name })}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

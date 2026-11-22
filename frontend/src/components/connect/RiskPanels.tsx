@@ -231,7 +231,7 @@ export function ConditionalCard() {
               .then((r) =>
                 toast(t("connect.condEvaluated", { checked: r.checked, hit: r.triggered.length }), r.triggered.length ? "ok" : "info"),
               )
-              .catch((e) => toast(String(e), "error"))
+              .catch((e) => toast(errMsg(e), "error"))
           }
         >
           <RefreshCw className={cn("mr-1 h-3.5 w-3.5", evaluate.isPending && "animate-spin")} />

@@ -104,7 +104,7 @@ export function FinancePage({
 
             {kind === "market" && <MarketView />}
             {kind === "ledger" && <EntryView />}
-            {kind === "health" && <HealthBody />}
+            {kind === "health" && <HealthBody onGo={onKindChange} />}
             {kind === "debts" && <DebtPayoffBody onGoLedger={() => onKindChange("ledger")} />}
           </Suspense>
         </div>
