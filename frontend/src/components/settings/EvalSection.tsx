@@ -5,7 +5,7 @@
  * 不用主观印象，也不让 LLM 给自己打分。
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Award, FlaskConical, Play, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,14 @@ interface EvalResult {
   failures?: string[];
 }
 
+interface FeedbackSummary {
+  total: number;
+  positive: number;
+  negative: number;
+  satisfaction_pct: number | null;
+  top_reasons: { reason: string; count: number }[];
+}
+
 interface LeaderRow {
   model: string;
   score_pct: number;
@@ -61,6 +69,13 @@ export function EvalSection() {
   const [rows, setRows] = useState<LeaderRow[]>([]);
   const [error, setError] = useState("");
   const [showDetails, setShowDetails] = useState(false);
+  const [feedback, setFeedback] = useState<FeedbackSummary | null>(null);
+
+  useEffect(() => {
+    api<FeedbackSummary>("/api/feedback/summary")
+      .then(setFeedback)
+      .catch(() => setFeedback(null));
+  }, []);
 
   const run = async (maxQuestions = 0) => {
     setRunning(true);
@@ -102,6 +117,32 @@ export function EvalSection() {
         </Button>
         <span className="text-[11px] text-muted-foreground">{t("settings.evalHint")}</span>
       </div>
+
+      {feedback && feedback.total > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-muted/20 px-3 py-2 text-[11.5px]">
+          <span className="font-medium text-foreground">{t("settings.feedbackTitle")}</span>
+          <span className="tabular-nums text-muted-foreground">
+            {t("settings.feedbackCount", { n: String(feedback.total) })}
+          </span>
+          <span className="tabular-nums text-emerald-600 dark:text-emerald-400">
+            +{feedback.positive}
+          </span>
+          <span className="tabular-nums text-red-500">-{feedback.negative}</span>
+          {feedback.satisfaction_pct != null && (
+            <span className="tabular-nums text-foreground/80">
+              {t("settings.feedbackSatisfaction", { pct: String(feedback.satisfaction_pct) })}
+            </span>
+          )}
+          {feedback.top_reasons[0] && (
+            <span className="text-muted-foreground">
+              {t("settings.feedbackTop", {
+                reason: feedback.top_reasons[0].reason,
+                n: String(feedback.top_reasons[0].count),
+              })}
+            </span>
+          )}
+        </div>
+      )}
 
       {error && <div className="mb-2 text-xs text-red-500">{error}</div>}
 

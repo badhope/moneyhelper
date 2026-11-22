@@ -320,7 +320,7 @@ export function useChatView({
 
   return {
     // state
-    messages, input, setInput, attachments, setAttachments,
+    messages, setMessages, input, setInput, attachments, setAttachments,
     webSearch, setWebSearch,
     showSteps, showSessions, sessionSearch, setSessionSearch,
     scrolledUp, handleListScroll,

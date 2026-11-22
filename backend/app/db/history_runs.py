@@ -33,6 +33,7 @@ async def save_run(
     attachments: list[dict[str, Any]] | None = None,
     skip_session: bool = False,
     tokens: dict[str, int] | None = None,
+    sources: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     conn = await _conn()
     created = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -42,8 +43,8 @@ async def save_run(
     async with get_write_lock():
         cur = await conn.execute(
             "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,"
-            "route,llm,route_reason,tools,actions,attachments_json,tokens_in,tokens_out)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "route,llm,route_reason,tools,actions,attachments_json,tokens_in,tokens_out,sources_json)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             current_user_id(),
             thread_id or "default",
@@ -60,6 +61,7 @@ async def save_run(
             json.dumps(attachments or [], ensure_ascii=False),
             int(usage.get("prompt") or 0),
             int(usage.get("completion") or 0),
+            json.dumps(sources or [], ensure_ascii=False),
             ),
         )
         await conn.commit()
@@ -173,6 +175,7 @@ def _hydrate_run(r: dict[str, Any]) -> dict[str, Any]:
         ("tools", "tools"),
         ("actions", "actions"),
         ("attachments_json", "attachments"),
+        ("sources_json", "sources"),
     ):
         try:
             out[field] = json.loads(out.pop(col, "[]") or "[]")
@@ -235,3 +238,58 @@ async def clear_history() -> dict[str, Any]:
     await conn.execute("DELETE FROM conversation_summary WHERE user_id=?", (uid,))
     await conn.commit()
     return {"ok": True, "cleared": True}
+
+
+async def save_run_feedback(
+    run_id: int, rating: int, reason: str = ""
+) -> dict[str, Any] | None:
+    """给某轮回答打赞/踩；rating=0 表示撤销。只允许改自己的 run。"""
+    if rating not in (-1, 0, 1):
+        raise ValueError("rating 只能是 1 / -1 / 0")
+    conn = await _conn()
+    cur = await conn.execute(
+        "SELECT id FROM runs WHERE user_id=? AND id=?",
+        (current_user_id(), int(run_id)),
+    )
+    row = await cur.fetchone()
+    if row is None:
+        return None
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    await conn.execute(
+        "UPDATE runs SET feedback_rating=?, feedback_reason=?, feedback_at=?"
+        " WHERE user_id=? AND id=?",
+        (int(rating), str(reason or "").strip()[:200], now, current_user_id(), int(run_id)),
+    )
+    await conn.commit()
+    cur = await conn.execute(
+        "SELECT id, feedback_rating, feedback_reason, feedback_at FROM runs"
+        " WHERE user_id=? AND id=?",
+        (current_user_id(), int(run_id)),
+    )
+    out = await cur.fetchone()
+    return dict(out) if out is not None else None
+
+
+async def feedback_summary() -> dict[str, Any]:
+    """回答反馈汇总：总数、赞/踩、满意率与常见原因。"""
+    rows = await fetch_all(
+        "SELECT feedback_rating, feedback_reason FROM runs"
+        " WHERE user_id=? AND feedback_rating <> 0",
+        (current_user_id(),),
+    )
+    total = len(rows)
+    positive = sum(1 for r in rows if int(r["feedback_rating"]) > 0)
+    negative = total - positive
+    reasons: dict[str, int] = {}
+    for r in rows:
+        key = str(r["feedback_reason"] or "").strip()
+        if key:
+            reasons[key] = reasons.get(key, 0) + 1
+    top = sorted(reasons.items(), key=lambda kv: (-kv[1], kv[0]))[:5]
+    return {
+        "total": total,
+        "positive": positive,
+        "negative": negative,
+        "satisfaction_pct": round(positive * 100 / total, 1) if total else None,
+        "top_reasons": [{"reason": k, "count": v} for k, v in top],
+    }

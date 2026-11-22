@@ -186,3 +186,26 @@ async def fork_session_endpoint(session_id: int, payload: dict) -> dict:
     if not forked:
         return JSONResponse({"error": "run not in session"}, status_code=404)
     return forked
+
+
+@router.post("/api/runs/{run_id}/feedback")
+async def run_feedback(run_id: int, payload: dict) -> dict:
+    """给某轮回答点赞/点踩；rating=0 撤销。只改自己的记录。"""
+    try:
+        rating = int((payload or {}).get("rating", 0))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "rating 必须是整数"}, status_code=400)
+    reason = str((payload or {}).get("reason") or "").strip()
+    try:
+        saved = await db.save_run_feedback(int(run_id), rating, reason)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    if saved is None:
+        return JSONResponse({"error": "run not found"}, status_code=404)
+    return {"ok": True, **saved}
+
+
+@router.get("/api/feedback/summary")
+async def feedback_summary() -> dict:
+    """回答反馈汇总，供现有评测分区展示，不新增导航入口。"""
+    return await db.feedback_summary()

@@ -123,6 +123,10 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
         result = await service.run_question(
             full_question, emit, thread_id=thread_id, lang=lang
         )
+        # 回答依据：知识库命中与正文外链，随回答一起交付/落库，历史可回看
+        from ..qa_sources import collect_sources
+
+        sources = await collect_sources(question, result["answer"])
         # 备份口令：只在当次 SSE 展示，落库前脱敏，确保口令不写入历史/日志
         persisted_answer = result["answer"]
         passphrase = result.get("passphrase")
@@ -130,8 +134,9 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
             persisted_answer = persisted_answer.replace(
                 str(passphrase), "[口令仅当次展示，不落盘]"
             )
+        run_row: dict | None = None
         try:
-            await db.save_run(
+            run_row = await db.save_run(
                 thread_id=thread_id,
                 question=question,
                 answer=persisted_answer,
@@ -144,6 +149,7 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
                 actions=result.get("actions") or [],
                 attachments=attachments_meta or replaced_attachments,
                 tokens=result.get("tokens") or None,
+                sources=sources,
             )
         except Exception:  # noqa: BLE001 — 落库失败不打断交付
             log.exception("save_run failed")
@@ -166,6 +172,9 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
                 "llm": result["llm"],
                 "tools": result.get("tools") or [],
                 "actions": result.get("actions") or [],
+                "sources": sources,
+                # 本轮落库后的 run id：让新回答立刻能点赞/点踩，不必刷新历史
+                "run_id": int((run_row or {}).get("id") or 0),
                 # 待确认写操作：前端拿 token 显示确认卡片，确认后走 /api/confirm 执行
                 "pending_token": result.get("pending_token", ""),
                 "pending_summary": result.get("pending_summary", ""),

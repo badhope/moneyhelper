@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, BarChart3, Clock3, CreditCard, Download, Gauge, Search, Sparkles, Trash2, Wallet, X, type LucideIcon } from "lucide-react";
 import { useBootstrap, useDashboard, store } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
@@ -65,7 +65,7 @@ export function ChatView({
   const findInputRef = useRef<HTMLInputElement>(null);
 
   const {
-    messages, input, setInput, attachments,
+    messages, setMessages, input, setInput, attachments,
     showSteps, exportOn, scrolledUp, handleListScroll,
     voiceOn, voiceOutputOn, suggestions, hasData, webSearch, setWebSearch,
     stream, streamingMsg, finishedMessages,
@@ -129,6 +129,50 @@ export function ChatView({
     if (copyText(url.toString())) toast(tr("chat.linkCopied"), "ok");
     else toast(tr("chat.error"), "error");
   };
+
+  const submitFeedback = useCallback(
+    async (m: ChatMessage, rating: number, reason = "") => {
+      if (!m.runId) return;
+      const before = { rating: m.feedbackRating ?? 0, reason: m.feedbackReason ?? "" };
+      setMessages((prev) =>
+        prev.map((x) =>
+          x.id === m.id
+            ? {
+                ...x,
+                feedbackRating: rating,
+                feedbackReason: rating === 0 ? "" : reason || x.feedbackReason || "",
+              }
+            : x,
+        ),
+      );
+      try {
+        const saved = await api<{ feedback_rating: number; feedback_reason: string }>(
+          `/api/runs/${m.runId}/feedback`,
+          { method: "POST", body: JSON.stringify({ rating, reason }) },
+        );
+        setMessages((prev) =>
+          prev.map((x) =>
+            x.id === m.id
+              ? {
+                  ...x,
+                  feedbackRating: saved.feedback_rating,
+                  feedbackReason: saved.feedback_reason,
+                }
+              : x,
+          ),
+        );
+        if (rating > 0) toast(tr("chat.feedbackSaved"), "ok");
+      } catch {
+        setMessages((prev) =>
+          prev.map((x) =>
+            x.id === m.id ? { ...x, feedbackRating: before.rating, feedbackReason: before.reason } : x,
+          ),
+        );
+        toast(tr("chat.error"), "error");
+      }
+    },
+    [setMessages, toast, tr],
+  );
 
   const exportConversation = () => {
     const lines = [`# ${tr("chat.exportTitle")}`, "", `- ${tr("chat.exportTime", { t: new Date().toLocaleString() })}`, ""];
@@ -350,6 +394,7 @@ export function ChatView({
                     onFork={forkMessage}
                     onCopyLink={copyMessageLink}
                     onEdit={stableEdit}
+                    onFeedback={submitFeedback}
                     {...bubbleCallbacks}
                   />
                   {streamingMsg && (
@@ -362,7 +407,8 @@ export function ChatView({
                       voiceOn={voiceOutputOn}
                       onNavigate={onNavigate}
                       onFork={forkMessage}
-                    onCopyLink={copyMessageLink}
+                      onCopyLink={copyMessageLink}
+                      onFeedback={submitFeedback}
                       {...bubbleCallbacks}
                     />
                   )}

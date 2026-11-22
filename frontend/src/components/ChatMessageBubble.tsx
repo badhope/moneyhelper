@@ -16,7 +16,7 @@ import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
 import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import {
-  Check, ChevronDown, ChevronUp, Copy, Download, GitBranch, Link2, Loader2, Paperclip, Pencil, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
+  BookOpen, Check, ChevronDown, ChevronUp, Copy, Download, ExternalLink, GitBranch, Globe2, Link2, Loader2, Paperclip, Pencil, RotateCcw, Sparkles, ThumbsDown, ThumbsUp, Volume2, VolumeX, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/clipboard";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,7 @@ import { BRAND, BrandLogo } from "@/lib/brand";
 import { useI18n } from "@/lib/i18n";
 import { useSpeech } from "@/lib/use-speech";
 import { useTheme } from "@/lib/theme";
-import type { AgentToolStep, AgentPlanStep, AnswerMeta, RunAttachment } from "@/lib/types";
+import type { AgentToolStep, AgentPlanStep, AnswerMeta, AnswerSource, RunAttachment } from "@/lib/types";
 import { OPEN_URL_EVENT, requestOpenAttachment } from "@/lib/workbench";
 
 // 注册常用语言（PrismLight 按需，控制包体积）
@@ -80,6 +80,11 @@ export interface ChatMessage {
   attachments?: RunAttachment[];
   /** 结构化数据卡：对话内嵌的可视化小卡（4宫格/mini环形/持仓预览） */
   cards?: { kind: string; data: Record<string, unknown> }[];
+  /** 回答依据：知识库命中或正文外链 */
+  sources?: AnswerSource[];
+  /** 用户反馈：1 赞 / -1 踩 / 0 未评 */
+  feedbackRating?: number;
+  feedbackReason?: string;
 }
 
 /** 工具名 → 用户能看懂的动作（工具名是内部契约，不出口） */
@@ -307,6 +312,8 @@ interface BubbleProps {
   /** 编辑用户消息并重发 */
   onEdit?: (msg: ChatMessage, text: string, runId: number) => void;
   onDecidePending: (msg: ChatMessage, decision: "confirm" | "cancel") => void;
+  /** 回答质量反馈：1 赞 / -1 踩 / 0 撤销 */
+  onFeedback?: (msg: ChatMessage, rating: number, reason?: string) => void;
 }
 
 function BubbleInner({
@@ -325,11 +332,13 @@ function BubbleInner({
   turnRunId,
   onEdit,
   onDecidePending,
+  onFeedback,
 }: BubbleProps) {
   const { t: tr, lang } = useI18n();
   const speech = useSpeech();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const spokenRef = useState<{ text: string }>({ text: "" })[0];
   useEffect(() => {
     if (!voiceOn || m.role !== "assistant" || streaming || !m.text) return;
@@ -505,6 +514,48 @@ function BubbleInner({
             {/* 富回答块与跳转 chip 并存：此前有卡片就把 chip 整排隐藏，
                 结果"我的持仓怎么样"这类带卡片的回答再也点不到「去持仓页」——
                 卡片只展示数字，不提供跳转，隐藏 chip 等于把唯一入口掐掉。 */}
+            {m.role === "assistant" && m.sources && m.sources.length > 0 && (
+              <div className="mt-3" data-testid="answer-sources">
+                <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  <BookOpen className="h-3 w-3" />
+                  {tr("chat.sources")}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {m.sources.map((src, i) =>
+                    src.kind === "knowledge" ? (
+                      <button
+                        key={`k-${i}`}
+                        type="button"
+                        title={src.detail || src.title}
+                        onClick={() => src.attachment_id && requestOpenAttachment(src.attachment_id)}
+                        className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/30 px-2.5 py-1 text-[11.5px] text-foreground/80 transition-colors hover:bg-accent"
+                      >
+                        <BookOpen className="h-3 w-3 shrink-0 text-primary" />
+                        <span className="truncate">{src.title}</span>
+                      </button>
+                    ) : (
+                      <button
+                        key={`w-${i}`}
+                        type="button"
+                        title={src.url}
+                        onClick={() =>
+                          src.url &&
+                          window.dispatchEvent(
+                            new CustomEvent(OPEN_URL_EVENT, { detail: { url: src.url } }),
+                          )
+                        }
+                        className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/30 px-2.5 py-1 text-[11.5px] text-foreground/80 transition-colors hover:bg-accent"
+                      >
+                        <Globe2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{src.title}</span>
+                        <ExternalLink className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+                      </button>
+                    ),
+                  )}
+                </div>
+              </div>
+            )}
+
             {m.actions && m.actions.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 {m.actions.filter(Boolean).map((a, i) => (
@@ -652,6 +703,30 @@ function BubbleInner({
                   <Link2 className="h-3.5 w-3.5" />
                 </button>
               ) : null}
+              {m.runId && onFeedback ? (
+                <>
+                  <button
+                    type="button"
+                    className={`inline-flex items-center gap-1 rounded-md px-1.5 py-1.5 hover:bg-accent disabled:opacity-40 ${m.feedbackRating === 1 ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                    aria-label={tr("chat.feedbackUp")}
+                    title={tr("chat.feedbackUp")}
+                    disabled={busy}
+                    onClick={() => onFeedback(m, m.feedbackRating === 1 ? 0 : 1, "")}
+                  >
+                    <ThumbsUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`inline-flex items-center gap-1 rounded-md px-1.5 py-1.5 hover:bg-accent disabled:opacity-40 ${m.feedbackRating === -1 ? "text-red-600 dark:text-red-400" : "text-muted-foreground hover:text-foreground"}`}
+                    aria-label={tr("chat.feedbackDown")}
+                    title={tr("chat.feedbackDown")}
+                    disabled={busy}
+                    onClick={() => setFeedbackOpen((v) => !v)}
+                  >
+                    <ThumbsDown className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              ) : null}
               {exportOn && (
                 <button
                   type="button"
@@ -664,6 +739,26 @@ function BubbleInner({
                 </button>
               )}
             </div>
+            {feedbackOpen && !busy && (
+              <div className="mt-1.5 rounded-xl border border-border bg-card p-2.5" data-testid="feedback-reasons">
+                <div className="mb-1.5 text-[11px] text-muted-foreground">{tr("chat.feedbackWhy")}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {["inaccurate", "offtopic", "verbose", "numbers"].map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        onFeedback?.(m, -1, tr(`chat.feedbackReason.${key}`));
+                        setFeedbackOpen(false);
+                      }}
+                      className="rounded-full border border-border px-2.5 py-1 text-[11.5px] text-foreground/80 transition-colors hover:bg-accent"
+                    >
+                      {tr(`chat.feedbackReason.${key}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -687,7 +782,8 @@ const BUBBLE_ARE_EQUAL = (prev: BubbleProps, next: BubbleProps): boolean =>
   // 编辑入口依赖“配对的 runId”和回调：这两项首帧可能还没有，
   // 漏比会让按钮永远不出现（比多渲染几次更糟）
   prev.turnRunId === next.turnRunId &&
-  prev.onEdit === next.onEdit;
+  prev.onEdit === next.onEdit &&
+  prev.onFeedback === next.onFeedback;
 
 export const ChatMessageBubble = memo(BubbleInner, BUBBLE_ARE_EQUAL);
 ChatMessageBubble.displayName = "ChatMessageBubble";

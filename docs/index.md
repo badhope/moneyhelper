@@ -35,6 +35,7 @@
 | [Workflow (EN)](WORKFLOW.en.md) / [工作流](WORKFLOW.md) | How typical tasks are done end to end |
 | [Reviewability standard](reviewability-standard.md) | What makes a number trustworthy |
 | [Financial identity and monthly review](personal-review.md) | Verifiable identity card, month-end closing review, agent tools |
+| [Answer sources and quality feedback](answer-trust.md) | In-message source chips, thumbs up/down, reason tags, tenant-scoped summary |
 
 ## Engineering
 

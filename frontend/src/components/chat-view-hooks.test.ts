@@ -31,6 +31,9 @@ function makeRun(over: Partial<RunRecord>): RunRecord {
     tools: over.tools ?? [],
     actions: over.actions ?? [],
     attachments: over.attachments ?? [],
+    sources: over.sources ?? [],
+    feedback_rating: over.feedback_rating ?? 0,
+    feedback_reason: over.feedback_reason ?? "",
   };
 }
 
@@ -68,6 +71,23 @@ describe("mapRunsToMessages", () => {
   it("user 消息不带 runId", () => {
     const msgs = mapRunsToMessages([makeRun({ id: 9 })]);
     expect(msgs[0].runId).toBeUndefined();
+  });
+
+  it("assistant 消息携带回答依据和已保存反馈", () => {
+    const runs = [makeRun({
+      id: 77,
+      sources: [
+        { kind: "knowledge", title: "预算说明.txt", attachment_id: 3 },
+        { kind: "web", title: "example.com", url: "https://example.com/a" },
+      ],
+      feedback_rating: -1,
+      feedback_reason: "数字不对",
+    })];
+    const a = mapRunsToMessages(runs)[1];
+    expect(a.sources).toHaveLength(2);
+    expect(a.sources?.[0].attachment_id).toBe(3);
+    expect(a.feedbackRating).toBe(-1);
+    expect(a.feedbackReason).toBe("数字不对");
   });
 
   it("user 消息携带已发送附件引用", () => {
@@ -110,6 +130,24 @@ describe("streamEventPatch", () => {
     });
     expect(patch!.plan?.steps[0].label).toBe("分析");
     expect(patch!.plan?.route).toBe("market");
+  });
+
+  it("final 事件带上回答依据", () => {
+    const acc = makeAcc();
+    const patch = streamEventPatch(acc, {
+      type: "final",
+      answer: "见 https://example.com/a",
+      level: "L1",
+      route: "general",
+      route_reason: "",
+      metrics: {},
+      flags: [],
+      llm: "llm",
+      tools: [],
+      actions: [],
+      sources: [{ kind: "web", title: "example.com", url: "https://example.com/a" }],
+    });
+    expect(patch!.sources?.[0].title).toBe("example.com");
   });
 
   it("tool 事件首次出现时 push 新工具", () => {

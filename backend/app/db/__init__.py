@@ -209,6 +209,8 @@ from .history import (
     move_runs,
     rename_session,
     save_run,
+    save_run_feedback,
+    feedback_summary,
     search_runs,
     session_thread_id,
     session_usage,

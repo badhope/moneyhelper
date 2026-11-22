@@ -176,8 +176,23 @@ export interface RunRecord {
   actions?: { tab: string }[];
   /** 这一轮用户消息挂过的附件：刷新/换端后仍能回看 */
   attachments?: RunAttachment[];
+  /** 回答依据（知识库/网页），随 run 落库 */
+  sources?: AnswerSource[];
+  /** 用户对回答的评价：1 赞 / -1 踩 / 0 未评 */
+  feedback_rating?: number;
+  feedback_reason?: string;
   /** 全局历史搜索附带：所属会话标题（无会话的孤儿记录为空） */
   session_title?: string;
+}
+
+/** 本轮回答真正使用的依据：知识库片段或正文外链 */
+export interface AnswerSource {
+  kind: "knowledge" | "web";
+  title: string;
+  detail?: string;
+  url?: string;
+  attachment_id?: number;
+  score?: number;
 }
 
 /** 定时产出收件箱条目：晨报（cron）或技能触发（skill:<id>） */

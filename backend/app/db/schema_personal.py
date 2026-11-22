@@ -66,7 +66,11 @@ CREATE TABLE IF NOT EXISTS runs (
     actions       TEXT NOT NULL DEFAULT '[]',
     attachments_json TEXT NOT NULL DEFAULT '[]',
     tokens_in     INTEGER NOT NULL DEFAULT 0,
-    tokens_out    INTEGER NOT NULL DEFAULT 0
+    tokens_out    INTEGER NOT NULL DEFAULT 0,
+    sources_json  TEXT NOT NULL DEFAULT '[]',
+    feedback_rating INTEGER NOT NULL DEFAULT 0,
+    feedback_reason TEXT NOT NULL DEFAULT '',
+    feedback_at   TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_runs_thread ON runs(thread_id, id);
 CREATE TABLE IF NOT EXISTS sessions (

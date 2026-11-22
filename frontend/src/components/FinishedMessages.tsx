@@ -17,6 +17,7 @@ export interface FinishedMessagesProps {
   onCopyLink: (msg: ChatMessage) => void;
   onEdit: (msg: ChatMessage, text: string, runId: number) => void;
   onDecidePending: (msg: ChatMessage, decision: "confirm" | "cancel") => void;
+  onFeedback?: (msg: ChatMessage, rating: number, reason?: string) => void;
 }
 
 /** 默认窗口大小：只渲染最近 WINDOW 条，更早的按需展开（DOM 有界，长会话不掉帧） */
@@ -46,7 +47,8 @@ const FINISHED_ARE_EQUAL = (prev: FinishedMessagesProps, next: FinishedMessagesP
     prev.onNavigate === next.onNavigate &&
     prev.onFork === next.onFork &&
     prev.onCopyLink === next.onCopyLink &&
-    prev.onEdit === next.onEdit
+    prev.onEdit === next.onEdit &&
+    prev.onFeedback === next.onFeedback
   );
 };
 
@@ -66,7 +68,7 @@ function EarlierGate({ hidden, onExpand }: { hidden: number; onExpand: () => voi
 }
 
 export const FinishedMessages = memo(
-  ({ messages, busy, showSteps, exportOn, voiceOn = false, onToggleSteps, onNavigate, onRegenerate, onExport, onFork, onCopyLink, onEdit, onDecidePending }: FinishedMessagesProps) => {
+  ({ messages, busy, showSteps, exportOn, voiceOn = false, onToggleSteps, onNavigate, onRegenerate, onExport, onFork, onCopyLink, onEdit, onDecidePending, onFeedback }: FinishedMessagesProps) => {
     const [visibleCount, setVisibleCount] = useState(WINDOW);
     const hidden = Math.max(0, messages.length - visibleCount);
     const shown = hidden > 0 ? messages.slice(hidden) : messages;
@@ -92,6 +94,7 @@ export const FinishedMessages = memo(
               onCopyLink={onCopyLink}
               onEdit={onEdit}
               onDecidePending={onDecidePending}
+              onFeedback={onFeedback}
             />
           </div>
         ))}

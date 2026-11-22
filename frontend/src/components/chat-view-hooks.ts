@@ -45,6 +45,9 @@ export function mapRunsToMessages(runs: RunRecord[]): ChatMessage[] {
         tools: r.tools ?? [],
       },
       actions: r.actions ?? [],
+      sources: r.sources ?? [],
+      feedbackRating: r.feedback_rating ?? 0,
+      feedbackReason: r.feedback_reason ?? "",
       created_at: r.created_at,
     },
   ]);
@@ -373,6 +376,8 @@ export function streamEventPatch(
           tools: (ev.tools as string[] | undefined) ?? [],
         },
         actions: (ev.actions as { tab: string }[] | undefined) ?? [],
+        sources: (ev.sources as import("@/lib/types").AnswerSource[] | undefined) ?? [],
+        runId: Number(ev.run_id) > 0 ? Number(ev.run_id) : undefined,
         pending:
           ev.pending_token
             ? { token: String(ev.pending_token), summary: String(ev.pending_summary ?? "") }
