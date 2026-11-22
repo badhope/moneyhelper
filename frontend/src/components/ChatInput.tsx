@@ -1,10 +1,13 @@
 import { memo, useEffect, useRef, useState, type RefObject } from "react";
 import {
   ArrowUp,
+  AtSign,
   BarChart3,
   Globe,
+  FileText,
   CreditCard,
   LayoutDashboard,
+  Link2,
   Mic,
   Paperclip,
   Plus,
@@ -17,7 +20,9 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { cn, errMsg } from "@/lib/utils";
 import { useToast } from "@/lib/toast";
-import type { BootstrapData } from "@/lib/types";
+import type { BootstrapData, RunAttachment } from "@/lib/types";
+import { listAttachments } from "@/lib/api";
+import { filterMentionFiles, mentionSpan, stripMention } from "@/components/chat-mentions";
 import {
   CHAT_ATTACHMENT_ACCEPT,
   hasFileDrag,
@@ -48,8 +53,10 @@ export interface ChatInputProps {
   webSearch?: boolean;
   onToggleWebSearch?: () => void;
   /** @提及附件：已选附件列表 + 上传/移除 */
-  attachments?: { id: number; filename: string; kind: string }[];
+  attachments?: RunAttachment[];
   onAddAttachment?: (file: File) => Promise<unknown>;
+  /** 从工作台已有文件里引用一条，不复制、不重新上传。 */
+  onReferenceAttachment?: (file: RunAttachment) => void;
   onRemoveAttachment?: (id: number) => void;
   /** 点附件胶囊：打开工作台预览。 */
   onOpenAttachment?: (id: number) => void;
@@ -85,6 +92,7 @@ export const ChatInput = memo(
     onToggleWebSearch,
     attachments,
     onAddAttachment,
+    onReferenceAttachment,
     onRemoveAttachment,
     onOpenAttachment,
     llmConfigured,
@@ -105,12 +113,54 @@ export const ChatInput = memo(
     const [uploading, setUploading] = useState(false);
     const [focused, setFocused] = useState(false);
     const [dragging, setDragging] = useState(false);
+    // @ 引用工作台文件：弹出面板只在输入尾部出现 `@关键词` 时打开
+    const [mentionFiles, setMentionFiles] = useState<RunAttachment[]>([]);
+    const [mentionLoading, setMentionLoading] = useState(false);
+    const [mentionIdx, setMentionIdx] = useState(0);
 
     const slashQ = input.startsWith("/") ? input.trim().slice(1).toLowerCase() : "";
     const slashItems = SLASH_ITEMS.filter((it) => tr(it.key).toLowerCase().includes(slashQ));
     const slashOpen = input.startsWith("/") && slashItems.length > 0;
     const [activeIdx, setActiveIdx] = useState(0);
     useEffect(() => setActiveIdx(0), [slashQ]);
+
+    const mention = mentionSpan(input);
+    const mentionActive = mention !== null;
+    const mentionQ = mention?.query ?? "";
+    const mentionOptions = filterMentionFiles(mentionFiles, mentionQ);
+    useEffect(() => setMentionIdx(0), [mentionQ]);
+
+    // 只在面板打开时拉一次工作台清单；切换对话/重传文件后下一次打开会重新取。
+    useEffect(() => {
+      if (!mentionActive) return;
+      let alive = true;
+      setMentionLoading(true);
+      listAttachments()
+        .then((items) => {
+          if (!alive) return;
+          setMentionFiles(
+            items.map((a) => ({ id: a.id, filename: a.filename, kind: a.kind, mime: a.mime })),
+          );
+        })
+        .catch(() => {
+          if (alive) setMentionFiles([]);
+        })
+        .finally(() => {
+          if (alive) setMentionLoading(false);
+        });
+      return () => {
+        alive = false;
+      };
+    }, [mentionActive]);
+
+    const chooseMention = (file: RunAttachment) => {
+      const span = mentionSpan(input);
+      if (!span) return;
+      onReferenceAttachment?.({ ...file, ref: true });
+      onInputChange(stripMention(input, span.start));
+      setMentionIdx(0);
+      inputRef.current?.focus();
+    };
 
     const pick = (it: (typeof SLASH_ITEMS)[number]) => {
       onInputChange("");
@@ -175,6 +225,57 @@ export const ChatInput = memo(
             </div>
           )}
 
+          {mentionActive && (
+            <div
+              data-testid="file-mentions"
+              className="mb-2 overflow-hidden rounded-xl border border-border bg-popover shadow-lift"
+            >
+              <div className="flex items-center justify-between border-b border-border/60 px-3 py-2 text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <AtSign className="h-3.5 w-3.5" />
+                  {tr("chat.referenceFile")}
+                </span>
+                {mentionLoading && <span>{tr("chat.referenceLoading")}</span>}
+              </div>
+              {mentionOptions.length > 0 ? (
+                <div className="max-h-56 overflow-y-auto p-1">
+                  {mentionOptions.map((file, i) => {
+                    const picked = attachments?.some((a) => a.id === file.id);
+                    return (
+                      <button
+                        key={file.id}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseEnter={() => setMentionIdx(i)}
+                        onClick={() => chooseMention(file)}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
+                          i === mentionIdx ? "bg-accent text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        <FileText className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate text-[13px]">{file.filename}</span>
+                        {picked ? (
+                          <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                            {tr("chat.referenceAdded")}
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-[10px] uppercase text-muted-foreground/70">
+                            {file.kind}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="px-3 py-3 text-[12px] text-muted-foreground">
+                  {mentionLoading ? tr("chat.referenceLoading") : tr("chat.referenceEmpty")}
+                </div>
+              )}
+            </div>
+          )}
+
           <div
             onDragEnter={(e) => {
               if (!hasFileDrag(e.dataTransfer.types)) return;
@@ -226,8 +327,17 @@ export const ChatInput = memo(
                       title={tr("chat.openAttachment")}
                       className="inline-flex min-w-0 items-center gap-1.5 rounded text-left hover:text-primary"
                     >
-                      <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      {a.ref ? (
+                        <Link2 className="h-3 w-3 shrink-0 text-primary/70" />
+                      ) : (
+                        <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      )}
                       <span className="max-w-[11rem] truncate">{a.filename}</span>
+                      {a.ref && (
+                        <span className="rounded bg-primary/10 px-1 text-[10px] text-primary">
+                          {tr("chat.referenceBadge")}
+                        </span>
+                      )}
                     </button>
                     <button
                       type="button"
@@ -304,6 +414,26 @@ export const ChatInput = memo(
                 />
               </label>
 
+              <button
+                type="button"
+                aria-label={tr("chat.referenceFile")}
+                aria-pressed={mentionActive}
+                title={tr("chat.referenceHint")}
+                onClick={() => {
+                  const next = input && !input.endsWith(" ") ? `${input} @` : `${input}@`;
+                  onInputChange(next);
+                  inputRef.current?.focus();
+                }}
+                className={cn(
+                  "mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors",
+                  mentionActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground/55 hover:bg-accent hover:text-foreground",
+                )}
+              >
+                <AtSign className="h-[18px] w-[18px]" />
+              </button>
+
               <textarea
                 ref={inputRef}
                 value={input}
@@ -318,6 +448,32 @@ export const ChatInput = memo(
                   void addFiles(pasted);
                 }}
                 onKeyDown={(e) => {
+                  if (mentionActive) {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setMentionIdx((i) => (i + 1) % Math.max(1, mentionOptions.length));
+                      return;
+                    }
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setMentionIdx(
+                        (i) => (i - 1 + Math.max(1, mentionOptions.length)) % Math.max(1, mentionOptions.length),
+                      );
+                      return;
+                    }
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const picked = mentionOptions[mentionIdx];
+                      if (picked) chooseMention(picked);
+                      return;
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      const span = mentionSpan(input);
+                      if (span) onInputChange(stripMention(input, span.start));
+                      return;
+                    }
+                  }
                   if (slashOpen) {
                     if (e.key === "ArrowDown") {
                       e.preventDefault();
@@ -414,6 +570,12 @@ export const ChatInput = memo(
                 <span>{tr("chat.enterHint")}</span>
                 <span className="hidden sm:inline">·</span>
                 <span className="hidden sm:inline">{tr("chat.slashHint")}</span>
+                {onReferenceAttachment && (
+                  <>
+                    <span className="hidden sm:inline">·</span>
+                    <span className="hidden sm:inline">{tr("chat.referenceHint")}</span>
+                  </>
+                )}
                 {uploading && <span>· {tr("chat.attach")}…</span>}
               </span>
             )}

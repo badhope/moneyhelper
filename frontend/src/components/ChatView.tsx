@@ -71,7 +71,7 @@ export function ChatView({
     stream, streamingMsg, finishedMessages,
     bubbleCallbacks, listening, scrollNow, stableEdit,
     stableSend, stableSendInput, stableStop, stableToggleVoice,
-    uploadAttachment, removeAttachment, refreshBootstrap,
+    uploadAttachment, referenceAttachment, removeAttachment, refreshBootstrap,
     usage,
   } = useChatView({ threadId, locateRunId, onLocateDone, inputRef, listRef });
 
@@ -445,6 +445,7 @@ export function ChatView({
           onOpenSettings={onOpenSettings}
           attachments={attachments}
           onAddAttachment={(f) => uploadAttachment(f).then(() => void store.bump())}
+          onReferenceAttachment={referenceAttachment}
           onRemoveAttachment={removeAttachment}
           onOpenAttachment={requestOpenAttachment}
           onSlashCommand={(id) => {

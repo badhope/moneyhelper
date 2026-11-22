@@ -341,9 +341,14 @@ export function useChatView({
       setAttachments((prev) => [...prev, { id: r.id, filename: f.name, kind: "text" }]);
       return r;
     },
+    referenceAttachment: (a: RunAttachment) => {
+      setAttachments((prev) => (prev.some((p) => p.id === a.id) ? prev : [...prev, { ...a, ref: true }]));
+    },
     removeAttachment: (id: number) => {
+      const target = attachments.find((a) => a.id === id);
       setAttachments((prev) => prev.filter((a) => a.id !== id));
-      void deleteAttachment(id);
+      // 工作台已有文件只是「引用」，从输入区移除不能把用户的文件删掉。
+      if (!target?.ref) void deleteAttachment(id);
     },
     refreshBootstrap: () => store.refreshBootstrap(),
   };

@@ -36,6 +36,7 @@
 | [Reviewability standard](reviewability-standard.md) | What makes a number trustworthy |
 | [Financial identity and monthly review](personal-review.md) | Verifiable identity card, month-end closing review, agent tools |
 | [Answer sources and quality feedback](answer-trust.md) | In-message source chips, thumbs up/down, reason tags, tenant-scoped summary |
+| [Reference a workbench file in chat](chat-file-reference.md) | `@` mention of an existing attachment, no re-upload, removing a reference never deletes the file |
 
 ## Engineering
 

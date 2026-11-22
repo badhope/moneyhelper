@@ -156,6 +156,8 @@ export interface RunAttachment {
   filename: string;
   kind: string;
   mime?: string;
+  /** true = 从工作台已有文件「引用」，移除时只取消引用，不删原文件。 */
+  ref?: boolean;
 }
 
 export interface RunRecord {
