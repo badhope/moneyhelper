@@ -180,7 +180,7 @@ export const ChatInput = memo(
             <div className="flex items-end gap-1.5">
               {/* 模型快捷切换：只在有多个已点亮模型时出现，单模型不占地方 */}
               {onSwitchModel && modelOptions.length > 1 && (
-                <label className="mb-0.5 shrink-0" title={tr("chat.switchModel")}>
+                <label className="mb-0.5 shrink-0 max-sm:hidden" title={tr("chat.switchModel")}>
                   <span className="sr-only">{tr("chat.switchModel")}</span>
                   <select
                     value={modelOptions.find((m) => m.model === modelName)?.id ?? ""}
@@ -284,7 +284,7 @@ export const ChatInput = memo(
                 rows={1}
                 placeholder={tr("chat.inputPh")}
                 aria-label={tr("chat.inputPh")}
-                className="max-h-[168px] min-h-[24px] flex-1 resize-none self-center overflow-y-auto scroll-thin bg-transparent py-1.5 text-[16px] leading-6 outline-none placeholder:text-muted-foreground/80"
+                className="max-h-[168px] min-h-[24px] min-w-0 flex-1 resize-none self-center overflow-y-auto scroll-thin bg-transparent py-1.5 text-[16px] leading-6 outline-none placeholder:text-muted-foreground/80"
               />
 
               {voiceOn && (

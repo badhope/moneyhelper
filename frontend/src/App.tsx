@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { MotionConfig } from "framer-motion";
-import { PanelLeftOpen, X } from "lucide-react";
+import { PanelLeftOpen, Smartphone, WifiOff, X } from "lucide-react";
 import { SessionSidebar } from "@/components/SessionSidebar";
 import { Onboarding } from "@/components/Onboarding";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -10,7 +10,7 @@ import { OfflineBanner } from "@/components/ui/offline-banner";
 import { PasswordDialog } from "@/components/ui/password-dialog";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { useBootstrap, useSessions, store } from "@/lib/store";
-import { api, getToken } from "@/lib/api";
+import { api, disconnectRemote, getRemoteMe, getToken } from "@/lib/api";
 import { LoginView } from "@/components/LoginView";
 import { useToast } from "@/lib/toast";
 import { cn, errMsg } from "@/lib/utils";
@@ -22,6 +22,7 @@ import { TopBar } from "@/components/TopBar";
 import { MobileDrawer } from "@/components/MobileDrawer";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { WorkbenchRail } from "@/components/workbench/WorkbenchRail";
+import { RemoteControlPanel } from "@/components/RemoteControlPanel";
 import { OPEN_URL_EVENT } from "@/lib/workbench";
 
 // 首屏只需要 TopBar + 会话栏 + 对话区。以下面板都是"点开才用"，
@@ -51,6 +52,17 @@ export default function App() {
   // 主区视图：对话 or 财务工作区（整页切换，对标 opencode / codex 的 section 导航）
   const [view, setView] = useState<DataKind | "chat">("chat");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [remoteOpen, setRemoteOpen] = useState(false);
+  // 手机扫码进来后带 ?remote=1：用 sessionStorage 记住，刷新页面也知道自己在远程控制中。
+  // 不把远程凭据放进 localStorage——设备 cookie 本身是 HttpOnly，前端只留一个标记。
+  const [remoteMode, setRemoteMode] = useState(() => {
+    try {
+      return sessionStorage.getItem("mh.remote") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [remoteDevice, setRemoteDevice] = useState("");
   // 设置页有未保存改动时，关闭前必须确认（原先点关闭直接丢弃修改，没有任何提示）
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [settingsCloseConfirm, setSettingsCloseConfirm] = useState(false);
@@ -105,6 +117,11 @@ export default function App() {
     }
   }, [railOpen]);
 
+  // 手机远程控制默认不展开工作台：右栏在窄屏是覆盖层，一进来就挡住聊天。
+  useEffect(() => {
+    if (remoteMode && !isDesktop) setRailOpen(false);
+  }, [remoteMode, isDesktop]);
+
   // 回答里的外链不跳走当前页：交给右栏浏览器打开。事件由 Markdown 链接发出，
   // App 始终监听，所以右栏收起时点链接也能把它拉起来。
   useEffect(() => {
@@ -117,6 +134,44 @@ export default function App() {
     };
     window.addEventListener(OPEN_URL_EVENT, onOpenUrl);
     return () => window.removeEventListener(OPEN_URL_EVENT, onOpenUrl);
+  }, []);
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("remote");
+    if (q === "1") {
+      try {
+        sessionStorage.setItem("mh.remote", "1");
+      } catch {
+        /* ignore */
+      }
+      setRemoteMode(true);
+      try {
+        window.history.replaceState({}, "", window.location.pathname);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!remoteMode) return;
+    getRemoteMe()
+      .then((me) => setRemoteDevice(me.remote ? me.device_name || "手机" : ""))
+      .catch(() => setRemoteDevice(""));
+  }, [remoteMode]);
+
+  const leaveRemote = useCallback(async () => {
+    try {
+      await disconnectRemote();
+    } catch {
+      /* 已失效也照常退出 */
+    }
+    try {
+      sessionStorage.removeItem("mh.remote");
+    } catch {
+      /* ignore */
+    }
+    window.location.replace("/");
   }, []);
 
   const [userCount, setUserCount] = useState<number | null>(null);
@@ -343,7 +398,27 @@ export default function App() {
                 onTenantChanged={() => setTenantEpoch((n) => n + 1)}
                 railOpen={railOpen}
                 onToggleRail={() => setRailOpen((v) => !v)}
+                onOpenRemote={() => setRemoteOpen(true)}
               />
+
+              {remoteMode && (
+                <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-primary/[0.06] px-3 py-1 text-[10.5px] text-foreground/80">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <Smartphone className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate">
+                      {t("remote.remoteMode")} · {remoteDevice || t("remote.phone")}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void leaveRemote()}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-destructive hover:bg-destructive/10"
+                  >
+                    <WifiOff className="h-3 w-3" />
+                    {t("remote.disconnect")}
+                  </button>
+                </div>
+              )}
 
               <main className="flex min-h-0 flex-1 pb-[calc(3.25rem+env(safe-area-inset-bottom))] md:pb-0">
                 <div className="flex h-full w-full flex-col view-enter">
@@ -442,6 +517,7 @@ export default function App() {
           <Suspense fallback={null}>
             {inboxOpen && <ScheduledOutputsPanel open onClose={() => setInboxOpen(false)} />}
             {deptOpen && <DepartmentPanel open onClose={() => setDeptOpen(false)} />}
+            <RemoteControlPanel open={remoteOpen} onClose={() => setRemoteOpen(false)} />
           </Suspense>
 
           {/* 手机端底部导航：高频入口常驻拇指区，其余功能走抽屉 */}

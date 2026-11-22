@@ -13,6 +13,21 @@ from fastapi.responses import JSONResponse
 from .auth import verify_api_token
 from .mw_common import _SKIP_AUTH_PATHS
 
+REMOTE_COOKIE = "mh_remote"
+
+
+async def remote_identity(request: Request) -> dict[str, Any] | None:
+    """解析远程设备 cookie。无效/过期/已撤销一律 None，交给后续 401。"""
+    raw = request.cookies.get(REMOTE_COOKIE, "")
+    if not raw:
+        return None
+    try:
+        from . import db
+
+        return await db.validate_remote_cookie(raw)
+    except Exception:  # noqa: BLE001 — 校验失败按未登录处理（fail-closed）
+        return None
+
 _background_tasks: set[asyncio.Task[None]] = set()
 
 
@@ -36,7 +51,32 @@ async def auth_gate(request: Request) -> JSONResponse | int:
     MCP 子应用的 mount 会绕过主 app 的 @app.middleware("http") 中间件链，
     因此两边都必须显式走这个闸，避免"主站有防护、MCP 侧裸奔"。
     """
+    # 配对入口本身就是凭据入口：它校验一次性令牌，不能再要求口令/JWT。
+    # 限流仍会生效（该路径不在 _SKIP_AUTH_PATHS 里），防止爆破。
+    if request.url.path == "/api/remote/pair":
+        from .db.tenant import LOCAL_USER_ID
+
+        return LOCAL_USER_ID
+
     key = os.getenv("API_TOKEN", "").strip()
+
+    # 远程设备令牌是第二条凭据：它由一次性配对链接换取，和共享口令/JWT 平级。
+    # 先解析它，避免「设置了 API_TOKEN 后手机反而进不来」。
+    remote = await remote_identity(request)
+    if remote:
+        request.state.auth_via_remote = True
+        request.state.remote_session = remote
+        tenant_id = int(remote.get("user_id") or 0)
+        if tenant_id and not await _user_is_active(tenant_id):
+            return JSONResponse({"error": "账号不存在或已停用"}, status_code=401)
+        request.state.tenant_id = tenant_id
+        return tenant_id
+
+    # 带了远程 cookie 却校验失败：不能静默退回「本机无口令模式」，
+    # 否则撤销/过期后手机仍能读账本。这里必须 fail-closed。
+    if request.cookies.get(REMOTE_COOKIE):
+        return JSONResponse({"error": "远程连接已失效，请重新扫码"}, status_code=401)
+
     if key and verify_api_token(request) is None:
         return JSONResponse({"error": "需要访问口令"}, status_code=401)
 
@@ -77,7 +117,8 @@ async def api_auth(request: Request, call_next):
 
     # 审计归属：把本请求解析到的操作者写进 ContextVar，后续 record_provenance
     # 不传 username 时自动归属该用户（此前各路由硬编码 "system"，审计链全失真）。
-    actor = _resolve_actor(request, key)
+    remote = getattr(request.state, "remote_session", None)
+    actor = f"remote:{remote.get('device_name') or remote.get('sid')}" if remote else _resolve_actor(request, key)
     if actor:
         from .provenance import set_request_actor
 

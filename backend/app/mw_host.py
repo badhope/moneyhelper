@@ -75,11 +75,19 @@ def token_ok(request: Request) -> bool:
 def host_guard_check(request: Request) -> str | None:
     """无口令模式的来源校验，返回错误文案；通过返回 None。
 
+    两条例外：配对入口（一次性令牌就是凭据）与已带远程设备 cookie 的请求
+    （cookie 是否有效由 auth_gate 决定；这里不拦，否则手机从公网回来会被挡在
+    验证之前）。
+
     三条同时满足才放行：
     1. 直连来源是本机/内网（防公网直连伪造 Host）
     2. Host 在白名单内
     3. Origin（若有）在白名单内
     """
+    if request.url.path == "/api/remote/pair":
+        return None
+    if request.cookies.get("mh_remote"):
+        return None
     if os.getenv("API_TOKEN", "").strip():
         return None  # 有口令时以口令为准（反代部署不按 Host 拦截）
     if not _client_is_local(request):

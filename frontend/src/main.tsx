@@ -3,6 +3,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
+import { RemotePairView } from "./components/RemotePairView";
 import { ErrorBoundary } from "./lib/ErrorBoundary";
 import { ThemeProvider } from "./lib/theme";
 import { I18nProvider } from "./lib/i18n";
@@ -27,7 +28,11 @@ createRoot(document.getElementById("root")!).render(
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
-            <App />
+            {window.location.pathname === "/remote" || window.location.pathname === "/remote/" ? (
+              <RemotePairView />
+            ) : (
+              <App />
+            )}
             <Toaster />
           </ThemeProvider>
         </QueryClientProvider>

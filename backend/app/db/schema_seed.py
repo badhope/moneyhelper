@@ -124,6 +124,10 @@ SEED_SETTINGS = {
     "agent_reflect": "on",  # 工具失败时是否提示模型反思修正后重试
     "custom_system_prompt": "",  # 自定义系统提示词（留空用 agents/supervisor/instructions.md）
     "knowledge_enabled": "on",  # 知识库检索开关
+    # ---- 远程控制（手机扫码接入）----
+    "remote_enabled": "on",  # 是否允许生成远程链接（不生成就没有任何远程入口）
+    "remote_public_url": "",  # 对外地址，如 https://money.example.com；留空用当前访问地址
+    "remote_session_hours": "12",  # 单次远程会话有效期（1-168 小时）
     "data_note": "seed",
 }
 

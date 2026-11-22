@@ -10,3 +10,5 @@ export * from "./api/gl";
 export * from "./api/banking";
 export * from "./api/procurement";
 export * from "./api/longtask";
+
+export * from "./api/remote";

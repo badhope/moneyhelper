@@ -49,6 +49,7 @@ from .routes import (
     paper_router,
     procurement_router,
     provenance_router,
+    remote_router,
     qa_router,
     research_router,
     settings_router,
@@ -117,6 +118,7 @@ app.include_router(evaluation_router)
 app.include_router(import_router)
 app.include_router(paper_router)
 app.include_router(provenance_router)
+app.include_router(remote_router)
 app.include_router(members_router)
 app.include_router(org_router)
 app.include_router(authz_router)

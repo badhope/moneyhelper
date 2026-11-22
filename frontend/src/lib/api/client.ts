@@ -85,6 +85,17 @@ async function request(
     throw err;
   }
   if (resp.status === 401 && !retried) {
+    // 远程设备不要弹本机口令框：它没有本机口令，唯一解法是回电脑重新扫码。
+    try {
+      if (sessionStorage.getItem("mh.remote") === "1") {
+        sessionStorage.removeItem("mh.remote");
+        // 直接回配对页：手机上继续显示旧页面只会让用户以为还能用
+        window.location.replace("/remote?expired=1");
+        throw new Error("远程连接已失效，请重新扫码");
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("重新扫码")) throw err;
+    }
     const input = await askAuth();
     if (input) {
       setToken(input.trim());

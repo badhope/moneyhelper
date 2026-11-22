@@ -43,6 +43,28 @@ async def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> dict[str, Any] | None:
     """依赖注入：解析 JWT 返回当前用户；无令牌或失败都返回 None（降级旧鉴权）。"""
+    # 远程设备 cookie：与共享口令/JWT 平级，由一次性配对链接换取
+    from .mw_auth import remote_identity
+
+    remote = await remote_identity(request)
+    if remote:
+        uid = int(remote.get("user_id") or 0)
+        if uid > 0:
+            user = await db.user_get(uid)
+            if not user or user.get("disabled"):
+                return None
+            user = dict(user)
+            user["username"] = f"remote:{remote.get('device_name') or uid}"
+            user["via_remote"] = True
+            return user
+        return {
+            "id": 0,
+            "username": f"remote:{remote.get('device_name') or '手机'}",
+            "role": "admin",
+            "display_name": "远程控制",
+            "via_remote": True,
+        }
+
     # 旧 API_TOKEN 模式：verify_api_token 处理 Shared Token 校验
     shared = verify_api_token(request)
     if shared is not None:

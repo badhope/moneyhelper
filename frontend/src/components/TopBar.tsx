@@ -1,5 +1,5 @@
 import {
-  ArrowLeft, ChevronDown, Languages, Menu, Moon, PanelRightClose, PanelRightOpen, Settings, SquarePen, Sun,
+  ArrowLeft, ChevronDown, Languages, Menu, Moon, PanelRightClose, PanelRightOpen, Settings, Smartphone, SquarePen, Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,7 @@ export function TopBar({
   onTenantChanged,
   railOpen,
   onToggleRail,
+  onOpenRemote,
 }: {
   onOpenSettings?: () => void;
   /** 移动端：打开左侧导航抽屉（会话列表/新建/部门/收件箱） */
@@ -43,6 +44,8 @@ export function TopBar({
   /** 右侧工作台（文件/预览/浏览器）是否展开 */
   railOpen?: boolean;
   onToggleRail?: () => void;
+  /** 打开手机远程控制面板 */
+  onOpenRemote?: () => void;
 }) {
   const { resolved, setTheme } = useTheme();
   const { lang, setLang, t } = useI18n();
@@ -140,6 +143,22 @@ export function TopBar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>{railOpen ? t("workbench.close") : t("workbench.open")}</TooltipContent>
+          </Tooltip>
+        )}
+        {onOpenRemote && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-foreground/60 hover:text-foreground"
+                aria-label={t("remote.open")}
+                onClick={onOpenRemote}
+              >
+                <Smartphone className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("remote.open")}</TooltipContent>
           </Tooltip>
         )}
         <Tooltip>

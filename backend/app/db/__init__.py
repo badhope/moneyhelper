@@ -579,3 +579,16 @@ __all__ = [
     "verify_audit_chain",
     "withdraw_motion",
 ]
+from .remote import (  # noqa: F401,E402 — 远程控制会话
+    DEFAULT_SESSION_HOURS,
+    REMOTE_COOKIE,
+    active_remote_count,
+    create_remote_session,
+    get_remote_session,
+    list_remote_sessions,
+    pair_remote_session,
+    revoke_all_remote_sessions,
+    revoke_remote_session,
+    rotate_remote_session,
+    validate_remote_cookie,
+)

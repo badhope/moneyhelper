@@ -18,7 +18,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "moneyhelper"
-version = "4.16.24"
+version = "4.16.25"
 description = "Moneyhelper —— 面向个人与小微公司的 AI 财务部门（记账/投研/财报/税负/资金调度，数字可复核、操作可审计、MCP 开放）"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -50,6 +50,7 @@ dependencies = [
   "charset-normalizer>=3.3,<4",
   "pyxirr>=0.10,<1",
   "python-multipart>=0.0.9,<1",
+  "qrcode>=7.4,<9",  # 远程控制二维码（SVG，不依赖 pillow）
 ]
 
 [project.optional-dependencies]
