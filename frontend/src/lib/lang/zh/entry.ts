@@ -483,4 +483,6 @@ export const zh_entry: Record<string, string> = {
   "remote.enable": "开启远程控制",
   "remote.remoteMode": "远程控制中",
   "remote.disconnect": "断开",
+  "demo.banner": "演示模式 · 当前只展示示例账本，不会读写你的真实数据",
+  "demo.exit": "返回真实数据",
 };

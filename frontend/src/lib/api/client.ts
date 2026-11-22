@@ -4,6 +4,7 @@
  */
 
 import { fetchEventSource } from "@microsoft/fetch-event-source";
+import { demoHeader } from "@/lib/demo";
 
 const TOKEN_KEY = "wo.accessToken";
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -65,6 +66,7 @@ function authHeaders(init: RequestInit): HeadersInit {
   return {
     ...(isForm ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...demoHeader(),
     ...(init.headers ?? {}),
   };
 }
@@ -281,6 +283,7 @@ async function _fetchOnce(
       "Content-Type": "application/json",
       Accept: "text/event-stream",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...demoHeader(),
     },
     body: JSON.stringify(body),
     signal,

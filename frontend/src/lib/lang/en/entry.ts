@@ -483,4 +483,6 @@ export const en_entry: Record<string, string> = {
   "remote.enable": "Enable remote control",
   "remote.remoteMode": "Remote control",
   "remote.disconnect": "Disconnect",
+  "demo.banner": "Demo mode · showing sample ledger only, your real data is untouched",
+  "demo.exit": "Back to real data",
 };

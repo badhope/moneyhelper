@@ -1963,3 +1963,60 @@ def test_news_question_is_not_misrouted_as_market() -> None:
         assert looks_like_non_finance(q) is True
     # 含财务词的新闻仍走财务分支，不能被这条规则吞掉
     assert looks_like_non_finance("今天的股票新闻怎么样") is False
+
+
+async def test_demo_mode_is_isolated_from_real_ledger(client) -> None:
+    """演示账本独立租户：演示里的读写不能污染真实账本。"""
+    # 先造一条只有真实账本才有的流水
+    r = await client.post(
+        "/api/transactions",
+        json={"date": "2026-09-25", "item": "真实专用", "category": "餐饮", "amount": -10},
+    )
+    assert r.status_code == 200
+    real_before = await db.demo_ledger_counts(0)
+
+    r = await client.post("/api/demo/enter")
+    assert r.status_code == 200
+    assert r.json()["counts"] == {"positions": 4, "transactions": 11, "subscriptions": 3, "debts": 2}
+    demo_before = await db.demo_ledger_counts(db.DEMO_USER_ID)
+
+    # 当前请求带演示头：读到的是种子账本，且明确标 demo
+    demo = (await client.get("/api/dashboard", headers={"X-Demo-Mode": "1"})).json()
+    assert demo["source"]["demo"] is True
+    assert any(p["symbol"] == "600519" for p in demo["positions"])
+    assert not any(t["item"] == "真实专用" for t in demo["transactions"])
+
+    # 在演示模式下写一笔：只落演示租户
+    r = await client.post(
+        "/api/transactions",
+        headers={"X-Demo-Mode": "1"},
+        json={"date": "2026-09-26", "item": "演示专用", "category": "餐饮", "amount": -20},
+    )
+    assert r.status_code == 200
+    real_after = await db.demo_ledger_counts(0)
+    demo_after = await db.demo_ledger_counts(db.DEMO_USER_ID)
+    assert real_after == real_before
+    assert demo_after["transactions"] == demo_before["transactions"] + 1
+
+    # 去掉演示头：真实账本仍是原来那条流水，没被演示数据覆盖
+    real = (await client.get("/api/dashboard")).json()
+    assert any(t["item"] == "真实专用" for t in real["transactions"])
+    assert not any(t["item"] == "演示专用" for t in real["transactions"])
+    assert real["source"]["demo"] is False
+    assert real["source"]["seeded"] is False
+
+
+async def test_demo_status_reports_both_sides(client) -> None:
+    """演示头下仍能如实报出真实账本计数，供设置页区分两套数据。"""
+    await client.post(
+        "/api/transactions",
+        json={"date": "2026-09-27", "item": "真实计数", "category": "餐饮", "amount": -12},
+    )
+    await client.post("/api/demo/enter")
+    status = (await client.get("/api/demo/status", headers={"X-Demo-Mode": "1"})).json()
+    assert status["active"] is True
+    assert status["real"]["positions"] == 4
+    assert status["demo"]["positions"] == 4
+    # 真实侧多一笔，演示侧仍是种子 11 笔：两套数字不是同一份
+    assert status["real"]["transactions"] == 12
+    assert status["demo"]["transactions"] == 11

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { MotionConfig } from "framer-motion";
-import { PanelLeftOpen, Smartphone, WifiOff, X } from "lucide-react";
+import { FlaskConical, PanelLeftOpen, Smartphone, WifiOff, X } from "lucide-react";
 import { SessionSidebar } from "@/components/SessionSidebar";
 import { Onboarding } from "@/components/Onboarding";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -16,6 +16,7 @@ import { useToast } from "@/lib/toast";
 import { cn, errMsg } from "@/lib/utils";
 import { isDataKind, type DataKind } from "@/lib/views";
 import { useI18n } from "@/lib/i18n";
+import { useDemoMode, setDemoMode } from "@/lib/demo";
 import { useIsDesktop } from "@/lib/use-media-query";
 import { useResizableWidth } from "@/lib/use-resizable-width";
 import { TopBar } from "@/components/TopBar";
@@ -47,10 +48,13 @@ export default function App() {
   const { t } = useI18n();
   const { sessions, loading: sessionsLoading } = useSessions();
   const { bootstrap } = useBootstrap();
+  const demoMode = useDemoMode();
   const { toast } = useToast();
 
   // 主区视图：对话 or 财务工作区（整页切换，对标 opencode / codex 的 section 导航）
-  const [view, setView] = useState<DataKind | "chat">("chat");
+  const [view, setView] = useState<DataKind | "chat">(() =>
+    new URLSearchParams(window.location.search).get("demo") === "1" ? "overview" : "chat",
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [remoteOpen, setRemoteOpen] = useState(false);
   // 手机扫码进来后带 ?remote=1：用 sessionStorage 记住，刷新页面也知道自己在远程控制中。
@@ -66,6 +70,14 @@ export default function App() {
   // 设置页有未保存改动时，关闭前必须确认（原先点关闭直接丢弃修改，没有任何提示）
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [settingsCloseConfirm, setSettingsCloseConfirm] = useState(false);
+
+  // 进入演示时用 ?demo=1 把首屏落到总览；打开后清掉查询参数，避免后续刷新反复跳转。
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("demo") !== "1") return;
+    url.searchParams.delete("demo");
+    window.history.replaceState({}, "", url);
+  }, []);
 
   // 刷新后先恢复上次会话：会话列表/首条消息都要等网络，若不恢复，
   // 首屏会先停在「正在准备会话…」，用户会以为对话没启动。
@@ -439,6 +451,25 @@ export default function App() {
                 onToggleRail={() => setRailOpen((v) => !v)}
                 onOpenRemote={() => setRemoteOpen(true)}
               />
+
+              {demoMode && (
+                <div className="flex items-center justify-between gap-2 border-b border-amber-500/25 bg-amber-500/[0.09] px-3 py-1 text-[10.5px] text-foreground/85">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span className="truncate">{t("demo.banner")}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDemoMode(false);
+                      window.location.replace("/");
+                    }}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+                  >
+                    {t("demo.exit")}
+                  </button>
+                </div>
+              )}
 
               {remoteMode && (
                 <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-primary/[0.06] px-3 py-1 text-[10.5px] text-foreground/80">

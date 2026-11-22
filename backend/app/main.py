@@ -33,6 +33,7 @@ from .routes import (
     connect_router,
     debt_payoff_router,
     debts_subs_router,
+    demo_router,
     evaluation_router,
     execute_router,
     expenses_router,
@@ -101,6 +102,7 @@ app.include_router(banking_router)
 app.include_router(settings_router)
 app.include_router(goals_router)
 app.include_router(debts_subs_router)
+app.include_router(demo_router)
 app.include_router(debt_payoff_router)
 app.include_router(market_router)
 app.include_router(calculations_router)

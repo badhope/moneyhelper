@@ -115,10 +115,27 @@ async def api_auth(request: Request, call_next):
     # 把租户 id 留在 request.state，供审计归属使用。
     request.state.tenant_id = tenant_id
 
+    # 演示模式（X-Demo-Mode: 1）：把本次请求切到保留的演示租户。
+    # 真实租户 id 先留在 request.state，供 /api/demo/status 如实报告两边计数。
+    # 这是展示层开关，不是权限边界：鉴权仍按真实身份先过一遍。
+    request.state.real_tenant_id = tenant_id
+    request.state.demo_mode = request.headers.get("x-demo-mode", "").strip() == "1"
+    if request.state.demo_mode:
+        from .db.demo import DEMO_USER_ID
+
+        tenant_id = DEMO_USER_ID
+        request.state.tenant_id = tenant_id
+        actor = "demo"
+
     # 审计归属：把本请求解析到的操作者写进 ContextVar，后续 record_provenance
     # 不传 username 时自动归属该用户（此前各路由硬编码 "system"，审计链全失真）。
     remote = getattr(request.state, "remote_session", None)
-    actor = f"remote:{remote.get('device_name') or remote.get('sid')}" if remote else _resolve_actor(request, key)
+    if not request.state.demo_mode:
+        actor = (
+            f"remote:{remote.get('device_name') or remote.get('sid')}"
+            if remote
+            else _resolve_actor(request, key)
+        )
     if actor:
         from .provenance import set_request_actor
 

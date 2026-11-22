@@ -137,6 +137,7 @@ async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict
             "ledger": "Local ledger (SQLite)" if en else "本地账本（SQLite）",
             "quotes": quotes_label,
             "seeded": settings.get("data_note", "") == "seed",
+            "demo": settings.get("data_note", "") == "demo",
         },
     }
     # 每日净值快照：总览是用户每天必开的页面，在这里落一条快照最省事，

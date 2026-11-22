@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, FileText, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Segmented } from "@/components/ui/segmented";
 import { ConfirmDialog } from "@/components/ui/confirm";
 import { api, apiDownload, saveBlob, SLOW_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
@@ -10,23 +11,56 @@ import { useI18n } from "@/lib/i18n";
 import type { BootstrapData, DashboardData } from "@/lib/types";
 import { Section } from "./shared";
 import { errMsg } from "@/lib/utils";
+import { setDemoMode, useDemoMode } from "@/lib/demo";
 
-/** 数据与备份（数据源 / 恢复示例 / 导出加密备份 / 导入备份），状态与处理逻辑已下沉 */
+/** 数据与备份（真实/演示数据源 / 导出加密备份 / 导入备份），状态与处理逻辑已下沉 */
 export function DataSection({
   dashboard,
   bootstrap,
-  onRestoreDemo,
 }: {
   dashboard: DashboardData | null;
   bootstrap: BootstrapData;
-  onRestoreDemo: () => void;
 }) {
   const { t, lang } = useI18n();
   const { toast } = useToast();
-  const [resetOpen, setResetOpen] = useState(false);
+  const demoMode = useDemoMode();
+  const [switching, setSwitching] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<{ file: File; encrypted: boolean } | null>(null);
   const [backupPass, setBackupPass] = useState("");
+  const [modeStatus, setModeStatus] = useState<{
+    real: Record<string, number>;
+    demo: Record<string, number>;
+  } | null>(null);
+  const [modeErr, setModeErr] = useState("");
+
+  useEffect(() => {
+    api<{ real: Record<string, number>; demo: Record<string, number> }>("/api/demo/status")
+      .then((r) => {
+        setModeStatus(r);
+        setModeErr("");
+      })
+      .catch((e) => setModeErr(errMsg(e)));
+  }, []);
+
+  const switchMode = async (next: "real" | "demo") => {
+    if (switching || next === (demoMode ? "demo" : "real")) return;
+    if (next === "real") {
+      setDemoMode(false);
+      window.location.replace("/");
+      return;
+    }
+    setSwitching(true);
+    try {
+      // 先让后端重建演示租户；失败就报错，不提前切换出一个空/假演示。
+      await api("/api/demo/enter", { method: "POST" });
+      setDemoMode(true);
+      window.location.replace("/?demo=1");
+    } catch (e) {
+      toast(errMsg(e), "error");
+      setSwitching(false);
+    }
+  };
 
   const exportBackup = async () => {
     try {
@@ -116,16 +150,43 @@ export function DataSection({
           <span>{t("settings.srcPortfolio")}</span><span className="text-right text-foreground">{dashboard ? t("settings.srcLocal") : "--"}</span>
           <span>{t("settings.srcModel")}</span>
           <span className="text-right text-foreground">
-            {bootstrap.health.llm_configured ? bootstrap.health.model : t("settings.modelNone")}
+            {demoMode
+              ? t("settings.demoModelNote")
+              : bootstrap.health.llm_configured
+                ? bootstrap.health.model
+                : t("settings.modelNone")}
           </span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 text-xs text-muted-foreground">
-            {dashboard?.source.seeded ? t("settings.demoNote") : t("settings.realNote")}
+        <div className="rounded-lg border border-input/70 p-2.5 space-y-2">
+          <div className="flex flex-col gap-1.5 @sm:flex-row @sm:items-center @sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-foreground/90">{t("settings.dataMode")}</div>
+              <div className="text-xs text-muted-foreground/80">{t("settings.dataModeHint")}</div>
+            </div>
+            <Segmented
+              size="sm"
+              value={demoMode ? "demo" : "real"}
+              onChange={(v) => void switchMode(v as "real" | "demo")}
+              options={[
+                { value: "real", label: t("settings.dataModeReal") },
+                { value: "demo", label: t("settings.dataModeDemo") },
+              ]}
+            />
           </div>
-          <Button variant="outline" size="sm" onClick={() => setResetOpen(true)}>
-            {t("settings.loadDemoData")}
-          </Button>
+          {switching && <div className="text-xs text-muted-foreground">{t("settings.dataModeSwitching")}</div>}
+          {modeStatus ? (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span>{t("settings.dataModeReal")}</span>
+              <span className="text-right text-foreground">
+                {modeStatus.real.positions} {t("settings.pos")} · {modeStatus.real.transactions} {t("settings.tx")}
+              </span>
+              <span>{t("settings.dataModeDemo")}</span>
+              <span className="text-right text-foreground">
+                {modeStatus.demo.positions} {t("settings.pos")} · {modeStatus.demo.transactions} {t("settings.tx")}
+              </span>
+            </div>
+          ) : null}
+          {modeErr && <div className="text-xs text-destructive">{t("settings.dataModeStatusFail", { e: modeErr })}</div>}
         </div>
         <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
           <div className="min-w-0 text-xs text-muted-foreground">{t("settings.clearHistoryDesc")}</div>
@@ -196,19 +257,6 @@ export function DataSection({
           </label>
         </div>
       </div>
-
-      <ConfirmDialog
-        open={resetOpen}
-        onOpenChange={setResetOpen}
-        title={t("settings.restoreDemoTitle")}
-        description={t("settings.restoreDemoDesc")}
-        confirmText={t("settings.restoreDemo")}
-        danger
-        onConfirm={() => {
-          setResetOpen(false);
-          void onRestoreDemo();
-        }}
-      />
 
       <ConfirmDialog
         open={clearOpen}

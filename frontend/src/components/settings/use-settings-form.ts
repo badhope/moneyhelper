@@ -65,15 +65,6 @@ export function useSettingsForm() {
     key: undefined,
   });
 
-  const reset = useMutate<undefined, void>({
-    fn: async () => {
-      await api("/api/portfolio/reset", { method: "POST" });
-      await store.refreshBootstrap();
-      return undefined;
-    },
-    key: "settings.demoRestored",
-  });
-
   const set = useCallback((k: string, v: string) => setForm((f) => ({ ...f, [k]: v })), []);
 
   /** 放弃未保存改动：回到上次保存/加载的快照。 */
@@ -95,7 +86,6 @@ export function useSettingsForm() {
     form,
     saveMutate,
     toggleMutate,
-    reset,
     set,
     toggle,
     resetForm,

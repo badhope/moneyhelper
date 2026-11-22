@@ -10,6 +10,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import { AlertBanner } from "@/components/ui/alert";
 import { Section, Row, inputCls, labelCls, PRESET_PROVIDERS, type ProviderKey } from "./shared";
+import { LocalModelSection } from "./LocalModelSection";
 
 /** AI 配置（启用开关 / 供应商预设 / base URL / key / 模型 / 模型点亮），走独立保存 */
 export function AiSection({
@@ -245,6 +246,15 @@ export function AiSection({
             </div>
           </div>
         )}
+        <LocalModelSection
+          baseUrl={form.ai_base_url ?? ""}
+          apiKey={form.ai_api_key ?? ""}
+          onPick={(patch) => {
+            if (patch.ai_base_url !== undefined) onField("ai_base_url", patch.ai_base_url);
+            if (patch.ai_model !== undefined) onField("ai_model", patch.ai_model);
+            if (patch.ai_api_key !== undefined) onField("ai_api_key", patch.ai_api_key);
+          }}
+        />
         <div className="pt-2 border-t border-border/60">
           <div className="mb-2 text-xs font-medium text-foreground/90">{t("settings.agentBehavior")}</div>
           <p className="mb-2 text-xs text-muted-foreground/70">{t("settings.agentBehaviorHint")}</p>

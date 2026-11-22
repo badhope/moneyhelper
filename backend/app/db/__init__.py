@@ -549,6 +549,9 @@ __all__ = [
     "replace_allocation_targets",
     "reset_to_seed",
     "resolve_reflection",
+    "reset_demo_ledger",
+    "DEMO_USER_ID",
+    "DEMO_NOTE",
     "resolve_tenant_id",
     "save_budgets",
     "save_invoice",
@@ -601,4 +604,11 @@ from .remote import (  # noqa: F401,E402 — 远程控制会话
     revoke_remote_session,
     rotate_remote_session,
     validate_remote_cookie,
+)
+
+from .demo import (  # noqa: F401,E402 — 演示账本独立租户
+    DEMO_USER_ID,
+    DEMO_NOTE,
+    ledger_counts as demo_ledger_counts,
+    reset_demo_ledger,
 )

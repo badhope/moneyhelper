@@ -129,7 +129,7 @@ export interface DashboardData {
   transactions: Transaction[];
   /** 决策中心：把风险与目标收敛成的可执行待办（后端纯函数产出） */
   actions?: ActionCenter;
-  source: { portfolio: string; ledger: string; quotes: string; seeded: boolean };
+  source: { portfolio: string; ledger: string; quotes: string; seeded: boolean; demo?: boolean };
 }
 
 /** 单条待办：priority 越小越紧急；action_tab 指向应跳转的财务页 */

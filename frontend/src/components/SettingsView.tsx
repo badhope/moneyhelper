@@ -66,7 +66,7 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
   const { t } = useI18n();
   const { dashboard } = useDashboard();
   const isDesktop = useIsDesktop();
-  const { bootstrap, form, saveMutate, toggleMutate, reset, set, toggle, resetForm, dirty } = useSettingsForm();
+  const { bootstrap, form, saveMutate, toggleMutate, set, toggle, resetForm, dirty } = useSettingsForm();
 
   // 把「有未保存修改」上报给 App：关闭设置页时若为 true 要先确认，避免改动静默丢失。
   useEffect(() => {
@@ -308,7 +308,7 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
         {active === "memory" && <MemorySection />}
 
         {active === "data" && (
-          <DataSection dashboard={dashboard} bootstrap={bootstrap} onRestoreDemo={() => void reset.mutate(undefined)} />
+          <DataSection dashboard={dashboard} bootstrap={bootstrap} />
         )}
 
         {active === "token" && <TokenSection />}
