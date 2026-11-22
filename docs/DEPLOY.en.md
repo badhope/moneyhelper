@@ -53,6 +53,16 @@ location / {
 > hands the per-IP limit to the attacker.
 ```
 
+### Remote control from a phone (one-time link)
+
+After setting a reachable public URL, open the phone icon in the top bar and choose **Generate link**. Scanning the QR opens the same app: conversations, files and settings all work. The phone is only a control surface; data and execution stay on the desktop.
+
+- The token sits after `#`, so it never reaches server logs. It expires in 10 minutes and is burned on first pairing. Pairing exchanges it for an `HttpOnly` device cookie, valid for 12 hours by default (1–168 configurable).
+- Closing the panel does not disconnect. **Stop** revokes immediately; **Refresh QR** invalidates the old link and kicks the connected device.
+- **Public URL** must be an address the phone can reach: `http://<LAN-IP>:8787` on a LAN, `https://<domain>` on the internet. A loopback address is rejected with an explicit warning.
+- Public direct access still needs `API_TOKEN` from the previous section. `/api/remote/pair` is public but only accepts a one-time token and remains globally rate-limited.
+- This is a direct design with no central relay. Without a public address, expose the app through nginx or a tunnel first; never put port 8787 on the public internet bare.
+
 ## 4. Data & backups
 
 - All personal data lives in `backend/data/wealth.db` (SQLite, WAL). Backup packages are written to `backend/data/backups/` (inside the Docker volume — they survive container recreation).
