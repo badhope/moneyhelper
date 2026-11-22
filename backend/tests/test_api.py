@@ -1277,6 +1277,18 @@ async def test_sessions_lifecycle(client) -> None:
     sess = (await client.get("/api/sessions")).json()["sessions"]
     assert any(s["id"] == sid and s["title"] == "改名后的会话" for s in sess)
 
+    # 置顶/归档：同一个 PATCH 端点，按字段独立生效
+    r = await client.patch(f"/api/sessions/{sid}", json={"pinned": True})
+    assert r.status_code == 200
+    sess = (await client.get("/api/sessions")).json()["sessions"]
+    assert sess[0]["id"] == sid and sess[0]["pinned"] == 1
+    r = await client.patch(f"/api/sessions/{sid}", json={"archived": True})
+    assert r.status_code == 200
+    sess = (await client.get("/api/sessions")).json()["sessions"]
+    assert any(s["id"] == sid and s["archived"] == 1 for s in sess)
+    r = await client.patch(f"/api/sessions/{sid}", json={"pinned": False, "archived": False})
+    assert r.status_code == 200
+
     # 删除会话应连带删除该 thread 的问答
     await client.delete(f"/api/sessions/{sid}")
     sess = (await client.get("/api/sessions")).json()["sessions"]

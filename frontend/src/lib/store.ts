@@ -120,6 +120,17 @@ const DERIVED_PREFIXES: readonly (readonly unknown[])[] = [
   ["/api/finance/debts/payoff"],
 ];
 
+export async function updateSessionFlags(
+  id: number,
+  flags: { pinned?: boolean; archived?: boolean },
+): Promise<void> {
+  await api(`/api/sessions/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(flags),
+  });
+  await getQueryClient().invalidateQueries({ queryKey: queryKeys.sessions });
+}
+
 export function invalidateBump(): void {
   const c = getQueryClient();
   for (const key of DERIVED_PREFIXES) {

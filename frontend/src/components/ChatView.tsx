@@ -1,8 +1,9 @@
 import { useRef } from "react";
-import { ArrowDown, BarChart3, Clock3, CreditCard, Gauge, Sparkles, Trash2, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowDown, BarChart3, Clock3, CreditCard, Download, Gauge, Sparkles, Trash2, Wallet, type LucideIcon } from "lucide-react";
 import { useBootstrap, useDashboard, store } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
-import { api } from "@/lib/api";
+import { api, saveBlob } from "@/lib/api";
+import { copyText } from "@/lib/clipboard";
 import { fmtTokens } from "@/lib/format";
 import type { AgentToolStep, AgentPlanStep } from "@/lib/types";
 import type { ChatMessage, StepInfo } from "@/components/ChatMessageBubble";
@@ -10,6 +11,7 @@ import { ChatInput } from "@/components/ChatInput";
 import { ChatMessageBubble } from "@/components/ChatMessageBubble";
 import { FinishedMessages } from "@/components/FinishedMessages";
 import { useChatView } from "@/components/chat-view-state";
+import { useToast } from "@/lib/toast";
 
 /** 空态示例：4 个真实可执行的起点，带图标走"建议卡"而不是零散胶囊。 */
 const SUGGESTIONS = [
@@ -27,6 +29,8 @@ export function ChatView({
   onOpenSettings,
   onNavigate,
   onDeleteSession,
+  sessionId,
+  onForked,
 }: {
   threadId: string;
   locateRunId?: number | null;
@@ -35,12 +39,17 @@ export function ChatView({
   onOpenSettings: () => void;
   onDeleteSession?: () => void;
   onNavigate: (tab: string) => void;
+  /** 当前会话 id（分支接口按 id 调用；尚未落库的临时线程为空） */
+  sessionId?: number;
+  /** 分支创建成功：切到新线程 */
+  onForked?: (threadId: string) => void;
 }) {
   const { t: tr } = useI18n();
   const { bootstrap } = useBootstrap();
   const { dashboard } = useDashboard();
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { toast } = useToast();
 
   const {
     messages, input, setInput, attachments,
@@ -52,6 +61,45 @@ export function ChatView({
     uploadAttachment, removeAttachment, refreshBootstrap,
     usage,
   } = useChatView({ threadId, locateRunId, onLocateDone, inputRef, listRef });
+
+  const forkMessage = async (m: ChatMessage) => {
+    if (!sessionId || !m.runId) return;
+    try {
+      const r = await api<{ thread_id: string }>(`/api/sessions/${sessionId}/fork`, {
+        method: "POST",
+        body: JSON.stringify({ run_id: m.runId }),
+      });
+      await store.refreshSessions();
+      onForked?.(r.thread_id);
+      toast(tr("chat.forked"), "ok");
+    } catch {
+      toast(tr("chat.error"), "error");
+    }
+  };
+
+  const copyMessageLink = (m: ChatMessage) => {
+    if (!m.runId) return;
+    const url = new URL("/", window.location.origin);
+    url.searchParams.set("thread", threadId);
+    url.searchParams.set("run", String(m.runId));
+    if (copyText(url.toString())) toast(tr("chat.linkCopied"), "ok");
+    else toast(tr("chat.error"), "error");
+  };
+
+  const exportConversation = () => {
+    const lines = [`# ${tr("chat.exportTitle")}`, "", `- ${tr("chat.exportTime", { t: new Date().toLocaleString() })}`, ""];
+    for (const m of messages) {
+      const body = (m.text || "").trim();
+      if (!body) continue;
+      lines.push(m.role === "user" ? "## 👤" : "## Moneyhelper", "", body, "");
+    }
+    const md = lines.join("\n");
+    saveBlob(
+      new Blob([md], { type: "text/markdown;charset=utf-8" }),
+      `moneyhelper-${threadId.slice(0, 8)}.md`,
+    );
+    toast(tr("chat.exportDone"), "ok");
+  };
 
   const empty = messages.length === 0;
   // 空态展示：优先用后端根据真实账本生成的建议，没有则回落到通用起点
@@ -114,6 +162,18 @@ export function ChatView({
                     <Clock3 className="h-3 w-3" />
                     {tr("chat.ctxUpdated", { t: updatedLabel })}
                   </span>
+                  {messages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={exportConversation}
+                      aria-label={tr("chat.exportSession")}
+                      title={tr("chat.exportSession")}
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                      <Download className="h-3 w-3" />
+                      <span className="hidden sm:inline">{tr("chat.exportSession")}</span>
+                    </button>
+                  )}
                   {onDeleteSession && (
                     <button
                       type="button"
@@ -167,6 +227,8 @@ export function ChatView({
                     exportOn={exportOn}
                     voiceOn={voiceOutputOn}
                     onNavigate={onNavigate}
+                    onFork={forkMessage}
+                    onCopyLink={copyMessageLink}
                     {...bubbleCallbacks}
                   />
                   {streamingMsg && (
@@ -178,6 +240,8 @@ export function ChatView({
                       exportOn={exportOn}
                       voiceOn={voiceOutputOn}
                       onNavigate={onNavigate}
+                      onFork={forkMessage}
+                    onCopyLink={copyMessageLink}
                       {...bubbleCallbacks}
                     />
                   )}

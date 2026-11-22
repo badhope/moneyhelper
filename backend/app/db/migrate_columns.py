@@ -12,6 +12,11 @@ async def _migrate_add_columns() -> None:
     """老库增量迁移：为已有表补新列（CREATE TABLE IF NOT EXISTS 不会改老表）。"""
     assert _core._db is not None
     cols = {
+        # 会话列表深化：置顶与归档（旧库补列，默认都不置顶、不归档）
+        "sessions": {
+            "pinned": "INTEGER NOT NULL DEFAULT 0",
+            "archived": "INTEGER NOT NULL DEFAULT 0",
+        },
         "subscriptions": {"due_day": "TEXT NOT NULL DEFAULT ''"},
         "debts": {"due_day": "TEXT NOT NULL DEFAULT ''"},
         # 问答来源可溯源：route/llm 落库后历史回答也能显示真实来源（此前只能显示等级）

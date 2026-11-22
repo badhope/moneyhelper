@@ -39,11 +39,22 @@ async def create_session(payload: dict | None = None) -> dict:
     return await db.create_session(title=title)
 
 @router.patch("/api/sessions/{session_id}")
-async def rename_session(session_id: int, payload: dict) -> dict:
-    title = str(payload.get("title") or "").strip()
-    if not title:
-        return JSONResponse({"error": "标题不能为空"}, status_code=400)
-    return await db.rename_session(session_id, title)
+async def update_session(session_id: int, payload: dict) -> dict:
+    """改标题 / 置顶 / 归档；只传其中一个也能单独生效。"""
+    if "title" in payload:
+        title = str(payload.get("title") or "").strip()
+        if not title:
+            return JSONResponse({"error": "标题不能为空"}, status_code=400)
+        await db.rename_session(session_id, title)
+    pinned = payload.get("pinned")
+    archived = payload.get("archived")
+    if pinned is not None or archived is not None:
+        await db.update_session_flags(
+            session_id,
+            pinned=bool(pinned) if pinned is not None else None,
+            archived=bool(archived) if archived is not None else None,
+        )
+    return {"ok": True}
 
 @router.post("/api/sessions/{session_id}/migrate")
 async def migrate_session_runs(session_id: int, request: Request) -> dict:

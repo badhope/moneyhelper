@@ -181,6 +181,9 @@ export interface SessionItem {
   id: number;
   thread_id: string;
   title: string;
+  /** 1=置顶；老接口/老库可能没有这两个字段，按 0 兼容 */
+  pinned?: number;
+  archived?: number;
   created_at: string;
   updated_at: string;
 }

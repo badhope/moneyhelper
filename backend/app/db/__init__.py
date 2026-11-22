@@ -208,6 +208,7 @@ from .history import (
     session_thread_id,
     session_usage,
     set_conversation_summary,
+    update_session_flags,
     upsert_session,
 )
 from .ledger import (
@@ -563,6 +564,7 @@ __all__ = [
     "update_goal",
     "update_invoice_status",
     "update_position",
+    "update_session_flags",
     "update_transaction",
     "upsert_dca_plan",
     "upsert_session",

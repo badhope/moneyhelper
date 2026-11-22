@@ -16,7 +16,7 @@ import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
 import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import {
-  Check, ChevronDown, ChevronUp, Copy, Download, Loader2, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
+  Check, ChevronDown, ChevronUp, Copy, Download, GitBranch, Link2, Loader2, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/clipboard";
 import { Badge } from "@/components/ui/badge";
@@ -296,6 +296,10 @@ interface BubbleProps {
   onNavigate: (tab: string) => void;
   onRegenerate: (msg: ChatMessage) => void;
   onExport: (msg: ChatMessage, action: "copy" | "download") => void;
+  /** 从这条回答处分叉：复制该轮及之前的对话到新会话 */
+  onFork: (msg: ChatMessage) => void;
+  /** 复制这条回答的深链（其他窗口/手机可直达） */
+  onCopyLink: (msg: ChatMessage) => void;
   onDecidePending: (msg: ChatMessage, decision: "confirm" | "cancel") => void;
 }
 
@@ -310,6 +314,8 @@ function BubbleInner({
   onNavigate,
   onRegenerate,
   onExport,
+  onFork,
+  onCopyLink,
   onDecidePending,
 }: BubbleProps) {
   const { t: tr, lang } = useI18n();
@@ -545,6 +551,30 @@ function BubbleInner({
                 <RotateCcw className="h-3.5 w-3.5" />
                 <span className="text-[11px]">{tr("chat.retry")}</span>
               </button>
+              {m.runId ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+                  aria-label={tr("chat.fork")}
+                  title={tr("chat.forkHint")}
+                  disabled={busy}
+                  onClick={() => onFork(m)}
+                >
+                  <GitBranch className="h-3.5 w-3.5" />
+                  <span className="text-[11px]">{tr("chat.fork")}</span>
+                </button>
+              ) : null}
+              {m.runId ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={tr("chat.copyLink")}
+                  title={tr("chat.copyLinkHint")}
+                  onClick={() => onCopyLink(m)}
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
               {exportOn && (
                 <button
                   type="button"

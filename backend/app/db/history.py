@@ -37,5 +37,6 @@ from .history_sessions import (  # noqa: F401,E402
     move_runs,
     rename_session,
     session_thread_id,
+    update_session_flags,
     upsert_session,
 )

@@ -13,6 +13,8 @@ export interface FinishedMessagesProps {
   onNavigate: (tab: string) => void;
   onRegenerate: (msg: ChatMessage) => void;
   onExport: (msg: ChatMessage, action: "copy" | "download") => void;
+  onFork: (msg: ChatMessage) => void;
+  onCopyLink: (msg: ChatMessage) => void;
   onDecidePending: (msg: ChatMessage, decision: "confirm" | "cancel") => void;
 }
 
@@ -40,7 +42,9 @@ const FINISHED_ARE_EQUAL = (prev: FinishedMessagesProps, next: FinishedMessagesP
     prev.showSteps === next.showSteps &&
     prev.exportOn === next.exportOn &&
     prev.voiceOn === next.voiceOn &&
-    prev.onNavigate === next.onNavigate
+    prev.onNavigate === next.onNavigate &&
+    prev.onFork === next.onFork &&
+    prev.onCopyLink === next.onCopyLink
   );
 };
 
@@ -60,7 +64,7 @@ function EarlierGate({ hidden, onExpand }: { hidden: number; onExpand: () => voi
 }
 
 export const FinishedMessages = memo(
-  ({ messages, busy, showSteps, exportOn, voiceOn = false, onToggleSteps, onNavigate, onRegenerate, onExport, onDecidePending }: FinishedMessagesProps) => {
+  ({ messages, busy, showSteps, exportOn, voiceOn = false, onToggleSteps, onNavigate, onRegenerate, onExport, onFork, onCopyLink, onDecidePending }: FinishedMessagesProps) => {
     const [visibleCount, setVisibleCount] = useState(WINDOW);
     const hidden = Math.max(0, messages.length - visibleCount);
     const shown = hidden > 0 ? messages.slice(hidden) : messages;
@@ -81,6 +85,8 @@ export const FinishedMessages = memo(
               onNavigate={onNavigate}
               onRegenerate={onRegenerate}
               onExport={onExport}
+              onFork={onFork}
+              onCopyLink={onCopyLink}
               onDecidePending={onDecidePending}
             />
           </div>

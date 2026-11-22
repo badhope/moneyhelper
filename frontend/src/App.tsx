@@ -70,8 +70,10 @@ export default function App() {
   // 刷新后先恢复上次会话：会话列表/首条消息都要等网络，若不恢复，
   // 首屏会先停在「正在准备会话…」，用户会以为对话没启动。
   const [activeThread, setActiveThread] = useState<string | null>(() => {
+    // 分享链接（?thread=...&run=...）优先于本机上次会话：打开就能落在对方那条回答
+    const linkThread = new URLSearchParams(window.location.search).get("thread");
     const saved = localStorage.getItem("wo.thread");
-    return saved || null;
+    return linkThread || saved || null;
   });
   // 本次新开的线程还没被后端落库，校验时不能当成「已删除」清掉
   const pendingThreadRef = useRef<Set<string>>(new Set());
@@ -92,7 +94,19 @@ export default function App() {
     min: 200,
     max: 420,
   });
-  const [locateRunId, setLocateRunId] = useState<number | null>(null);
+  const [locateRunId, setLocateRunId] = useState<number | null>(() => {
+    const run = Number(new URLSearchParams(window.location.search).get("run"));
+    return Number.isFinite(run) && run > 0 ? run : null;
+  });
+  // 参数已进入状态：立刻从地址栏摘掉，避免用户切走后刷新又跳回旧回答
+  useEffect(() => {
+    const u = new URL(window.location.href);
+    if (u.searchParams.has("thread") || u.searchParams.has("run")) {
+      u.searchParams.delete("thread");
+      u.searchParams.delete("run");
+      window.history.replaceState({}, "", u);
+    }
+  }, []);
 
   // 右侧工作台：文件 / 预览 / 浏览器。
   // 首次访问按视口决定：宽屏（>=1280）默认展开，窄屏先收起，避免一进来就把
@@ -452,6 +466,8 @@ export default function App() {
                           if (s) setPendingDelete({ id: s.id, threadId: s.thread_id });
                         }}
                         onNavigate={openData}
+                        sessionId={sessions.find((x) => x.thread_id === activeThread)?.id}
+                        onForked={(tid) => setActiveThread(tid)}
                       />
                     ) : (
                       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">

@@ -58,9 +58,9 @@ async def list_sessions() -> list[dict[str, Any]]:
     # 读侧同样排除系统归档线程（cron 晨报 / skill:<id> 技能触发）：即使旧库已被
     # 误建，界面也不会把它们当会话展示；启动迁移会做彻底清理。
     rows = await fetch_all(
-        "SELECT id, thread_id, title, created_at, updated_at"
+        "SELECT id, thread_id, title, pinned, archived, created_at, updated_at"
         " FROM sessions WHERE user_id=? AND thread_id <> 'cron' AND thread_id NOT LIKE 'skill:%'"
-        " ORDER BY updated_at DESC",
+        " ORDER BY pinned DESC, updated_at DESC",
         (current_user_id(),),
     )
     return rows
@@ -78,6 +78,33 @@ async def rename_session(session_id: int, title: str) -> dict[str, Any]:
     )
     await conn.commit()
     return {"ok": True}
+
+async def update_session_flags(
+    session_id: int,
+    *,
+    pinned: bool | None = None,
+    archived: bool | None = None,
+) -> dict[str, Any]:
+    """置顶/归档会话；两个字段独立更新，未传的保持原值。"""
+    conn = await _conn()
+    sets: list[str] = []
+    args: list[Any] = []
+    if pinned is not None:
+        sets.append("pinned=?")
+        args.append(1 if pinned else 0)
+    if archived is not None:
+        sets.append("archived=?")
+        args.append(1 if archived else 0)
+    if not sets:
+        return {"ok": True}
+    args.extend([current_user_id(), int(session_id)])
+    await conn.execute(
+        f"UPDATE sessions SET {', '.join(sets)} WHERE user_id=? AND id=?",
+        tuple(args),
+    )
+    await conn.commit()
+    return {"ok": True}
+
 
 async def delete_session(session_id: int) -> dict[str, Any]:
     """删除会话及其全部问答记录（含长会话摘要）。"""

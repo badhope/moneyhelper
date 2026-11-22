@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  Archive,
+  ArchiveRestore,
   Building2,
   Check,
   Inbox,
@@ -9,6 +11,8 @@ import {
   MessageCircle,
   PanelLeftClose,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
   Search,
   Settings,
@@ -17,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { BrandLogo, BRAND } from "@/lib/brand";
-import { useSessions } from "@/lib/store";
+import { store, updateSessionFlags, useSessions } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useScheduledOutputs } from "@/lib/inbox";
@@ -73,6 +77,7 @@ export function SessionSidebar({
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -80,7 +85,14 @@ export function SessionSidebar({
   }, [searchOpen]);
 
   const kw = q.trim().toLowerCase();
-  const filtered = kw ? sessions.filter((s) => s.title.toLowerCase().includes(kw)) : sessions;
+  const visible = sessions.filter((s) => !s.archived);
+  const filtered = kw
+    ? visible.filter((s) => s.title.toLowerCase().includes(kw))
+    : visible;
+  const pinnedItems = filtered.filter((s) => s.pinned);
+  const archivedItems = sessions.filter(
+    (s) => s.archived && (!kw || s.title.toLowerCase().includes(kw)),
+  );
 
   const groups: { key: Bucket; label: string }[] = [
     { key: "today", label: t("sidebar.today") },
@@ -92,6 +104,26 @@ export function SessionSidebar({
     const next = editTitle.trim();
     if (next && next !== s.title) onRename(s.id, next);
     setEditing(null);
+  };
+
+  const togglePin = async (s: SessionItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await updateSessionFlags(s.id, { pinned: !s.pinned });
+    } catch {
+      /* 失败保持原样 */
+    }
+  };
+
+  const toggleArchive = async (s: SessionItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await updateSessionFlags(s.id, { archived: !s.archived, pinned: false });
+      if (!s.archived && s.thread_id === activeThread) onSelect(null);
+      await store.refreshSessions();
+    } catch {
+      /* 失败保持原样 */
+    }
   };
 
   const renderSession = (s: SessionItem) => {
@@ -138,7 +170,7 @@ export function SessionSidebar({
           }
         }}
         className={cn(
-          "group relative flex h-9 items-center gap-2 rounded-lg pl-2 pr-12 text-[13.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "group relative flex h-9 items-center gap-2 rounded-lg pl-2 pr-20 text-[13.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           active
             ? "bg-foreground/[0.07] font-medium text-foreground"
             : "text-foreground/80 hover:bg-foreground/[0.05]",
@@ -150,6 +182,24 @@ export function SessionSidebar({
           {s.title === "新会话" ? t("sidebar.newSession") : s.title}
         </span>
         <span className="absolute right-1 flex items-center gap-0.5 rounded-md bg-inherit pl-1 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-sm:opacity-100">
+          <button
+            type="button"
+            aria-label={s.pinned ? t("sidebar.unpin") : t("sidebar.pin")}
+            title={s.pinned ? t("sidebar.unpin") : t("sidebar.pin")}
+            className={cn("rounded p-1 hover:text-foreground", s.pinned ? "text-primary" : "text-muted-foreground")}
+            onClick={(e) => void togglePin(s, e)}
+          >
+            {s.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            type="button"
+            aria-label={s.archived ? t("sidebar.unarchive") : t("sidebar.archive")}
+            title={s.archived ? t("sidebar.unarchive") : t("sidebar.archive")}
+            className="rounded p-1 text-muted-foreground hover:text-foreground"
+            onClick={(e) => void toggleArchive(s, e)}
+          >
+            {s.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+          </button>
           <button
             type="button"
             aria-label={t("sidebar.rename")}
@@ -266,14 +316,24 @@ export function SessionSidebar({
       </div>
 
       <div className="mt-2 min-h-0 flex-1 overflow-y-auto scroll-thin px-2 pb-2">
-        {filtered.length === 0 ? (
+        {pinnedItems.length > 0 && (
+          <section className="mb-1">
+            <h2 className="px-2 pb-1 pt-3 text-[11.5px] font-medium text-muted-foreground">
+              {t("sidebar.pinned")}
+            </h2>
+            <div className="space-y-px">{pinnedItems.map(renderSession)}</div>
+          </section>
+        )}
+        {filtered.length === 0 && pinnedItems.length === 0 ? (
           <div className="px-2 py-10 text-center text-xs leading-relaxed text-muted-foreground">
             <MessageCircle className="mx-auto mb-2 h-4 w-4 opacity-50" />
             {kw ? t("sidebar.noMatch") : t("sidebar.noSessions")}
           </div>
         ) : (
           groups.map((g) => {
-            const items = filtered.filter((s) => timeBucket(s.updated_at || s.created_at) === g.key);
+            const items = filtered.filter(
+              (s) => !s.pinned && timeBucket(s.updated_at || s.created_at) === g.key,
+            );
             if (items.length === 0) return null;
             return (
               <section key={g.key} className="mb-1">
@@ -284,6 +344,22 @@ export function SessionSidebar({
               </section>
             );
           })
+        )}
+        {archivedItems.length > 0 && (
+          <section className="mt-2 border-t border-border/60 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11.5px] text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground"
+            >
+              <Archive className="h-3.5 w-3.5" />
+              {showArchived ? t("sidebar.hideArchived") : t("sidebar.showArchived")}
+              <span className="ml-auto tabular-nums">{archivedItems.length}</span>
+            </button>
+            {showArchived && (
+              <div className="space-y-px">{archivedItems.map(renderSession)}</div>
+            )}
+          </section>
         )}
       </div>
 
