@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { searchAttachments } from "./personal";
+import { searchAttachments, setAttachmentIndexed } from "./personal";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -40,5 +40,22 @@ describe("searchAttachments", () => {
     vi.stubGlobal("fetch", fetchMock);
     await expect(searchAttachments("   ")).resolves.toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("setAttachmentIndexed", () => {
+  it("向附件入库接口提交目标状态", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(
+      JSON.stringify({ ok: true, id: 3, indexed: true }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await setAttachmentIndexed(3, true);
+    const url = String(fetchMock.mock.calls[0][0]);
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(url).toContain("/api/attachments/3/index");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ indexed: true });
   });
 });

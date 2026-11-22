@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Braces, Download, FileCode2, FileImage, FileSpreadsheet, FileText, Loader2, RefreshCw,
-  Search, Trash2, Upload,
+  BookCheck, BookOpen, Braces, Download, FileCode2, FileImage, FileSpreadsheet, FileText,
+  Loader2, RefreshCw, Search, Trash2, Upload,
 } from "lucide-react";
 import { searchAttachments } from "@/lib/api";
 import type { AttachmentHit, AttachmentItem } from "@/lib/api";
@@ -53,6 +53,8 @@ export function FilesPane({
   onUpload,
   onDownload,
   onDeleteRequest,
+  onToggleIndex,
+  indexingId,
 }: {
   items: AttachmentItem[];
   pending: boolean;
@@ -64,6 +66,8 @@ export function FilesPane({
   onUpload: (files: File[]) => void;
   onDownload: (item: AttachmentItem) => void;
   onDeleteRequest: (item: AttachmentItem) => void;
+  onToggleIndex: (item: AttachmentItem) => void;
+  indexingId: number | null;
 }) {
   const { t } = useI18n();
   const { toast } = useToast();
@@ -287,6 +291,24 @@ export function FilesPane({
                     ) : null}
                   </button>
                   <div className="mr-1 flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
+                    {a.has_text !== false && (
+                      <button
+                        type="button"
+                        onClick={() => onToggleIndex(a)}
+                        disabled={indexingId === a.id}
+                        aria-label={t(a.indexed ? "workbench.indexRemove" : "workbench.indexAdd")}
+                        title={t(a.indexed ? "workbench.indexRemove" : "workbench.indexAdd")}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-40"
+                      >
+                        {indexingId === a.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : a.indexed ? (
+                          <BookCheck className="h-3.5 w-3.5" />
+                        ) : (
+                          <BookOpen className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onDownload(a)}

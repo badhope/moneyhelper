@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Copy, Download, FileText, Loader2 } from "lucide-react";
+import { BookCheck, BookOpen, Check, Copy, Download, FileText, Loader2 } from "lucide-react";
 import { apiBlob, getAttachment, saveBlob, type AttachmentItem } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { errMsg } from "@/lib/utils";
@@ -93,13 +93,22 @@ function CsvTable({ text }: { text: string }) {
 export function PreviewPane({
   selected,
   onOpenFiles,
+  onToggleIndex,
+  indexing,
 }: {
   selected: AttachmentItem | null;
   onOpenFiles: () => void;
+  onToggleIndex: (item: AttachmentItem) => void;
+  indexing: boolean;
 }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [pdfView, setPdfView] = useState<"pdf" | "text">("pdf");
+
+  useEffect(() => {
+    setPdfView("pdf");
+  }, [selected?.id]);
 
   const detail = useQuery({
     queryKey: ["/api/attachments", selected?.id],
@@ -183,10 +192,28 @@ export function PreviewPane({
               {selected.indexed ? ` · ${t("workbench.indexed")}` : ""}
             </div>
           </div>
+          {selected.has_text !== false && (
+            <button
+              type="button"
+              onClick={() => onToggleIndex(selected)}
+              disabled={indexing}
+              aria-label={t(selected.indexed ? "workbench.indexRemove" : "workbench.indexAdd")}
+              title={t(selected.indexed ? "workbench.indexRemove" : "workbench.indexAdd")}
+              className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+            >
+              {indexing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : selected.indexed ? (
+                <BookCheck className="h-3.5 w-3.5" />
+              ) : (
+                <BookOpen className="h-3.5 w-3.5" />
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={copy}
-            disabled={!content || binary}
+            disabled={!content}
             aria-label={t("workbench.copy")}
             title={t("workbench.copy")}
             className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
@@ -248,20 +275,55 @@ export function PreviewPane({
             </div>
           ) : isPdf ? (
             <div className="space-y-2">
-              {content.trim() ? (
-                <p className="rounded-md bg-emerald-500/10 px-2 py-1.5 text-[10.5px] text-emerald-700 dark:text-emerald-400">
-                  {t("workbench.pdfTextReady", { n: content.length })}
+              <div className="flex items-center gap-2">
+                <p className={cn(
+                  "min-w-0 flex-1 rounded-md px-2 py-1.5 text-[10.5px]",
+                  content.trim()
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                    : "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                )}>
+                  {content.trim()
+                    ? t("workbench.pdfTextReady", { n: content.length })
+                    : t("workbench.pdfNoText")}
                 </p>
+                <div role="tablist" aria-label={t("workbench.pdfView")} className="flex shrink-0 rounded-md border border-border p-0.5">
+                  {([
+                    { key: "pdf", label: t("workbench.viewPdf") },
+                    { key: "text", label: t("workbench.viewText") },
+                  ] as const).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={pdfView === key}
+                      onClick={() => setPdfView(key)}
+                      className={cn(
+                        "rounded px-2 py-1 text-[10.5px] transition-colors",
+                        pdfView === key ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {pdfView === "text" ? (
+                content.trim() ? (
+                  <pre className="min-h-[18rem] whitespace-pre-wrap break-words rounded-lg border border-border bg-background p-3 text-[12px] leading-relaxed text-foreground/85">
+                    {content}
+                  </pre>
+                ) : (
+                  <p className="rounded-lg border border-dashed border-border px-3 py-10 text-center text-xs text-muted-foreground">
+                    {t("workbench.pdfTextEmpty")}
+                  </p>
+                )
               ) : (
-                <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[10.5px] text-amber-700 dark:text-amber-400">
-                  {t("workbench.pdfNoText")}
-                </p>
+                <iframe
+                  title={selected.filename}
+                  src={rawUrl}
+                  className="h-[68vh] w-full rounded-lg border border-border bg-white"
+                />
               )}
-              <iframe
-                title={selected.filename}
-                src={rawUrl}
-                className="h-[68vh] w-full rounded-lg border border-border bg-white"
-              />
             </div>
           ) : (
             <p className="py-10 text-center text-xs text-muted-foreground">{t("workbench.previewEmpty")}</p>

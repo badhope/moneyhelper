@@ -8,6 +8,7 @@ import {
   getAttachment,
   listAttachments,
   saveBlob,
+  setAttachmentIndexed,
   uploadAttachment,
   type AttachmentItem,
 } from "@/lib/api";
@@ -50,6 +51,7 @@ export function WorkbenchRail({
   const [tab, setTab] = useState<WorkbenchTab>("files");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [indexingId, setIndexingId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AttachmentItem | null>(null);
 
   const nav = useResizableWidth({
@@ -161,6 +163,23 @@ export function WorkbenchRail({
     }
   };
 
+  const toggleIndex = async (item: AttachmentItem) => {
+    if (item.has_text === false || indexingId !== null) return;
+    setIndexingId(item.id);
+    try {
+      await setAttachmentIndexed(item.id, !item.indexed);
+      await qc.invalidateQueries({ queryKey: ["/api/attachments"] });
+      toast(
+        t(item.indexed ? "workbench.indexRemoveOk" : "workbench.indexAddOk", { name: item.filename }),
+        "ok",
+      );
+    } catch (e) {
+      toast(errMsg(e), "error");
+    } finally {
+      setIndexingId(null);
+    }
+  };
+
   const removeFile = async (item: AttachmentItem) => {
     try {
       await deleteAttachment(item.id);
@@ -235,10 +254,17 @@ export function WorkbenchRail({
             onUpload={(files) => void upload(files)}
             onDownload={(item) => void downloadFile(item)}
             onDeleteRequest={setPendingDelete}
+            onToggleIndex={(item) => void toggleIndex(item)}
+            indexingId={indexingId}
           />
         )}
         {tab === "preview" && (
-          <PreviewPane selected={selected} onOpenFiles={() => setTab("files")} />
+          <PreviewPane
+            selected={selected}
+            onOpenFiles={() => setTab("files")}
+            onToggleIndex={(item) => void toggleIndex(item)}
+            indexing={indexingId === selected?.id}
+          />
         )}
         {tab === "browser" && <BrowserPane request={externalUrl} />}
       </div>

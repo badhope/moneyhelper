@@ -214,6 +214,13 @@ export const searchAttachments = (q: string, limit = 30) => {
     `/api/attachments/search?q=${encodeURIComponent(query)}&limit=${Math.max(1, Math.min(limit, 50))}`,
   ).then((r) => (Array.isArray(r.results) ? r.results : []));
 };
+export const setAttachmentIndexed = (id: number, indexed: boolean) =>
+  api<{ ok: boolean; id: number; indexed: boolean }>(
+    `/api/attachments/${id}/index`,
+    { method: "POST", body: JSON.stringify({ indexed }) },
+    { timeoutMs: SLOW_REQUEST_TIMEOUT_MS },
+  );
+
 export const uploadAttachment = (file: File) => {
   const fd = new FormData();
   fd.append("file", file);
