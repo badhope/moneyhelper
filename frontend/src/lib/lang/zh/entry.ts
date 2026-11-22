@@ -369,6 +369,17 @@ export const zh_entry: Record<string, string> = {
   "dash.demoHint": "想先看效果？可到「设置 → 数据与状态」载入示例数据。",
 
   // ---- 远程控制（手机扫码）----
+  "remote.relayTitle": "公网中继（可选）",
+  "remote.relayHint": "本机没有公网 IP 时，先在一台公网服务器跑中继服务端，再在这里填控制地址与口令。桌面端会主动出站连接，手机从分到的公网端口接入。",
+  "remote.relayUrl": "中继控制地址",
+  "remote.relayToken": "中继口令",
+  "remote.relayTokenSaved": "已保存口令，留空沿用",
+  "remote.relayStart": "启动中继",
+  "remote.relayStop": "停止中继",
+  "remote.relayActive": "中继已连接",
+  "remote.relayStarted": "中继已连接，可以生成新的连接码",
+  "remote.relayStopped": "中继已停止",
+  "remote.relayGenerateHint": "已通过中继落地：重新生成连接码，二维码里就是公网地址。旧码不会自动改写。",
   "remote.open": "远程控制",
   "remote.title": "手机远程控制",
   "remote.desc": "生成一次性链接或二维码，手机扫码后可操作整个工作台。手机只是控制面，数据与执行仍留在本机。",

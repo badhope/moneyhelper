@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse, Response
 
 from .. import auth, db, provenance
 from ..auth_guard import require_instance_admin
+from ..relay import manager as relay_manager
 from ..timeutil import now_iso
 
 try:  # 二维码是可选增强：缺库时仍能复制链接，只是不显示图
@@ -32,7 +33,7 @@ except Exception:  # noqa: BLE001
 
 router = APIRouter()
 
-REMOTE_SETTING_KEYS = ("remote_enabled", "remote_public_url", "remote_session_hours")
+REMOTE_SETTING_KEYS = ("remote_enabled", "remote_public_url", "remote_session_hours", "remote_relay_url", "remote_relay_token")
 REMOTE_DEFAULT_HOURS = 12
 
 
@@ -46,6 +47,8 @@ async def _load_settings() -> dict[str, str]:
         "enabled": _bool_on(raw.get("remote_enabled", "on")),
         "public_url": str(raw.get("remote_public_url") or "").strip().rstrip("/"),
         "hours": max(1, min(int(raw.get("remote_session_hours") or REMOTE_DEFAULT_HOURS), 168)),
+        "relay_url": str(raw.get("remote_relay_url") or "").strip(),
+        "relay_token": str(raw.get("remote_relay_token") or ""),
     }
 
 
@@ -84,8 +87,15 @@ def _pair_url(base: str, sid: str, token: str) -> str:
     return f"{base}/remote#s={urllib.parse.quote(sid)}&t={urllib.parse.quote(token)}"
 
 
+def _current_base(request: Request, settings: dict[str, Any]) -> str:
+    relay = relay_manager.status()
+    if relay.get("active") and relay.get("public_url"):
+        return str(relay["public_url"]).rstrip("/")
+    return _request_base(request, settings["public_url"])
+
+
 def _payload(request: Request, session: dict[str, Any], token: str, settings: dict[str, Any]) -> dict[str, Any]:
-    base = _request_base(request, settings["public_url"])
+    base = _current_base(request, settings)
     url = _pair_url(base, str(session["sid"]), token)
     return {
         **session,
@@ -104,7 +114,7 @@ async def _owner(user: dict | None = Depends(auth.get_current_user)) -> dict[str
 @router.get("/api/remote/config")
 async def remote_config(request: Request, user: dict = Depends(_owner)) -> dict:
     settings = await _load_settings()
-    base = _request_base(request, settings["public_url"])
+    base = _current_base(request, settings)
     return {
         "enabled": settings["enabled"],
         "public_url": settings["public_url"],
@@ -112,6 +122,9 @@ async def remote_config(request: Request, user: dict = Depends(_owner)) -> dict:
         "base_url": base,
         "warning": _link_warning(base),
         "qr_available": _QR_OK,
+        "relay": relay_manager.status(),
+        "relay_url": settings["relay_url"],
+        "relay_token_set": bool(settings["relay_token"]),
         "sessions": await db.list_remote_sessions(int(user.get("id") or 0)),
         "active_count": await db.active_remote_count(int(user.get("id") or 0)),
     }
@@ -217,6 +230,45 @@ async def stop_all_remote(user: dict = Depends(_owner)) -> dict:
         source="api",
     )
     return {"ok": True, "revoked": count}
+
+
+@router.post("/api/remote/relay/start")
+async def start_relay(request: Request, payload: dict | None = None, user: dict = Depends(_owner)) -> Any:
+    """让桌面端出站连接公网中继，拿一个手机能访问的公网端口。"""
+    body = payload or {}
+    settings = await _load_settings()
+    relay_url = str(body.get("relay_url") or settings["relay_url"]).strip()
+    token = str(body.get("token") or settings["relay_token"]).strip()
+    if not relay_url.startswith(("ws://", "wss://")):
+        return JSONResponse({"error": "中继地址必须是 ws:// 或 wss:// 开头"}, status_code=400)
+    server = request.scope.get("server") or ()
+    local_port = int(server[1]) if len(server) > 1 and server[1] else int(request.url.port or 8788)
+    try:
+        info = await relay_manager.start(relay_url, token, local_port)
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"error": f"中继连接失败：{exc}"}, status_code=502)
+    await db.set_setting("remote_relay_url", relay_url)
+    if token:
+        await db.set_setting("remote_relay_token", token)
+    await provenance.record_provenance(
+        "remote_relay_start",
+        "remote_settings",
+        "",
+        after={"relay_url": relay_url, "public_url": info.get("public_url")},
+        source="api",
+    )
+    return {"ok": True, "relay": info}
+
+
+@router.get("/api/remote/relay/status")
+async def relay_status(user: dict = Depends(_owner)) -> dict:
+    return {"ok": True, "relay": relay_manager.status()}
+
+
+@router.post("/api/remote/relay/stop")
+async def stop_relay(user: dict = Depends(_owner)) -> dict:
+    await relay_manager.stop()
+    return {"ok": True}
 
 
 @router.post("/api/remote/pair")

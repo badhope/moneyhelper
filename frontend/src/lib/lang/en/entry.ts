@@ -369,6 +369,17 @@ export const en_entry: Record<string, string> = {
   "dash.demoHint": "Want a preview? Load sample data via Settings → Data & Status.",
 
   // ---- Remote control (phone QR) ----
+  "remote.relayTitle": "Public relay (optional)",
+  "remote.relayHint": "If this machine has no public IP, run the relay server on a public host first, then enter its control URL and token here. The desktop dials out; the phone connects to the allocated public port.",
+  "remote.relayUrl": "Relay control URL",
+  "remote.relayToken": "Relay token",
+  "remote.relayTokenSaved": "Token saved; leave blank to reuse",
+  "remote.relayStart": "Start relay",
+  "remote.relayStop": "Stop relay",
+  "remote.relayActive": "Relay connected",
+  "remote.relayStarted": "Relay connected. Generate a new link.",
+  "remote.relayStopped": "Relay stopped",
+  "remote.relayGenerateHint": "Now behind the relay: generate a new link so the QR carries the public URL. Old links are not rewritten.",
   "remote.open": "Remote control",
   "remote.title": "Mobile remote control",
   "remote.desc": "Generate a one-time link or QR code. The phone can operate the whole workspace; data and execution stay on this machine.",

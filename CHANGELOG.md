@@ -2,6 +2,37 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.26] - 2026-11-22（自托管公网中继：没有公网 IP 也能扫码）
+
+### 新增
+
+- **可选自托管中继**：在一台有公网入口的服务器跑 `python -m app.relay.server`，桌面端在远程面板填 `ws://` 控制地址与口令，主动出站连接；中继分配一个公网端口，手机扫码直接连到这个端口。手机流量全程由中继转发到本机 `127.0.0.1:<应用端口>`，桌面端不需要公网 IP，也不需要把应用端口直接暴露到公网。
+- **中继面板**：远程面板新增「公网中继（可选）」区块，显示控制地址、口令、连接状态和分配到的公网地址；启动后生成的新连接码自动带公网地址，旧码不会自动改写。
+- **协议**：一条控制 WebSocket 复用多条手机 TCP 连接（open / data / close），支持浏览器并发加载静态资源、API 请求和 SSE；端口范围可配，超出范围会明确拒绝。
+- **TLS**：中继支持 `--certfile/--keyfile`，启用后公网端口与手机链接走 `https`；控制连接走 `wss`。
+
+### 命令
+
+```bash
+# 公网服务器
+python -m app.relay.server --control-port 8789 --port-start 9100 --port-end 9199 \
+  --public-host relay.example.com --token <长随机串>
+
+# 桌面端（也可在远程面板里点「启动中继」）
+python -m app.relay.client --relay ws://relay.example.com:8789 --token <同一串> \
+  --local 127.0.0.1:8788
+```
+
+### 测试
+
+- 新增 `backend/tests/test_remote_relay.py`：本地回显服务经中继完整转发 `ping`；错误 token 被拒绝。2/2 通过。
+- 远程配对 4/4 通过；经中继实测：生成会话 → 手机在中继端口配对 → 读 `/api/dashboard` 200 → 停止后 401。
+- 前端构建通过。
+
+### 截图
+
+- `docs/screenshots/90-remote-relay.png`。
+
 ## [4.16.25] - 2026-11-22（手机远程控制：扫码接入，整台程序都能操作）
 
 ### 新增
@@ -20,7 +51,7 @@
 
 ### 说明
 
-- 这是**直连版**：手机必须能访问到应用地址（公网域名 / 反向代理 / 局域网 IP），没有内置 ZCode 那种厂商侧中心 relay。这样不引入第三方中转，账本数据不经过别人的服务器；代价是外网使用前要先把应用暴露出去。
+- 当时只有**直连版**：手机必须能访问到应用地址（公网域名 / 反向代理 / 局域网 IP）。4.16.26 补了可选的自托管中继，不再依赖厂商侧 relay。
 - 测试：`backend/tests/test_remote_control.py` 4 项通过；前端构建通过；浏览器实测桌面生成二维码、手机 390×844 接入、停止后 401 回配对页。
 - 截图：`docs/screenshots/86-remote-panel.png`、`87-remote-connected.png`、`88-remote-phone.png`、`89-remote-expired.png`。
 

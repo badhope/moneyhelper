@@ -61,7 +61,14 @@ After setting a reachable public URL, open the phone icon in the top bar and cho
 - Closing the panel does not disconnect. **Stop** revokes immediately; **Refresh QR** invalidates the old link and kicks the connected device.
 - **Public URL** must be an address the phone can reach: `http://<LAN-IP>:8787` on a LAN, `https://<domain>` on the internet. A loopback address is rejected with an explicit warning.
 - Public direct access still needs `API_TOKEN` from the previous section. `/api/remote/pair` is public but only accepts a one-time token and remains globally rate-limited.
-- This is a direct design with no central relay. Without a public address, expose the app through nginx or a tunnel first; never put port 8787 on the public internet bare.
+- Without a public IP, use the self-hosted relay:
+
+```bash
+python -m app.relay.server --control-port 8789 --port-start 9100 --port-end 9199 \
+  --public-host relay.example.com --token <long-random-string>
+```
+
+  Open control port 8789 and ports 9100-9199 in the firewall/security group. In the remote panel, enter `ws://relay.example.com:8789` plus the same token, start the relay, then generate a new link. The relay forwards bytes only and stores no ledger data. With `--certfile/--keyfile`, public links use `https` and the control channel uses `wss`.
 
 ## 4. Data & backups
 

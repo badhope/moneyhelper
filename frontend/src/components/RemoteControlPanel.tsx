@@ -1,7 +1,7 @@
 /** 远程控制面板：二维码 / 链接 / 设备会话 / 停止与刷新。 */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Copy, Loader2, RefreshCw, Smartphone, Square, WifiOff } from "lucide-react";
+import { Check, Copy, Loader2, Radio, RefreshCw, Smartphone, Square, Wifi, WifiOff } from "lucide-react";
 import { SidePanel } from "@/components/ui/side-panel";
 import { Button } from "@/components/ui/button";
 import { inputClsCompact } from "@/components/ui/field";
@@ -12,7 +12,9 @@ import {
   createRemoteSession,
   getRemoteConfig,
   refreshRemoteSession,
+  startRemoteRelay,
   stopAllRemoteSessions,
+  stopRemoteRelay,
   stopRemoteSession,
   updateRemoteConfig,
   type RemoteConfig,
@@ -60,6 +62,9 @@ export function RemoteControlPanel({
   const [copied, setCopied] = useState(false);
   const [urlDraft, setUrlDraft] = useState("");
   const [hours, setHours] = useState(12);
+  const [relayUrl, setRelayUrl] = useState("ws://127.0.0.1:8789");
+  const [relayToken, setRelayToken] = useState("");
+  const [relayBusy, setRelayBusy] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(
@@ -69,6 +74,7 @@ export function RemoteControlPanel({
         const c = await getRemoteConfig();
         setConfig(c);
         setUrlDraft((prev) => (prev ? prev : c.public_url));
+        setRelayUrl((prev) => (prev && prev !== "ws://127.0.0.1:8789" ? prev : c.relay_url || prev));
         setHours((prev) => (prev === 12 && c.session_hours !== 12 ? c.session_hours : prev));
         setError("");
         return c;
@@ -171,6 +177,36 @@ export function RemoteControlPanel({
     }
   };
 
+  const startRelay = async () => {
+    setRelayBusy(true);
+    setError("");
+    try {
+      await startRemoteRelay({ relay_url: relayUrl.trim(), token: relayToken.trim() });
+      setRelayToken("");
+      setLink(null);
+      await load(true);
+      toast(t("remote.relayStarted"), "ok");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRelayBusy(false);
+    }
+  };
+
+  const stopRelay = async () => {
+    setRelayBusy(true);
+    try {
+      await stopRemoteRelay();
+      setLink(null);
+      await load(true);
+      toast(t("remote.relayStopped"), "ok");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRelayBusy(false);
+    }
+  };
+
   const stop = async (sid?: string) => {
     const target = sid ?? link?.sid;
     if (!target) return;
@@ -264,6 +300,58 @@ export function RemoteControlPanel({
               {t("remote.activeCount").replace("{n}", String(config?.active_count ?? 0))}
             </span>
           </div>
+        </div>
+
+        <div className="grid gap-2 rounded-xl border border-border bg-card p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+              <Radio className="h-3.5 w-3.5" />
+              {t("remote.relayTitle")}
+            </span>
+            {config?.relay.active && (
+              <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">
+                <Wifi className="h-3 w-3" />
+                {t("remote.relayActive")}
+              </span>
+            )}
+          </div>
+          <p className="text-[10.5px] leading-relaxed text-muted-foreground">{t("remote.relayHint")}</p>
+          <input
+            value={relayUrl}
+            onChange={(e) => setRelayUrl(e.target.value)}
+            placeholder="ws://relay.example.com:8789"
+            className={`${inputClsCompact} h-9 text-[12px]`}
+            aria-label={t("remote.relayUrl")}
+          />
+          {!config?.relay.active && (
+            <input
+              value={relayToken}
+              onChange={(e) => setRelayToken(e.target.value)}
+              type="password"
+              placeholder={config?.relay_token_set ? t("remote.relayTokenSaved") : t("remote.relayToken")}
+              className={`${inputClsCompact} h-9 text-[12px]`}
+              aria-label={t("remote.relayToken")}
+            />
+          )}
+          {config?.relay.active ? (
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate rounded-md bg-emerald-500/10 px-2 py-1.5 text-[10.5px] text-emerald-700 dark:text-emerald-300">
+                {config.relay.public_url}
+              </span>
+              <Button variant="outline" className="h-8 shrink-0 text-[11px]" onClick={() => void stopRelay()} disabled={relayBusy}>
+                {relayBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <WifiOff className="mr-1 h-3.5 w-3.5" />}
+                {t("remote.relayStop")}
+              </Button>
+            </div>
+          ) : (
+            <Button className="h-9 text-[12px]" onClick={() => void startRelay()} disabled={relayBusy || !relayUrl.trim()}>
+              {relayBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Radio className="mr-1 h-3.5 w-3.5" />}
+              {t("remote.relayStart")}
+            </Button>
+          )}
+          {config?.relay.active && (
+            <p className="text-[10.5px] leading-relaxed text-muted-foreground">{t("remote.relayGenerateHint")}</p>
+          )}
         </div>
 
         {link ? (

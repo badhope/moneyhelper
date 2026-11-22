@@ -72,7 +72,7 @@ Open **Remote control** from the phone icon in the top bar and generate a one-ti
 - The token lives after `#`, so the browser never sends it to the server or into access logs. It expires in 10 minutes and is burned on first use.
 - Pairing exchanges it for an `HttpOnly` device cookie, valid for 12 hours by default (1–168 configurable). Closing the panel does not disconnect; **Stop** revokes immediately. **Refresh QR** invalidates the old link and kicks the connected device.
 - Set **Public URL** to an address the phone can reach: `http://192.168.x.x:8788` on a LAN, or `https://money.example.com` on the internet. A loopback address is flagged as unreachable from the phone.
-- This is a **direct** design with no central relay: the phone must be able to route to the app. Without a public address, put it behind a reverse proxy or tunnel first; your ledger never passes through a third-party relay.
+- **No public IP needed**: run `python -m app.relay.server` on a public host, enter the `ws://` control URL and token in the remote panel, and the desktop dials out. The relay allocates a public port for the phone. Your ledger passes only through your own relay, never a third-party one.
 
 ## What it deliberately does not do
 

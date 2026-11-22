@@ -20,6 +20,14 @@ export interface RemoteSession {
   active: boolean;
 }
 
+export interface RemoteRelay {
+  active: boolean;
+  public_url: string;
+  session?: string;
+  relay_url?: string;
+  local?: string;
+}
+
 export interface RemoteConfig {
   enabled: boolean;
   public_url: string;
@@ -27,6 +35,9 @@ export interface RemoteConfig {
   base_url: string;
   warning: string;
   qr_available: boolean;
+  relay: RemoteRelay;
+  relay_url: string;
+  relay_token_set: boolean;
   sessions: RemoteSession[];
   active_count: number;
 }
@@ -80,6 +91,18 @@ export const stopRemoteSession = (sid: string) =>
 
 export const stopAllRemoteSessions = () =>
   api<{ ok: boolean; revoked: number }>("/api/remote/stop-all", { method: "POST" });
+
+export const startRemoteRelay = (body: { relay_url: string; token?: string }) =>
+  api<{ ok: boolean; relay: RemoteRelay }>("/api/remote/relay/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+export const stopRemoteRelay = () =>
+  api<{ ok: boolean }>("/api/remote/relay/stop", { method: "POST" });
+
+export const getRemoteRelayStatus = () => api<{ ok: boolean; relay: RemoteRelay }>("/api/remote/relay/status");
 
 export const getRemoteMe = () => api<RemoteMe>("/api/remote/me");
 
