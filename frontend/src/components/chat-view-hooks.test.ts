@@ -30,6 +30,7 @@ function makeRun(over: Partial<RunRecord>): RunRecord {
     llm: over.llm,
     tools: over.tools ?? [],
     actions: over.actions ?? [],
+    attachments: over.attachments ?? [],
   };
 }
 
@@ -67,6 +68,17 @@ describe("mapRunsToMessages", () => {
   it("user 消息不带 runId", () => {
     const msgs = mapRunsToMessages([makeRun({ id: 9 })]);
     expect(msgs[0].runId).toBeUndefined();
+  });
+
+  it("user 消息携带已发送附件引用", () => {
+    const runs = [makeRun({
+      id: 11,
+      attachments: [{ id: 7, filename: "note.md", kind: "text" }],
+    })];
+    const msgs = mapRunsToMessages(runs);
+    expect(msgs[0].attachments).toEqual([
+      { id: 7, filename: "note.md", kind: "text" },
+    ]);
   });
 });
 

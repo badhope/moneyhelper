@@ -77,16 +77,32 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
     # 联网搜索开关：只在用户显式开启时追加指令；不改变原问题落库内容
     web_search = bool((payload or {}).get("web_search"))
     # @提及附件：前端把附件 id 传过来，正文前附加其内容供模型理解
-    att_ids = (payload or {}).get("attachments") or []
+    raw_att_ids = (payload or {}).get("attachments") or []
+    att_ids = raw_att_ids if isinstance(raw_att_ids, list) else []
     attached_text = ""
+    attachments_meta: list[dict[str, object]] = []
     if att_ids:
         parts: list[str] = []
-        for aid in att_ids:
+        seen_ids: set[int] = set()
+        for aid in att_ids[:20]:
             try:
                 att = await db.get_attachment(int(aid))
             except Exception:  # noqa: BLE001
                 att = None
-            if att and att.get("content"):
+            if not att:
+                continue
+            att_id = int(att.get("id") or 0)
+            if att_id and att_id not in seen_ids:
+                seen_ids.add(att_id)
+                meta: dict[str, object] = {
+                    "id": att_id,
+                    "filename": str(att.get("filename") or "")[:255],
+                    "kind": str(att.get("kind") or "text")[:20],
+                }
+                if att.get("mime"):
+                    meta["mime"] = str(att["mime"])[:80]
+                attachments_meta.append(meta)
+            if att.get("content"):
                 parts.append(
                     f"【附件：{att.get('filename')}】\n{att['content'][:2000]}"
                 )
@@ -95,9 +111,11 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
 
     async def runner(emit) -> None:
         # 重新生成：先移除该会话最后一条问答，再以同一问题重新作答（替换而非追加）
+        replaced_attachments: list[dict[str, object]] = []
         if regenerate:
             try:
-                await db.delete_last_run(thread_id, question)
+                removed = await db.delete_last_run(thread_id, question)
+                replaced_attachments = removed.get("attachments") or []
             except Exception:  # noqa: BLE001 — 删除失败则退化为普通追加
                 log.exception("delete_last_run failed")
         # @提及附件：把附件内容附加到问题正文，供 agent/模板理解
@@ -124,6 +142,7 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
                 route_reason=result.get("route_reason", ""),
                 tools=result.get("tools") or [],
                 actions=result.get("actions") or [],
+                attachments=attachments_meta or replaced_attachments,
                 tokens=result.get("tokens") or None,
             )
         except Exception:  # noqa: BLE001 — 落库失败不打断交付

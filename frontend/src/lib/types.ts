@@ -150,6 +150,14 @@ export interface ActionCenter {
   top: ActionItem | null;
 }
 
+/** 已发送消息上挂过的附件：只存引用，正文和字节仍在工作台附件表。 */
+export interface RunAttachment {
+  id: number;
+  filename: string;
+  kind: string;
+  mime?: string;
+}
+
 export interface RunRecord {
   id: number;
   thread_id: string;
@@ -166,6 +174,8 @@ export interface RunRecord {
   tools?: string[];
   /** 对话结果附带的页面跳转意图（对话中枢：结果一键去对应页面） */
   actions?: { tab: string }[];
+  /** 这一轮用户消息挂过的附件：刷新/换端后仍能回看 */
+  attachments?: RunAttachment[];
   /** 全局历史搜索附带：所属会话标题（无会话的孤儿记录为空） */
   session_title?: string;
 }

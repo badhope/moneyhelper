@@ -30,6 +30,7 @@ async def save_run(
     route_reason: str = "",
     tools: list[str] | None = None,
     actions: list[dict[str, Any]] | None = None,
+    attachments: list[dict[str, Any]] | None = None,
     skip_session: bool = False,
     tokens: dict[str, int] | None = None,
 ) -> dict[str, Any]:
@@ -40,8 +41,9 @@ async def save_run(
     # 对方 COMMIT 时报 "no transaction is active"（并发确认入账实测）。
     async with get_write_lock():
         cur = await conn.execute(
-            "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,route,llm,route_reason,tools,actions,tokens_in,tokens_out)"
-        " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,"
+            "route,llm,route_reason,tools,actions,attachments_json,tokens_in,tokens_out)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             current_user_id(),
             thread_id or "default",
@@ -55,6 +57,7 @@ async def save_run(
             route_reason or "",
             json.dumps(tools or [], ensure_ascii=False),
             json.dumps(actions or [], ensure_ascii=False),
+            json.dumps(attachments or [], ensure_ascii=False),
             int(usage.get("prompt") or 0),
             int(usage.get("completion") or 0),
             ),
@@ -77,7 +80,7 @@ async def delete_last_run(
     conn = await _conn()
     if question:
         cur = await conn.execute(
-            "SELECT id FROM runs WHERE user_id=? AND thread_id=? AND question=?"
+            "SELECT id, attachments_json FROM runs WHERE user_id=? AND thread_id=? AND question=?"
             " ORDER BY id DESC LIMIT 1",
             (current_user_id(), thread_id, question),
         )
@@ -88,10 +91,10 @@ async def delete_last_run(
                 (current_user_id(), row["id"]),
             )
             await conn.commit()
-            return {"ok": True, "deleted": 1}
-        return {"ok": True, "deleted": 0}
+            return _deleted_run(row)
+        return {"ok": True, "deleted": 0, "attachments": []}
     cur = await conn.execute(
-        "SELECT id FROM runs WHERE user_id=? AND thread_id=? ORDER BY id DESC LIMIT 1",
+        "SELECT id, attachments_json FROM runs WHERE user_id=? AND thread_id=? ORDER BY id DESC LIMIT 1",
         (current_user_id(), thread_id),
     )
     row = await cur.fetchone()
@@ -100,7 +103,19 @@ async def delete_last_run(
             "DELETE FROM runs WHERE user_id=? AND id=?", (current_user_id(), row["id"])
         )
         await conn.commit()
-    return {"ok": True}
+        return _deleted_run(row)
+    return {"ok": True, "attachments": []}
+
+
+def _deleted_run(row: Any) -> dict[str, Any]:
+    try:
+        attachments = json.loads(dict(row).get("attachments_json") or "[]")
+    except Exception:
+        attachments = []
+    if not isinstance(attachments, list):
+        attachments = []
+    return {"ok": True, "deleted": 1, "attachments": attachments}
+
 
 async def list_runs(
     thread_id: str | None = None, limit: int = 50
@@ -157,9 +172,10 @@ def _hydrate_run(r: dict[str, Any]) -> dict[str, Any]:
         ("flags_json", "flags"),
         ("tools", "tools"),
         ("actions", "actions"),
+        ("attachments_json", "attachments"),
     ):
         try:
-            out[field] = json.loads(out.pop(col) or "[]")
+            out[field] = json.loads(out.pop(col, "[]") or "[]")
         except Exception:
             out[field] = []
     return out

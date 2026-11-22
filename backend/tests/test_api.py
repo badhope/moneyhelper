@@ -1361,6 +1361,41 @@ async def test_history_truncate_from_run(client) -> None:
     assert r.status_code == 404
 
 
+async def test_history_sent_attachments_roundtrip(client) -> None:
+    """已发送消息的附件：落库只存引用，刷新能回看；重新生成也不丢。"""
+    tid = "att-hist-1"
+    up = await client.post(
+        "/api/attachments",
+        files={"file": ("note.md", b"# note\nbody", "text/markdown")},
+    )
+    assert up.status_code == 200
+    aid = up.json()["id"]
+
+    async with client.stream(
+        "POST",
+        "/api/ask",
+        json={"question": "看看这个附件", "thread_id": tid, "attachments": [str(aid)]},
+    ) as resp:
+        await resp.aread()
+
+    run = (await client.get(f"/api/history?thread_id={tid}")).json()["runs"][0]
+    att = run["attachments"][0]
+    assert att["id"] == aid and att["filename"] == "note.md" and att["kind"] == "text"
+    assert "content" not in att and "data" not in att
+
+    # 重新生成不重新传附件：沿用被替换那轮的附件引用
+    async with client.stream(
+        "POST",
+        "/api/ask",
+        json={"question": "看看这个附件", "thread_id": tid, "regenerate": True},
+    ) as resp:
+        await resp.aread()
+    run2 = (await client.get(f"/api/history?thread_id={tid}")).json()["runs"][0]
+    assert run2["attachments"] == run["attachments"]
+
+    await client.delete(f"/api/attachments/{aid}")
+
+
 async def test_history_search_delete_clear(client) -> None:
     """全局历史：搜索（跨会话）、单条删除、清空全部。"""
     async with client.stream(

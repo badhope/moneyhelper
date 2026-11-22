@@ -176,9 +176,16 @@ async def _restore_sessions_runs(
     for r in runs:
         if not isinstance(r, dict) or not r.get("question"):
             continue
+        raw_attachments = r.get("attachments_json")
+        if isinstance(raw_attachments, str):
+            attachments_json = raw_attachments
+        elif isinstance(raw_attachments, list):
+            attachments_json = json.dumps(raw_attachments, ensure_ascii=False)
+        else:
+            attachments_json = json.dumps(r.get("attachments") or [], ensure_ascii=False)
         await conn.execute(
-            "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,route,llm,route_reason,tools,actions)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,route,llm,route_reason,tools,actions,attachments_json)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 uid,
                 r.get("thread_id") or "default",
@@ -193,6 +200,7 @@ async def _restore_sessions_runs(
                 str(r.get("route_reason") or ""),
                 json.dumps(r.get("tools") or [], ensure_ascii=False),
                 json.dumps(r.get("actions") or [], ensure_ascii=False),
+                attachments_json,
             ),
         )
     counts["runs"] = len(runs)

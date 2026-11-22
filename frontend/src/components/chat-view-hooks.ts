@@ -15,7 +15,14 @@ export { nextMsgId };
 /** 把历史 RunRecord 映射为 ChatMessage 对（user + assistant）；ID 走共享 msgSeq */
 export function mapRunsToMessages(runs: RunRecord[]): ChatMessage[] {
   return runs.slice().reverse().flatMap((r) => [
-    { id: nextMsgId(), role: "user" as const, text: r.question, steps: [], tools: [] },
+    {
+      id: nextMsgId(),
+      role: "user" as const,
+      text: r.question,
+      steps: [],
+      tools: [],
+      attachments: r.attachments ?? [],
+    },
     {
       id: nextMsgId(),
       role: "assistant" as const,

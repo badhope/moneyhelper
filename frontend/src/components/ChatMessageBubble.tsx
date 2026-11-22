@@ -16,7 +16,7 @@ import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
 import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import {
-  Check, ChevronDown, ChevronUp, Copy, Download, GitBranch, Link2, Loader2, Pencil, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
+  Check, ChevronDown, ChevronUp, Copy, Download, GitBranch, Link2, Loader2, Paperclip, Pencil, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/clipboard";
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +26,8 @@ import { BRAND, BrandLogo } from "@/lib/brand";
 import { useI18n } from "@/lib/i18n";
 import { useSpeech } from "@/lib/use-speech";
 import { useTheme } from "@/lib/theme";
-import type { AgentToolStep, AgentPlanStep, AnswerMeta } from "@/lib/types";
-import { OPEN_URL_EVENT } from "@/lib/workbench";
+import type { AgentToolStep, AgentPlanStep, AnswerMeta, RunAttachment } from "@/lib/types";
+import { OPEN_URL_EVENT, requestOpenAttachment } from "@/lib/workbench";
 
 // 注册常用语言（PrismLight 按需，控制包体积）
 SyntaxHighlighter.registerLanguage("javascript", javascript);
@@ -76,6 +76,8 @@ export interface ChatMessage {
   created_at?: string;
   /** 对应后端 runs.id：历史跳转定位到本条时用 */
   runId?: number;
+  /** 这条用户消息挂过的附件（刷新历史后仍显示） */
+  attachments?: RunAttachment[];
   /** 结构化数据卡：对话内嵌的可视化小卡（4宫格/mini环形/持仓预览） */
   cards?: { kind: string; data: Record<string, unknown> }[];
 }
@@ -375,6 +377,22 @@ function BubbleInner({
         ) : (
           <div className="max-w-[85%] rounded-3xl rounded-br-lg bg-muted px-4 py-2.5 text-[15.5px] leading-relaxed text-foreground whitespace-pre-wrap break-words">
             {m.text}
+          </div>
+        )}
+        {m.attachments && m.attachments.length > 0 && (
+          <div className="mt-1 flex max-w-[85%] flex-wrap justify-end gap-1.5">
+            {m.attachments.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => requestOpenAttachment(a.id)}
+                title={tr("chat.openAttachment")}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1 text-[12px] text-foreground/80 transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <span className="max-w-[11rem] truncate">{a.filename}</span>
+              </button>
+            ))}
           </div>
         )}
         {!editing && canEdit && (

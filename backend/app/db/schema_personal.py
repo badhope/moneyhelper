@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS runs (
     route_reason  TEXT NOT NULL DEFAULT '',
     tools         TEXT NOT NULL DEFAULT '',
     actions       TEXT NOT NULL DEFAULT '[]',
+    attachments_json TEXT NOT NULL DEFAULT '[]',
     tokens_in     INTEGER NOT NULL DEFAULT 0,
     tokens_out    INTEGER NOT NULL DEFAULT 0
 );

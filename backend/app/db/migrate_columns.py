@@ -26,6 +26,8 @@ async def _migrate_add_columns() -> None:
             "route_reason": "TEXT NOT NULL DEFAULT ''",
             "tools": "TEXT NOT NULL DEFAULT ''",
             "actions": "TEXT NOT NULL DEFAULT '[]'",
+            # 已发送消息回看附件：只存 id/文件名/类型，正文仍在 attachments 表
+            "attachments_json": "TEXT NOT NULL DEFAULT '[]'",
             # harness：按轮 token 计量（模型真实回传，无模型时保持 0）
             "tokens_in": "INTEGER NOT NULL DEFAULT 0",
             "tokens_out": "INTEGER NOT NULL DEFAULT 0",

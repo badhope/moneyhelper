@@ -6,7 +6,7 @@ import { BRAND } from "@/lib/brand";
 import { copyText } from "@/lib/clipboard";
 import { useToast } from "@/lib/toast";
 import { useI18n } from "@/lib/i18n";
-import type { AgentToolStep, AgentPlanStep } from "@/lib/types";
+import type { AgentToolStep, AgentPlanStep, RunAttachment } from "@/lib/types";
 import type { ChatMessage, StepInfo } from "@/components/ChatMessageBubble";
 import {
   useChatHistory,
@@ -43,7 +43,7 @@ export function useChatView({
   const { t: tr } = useI18n();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [attachments, setAttachments] = useState<{ id: number; filename: string; kind: string }[]>([]);
+  const [attachments, setAttachments] = useState<RunAttachment[]>([]);
   const [showSteps, setShowSteps] = useState(false);
   // 联网搜索开关：只在用户显式开启时走外网，默认关（隐私优先）
   const [webSearch, setWebSearch] = useState(false);
@@ -124,10 +124,14 @@ export function useChatView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, locateRunId]);
 
-  const send = async (text: string, opts?: { regenerate?: boolean }) => {
+  const send = async (
+    text: string,
+    opts?: { regenerate?: boolean; attachments?: RunAttachment[] },
+  ) => {
     const q = text.trim();
     if (!q || stream.isPending) return;
     const regen = opts?.regenerate ?? false;
+    const sentAttachments = (opts?.attachments ?? attachments).map((a) => ({ ...a }));
     if (!regen) setInput("");
 
     let asstMsg: ChatMessage;
@@ -144,7 +148,14 @@ export function useChatView({
         return out;
       });
     } else {
-      const userMsg: ChatMessage = { id: nextMsgId(), role: "user", text: q, steps: [], tools: [] };
+      const userMsg: ChatMessage = {
+        id: nextMsgId(),
+        role: "user",
+        text: q,
+        steps: [],
+        tools: [],
+        attachments: sentAttachments,
+      };
       asstMsg = { id: nextMsgId(), role: "assistant", text: "", q, steps: [], tools: [] };
       setMessages((prev) => [...prev, userMsg, asstMsg]);
     }
@@ -166,7 +177,7 @@ export function useChatView({
         thread_id: threadId,
         regenerate: regen,
         lang: tr("chat.locale"),
-        attachments: attachments.map((a) => String(a.id)),
+        attachments: sentAttachments.map((a) => String(a.id)),
         web_search: webSearch,
       },
       onEvent: (ev: Record<string, unknown>) => {
@@ -228,7 +239,7 @@ export function useChatView({
       const idx = prev.findIndex((x) => x.id === m.id);
       return idx >= 0 ? prev.slice(0, idx) : prev;
     });
-    await sendRef.current(q);
+    await sendRef.current(q, { attachments: m.attachments ?? [] });
   };
 
   // 稳定化回调
@@ -246,7 +257,8 @@ export function useChatView({
   const stopRef = useRef(stream.stop); stopRef.current = stream.stop;
 
   const stableSend = useCallback(
-    (text: string, opts?: { regenerate?: boolean }) => sendRef.current(text, opts),
+    (text: string, opts?: { regenerate?: boolean; attachments?: RunAttachment[] }) =>
+      sendRef.current(text, opts),
     [],
   );
   const editRef = useRef(editAndResend); editRef.current = editAndResend;
