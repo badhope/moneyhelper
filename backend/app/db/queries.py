@@ -31,6 +31,21 @@ async def list_transactions_by_month(month: str) -> list[dict[str, Any]]:
         (current_user_id(), f"{month}-%"),
     )
 
+
+async def list_transactions_between(start: str, end: str) -> list[dict[str, Any]]:
+    """取日期闭区间 [start, end] 的流水；日期均为 YYYY-MM-DD。
+
+    月结异常检测需要看最近 180 天的同商户样本，但只应输出目标月内的异常。
+    不用 list_transactions() 全表：账本很大时会把十万行搬进内存。
+    """
+    from .tenant import current_user_id
+
+    return await _core.fetch_all(
+        "SELECT * FROM transactions WHERE user_id=? AND date>=? AND date<=?"
+        " ORDER BY date DESC, id DESC",
+        (current_user_id(), str(start), str(end)),
+    )
+
 async def list_transactions(
     member_id: int | None = None, limit: int | None = None
 ) -> list[dict[str, Any]]:

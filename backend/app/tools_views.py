@@ -80,6 +80,25 @@ async def tool_get_ledger_view(_args: dict[str, Any]) -> str:
         live,
     )
     return json.dumps(_compact_ledger(led), ensure_ascii=False)
+async def tool_get_financial_identity(_args: dict[str, Any]) -> str:
+    """查财务数字身份证：财务坐标、数据覆盖、风险项、权限与来源。无参数。"""
+    from .personal_review import identity_card
+
+    settings = await db.get_settings()
+    lang = str(settings.get("lang") or "zh")
+    return json.dumps(await identity_card(lang=lang), ensure_ascii=False)
+async def tool_get_monthly_review(args: dict[str, Any]) -> str:
+    """查某月结账复盘：收支、预算、异常、数据体检与下月动作。参数：month（YYYY-MM，可省略=本月）。"""
+    from .personal_review import monthly_review
+
+    month = str(args.get("month") or "").strip() or datetime.now().strftime("%Y-%m")
+    settings = await db.get_settings()
+    lang = str(settings.get("lang") or "zh")
+    try:
+        data = await monthly_review(month, lang=lang)
+    except ValueError as exc:
+        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+    return json.dumps(data, ensure_ascii=False)
 async def tool_get_risk_flags(_args: dict[str, Any]) -> str:
     """查风控规则：集中度、应急金、高息负债、负债收入比、储蓄率告警。无参数。"""
     positions = await db.list_positions()

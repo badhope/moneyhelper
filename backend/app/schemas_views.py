@@ -13,6 +13,14 @@ class GetMarketViewIn(_In):
 class GetLedgerViewIn(_In):
     """查账本：本月收支、结余、储蓄率、订阅、负债、应急金。"""
 
+class GetFinancialIdentityIn(_In):
+    """查财务数字身份证：财务坐标、数据覆盖、风险项、权限与来源。"""
+
+class GetMonthlyReviewIn(_In):
+    """查指定月份的结账复盘：收支、预算、异常、数据体检与下月动作。"""
+
+    month: str = Field("", description="月份 YYYY-MM，可省略（默认本月）")
+
 class GetRiskFlagsIn(_In):
     """运行风控规则：集中度/应急金/高息负债/负债收入比/储蓄率。"""
 
@@ -82,6 +90,8 @@ class GetFirePlanIn(_In):
 MODELS: dict[str, type[BaseModel]] = {
     "get_market_view": GetMarketViewIn,
     "get_ledger_view": GetLedgerViewIn,
+    "get_financial_identity": GetFinancialIdentityIn,
+    "get_monthly_review": GetMonthlyReviewIn,
     "get_risk_flags": GetRiskFlagsIn,
     "get_budget": GetBudgetIn,
     "get_trend": GetTrendIn,

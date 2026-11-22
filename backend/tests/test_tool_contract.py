@@ -53,7 +53,10 @@ def offline_quotes(monkeypatch):
     monkeypatch.setattr(quotes_mod, "index_kline", _empty_index_kline)
     monkeypatch.setattr(quotes_mod, "live_quotes", _snap)
     monkeypatch.setattr(quotes_mod, "quote_now", _quote)
-    monkeypatch.setattr(quotes_mod, "indices_quotes", lambda: [])
+    async def _no_indices():
+        return []
+
+    monkeypatch.setattr(quotes_mod, "indices_quotes", _no_indices)
     # 各工具子模块在模块顶部做了 `from .quotes import kline as fetch_kline` 的提前绑定，
     # 拆分后必须逐个子模块替换，否则探测会真的走网络。
     for mod in (tools_action, tools_market):

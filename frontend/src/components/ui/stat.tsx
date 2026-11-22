@@ -46,13 +46,13 @@ export function StatTile({
   label: string;
   value: string;
   hint?: string;
-  tone?: "up" | "down" | "muted" | "default";
+  tone?: "up" | "down" | "muted" | "default" | "positive" | "negative";
   /** sm：卡片内密排（15px）；md：指标条（18px，label 更小） */
   size?: "sm" | "md";
   truncate?: boolean;
 }) {
   const color =
-    tone === "up" ? "text-up" : tone === "down" ? "text-down" : tone === "muted" ? "text-muted-foreground" : "text-foreground";
+    tone === "up" ? "text-up" : tone === "down" ? "text-down" : tone === "muted" ? "text-muted-foreground" : tone === "positive" ? "text-emerald-600 dark:text-emerald-400" : tone === "negative" ? "text-red-600 dark:text-red-400" : "text-foreground";
   return (
     <div className="min-w-0 rounded-lg bg-muted/25 px-3 py-2">
       <div className={cn("text-muted-foreground", size === "sm" ? "text-xs" : "text-[11px]", truncate && "truncate")}>

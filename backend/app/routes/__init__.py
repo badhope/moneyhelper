@@ -29,9 +29,10 @@ from .org import router as org_router
 from .paper import router as paper_router
 from .procurement import router as procurement_router
 from .provenance import router as provenance_router
-from .remote import router as remote_router
 from .qa import router as qa_router
+from .remote import router as remote_router
 from .research import router as research_router
+from .review import router as review_router
 from .settings import router as settings_router
 from .statements import router as statements_router
 from .strategy import router as strategy_router
@@ -64,9 +65,10 @@ __all__ = [
     "paper_router",
     "procurement_router",
     "provenance_router",
-    "remote_router",
     "qa_router",
+    "remote_router",
     "research_router",
+    "review_router",
     "settings_router",
     "statements_router",
     "strategy_router",

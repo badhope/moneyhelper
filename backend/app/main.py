@@ -50,9 +50,10 @@ from .routes import (
     paper_router,
     procurement_router,
     provenance_router,
-    remote_router,
     qa_router,
+    remote_router,
     research_router,
+    review_router,
     settings_router,
     statements_router,
     strategy_router,
@@ -129,6 +130,7 @@ app.include_router(qa_router)
 app.include_router(ledger_router)
 app.include_router(system_router)
 app.include_router(research_router)
+app.include_router(review_router)
 app.include_router(statements_router)
 
 

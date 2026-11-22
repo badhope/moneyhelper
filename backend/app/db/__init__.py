@@ -34,6 +34,7 @@ from ._core import (
     list_positions,
     list_subscriptions,
     list_transactions,
+    list_transactions_between,
     list_transactions_by_month,
     reset_to_seed,
     set_active_member,
@@ -330,6 +331,8 @@ from .users import (
 __all__ = [
     "DB_PATH",
     "DEFAULT_SETTINGS",
+    "DEMO_NOTE",
+    "DEMO_USER_ID",
     "DEPT_DECISIONS",
     "_ACTIVE_KEY",
     "_active_member_id",
@@ -476,7 +479,6 @@ __all__ = [
     "list_debts",
     "list_goals",
     "list_indexed_attachments",
-    "search_attachments",
     "list_invoices",
     "list_loans",
     "list_members",
@@ -491,6 +493,7 @@ __all__ = [
     "list_snapshots",
     "list_subscriptions",
     "list_transactions",
+    "list_transactions_between",
     "list_transactions_by_month",
     "list_undo_records",
     "list_user_tenants",
@@ -547,17 +550,16 @@ __all__ = [
     "record_shadow_decision",
     "rename_session",
     "replace_allocation_targets",
+    "reset_demo_ledger",
     "reset_to_seed",
     "resolve_reflection",
-    "reset_demo_ledger",
-    "DEMO_USER_ID",
-    "DEMO_NOTE",
     "resolve_tenant_id",
     "save_budgets",
     "save_invoice",
     "save_risk_settings",
     "save_run",
     "save_snapshot",
+    "search_attachments",
     "search_runs",
     "session_thread_id",
     "session_usage",
@@ -592,6 +594,12 @@ __all__ = [
     "verify_audit_chain",
     "withdraw_motion",
 ]
+from .demo import (  # noqa: F401,E402,I001 — 演示账本独立租户
+    DEMO_NOTE,
+    DEMO_USER_ID,
+    ledger_counts as demo_ledger_counts,
+    reset_demo_ledger,
+)
 from .remote import (  # noqa: F401,E402 — 远程控制会话
     DEFAULT_SESSION_HOURS,
     REMOTE_COOKIE,
@@ -604,11 +612,4 @@ from .remote import (  # noqa: F401,E402 — 远程控制会话
     revoke_remote_session,
     rotate_remote_session,
     validate_remote_cookie,
-)
-
-from .demo import (  # noqa: F401,E402 — 演示账本独立租户
-    DEMO_USER_ID,
-    DEMO_NOTE,
-    ledger_counts as demo_ledger_counts,
-    reset_demo_ledger,
 )

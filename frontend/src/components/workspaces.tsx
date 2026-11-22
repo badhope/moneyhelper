@@ -22,6 +22,9 @@ const StatementsBody = lazy(() =>
   import("@/components/StatementsPage").then((m) => ({ default: m.StatementsPage })),
 );
 const TaxBody = lazy(() => import("@/components/TaxPage").then((m) => ({ default: m.TaxPage })));
+const ReviewBody = lazy(() =>
+  import("@/components/MonthlyReviewPage").then((m) => ({ default: m.MonthlyReviewPage })),
+);
 const ExpensesBody = lazy(() =>
   import("@/components/ExpensesPage").then((m) => ({ default: m.ExpensesPage })),
 );
@@ -57,7 +60,7 @@ function Frame({
 }
 
 /** 账务：总账 / 财报 / 公司财税 */
-export function LedgerWorkspace({ initial }: { initial: "gl" | "statements" | "tax" }) {
+export function LedgerWorkspace({ initial }: { initial: "gl" | "statements" | "tax" | "review" }) {
   const { t } = useI18n();
   return (
     <Frame
@@ -65,9 +68,10 @@ export function LedgerWorkspace({ initial }: { initial: "gl" | "statements" | "t
       tabs={[
         { value: "gl", label: t("nav.gl") },
         { value: "statements", label: t("nav.statements") },
+        { value: "review", label: t("nav.review") },
         { value: "tax", label: t("nav.tax") },
       ]}
-      bodies={{ gl: <GlBody />, statements: <StatementsBody />, tax: <TaxBody /> }}
+      bodies={{ gl: <GlBody />, statements: <StatementsBody />, review: <ReviewBody />, tax: <TaxBody /> }}
     />
   );
 }

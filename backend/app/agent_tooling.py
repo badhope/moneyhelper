@@ -54,6 +54,14 @@ def _tool_summary(name: str, result_text: str) -> str:
         if not isinstance(data, dict):
             return result_text[:80]
         return f"发现 {data.get('count', 0)} 项需关注"
+    if name == "get_financial_identity":
+        if not isinstance(data, dict):
+            return result_text[:80]
+        return f"身份证 {data.get('fingerprint', '')}，净资产 {data.get('financials', {}).get('net_worth', 0):,}"
+    if name == "get_monthly_review":
+        if not isinstance(data, dict):
+            return result_text[:80]
+        return f"{data.get('month', '')} 结余 {data.get('cashflow', {}).get('net', 0):,}，动作 {len(data.get('actions', []))} 条"
     if name == "get_budget":
         if not isinstance(data, dict):
             return result_text[:80]

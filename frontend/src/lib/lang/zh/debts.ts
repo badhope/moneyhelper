@@ -82,6 +82,7 @@ export const zh_debts: Record<string, string> = {
   "nav.main": "主导航",
   "nav.research": "投研",
   "nav.statements": "经营报表",
+  "nav.review": "月度复盘",
   "nav.paper": "模拟交易",
   "holdings.concentration": "集中度（占持仓）",
   "holdings.threshold": "阈值 {n}%",

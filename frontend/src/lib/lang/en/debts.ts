@@ -82,6 +82,7 @@ export const en_debts: Record<string, string> = {
   "nav.main": "Main navigation",
   "nav.research": "Research",
   "nav.statements": "Business report",
+  "nav.review": "Monthly review",
   "nav.paper": "Paper trading",
   "holdings.concentration": "Concentration (of holdings)",
   "holdings.threshold": "threshold {n}%",

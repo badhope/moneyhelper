@@ -397,11 +397,13 @@ from .mcp_resources import (  # noqa: F401,E402 — resource 注册副作用
 from .mcp_views import (  # noqa: F401,E402 — 注册副作用 + 同名属性
     get_budget,
     get_dca_plans,
+    get_financial_identity,
     get_fire_plan,
     get_goals,
     get_health_check,
     get_ledger_view,
     get_market_view,
+    get_monthly_review,
     get_portfolio_risk,
     get_rebalance_plan,
     get_risk_flags,

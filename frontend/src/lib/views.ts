@@ -21,6 +21,7 @@ export const DATA_KINDS = [
   "strategy",
   "research",
   "statements",
+  "review",
   "paper",
   "connect",
   "tax",

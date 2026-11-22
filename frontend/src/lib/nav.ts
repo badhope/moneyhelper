@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BookOpenCheck,
   CandlestickChart,
+  CalendarCheck,
   ClipboardList,
   CreditCard,
   FileText,
@@ -79,6 +80,7 @@ export const NAV_GROUPS: NavGroup<DataKind>[] = [
       // 入口落在「经营报表」而不是总账：刚上手的人先要看懂"我这个月赚没赚"，
       // 凭证列表是会计的视角，放工作区第二个 tab。
       { key: "statements", labelKey: "nav.ledgerWorkspace", icon: BookOpenCheck },
+      { key: "review", labelKey: "nav.review", icon: CalendarCheck },
       { key: "bank", labelKey: "nav.bank", icon: Landmark },
       { key: "paper", labelKey: "nav.paper", icon: Users },
     ],

@@ -43,6 +43,18 @@ async def get_trend(months: int = 6) -> str:
 
 
 @_tool()
+async def get_financial_identity() -> str:
+    """财务数字身份证：财务坐标、数据覆盖、风险与异常、权限边界、数据来源。无参数。"""
+    return await xtools.tool_get_financial_identity({})
+
+
+@_tool()
+async def get_monthly_review(month: str = "") -> str:
+    """月度结账复盘：某月收支、预算、异常、数据体检与下月动作。month 格式 YYYY-MM，省略=本月。"""
+    return await xtools.tool_get_monthly_review({"month": month})
+
+
+@_tool()
 async def get_goals() -> str:
     """查询用户的财务目标：目标金额、已存金额、进度百分比、距截止月、建议月存。"""
     return await xtools.tool_get_goals({})

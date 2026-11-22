@@ -33,6 +33,7 @@ DENY = "deny"
 READONLY_TOOLS: frozenset[str] = frozenset({
     # 账单与组合查询
     "get_market_view", "get_ledger_view", "get_risk_flags", "get_budget",
+    "get_financial_identity", "get_monthly_review",
     "get_trend", "get_kline", "get_goals", "get_user_memory", "get_lessons",
     "get_health_check", "get_quote", "get_watchlist", "get_portfolio_risk",
     "get_rebalance_plan", "get_valuation", "get_dca_plans", "get_fire_plan",

@@ -227,6 +227,7 @@ from .queries import (  # noqa: F401,E402
     list_positions,
     list_subscriptions,
     list_transactions,
+    list_transactions_between,
     list_transactions_by_month,
     set_setting,
 )

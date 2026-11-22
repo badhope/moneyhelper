@@ -25,6 +25,7 @@ import { IndicesStrip } from "@/components/IndicesStrip";
 import { NetWorthCard } from "@/components/dashboard/NetWorthCard";
 import { ActionCenterCard } from "@/components/dashboard/ActionCenterCard";
 import { AccountsMergeCard } from "@/components/dashboard/AccountsMergeCard";
+import { IdentityCard } from "@/components/dashboard/IdentityCard";
 import { NetWorthTrendCard } from "@/components/dashboard/NetWorthTrendCard";
 import { HealthScoreCard } from "@/components/dashboard/HealthScoreCard";
 import { ReturnsCard } from "@/components/dashboard/ReturnsCard";
@@ -709,6 +710,9 @@ export function Dashboard({
 
       {/* 合并账户：本地账本 + 模拟盘 + 实盘的口径汇总（不含外币折算） */}
       <AccountsMergeCard />
+
+      {/* 财务数字身份证：本机生成的可复核档案，不是证件 */}
+      <IdentityCard />
 
       {/* 净值趋势与归因：涨的是「存的」还是「涨的」，这是判断财务质量的关键 */}
       <NetWorthTrendCard />
