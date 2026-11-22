@@ -13,12 +13,50 @@ log = _get_logger(__name__)
 
 router = APIRouter()
 
+def _compact_hit(run: dict, q: str) -> dict:
+    """把一整轮问答压成侧栏能放下的一条命中：角色 + 会话名 + 关键词附近片段。"""
+    needle = q.lower()
+    role = "question"
+    text = str(run.get("question") or "")
+    idx = text.lower().find(needle)
+    if idx < 0:
+        role = "answer"
+        text = str(run.get("answer") or "")
+        idx = text.lower().find(needle)
+    if idx < 0:
+        idx = 0
+    start = max(0, idx - 36)
+    end = min(len(text), idx + len(q) + 74)
+    snippet = text[start:end].strip()
+    if start > 0:
+        snippet = "…" + snippet
+    if end < len(text):
+        snippet += "…"
+    return {
+        "id": int(run.get("id") or 0),
+        "thread_id": str(run.get("thread_id") or ""),
+        "session_title": str(run.get("session_title") or ""),
+        "role": role,
+        "snippet": snippet,
+        "created_at": str(run.get("created_at") or ""),
+        "archived": bool(run.get("session_archived")),
+    }
+
+
 @router.get("/api/history")
-async def history(thread_id: str | None = None, limit: int = 50, q: str = "") -> dict:
+async def history(
+    thread_id: str | None = None,
+    limit: int = 50,
+    q: str = "",
+    compact: bool = False,
+) -> dict:
     limit = max(1, min(limit, 500))
     # 全局历史：跨会话搜索（供「全部历史」跳转定位）；指定线程则返回该会话历史
     if q.strip():
-        return {"runs": await db.search_runs(q.strip(), limit)}
+        runs = await db.search_runs(q.strip()[:200], limit)
+        if compact:
+            return {"results": [_compact_hit(run, q.strip()[:200]) for run in runs]}
+        return {"runs": runs}
     return {"runs": await db.list_runs(thread_id, limit)}
 
 @router.delete("/api/runs/{run_id}")

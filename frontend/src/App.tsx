@@ -281,6 +281,15 @@ export default function App() {
     [sessions, newSession],
   );
 
+  const openChatRun = useCallback(
+    (threadId: string, runId: number) => {
+      setView("chat");
+      setLocateRunId(runId);
+      openChat(threadId);
+    },
+    [openChat],
+  );
+
   const deleteSession = useCallback(
     async (id: number, threadId: string) => {
       try {
@@ -382,6 +391,7 @@ export default function App() {
                   onOpenOverview={() => setView("overview")}
                   activeView={view}
                   onSelect={(tid) => { setView("chat"); openChat(tid); }}
+                  onSelectRun={openChatRun}
                   onNew={() => { setView("chat"); void newSession(); }}
                   onDelete={(id, threadId) => setPendingDelete({ id, threadId })}
                   onRename={renameSession}
@@ -520,6 +530,10 @@ export default function App() {
                 setMobileNavOpen(false);
                 setView("chat");
                 openChat(tid);
+              }}
+              onSelectRun={(tid, runId) => {
+                setMobileNavOpen(false);
+                openChatRun(tid, runId);
               }}
               onNew={() => {
                 setMobileNavOpen(false);

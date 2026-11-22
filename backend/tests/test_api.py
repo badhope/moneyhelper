@@ -1372,6 +1372,13 @@ async def test_history_search_delete_clear(client) -> None:
     r = (await client.get("/api/history?q=花了")).json()["runs"]
     assert any(run["question"] == "这个月花了多少" and run["session_title"] for run in r)
 
+    # 侧栏用的紧凑结果：不返回整段回答，只给角色、会话和关键词附近片段
+    hits = (await client.get("/api/history?q=花了&compact=1&limit=10")).json()["results"]
+    assert hits
+    assert hits[0]["role"] in {"question", "answer"}
+    assert "花了" in hits[0]["snippet"]
+    assert "answer" not in hits[0]
+
     # 单条删除
     target = next(run for run in r if run["question"] == "这个月花了多少")
     d = (await client.delete(f"/api/runs/{target['id']}")).json()

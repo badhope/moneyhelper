@@ -10,6 +10,7 @@ import {
   Inbox,
   ListChecks,
   LayoutGrid,
+  Loader2,
   MessageCircle,
   PanelLeftClose,
   Pencil,
@@ -30,10 +31,25 @@ import { cn } from "@/lib/utils";
 import { useScheduledOutputs } from "@/lib/inbox";
 import { MorningReportDialog } from "@/components/MorningReportDialog";
 import { ConfirmDialog } from "@/components/ui/confirm";
-import { api } from "@/lib/api";
+import { api, searchHistory } from "@/lib/api";
+import type { HistoryHit } from "@/lib/api";
 import type { SessionItem } from "@/lib/types";
 
 type Bucket = "today" | "week" | "older";
+
+function HitSnippet({ text, q }: { text: string; q: string }) {
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="rounded bg-primary/15 px-0.5 text-foreground">
+        {text.slice(idx, idx + q.length)}
+      </mark>
+      {text.slice(idx + q.length)}
+    </>
+  );
+}
 
 function timeBucket(iso: string): Bucket {
   const ts = new Date(iso).getTime();
@@ -50,6 +66,7 @@ export function SessionSidebar({
   onOpenOverview,
   activeView,
   onSelect,
+  onSelectRun,
   onNew,
   onDelete,
   onRename,
@@ -66,6 +83,8 @@ export function SessionSidebar({
   /** 当前主区视图：chat 或某个财务页 */
   activeView: string;
   onSelect: (threadId: string | null) => void;
+  /** 命中历史消息：切到该会话并定位到具体一轮回答 */
+  onSelectRun: (threadId: string, runId: number) => void;
   onNew: () => void;
   onDelete: (id: number, threadId: string) => void;
   onRename: (id: number, title: string) => void;
@@ -81,6 +100,9 @@ export function SessionSidebar({
   const [editTitle, setEditTitle] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [hits, setHits] = useState<HistoryHit[]>([]);
+  const [hitsPending, setHitsPending] = useState(false);
+  const [hitsFailed, setHitsFailed] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -92,6 +114,40 @@ export function SessionSidebar({
   useEffect(() => {
     if (searchOpen) searchRef.current?.focus();
   }, [searchOpen]);
+
+  // 搜索不再只过滤标题：停手 300ms 后向历史接口查问答正文，命中片段随结果返回。
+  useEffect(() => {
+    const query = q.trim();
+    if (!query) {
+      setHits([]);
+      setHitsPending(false);
+      setHitsFailed(false);
+      return;
+    }
+    let alive = true;
+    setHits([]);
+    setHitsPending(true);
+    setHitsFailed(false);
+    const timer = window.setTimeout(() => {
+      void searchHistory(query, 20)
+        .then((rows) => {
+          if (!alive) return;
+          setHits(rows);
+        })
+        .catch(() => {
+          if (!alive) return;
+          setHits([]);
+          setHitsFailed(true);
+        })
+        .finally(() => {
+          if (alive) setHitsPending(false);
+        });
+    }, 300);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [q]);
 
   const kw = q.trim().toLowerCase();
   const visible = sessions.filter((s) => !s.archived);
@@ -443,6 +499,64 @@ export function SessionSidebar({
       </div>
 
       <div className="mt-2 min-h-0 flex-1 overflow-y-auto scroll-thin px-2 pb-2">
+        {kw && (hitsPending || hits.length > 0 || hitsFailed) && (
+          <section className="mb-2">
+            <h2 className="flex items-center gap-1.5 px-2 pb-1 pt-2 text-[11.5px] font-medium text-muted-foreground">
+              {t("sidebar.messageHits")}
+              {hitsPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : hits.length > 0 ? (
+                <span className="tabular-nums">{hits.length}</span>
+              ) : null}
+            </h2>
+            {hitsFailed && hits.length === 0 ? (
+              <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
+                {t("sidebar.searchFailed")}
+              </p>
+            ) : null}
+            <div className="space-y-px">
+              {hits.map((hit) => (
+                <button
+                  key={hit.id}
+                  type="button"
+                  onClick={() => {
+                    setQ("");
+                    setSearchOpen(false);
+                    onSelectRun(hit.thread_id, hit.id);
+                  }}
+                  className="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.06]"
+                >
+                  <div className="flex min-w-0 items-center gap-1.5 text-[10.5px] text-muted-foreground">
+                    <span
+                      className={cn(
+                        "shrink-0 rounded px-1 py-px text-[9.5px] font-medium",
+                        hit.role === "question"
+                          ? "bg-primary/10 text-primary"
+                          : "bg-foreground/[0.07] text-foreground/70",
+                      )}
+                    >
+                      {hit.role === "question" ? t("sidebar.hitYou") : t("sidebar.hitAi")}
+                    </span>
+                    <span className="truncate font-medium text-foreground/80">
+                      {hit.session_title || t("sidebar.untitledSession")}
+                    </span>
+                    {hit.archived && (
+                      <span className="shrink-0 rounded bg-foreground/[0.05] px-1 py-px">
+                        {t("sidebar.archivedTag")}
+                      </span>
+                    )}
+                    <span className="ml-auto shrink-0 tabular-nums">
+                      {hit.created_at.slice(5, 10)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">
+                    <HitSnippet text={hit.snippet} q={q.trim()} />
+                  </p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
         {pinnedItems.length > 0 && (
           <section className="mb-1">
             <h2 className="px-2 pb-1 pt-3 text-[11.5px] font-medium text-muted-foreground">
@@ -451,7 +565,7 @@ export function SessionSidebar({
             <div className="space-y-px">{pinnedItems.map(renderSession)}</div>
           </section>
         )}
-        {filtered.length === 0 && pinnedItems.length === 0 ? (
+        {filtered.length === 0 && pinnedItems.length === 0 && hits.length === 0 && !hitsPending ? (
           <div className="px-2 py-10 text-center text-xs leading-relaxed text-muted-foreground">
             <MessageCircle className="mx-auto mb-2 h-4 w-4 opacity-50" />
             {kw ? t("sidebar.noMatch") : t("sidebar.noSessions")}

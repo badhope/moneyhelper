@@ -170,7 +170,7 @@ async def search_runs(q: str, limit: int = 50) -> list[dict[str, Any]]:
     esc = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     kw = f"%{esc}%"
     rows = await fetch_all(
-        "SELECT r.*, s.title AS session_title"
+        "SELECT r.*, s.title AS session_title, s.archived AS session_archived"
         " FROM runs r LEFT JOIN sessions s"
         "   ON s.thread_id = r.thread_id AND s.user_id = r.user_id"
         " WHERE r.user_id=? AND (r.question LIKE ? ESCAPE '\\' OR r.answer LIKE ? ESCAPE '\\')"
