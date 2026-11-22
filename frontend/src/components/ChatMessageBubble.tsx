@@ -16,7 +16,7 @@ import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
 import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import {
-  Check, ChevronDown, ChevronUp, Copy, Download, GitBranch, Link2, Loader2, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
+  Check, ChevronDown, ChevronUp, Copy, Download, GitBranch, Link2, Loader2, Pencil, RotateCcw, Sparkles, Volume2, VolumeX, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/clipboard";
 import { Badge } from "@/components/ui/badge";
@@ -300,6 +300,10 @@ interface BubbleProps {
   onFork: (msg: ChatMessage) => void;
   /** 复制这条回答的深链（其他窗口/手机可直达） */
   onCopyLink: (msg: ChatMessage) => void;
+  /** 用户消息对应的后端 run id（编辑并重发时截断用） */
+  turnRunId?: number;
+  /** 编辑用户消息并重发 */
+  onEdit?: (msg: ChatMessage, text: string, runId: number) => void;
   onDecidePending: (msg: ChatMessage, decision: "confirm" | "cancel") => void;
 }
 
@@ -316,10 +320,14 @@ function BubbleInner({
   onExport,
   onFork,
   onCopyLink,
+  turnRunId,
+  onEdit,
   onDecidePending,
 }: BubbleProps) {
   const { t: tr, lang } = useI18n();
   const speech = useSpeech();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
   const spokenRef = useState<{ text: string }>({ text: "" })[0];
   useEffect(() => {
     if (!voiceOn || m.role !== "assistant" || streaming || !m.text) return;
@@ -330,11 +338,62 @@ function BubbleInner({
   const assistantName = lang === "en" ? BRAND.en : BRAND.name;
 
   if (m.role === "user") {
+    const canEdit = Boolean(onEdit && turnRunId && !busy);
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-3xl rounded-br-lg bg-muted px-4 py-2.5 text-[15.5px] leading-relaxed text-foreground whitespace-pre-wrap break-words">
-          {m.text}
-        </div>
+      <div className="group/user flex flex-col items-end">
+        {editing ? (
+          <div className="w-full max-w-[85%] rounded-2xl border border-border bg-card p-2 shadow-sm">
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={Math.min(8, Math.max(2, draft.split("\n").length))}
+              className="w-full resize-none rounded-lg bg-transparent px-2 py-1.5 text-[15px] leading-relaxed outline-none"
+            />
+            <div className="mt-1 flex justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:bg-accent"
+              >
+                {tr("chat.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = draft.trim();
+                  setEditing(false);
+                  if (next && next !== m.text) onEdit?.(m, next, turnRunId!);
+                }}
+                disabled={!draft.trim()}
+                className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-40"
+              >
+                {tr("chat.saveAndSend")}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-[85%] rounded-3xl rounded-br-lg bg-muted px-4 py-2.5 text-[15.5px] leading-relaxed text-foreground whitespace-pre-wrap break-words">
+            {m.text}
+          </div>
+        )}
+        {!editing && canEdit && (
+          <div className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/user:opacity-100 max-sm:opacity-70">
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(m.text);
+                setEditing(true);
+              }}
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label={tr("chat.edit")}
+              title={tr("chat.editHint")}
+            >
+              <Pencil className="h-3 w-3" />
+              {tr("chat.edit")}
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -605,7 +664,12 @@ const BUBBLE_ARE_EQUAL = (prev: BubbleProps, next: BubbleProps): boolean =>
   prev.streaming === next.streaming &&
   prev.showSteps === next.showSteps &&
   prev.exportOn === next.exportOn &&
-  prev.onNavigate === next.onNavigate;
+  prev.voiceOn === next.voiceOn &&
+  prev.onNavigate === next.onNavigate &&
+  // 编辑入口依赖“配对的 runId”和回调：这两项首帧可能还没有，
+  // 漏比会让按钮永远不出现（比多渲染几次更糟）
+  prev.turnRunId === next.turnRunId &&
+  prev.onEdit === next.onEdit;
 
 export const ChatMessageBubble = memo(BubbleInner, BUBBLE_ARE_EQUAL);
 ChatMessageBubble.displayName = "ChatMessageBubble";

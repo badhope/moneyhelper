@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiStream, deleteAttachment, saveBlob, uploadAttachment } from "@/lib/api";
+import { api, apiStream, deleteAttachment, saveBlob, uploadAttachment } from "@/lib/api";
 import { useStreamingMutate } from "@/lib/use-streaming-mutate";
 import { store, useDashboard, useBootstrap, useSessionUsage } from "@/lib/store";
 import { BRAND } from "@/lib/brand";
@@ -211,6 +211,26 @@ export function useChatView({
     if (reply) setMessages((prev) => [...prev, reply]);
   };
 
+  /** 编辑用户消息并重发：先截断该轮及之后的历史，再用新问题重新提问。 */
+  const editAndResend = async (m: ChatMessage, text: string, runId: number) => {
+    const q = text.trim();
+    if (!q || stream.isPending) return;
+    try {
+      await api("/api/history/truncate", {
+        method: "POST",
+        body: JSON.stringify({ thread_id: threadId, run_id: runId }),
+      });
+    } catch {
+      toast(tr("chat.editFailed"), "error");
+      return;
+    }
+    setMessages((prev) => {
+      const idx = prev.findIndex((x) => x.id === m.id);
+      return idx >= 0 ? prev.slice(0, idx) : prev;
+    });
+    await sendRef.current(q);
+  };
+
   // 稳定化回调
   const sendRef = useRef(send); sendRef.current = send;
   const exportRef = useRef(exportAnswer); exportRef.current = exportAnswer;
@@ -227,6 +247,11 @@ export function useChatView({
 
   const stableSend = useCallback(
     (text: string, opts?: { regenerate?: boolean }) => sendRef.current(text, opts),
+    [],
+  );
+  const editRef = useRef(editAndResend); editRef.current = editAndResend;
+  const stableEdit = useCallback(
+    (m: ChatMessage, text: string, runId: number) => editRef.current(m, text, runId),
     [],
   );
   const stableRegenerate = useCallback(
@@ -294,7 +319,7 @@ export function useChatView({
     // stream
     stream, streamingMsg, finishedMessages, panelMsg,
     // callbacks
-    send, stableSend, stableRegenerate, stableExport, stableDecide,
+    send, stableSend, stableEdit, stableRegenerate, stableExport, stableDecide,
     stableToggleVoice, stableToggleSteps, stableToggleSessions,
     stableCloseSessions, stableSendInput, stableStop,
     bubbleCallbacks, listening, scrollNow,

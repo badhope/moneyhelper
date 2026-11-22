@@ -1297,6 +1297,32 @@ async def test_sessions_lifecycle(client) -> None:
     assert runs == []
 
 
+async def test_history_truncate_from_run(client) -> None:
+    """编辑并重发：从指定轮次截断，只留之前的历史。"""
+    tid = "truncate-1"
+    for q in ("第一问", "第二问"):
+        async with client.stream(
+            "POST", "/api/ask", json={"question": q, "thread_id": tid}
+        ) as resp:
+            await resp.aread()
+    runs = (await client.get(f"/api/history?thread_id={tid}")).json()["runs"]
+    assert len(runs) == 2
+    first_id = min(r["id"] for r in runs)
+
+    r = await client.post(
+        "/api/history/truncate", json={"thread_id": tid, "run_id": first_id}
+    )
+    assert r.status_code == 200
+    assert r.json()["deleted"] == 2
+    assert (await client.get(f"/api/history?thread_id={tid}")).json()["runs"] == []
+
+    # 不属于该会话的 run 不能拿来截断
+    r = await client.post(
+        "/api/history/truncate", json={"thread_id": tid, "run_id": first_id}
+    )
+    assert r.status_code == 404
+
+
 async def test_history_search_delete_clear(client) -> None:
     """全局历史：搜索（跨会话）、单条删除、清空全部。"""
     async with client.stream(

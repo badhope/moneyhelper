@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import { ArrowDown, BarChart3, Clock3, CreditCard, Download, Gauge, Sparkles, Trash2, Wallet, type LucideIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, BarChart3, Clock3, CreditCard, Download, Gauge, Search, Sparkles, Trash2, Wallet, X, type LucideIcon } from "lucide-react";
 import { useBootstrap, useDashboard, store } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { api, saveBlob } from "@/lib/api";
@@ -12,6 +12,15 @@ import { ChatMessageBubble } from "@/components/ChatMessageBubble";
 import { FinishedMessages } from "@/components/FinishedMessages";
 import { useChatView } from "@/components/chat-view-state";
 import { useToast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
+
+/** 搜索命中：把关键词附近 60 字截出来，避免结果行被超长回答撑爆。 */
+function snippet(text: string, q: string): string {
+  const lower = text.toLowerCase();
+  const i = lower.indexOf(q.trim().toLowerCase());
+  if (i < 0) return text.slice(0, 80);
+  return `${i > 24 ? "…" : ""}${text.slice(Math.max(0, i - 24), i + 56)}${i + 56 < text.length ? "…" : ""}`;
+}
 
 /** 空态示例：4 个真实可执行的起点，带图标走"建议卡"而不是零散胶囊。 */
 const SUGGESTIONS = [
@@ -50,13 +59,16 @@ export function ChatView({
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQ, setFindQ] = useState("");
+  const findInputRef = useRef<HTMLInputElement>(null);
 
   const {
     messages, input, setInput, attachments,
     showSteps, exportOn, scrolledUp, handleListScroll,
     voiceOn, voiceOutputOn, suggestions, hasData, webSearch, setWebSearch,
     stream, streamingMsg, finishedMessages,
-    bubbleCallbacks, listening, scrollNow,
+    bubbleCallbacks, listening, scrollNow, stableEdit,
     stableSend, stableSendInput, stableStop, stableToggleVoice,
     uploadAttachment, removeAttachment, refreshBootstrap,
     usage,
@@ -76,6 +88,37 @@ export function ChatView({
       toast(tr("chat.error"), "error");
     }
   };
+
+  const findResults = useMemo(() => {
+    const q = findQ.trim().toLowerCase();
+    if (!q) return [];
+    return messages
+      .filter((m) => (m.text || "").toLowerCase().includes(q))
+      .slice(-20)
+      .reverse();
+  }, [messages, findQ]);
+
+  const jumpToMessage = (id: number) => {
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-msg-id="${id}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("locate-flash");
+    window.setTimeout(() => el.classList.remove("locate-flash"), 1800);
+    setFindOpen(false);
+    setFindQ("");
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setFindOpen(true);
+        window.setTimeout(() => findInputRef.current?.focus(), 0);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const copyMessageLink = (m: ChatMessage) => {
     if (!m.runId) return;
@@ -165,6 +208,20 @@ export function ChatView({
                   {messages.length > 0 && (
                     <button
                       type="button"
+                      onClick={() => {
+                        setFindOpen((v) => !v);
+                        if (!findOpen) window.setTimeout(() => findInputRef.current?.focus(), 0);
+                      }}
+                      aria-label={tr("chat.findInChat")}
+                      title={`${tr("chat.findInChat")} · Ctrl+F`}
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                      <Search className="h-3 w-3" />
+                    </button>
+                  )}
+                  {messages.length > 0 && (
+                    <button
+                      type="button"
                       onClick={exportConversation}
                       aria-label={tr("chat.exportSession")}
                       title={tr("chat.exportSession")}
@@ -186,6 +243,68 @@ export function ChatView({
                       <span className="sm:hidden">{tr("chat.deleteShort")}</span>
 <span className="hidden sm:inline">{tr("chat.deleteChat")}</span>
                     </button>
+                  )}
+                  {findOpen && (
+                    <div className="relative order-last w-full pt-1">
+                      <div className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1">
+                        <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <input
+                          ref={findInputRef}
+                          value={findQ}
+                          onChange={(e) => setFindQ(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setFindOpen(false);
+                              setFindQ("");
+                            }
+                            if (e.key === "Enter" && findResults[0]) jumpToMessage(findResults[0].id);
+                          }}
+                          placeholder={tr("chat.findPh")}
+                          className="h-6 min-w-0 flex-1 bg-transparent text-xs outline-none"
+                        />
+                        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                          {findQ.trim() ? findResults.length : ""}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { setFindOpen(false); setFindQ(""); }}
+                          aria-label={tr("chat.cancel")}
+                          className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                      {findQ.trim() && (
+                        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-border bg-background py-1 shadow-lg scroll-thin">
+                          {findResults.length === 0 ? (
+                            <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+                              {tr("chat.findNoMatch")}
+                            </p>
+                          ) : (
+                            findResults.map((m) => (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => jumpToMessage(m.id)}
+                                className="flex w-full items-start gap-2 px-2.5 py-1.5 text-left hover:bg-accent"
+                              >
+                                <span className={cn(
+                                  "mt-0.5 shrink-0 rounded px-1 py-0.5 text-[9.5px]",
+                                  m.role === "user"
+                                    ? "bg-muted text-muted-foreground"
+                                    : "bg-primary/10 text-primary",
+                                )}>
+                                  {m.role === "user" ? tr("chat.you") : "MH"}
+                                </span>
+                                <span className="line-clamp-2 min-w-0 text-[11.5px] leading-relaxed text-foreground/80">
+                                  {snippet(m.text, findQ)}
+                                </span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -229,6 +348,7 @@ export function ChatView({
                     onNavigate={onNavigate}
                     onFork={forkMessage}
                     onCopyLink={copyMessageLink}
+                    onEdit={stableEdit}
                     {...bubbleCallbacks}
                   />
                   {streamingMsg && (

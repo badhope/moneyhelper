@@ -24,6 +24,7 @@ from .history_runs import (  # noqa: F401,E402
     clear_history,
     delete_last_run,
     delete_run,
+    delete_runs_from,
     list_runs,
     list_scheduled_runs,
     save_run,

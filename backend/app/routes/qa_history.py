@@ -25,6 +25,19 @@ async def history(thread_id: str | None = None, limit: int = 50, q: str = "") ->
 async def delete_run(run_id: int) -> dict:
     return await db.delete_run(run_id)
 
+@router.post("/api/history/truncate")
+async def truncate_history(payload: dict) -> dict:
+    """从某一轮开始截断（编辑并重发）：该轮及之后全部删除。"""
+    thread_id = str(payload.get("thread_id") or "").strip()
+    run_id = payload.get("run_id")
+    if not thread_id or run_id is None:
+        return JSONResponse({"error": "缺少 thread_id 或 run_id"}, status_code=400)
+    try:
+        return await db.delete_runs_from(thread_id, int(run_id))
+    except (TypeError, ValueError) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+
+
 @router.post("/api/history/clear")
 async def clear_history() -> dict:
     return await db.clear_history()

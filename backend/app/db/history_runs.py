@@ -179,6 +179,28 @@ async def search_runs(q: str, limit: int = 50) -> list[dict[str, Any]]:
     )
     return [_hydrate_run(r) for r in rows]
 
+async def delete_runs_from(thread_id: str, run_id: int) -> dict[str, Any]:
+    """删掉指定 run 及其之后的所有轮次（编辑并重发用）。
+
+    只允许删除该 thread 自己的 run；不按时间猜、不跨会话删。删除后由调用方
+    用同一 thread 重新提问，保证「编辑第 N 轮」等于把第 N 轮之后的历史截断。
+    """
+    conn = await _conn()
+    cur = await conn.execute(
+        "SELECT id FROM runs WHERE user_id=? AND thread_id=? AND id=?",
+        (current_user_id(), thread_id, int(run_id)),
+    )
+    row = await cur.fetchone()
+    if not row:
+        raise ValueError("该轮次不属于当前会话")
+    cur = await conn.execute(
+        "DELETE FROM runs WHERE user_id=? AND thread_id=? AND id>=?",
+        (current_user_id(), thread_id, int(run_id)),
+    )
+    await conn.commit()
+    return {"ok": True, "deleted": cur.rowcount or 0}
+
+
 async def delete_run(run_id: int) -> dict[str, Any]:
     """删除单条历史问答记录。"""
     conn = await _conn()
