@@ -14,6 +14,7 @@ from ._core import (
     get_write_lock,
 )
 from .tenant import current_user_id
+from ..attachment_text import CONTENT_MAX_CHARS
 
 # --------------------------------------------------------------------------
 # 审计日志（P2 金融级治理）
@@ -216,7 +217,8 @@ async def verify_audit_chain(user_id: int | None = None) -> dict[str, Any]:
 async def list_attachments(limit: int = 50) -> list[dict[str, Any]]:
     rows = await fetch_all(
         "SELECT id, filename, kind, mime, size, indexed, created_at,"
-        " CASE WHEN data IS NOT NULL AND data <> '' THEN 1 ELSE 0 END AS has_data"
+        " CASE WHEN data IS NOT NULL AND data <> '' THEN 1 ELSE 0 END AS has_data,"
+        " CASE WHEN content IS NOT NULL AND content <> '' THEN 1 ELSE 0 END AS has_text"
         " FROM attachments WHERE user_id=? ORDER BY id DESC LIMIT ?",
         (current_user_id(), _clamp_limit(limit)),
     )
@@ -247,7 +249,7 @@ async def search_attachments(q: str, limit: int = 30) -> list[dict[str, Any]]:
             idx = content.lower().find(needle_lower)
             if idx < 0:
                 continue
-            start = max(0, idx - 30)
+            start = max(0, idx - 40)
             end = min(len(content), idx + len(query) + 60)
             # 文件正文里的换行会撑破两行片段，压成单行空白
             snippet = " ".join(content[start:end].split())
@@ -261,6 +263,7 @@ async def search_attachments(q: str, limit: int = 30) -> list[dict[str, Any]]:
             row["snippet"] = ""
             row["match"] = "filename"
         row["has_data"] = bool(row.get("has_data"))
+        row["has_text"] = bool(content)
         out.append(row)
     return out
 
@@ -305,7 +308,7 @@ async def add_attachment(
             str(filename)[:200],
             str(kind)[:20] or "text",
             int(size or 0),
-            content[:6000],
+            content[:CONTENT_MAX_CHARS],
             str(mime)[:80],
             data_b64,
             now,
@@ -317,9 +320,14 @@ async def add_attachment(
 
 
 async def add_binary_attachment(
-    filename: str, kind: str, size: int, mime: str, data_b64: str
+    filename: str,
+    kind: str,
+    size: int,
+    mime: str,
+    data_b64: str,
+    content: str = "",
 ) -> dict[str, Any]:
-    """图片/PDF：正文为空，原始字节以 base64 存在 data；不参与知识库检索。"""
+    """图片/PDF：原始字节以 base64 存在 data；PDF 可带抽取出的文本层正文。"""
     conn = await _conn()
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     cur = await conn.execute(
@@ -330,7 +338,7 @@ async def add_binary_attachment(
             str(filename)[:200],
             str(kind)[:20] or "file",
             int(size or 0),
-            "",
+            str(content or "")[:CONTENT_MAX_CHARS],
             str(mime)[:80],
             data_b64,
             now,

@@ -18,7 +18,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "moneyhelper"
-version = "4.16.36"
+version = "4.16.37"
 description = "Moneyhelper —— 面向个人与小微公司的 AI 财务部门（记账/投研/财报/税负/资金调度，数字可复核、操作可审计、MCP 开放）"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -51,6 +51,7 @@ dependencies = [
   "pyxirr>=0.10,<1",
   "python-multipart>=0.0.9,<1",
   "qrcode>=7.4,<9",  # 远程控制二维码（SVG，不依赖 pillow）
+  "pypdf>=4.0,<6",  # PDF 文本层：附件正文检索与知识库入库
 ]
 
 [project.optional-dependencies]
@@ -72,7 +73,6 @@ vision = [
   "opencv-python-headless>=4.9",   # 发票二维码解码（最准，优先）
   "pillow>=10.0",                  # 图片读取（OCR/预览）
   "pdfplumber>=0.11",              # PDF 表格对账单
-  "pypdf>=4.0",                    # PDF 文本层（发票）
 ]
 ocr = [
   "rapidocr-onnxruntime>=1.3",     # 离线 OCR，体积小，优先

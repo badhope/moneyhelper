@@ -247,11 +247,22 @@ export function PreviewPane({
               />
             </div>
           ) : isPdf ? (
-            <iframe
-              title={selected.filename}
-              src={rawUrl}
-              className="h-[68vh] w-full rounded-lg border border-border bg-white"
-            />
+            <div className="space-y-2">
+              {content.trim() ? (
+                <p className="rounded-md bg-emerald-500/10 px-2 py-1.5 text-[10.5px] text-emerald-700 dark:text-emerald-400">
+                  {t("workbench.pdfTextReady", { n: content.length })}
+                </p>
+              ) : (
+                <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[10.5px] text-amber-700 dark:text-amber-400">
+                  {t("workbench.pdfNoText")}
+                </p>
+              )}
+              <iframe
+                title={selected.filename}
+                src={rawUrl}
+                className="h-[68vh] w-full rounded-lg border border-border bg-white"
+              />
+            </div>
           ) : (
             <p className="py-10 text-center text-xs text-muted-foreground">{t("workbench.previewEmpty")}</p>
           )

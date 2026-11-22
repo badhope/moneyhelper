@@ -11,8 +11,10 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
+from starlette.concurrency import run_in_threadpool
 
 from .. import db
+from ..attachment_text import CONTENT_MAX_CHARS, extract_pdf_text
 
 router = APIRouter()
 
@@ -56,6 +58,7 @@ async def attachments(limit: int = 50) -> dict:
     items = await db.list_attachments(limit)
     for item in items:
         item["has_data"] = bool(item.get("has_data"))
+        item["has_text"] = bool(item.get("has_text"))
     return {"attachments": items}
 
 
@@ -71,8 +74,9 @@ async def search_attachments(q: str = "", limit: int = 30) -> dict:
 async def upload_attachment(request: Request) -> dict:
     """上传附件（multipart/form-data，字段 file）。
 
-    文本 / CSV 提取正文；PNG/JPG/WEBP/GIF/PDF 原样存 base64，供工作台预览与下载。
-    二进制附件不参与知识库检索（content 为空），避免把 base64 当正文喂给模型。
+    文本 / CSV 提取正文；PDF 抽取文本层，扫描件则保留空正文并给出说明；
+    PNG/JPG/WEBP/GIF/PDF 原始字节仍存 base64，供工作台预览与下载。
+    图片不参与知识库检索，避免把 base64 当正文喂给模型。
     """
     content_type = (request.headers.get("content-type") or "").lower()
     if not content_type.startswith("multipart/form-data"):
@@ -106,13 +110,20 @@ async def upload_attachment(request: Request) -> dict:
                 status_code=415,
             )
         kind = "pdf" if ext == ".pdf" else "image"
-        return await db.add_binary_attachment(
+        text = ""
+        text_note = ""
+        if kind == "pdf":
+            # pypdf 是同步 CPU 活；放线程池，别让一份 8MB 合同卡住整条事件循环
+            text, text_note = await run_in_threadpool(extract_pdf_text, raw, CONTENT_MAX_CHARS)
+        saved = await db.add_binary_attachment(
             filename,
             kind,
             size,
             BINARY_TYPES[ext],
             base64.b64encode(raw).decode("ascii"),
+            content=text,
         )
+        return {**saved, "text_extracted": bool(text), "text_note": text_note}
 
     raw = await upload.read(MAX_TEXT_UPLOAD_BYTES + 1)
     size = len(raw)
@@ -190,6 +201,15 @@ async def attachment_raw(att_id: int) -> Response:
 async def index_attachment(att_id: int, payload: dict | None = None) -> dict:
     """把附件加入/移出知识库。加入后问答时会按 BM25 检索其片段。"""
     indexed = True if payload is None else bool((payload or {}).get("indexed", True))
+    if indexed:
+        row = await db.get_attachment(att_id)
+        if not row:
+            return JSONResponse({"error": "附件不存在"}, status_code=404)
+        if not str(row.get("content") or "").strip():
+            return JSONResponse(
+                {"error": "该附件没有可检索正文，无法加入知识库（扫描件请先做图片识别）"},
+                status_code=400,
+            )
     try:
         return await db.set_attachment_indexed(att_id, indexed)
     except ValueError as exc:

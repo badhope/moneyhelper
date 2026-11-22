@@ -2,6 +2,30 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.37] - 2026-11-22（PDF 的正文，终于能搜了）
+
+### 新增
+
+- **PDF 文本层抽取**：上传 PDF 时用 `pypdf` 读取有文字层的电子文档，前 40 页、最多 6000 字进入正文。工作台搜索、预览状态和知识库都开始认 PDF 里的句子，而不只是文件名。
+- **扫描件不装成功**：加密、损坏或没有文字层的 PDF 仍可正常保存和预览，但正文为空，界面明确提示「可能是扫描件」；不再把空文档伪装成已入库。
+- **知识库收 PDF**：知识库上传入口支持 `.pdf`，有正文的 PDF 会自动入库；没有正文的文件显示「无可检索正文」，按钮不可点，接口也会拒绝入库。
+- **抽取不堵上传**：PDF 解析放进线程池，单页字体或编码异常不会拖垮整份文件；原始 PDF 字节仍完整保存，下载拿到的还是原文件。
+
+### 变更
+
+- `pypdf` 从可选 `vision` 依赖移入核心依赖，常规安装即可抽取 PDF 文本；`pdfplumber` 仍只用于对账单表格。
+
+### 边界
+
+- 扫描件 PDF 不在上传时自动 OCR，只能按文件名搜；需要正文时先走图片识别。
+- PDF 正文与文本附件一样只保留前 6000 字，用于搜索、预览和 BM25 切块。
+
+### 截图
+
+- `docs/screenshots/108-workbench-pdf-content-search.png`。
+- `docs/screenshots/109-workbench-pdf-text-preview.png`。
+- `docs/screenshots/110-knowledge-pdf-indexed.png`。
+
 ## [4.16.36] - 2026-11-22（工作台搜索开始读正文）
 
 ### 新增

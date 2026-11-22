@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import re
 from datetime import datetime
@@ -1382,6 +1383,64 @@ async def test_attachment_search_filename_and_content(client) -> None:
     # 通配符按字面处理，不把所有文件都搜出来
     assert (await client.get("/api/attachments/search?q=%25")).json()["results"] == []
 
+    await client.delete(f"/api/attachments/{aid}")
+
+
+async def test_attachment_pdf_text_search_and_index(client) -> None:
+    """PDF 文本层：上传后能预览正文、按正文搜到，并可加入知识库。"""
+    try:
+        from reportlab.pdfgen import canvas  # type: ignore
+    except ImportError:
+        pytest.skip("未安装 reportlab，跳过 PDF 生成")
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf)
+    c.drawString(72, 760, "2026 dividend memo")
+    c.drawString(72, 740, "cash yield 4.2 percent; payout date 2026-12-20")
+    c.save()
+    pdf = buf.getvalue()
+
+    up = await client.post(
+        "/api/attachments",
+        files={"file": ("分红说明.pdf", pdf, "application/pdf")},
+    )
+    assert up.status_code == 200, up.text
+    body = up.json()
+    assert body["text_extracted"] is True
+    aid = body["id"]
+
+    detail = (await client.get(f"/api/attachments/{aid}")).json()
+    assert "dividend" in detail["content"]
+    assert len(detail["content"]) <= 6000
+
+    hits = (await client.get("/api/attachments/search?q=dividend")).json()["results"]
+    assert hits and hits[0]["id"] == aid
+    assert hits[0]["match"] == "content"
+    assert "dividend" in hits[0]["snippet"]
+
+    listed = (await client.get("/api/attachments")).json()["attachments"]
+    assert next(a for a in listed if a["id"] == aid)["has_text"] is True
+
+    indexed = await client.post(f"/api/attachments/{aid}/index", json={"indexed": True})
+    assert indexed.status_code == 200 and indexed.json()["indexed"] is True
+
+    raw = await client.get(f"/api/attachments/{aid}/raw")
+    assert raw.content == pdf
+    await client.delete(f"/api/attachments/{aid}")
+
+
+async def test_attachment_without_text_cannot_index(client) -> None:
+    """扫描件/损坏 PDF 没有正文时，别把它伪装成已入库。"""
+    fake = b"%PDF-1.4\n% fake pdf body\n"
+    up = await client.post(
+        "/api/attachments", files={"file": ("scan.pdf", fake, "application/pdf")}
+    )
+    assert up.status_code == 200, up.text
+    aid = up.json()["id"]
+    assert up.json()["text_extracted"] is False
+    assert up.json()["text_note"]
+    idx = await client.post(f"/api/attachments/{aid}/index", json={"indexed": True})
+    assert idx.status_code == 400
+    assert "没有可检索正文" in idx.json()["error"]
     await client.delete(f"/api/attachments/{aid}")
 
 

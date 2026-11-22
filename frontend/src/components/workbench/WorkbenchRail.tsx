@@ -126,8 +126,15 @@ export function WorkbenchRail({
         setSelectedId(latest.id);
         setTab("preview");
       }
-      if (ok.length === 1) toast(t("workbench.uploaded", { name: ok[0].file.name }), "ok");
-      else if (ok.length > 1) toast(t("workbench.uploadedMany", { n: ok.length }), "ok");
+      const noText = ok.filter((item) => item.result.text_extracted === false);
+      if (ok.length === 1 && noText.length === 1) {
+        toast(t("workbench.pdfNoText", { name: ok[0].file.name }), "error");
+      } else if (ok.length === 1) {
+        toast(t("workbench.uploaded", { name: ok[0].file.name }), "ok");
+      } else if (ok.length > 1) {
+        toast(t("workbench.uploadedMany", { n: ok.length }), "ok");
+        if (noText.length) toast(t("workbench.pdfNoTextMany", { n: noText.length }), "error");
+      }
       if (failed?.status === "rejected") toast(errMsg(failed.reason), "error");
     } finally {
       setUploading(false);

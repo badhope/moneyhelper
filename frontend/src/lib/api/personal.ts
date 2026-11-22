@@ -187,6 +187,8 @@ export interface AttachmentItem {
   indexed: number;
   /** 是否保留了原始字节；文本附件下载完整文件靠它 */
   has_data?: boolean;
+  /** 是否已有可检索正文；图片、扫描件为 false */
+  has_text?: boolean;
   created_at: string;
 }
 export interface AttachmentHit extends AttachmentItem {
@@ -215,7 +217,7 @@ export const searchAttachments = (q: string, limit = 30) => {
 export const uploadAttachment = (file: File) => {
   const fd = new FormData();
   fd.append("file", file);
-  return api<{ ok: boolean; id: number }>(
+  return api<{ ok: boolean; id: number; text_extracted?: boolean; text_note?: string }>(
     "/api/attachments",
     { method: "POST", body: fd },
     { timeoutMs: SLOW_REQUEST_TIMEOUT_MS },

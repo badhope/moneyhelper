@@ -38,6 +38,11 @@ export function KnowledgeSection() {
     try {
       // 复用 lib/api 的上传封装（原为手写 FormData，与 uploadAttachment 完全重复）
       const r = await uploadAttachment(file);
+      if (r.text_extracted === false) {
+        await refresh();
+        toast(t("knowledge.pdfNoText", { name: file.name }), "error");
+        return;
+      }
       // 上传即入库：用户来知识库页就是为了让文档可被检索
       if (r?.id)
         await api(
@@ -97,7 +102,7 @@ export function KnowledgeSection() {
             <input
               type="file"
               className="hidden"
-              accept=".txt,.md,.csv,.json,.log"
+              accept=".txt,.md,.csv,.json,.log,.pdf"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = "";
@@ -132,9 +137,13 @@ export function KnowledgeSection() {
                     {a.indexed ? ` · ${t("knowledge.indexed")}` : ` · ${t("knowledge.notIndexed")}`}
                   </div>
                 </div>
-                <Button size="sm" variant={a.indexed ? "default" : "outline"} className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void toggle(a)}>
-                  {a.indexed ? t("knowledge.removeFromIndex") : t("knowledge.addToIndex")}
-                </Button>
+                {a.has_text === false ? (
+                  <span className="shrink-0 text-[11px] text-muted-foreground">{t("knowledge.noText")}</span>
+                ) : (
+                  <Button size="sm" variant={a.indexed ? "default" : "outline"} className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void toggle(a)}>
+                    {a.indexed ? t("knowledge.removeFromIndex") : t("knowledge.addToIndex")}
+                  </Button>
+                )}
                 <button
                   type="button"
                   aria-label={t("knowledge.delete", { name: a.filename })}
