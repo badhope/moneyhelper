@@ -454,3 +454,10 @@ Studio 货架新增两条只读 MCP，任何用户打开「市场」都能看到
 - 分组导航点「接入」后主体切到「连接中心」，不再残留上一组的经营报表。
 - 截图：`docs/screenshots/71-research-error-retry.png`、`72-health-empty-actions.png`、
   `73-connect-group-nav.png`。
+
+## 行情可视化（4.16.22，浏览器实拍复核）
+
+- 接入 → 行情直连 → 全市场排行：涨幅榜由纯表格改为「名称 / 现价 / 成交额 + 0 轴涨跌幅横条」，
+  条长按当前榜单最大绝对值归一，红绿方向随涨跌配色设置。
+- 四大指数卡片下方增加相对强弱幅度条，四张卡可横向比较。
+- 截图：`docs/screenshots/74-market-change-bars.png`。

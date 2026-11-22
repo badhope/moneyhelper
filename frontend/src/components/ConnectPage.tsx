@@ -58,7 +58,6 @@ import {
   StockProfileCard,
 } from "@/components/ConnectDeepPanels";
 import { useI18n } from "@/lib/i18n";
-import { Table } from "@/components/ui/table";
 import { copyText } from "@/lib/clipboard";
 import { useToast } from "@/lib/toast";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
@@ -277,6 +276,53 @@ function IntentRow({
           </a>
         ) : null}
       </span>
+    </div>
+  );
+}
+
+/** 涨跌幅可视化：以 0 为中心向两侧生长的横条，长度按当前榜单最大绝对值归一。
+ *  表格只给数字，扫不出"谁强谁弱"；横条能让人在几秒内完成强弱排序感知。 */
+function MoverBars({ items }: { items: MoverItem[] }) {
+  const { t } = useI18n();
+  const maxAbs = Math.max(1, ...items.map((m) => Math.abs(m.change_pct ?? 0)));
+  return (
+    <div className="space-y-1">
+      {items.map((m) => {
+        const pct = m.change_pct ?? 0;
+        const width = Math.min(50, (Math.abs(pct) / maxAbs) * 50);
+        return (
+          <div
+            key={m.symbol}
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-1.5 py-1.5 transition-colors hover:bg-muted/30"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <span className={cn("h-7 w-1 shrink-0 rounded-full bg-current", pnlClass(pct))} />
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-baseline gap-1.5">
+                  <span className="truncate text-[12.5px] font-medium">{m.name}</span>
+                  <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{m.symbol}</span>
+                </div>
+                <div className="truncate text-[10.5px] text-muted-foreground">
+                  {t("connect.colPrice")} <span className="tabular-nums text-foreground/80">{m.price ?? "-"}</span>
+                  {m.amount != null && (
+                    <> · {t("connect.colAmount")} <span className="tabular-nums">{fmtMoney(m.amount, false, true)}</span></>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative h-2 w-16 overflow-hidden rounded-full bg-muted sm:w-32">
+                <span className="absolute inset-y-0 left-1/2 w-px bg-border" />
+                <span
+                  className={cn("absolute inset-y-0 rounded-full bg-current", pnlClass(pct))}
+                  style={{ left: pct >= 0 ? "50%" : undefined, right: pct < 0 ? "50%" : undefined, width: `${width}%` }}
+                />
+              </div>
+              <span className={cn("w-14 text-right text-[11.5px] tabular-nums", pnlClass(pct))}>{fmtPct(pct, true)}</span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -588,15 +634,22 @@ export function ConnectPage() {
               </div>
               {indicesQuery.data?.items?.length ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {indicesQuery.data.items.map((i) => (
-                    <div key={i.symbol} className="rounded-lg bg-muted/25 px-2.5 py-2">
-                      <div className="text-[11px] text-muted-foreground">{i.name}</div>
-                      <div className="mt-0.5 text-base font-bold tabular-nums">
-                        {i.price.toLocaleString(lang === "zh" ? "zh-CN" : "en-US", { maximumFractionDigits: 2 })}
+                  {indicesQuery.data.items.map((i) => {
+                    const pct = i.change_pct ?? 0;
+                    const idxMax = Math.max(1, ...indicesQuery.data.items.map((x) => Math.abs(x.change_pct ?? 0)));
+                    return (
+                      <div key={i.symbol} className="rounded-lg bg-muted/25 px-2.5 py-2">
+                        <div className="text-[11px] text-muted-foreground">{i.name}</div>
+                        <div className="mt-0.5 text-base font-bold tabular-nums">
+                          {i.price.toLocaleString(lang === "zh" ? "zh-CN" : "en-US", { maximumFractionDigits: 2 })}
+                        </div>
+                        <div className={cn("text-[11px] tabular-nums", pnlClass(pct))}>{fmtPct(pct, true)}</div>
+                        <div className={cn("mt-1.5 h-1 overflow-hidden rounded-full bg-muted", pnlClass(pct))}>
+                          <div className="h-full rounded-full bg-current" style={{ width: `${Math.min(100, (Math.abs(pct) / idxMax) * 100)}%` }} />
+                        </div>
                       </div>
-                      <div className={cn("text-[11px] tabular-nums", pnlClass(i.change_pct))}>{fmtPct(i.change_pct, true)}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <EmptyState mode="compact" text={indicesQuery.data?.note || t("connect.noData")} />
@@ -625,34 +678,7 @@ export function ConnectPage() {
               {moversQuery.isPending ? (
                 <Skeleton className="h-24 w-full" />
               ) : moversQuery.data?.items?.length ? (
-                <div className="overflow-x-auto scroll-thin">
-                  <Table size="xs" fixed>
-                    <thead>
-                      <tr className="text-left text-[11px] text-muted-foreground">
-                        <th className="w-[44%] py-1 pr-2 font-normal">{t("connect.colName")}</th>
-                        <th className="w-[24%] py-1 pr-2 font-normal">{t("connect.colPrice")}</th>
-                        <th className="w-[32%] py-1 pr-2 text-right font-normal">{t("connect.colChange")}</th>
-                        <th className="hidden py-1 text-right font-normal sm:table-cell">{t("connect.colAmount")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {moversQuery.data.items.map((m: MoverItem) => (
-                        <tr key={m.symbol} className="border-t border-border/40">
-                          <td className="min-w-0 py-1 pr-2">
-                            <span className="block truncate font-medium">{m.name}</span>
-                            <span className="block truncate text-[10.5px] text-muted-foreground">{m.symbol}</span>
-                          </td>
-                          <td className="py-1 pr-2 tabular-nums">{m.price ?? "-"}</td>
-                          <td className={cn("py-1 pr-2 text-right tabular-nums", pnlClass(m.change_pct))}>{fmtPct(m.change_pct, true)}</td>
-                          <td className="hidden py-1 text-right tabular-nums text-muted-foreground sm:table-cell">
-                            {/* amount 是元；compact 模式按语言转「亿/M」，先除再格式化会二次缩放（曾显示成 ¥3.51） */}
-                            {m.amount != null ? fmtMoney(m.amount, false, true) : "-"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </Table>
-                </div>
+                <MoverBars items={moversQuery.data.items} />
               ) : (
                 <EmptyState mode="compact" text={moversQuery.data?.note || t("connect.noData")} />
               )}
