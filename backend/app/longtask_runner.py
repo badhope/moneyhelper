@@ -35,6 +35,14 @@ def _stage_elapsed_ms(stage: dict[str, Any]) -> int:
         return 0
 
 
+def _validate_stage_index(task: dict[str, Any], stage_index: int) -> None:
+    stages = task.get("stages") or []
+    if stage_index < 0 or stage_index >= len(stages):
+        raise ValueError("阶段不存在")
+    if stages[stage_index].get("status") == "running":
+        raise ValueError("该阶段正在执行")
+
+
 def _mark_active_stages_cancelled(task: dict[str, Any], message: str) -> None:
     """取消时把正在跑的阶段也落成 cancelled。
 
@@ -49,20 +57,29 @@ def _mark_active_stages_cancelled(task: dict[str, Any], message: str) -> None:
             stage["finished_at"] = _now()
 
 
-async def start_task(task_id: str, *, max_stages: int | None = None) -> dict[str, Any]:
+async def start_task(
+    task_id: str,
+    *,
+    max_stages: int | None = None,
+    stage_index: int | None = None,
+) -> dict[str, Any]:
     """启动后台执行并立即返回当前快照，前端轮询进度。"""
     existing = _JOBS.get(task_id)
     if existing is not None and not existing.done():
         raise ValueError("任务正在执行")
     task = _read(task_id)
-    if task.get("status") == "done":
+    if task.get("status") == "done" and stage_index is None:
         raise ValueError("任务已完成")
+    if stage_index is not None:
+        _validate_stage_index(task, stage_index)
     # 后台启动必须在这里做前置校验：否则接口返回 200，错误只出现在后台日志，
     # 任务停在 pending/running，前端永远等不到失败原因。
     from . import llm
     if not await llm.llm_available():
         raise ValueError("尚未配置模型，无法执行长任务")
-    job = asyncio.create_task(run_task(task_id, max_stages=max_stages))
+    job = asyncio.create_task(
+        run_task(task_id, max_stages=max_stages, stage_index=stage_index)
+    )
     _JOBS[task_id] = job
 
     def _cleanup(done: asyncio.Task[Any]) -> None:
@@ -83,13 +100,20 @@ async def start_task(task_id: str, *, max_stages: int | None = None) -> dict[str
     return _read(task_id)
 
 
-async def run_task(task_id: str, *, max_stages: int | None = None) -> dict[str, Any]:
+async def run_task(
+    task_id: str, *, max_stages: int | None = None, stage_index: int | None = None
+) -> dict[str, Any]:
     """顺序执行未完成阶段。单阶段失败不中断后续（标记 failed 并继续）。"""
     current = asyncio.current_task()
+    existing = _JOBS.get(task_id)
+    if existing is not None and not existing.done() and existing is not current:
+        raise ValueError("任务正在执行")
     if current is not None:
         _JOBS[task_id] = current
     try:
-        return await _run_task_inner(task_id, max_stages=max_stages)
+        return await _run_task_inner(
+            task_id, max_stages=max_stages, stage_index=stage_index
+        )
     except asyncio.CancelledError:
         latest = _read(task_id)
         if latest.get("status") != "done":
@@ -103,24 +127,19 @@ async def run_task(task_id: str, *, max_stages: int | None = None) -> dict[str, 
             _JOBS.pop(task_id, None)
 
 
-async def _run_task_inner(task_id: str, *, max_stages: int | None = None) -> dict[str, Any]:
+async def _run_task_inner(
+    task_id: str, *, max_stages: int | None = None, stage_index: int | None = None
+) -> dict[str, Any]:
     """执行主体；由 run_task 包一层取消语义。"""
     from . import llm
 
     task = _read(task_id)
+    if stage_index is not None:
+        _validate_stage_index(task, stage_index)
     if task.get("status") == "running":
-        # 进程中断会留下 running 但无进展的任务；超过 10 分钟未更新视为僵死，
-        # 允许续跑（把卡住的阶段重置为 pending），否则任务永远无法恢复。
-        updated = str(task.get("updated_at") or "")
-        try:
-            stale = (
-                time.mktime(time.strptime(updated, "%Y-%m-%dT%H:%M:%S"))
-                < time.time() - 600
-            )
-        except ValueError:
-            stale = True
-        if not stale:
-            raise ValueError("任务正在执行")
+        # 能走到这里说明当前协程持有 _JOBS 执行权（run_task 已做并发守卫）。
+        # 磁盘上的 running 只可能是上次进程中断留下的僵死状态；无条件把
+        # running 阶段重置为 pending，不再用“10 分钟”猜是否还活着。
         for stage in task.get("stages") or []:
             if stage.get("status") == "running":
                 stage["status"] = "pending"
@@ -133,9 +152,18 @@ async def _run_task_inner(task_id: str, *, max_stages: int | None = None) -> dic
     _write(task)
 
     started = time.time()
-    limit = len(task["stages"]) if max_stages is None else min(max_stages, len(task["stages"]))
-    for stage in task["stages"][:limit]:
-        if stage["status"] == "done":
+    if stage_index is not None:
+        # 单阶段重跑只动目标阶段，前面已完成的产物仍作为上下文；后续阶段不重算。
+        stages_to_run = [task["stages"][stage_index]]
+    else:
+        limit = (
+            len(task["stages"])
+            if max_stages is None
+            else min(max_stages, len(task["stages"]))
+        )
+        stages_to_run = task["stages"][:limit]
+    for stage in stages_to_run:
+        if stage_index is None and stage["status"] == "done":
             continue
         if time.time() - started > MAX_TOTAL_SECONDS:
             stage["status"] = "skipped"
@@ -220,15 +248,24 @@ async def _run_task_inner(task_id: str, *, max_stages: int | None = None) -> dic
         _write(task)
 
     remaining = [s for s in task["stages"] if s["status"] in ("pending", "failed", "running")]
-    task["status"] = "failed" if any(s["status"] == "failed" for s in task["stages"]) else (
-        "running" if remaining else "done"
-    )
-    if not remaining:
+    if any(s["status"] == "failed" for s in task["stages"]):
+        task["status"] = "failed"
+    elif remaining:
+        # 执行器已经退出，不能再显示 running：否则前端以为后台还在跑，
+        # 会无限轮询；max_stages / 单阶段重跑后正确状态是 pending（待继续）。
+        task["status"] = "pending"
+    else:
         task["status"] = "done"
     task["updated_at"] = _now()
     _write(task)
     log.info("longtask.done id=%s status=%s", task_id, task["status"])
     return task
+
+
+def is_active(task_id: str) -> bool:
+    """该任务当前是否有后台协程在跑；供 API 区分“状态机 running”与“真在跑”。"""
+    job = _JOBS.get(task_id)
+    return job is not None and not job.done()
 
 
 def cancel_task(task_id: str) -> dict[str, Any]:

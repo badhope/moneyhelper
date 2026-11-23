@@ -19,6 +19,7 @@ __all__ = [
     "cancel_task",
     "create_task",
     "get_task",
+    "is_active",
     "list_tasks",
     "list_templates",
     "read_artifact",
@@ -30,6 +31,7 @@ from .longtask_runner import (  # noqa: F401,E402
     MAX_STAGE_CHARS,
     MAX_TOTAL_SECONDS,
     cancel_task,
+    is_active,
     run_task,
     start_task,
 )

@@ -133,6 +133,50 @@ async def test_run_requires_model(monkeypatch) -> None:
         await longtask.run_task(task["id"])
 
 
+async def test_rerun_single_stage_keeps_other_artifacts(monkeypatch) -> None:
+    """单阶段重跑只重算目标阶段，其他已完成阶段与其产物保持不动。"""
+    from app import llm
+
+    async def fake_available() -> bool:
+        return True
+
+    state = {"n": 0}
+
+    async def fake_chat(messages, *, model=None, temperature=0.3, timeout=60.0):
+        state["n"] += 1
+        return f"第 {state['n']} 次生成"
+
+    monkeypatch.setattr(llm, "llm_available", fake_available)
+    monkeypatch.setattr(llm, "litellm_chat", fake_chat)
+    task = await longtask.create_task(
+        "program", "单阶段重跑", "x", stages=["甲", "乙"]
+    )
+    first = await longtask.run_task(task["id"])
+    assert first["status"] == "done"
+    old_second = longtask.read_artifact(task["id"], 1)
+
+    rerun = await longtask.run_task(task["id"], stage_index=0)
+    assert state["n"] == 3, "只应新增一次模型调用"
+    assert rerun["stages"][0]["chars"] == len("第 3 次生成")
+    assert longtask.read_artifact(task["id"], 1) == old_second
+    assert rerun["status"] == "done"
+    with pytest.raises(ValueError, match="阶段不存在"):
+        await longtask.run_task(task["id"], stage_index=9)
+
+
+async def test_stale_running_is_reported_pending_without_job() -> None:
+    """进程重启后磁盘残留 running、但没有后台协程：API 必须归一为 pending。"""
+    from app.routes.longtask import _decorate_task
+
+    task = await longtask.create_task("program", "僵死状态", "x", stages=["a"])
+    task["status"] = "running"
+    task["stages"][0]["status"] = "running"
+    longtask._write(task)
+    decorated = _decorate_task(longtask.get_task(task["id"]))
+    assert decorated["active"] is False
+    assert decorated["status"] == "pending"
+
+
 async def test_max_stages_limits_one_run(monkeypatch) -> None:
     """max_stages 只跑前 N 个阶段，其余保持 pending（用于控制单次成本）。"""
     from app import llm
@@ -151,7 +195,7 @@ async def test_max_stages_limits_one_run(monkeypatch) -> None:
     out = await longtask.run_task(task["id"], max_stages=1)
     assert out["stages"][0]["status"] == "done"
     assert out["stages"][1]["status"] == "pending"
-    assert out["status"] == "running"
+    assert out["status"] == "pending", "执行器结束后不应继续显示 running"
 
 
 async def test_cancel_task() -> None:

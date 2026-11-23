@@ -306,4 +306,7 @@ export const en_settings: Record<string, string> = {
   "longtask.progressFailed": "failed",
   "longtask.progressRetried": "retries",
   "longtask.attempts": "{n} attempts",
+  "longtask.stageRetry": "Retry this stage",
+  "longtask.stageStarted": "Stage restarted",
+  "longtask.partialFinished": "This run finished; some stages are still pending",
 };

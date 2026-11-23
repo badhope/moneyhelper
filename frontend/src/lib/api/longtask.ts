@@ -34,6 +34,8 @@ export interface LongTask {
   success_criteria?: string;
   error?: string;
   status: string; // pending/running/done/failed/cancelled
+  /** 是否真有后台协程在跑：区分“状态机 running”与“实际执行中” */
+  active?: boolean;
   created_at: string;
   updated_at: string;
   stages: LongTaskStage[];
@@ -70,11 +72,17 @@ export const createLongTask = (body: {
     body: JSON.stringify(body),
   });
 
-export const runLongTask = (id: string, maxStages?: number, background = true) =>
+export const runLongTask = (
+  id: string,
+  maxStages?: number,
+  background = true,
+  stageIndex?: number,
+) =>
   api<{ ok: boolean; task: LongTask }>(`/api/longtasks/${id}/run`, {
     method: "POST",
     body: JSON.stringify({
       ...(maxStages ? { max_stages: maxStages } : {}),
+      ...(stageIndex != null ? { stage_index: stageIndex } : {}),
       ...(background ? { background: true } : {}),
     }),
   });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Download, FileText, Play, Plus, RefreshCw, Square } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileText, Play, Plus, RefreshCw, RotateCcw, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -100,7 +100,7 @@ export function LongTaskPage() {
     try {
       const task = await getLongTask(id);
       setDetail(task);
-      setPollingId(task.status === "running" || task.status === "pending" ? id : null);
+      setPollingId(task.status === "running" && task.active !== false ? id : null);
       setOpenStage(null);
       setStageText("");
     } catch (e) {
@@ -119,9 +119,16 @@ export function LongTaskPage() {
         if (disposed) return;
         setDetail(next);
         await load();
-        if (next.status === "done" || next.status === "failed" || next.status === "cancelled") {
+        const terminal =
+          next.status === "done" || next.status === "failed" || next.status === "cancelled";
+        const idle = next.active === false;
+        if (terminal || idle) {
           setPollingId(null);
-          toast(t(next.status === "done" ? "longtask.finished" : next.status === "failed" ? "longtask.failed" : "longtask.cancelled"), next.status === "failed" ? "error" : "ok");
+          if (terminal) {
+            toast(t(next.status === "done" ? "longtask.finished" : next.status === "failed" ? "longtask.failed" : "longtask.cancelled"), next.status === "failed" ? "error" : "ok");
+          } else if (next.status === "pending") {
+            toast(t("longtask.partialFinished"), "ok");
+          }
         }
       } catch (e) {
         if (!disposed) toast(errMsg(e), "error");
@@ -180,6 +187,22 @@ export function LongTaskPage() {
       await load();
     } catch (e) {
       toast(errMsg(e), "error");
+    }
+  };
+
+  /** 单阶段重跑：只重算目标阶段，已完成的其他阶段与产物保持不动。 */
+  const doRetryStage = async (id: string, index: number) => {
+    setBusy(true);
+    try {
+      const r = await runLongTask(id, undefined, true, index);
+      setDetail(r.task);
+      setPollingId(id);
+      toast(t("longtask.stageStarted"), "ok");
+      await load();
+    } catch (e) {
+      toast(errMsg(e), "error");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -349,36 +372,51 @@ export function LongTaskPage() {
           <div className="space-y-1">
             {detail.stages.map((s) => (
               <div key={s.index} className="rounded-lg border border-border/70">
-                <button
-                  type="button"
-                  onClick={() => void openArtifact(detail.id, s.index)}
-                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
-                >
-                  <span className="flex min-w-0 items-center gap-1.5 text-sm">
-                    {openStage === s.index ? (
-                      <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                    )}
-                    <span className="truncate">{s.name}</span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    {(s.attempts ?? 0) > 1 && (
-                      <span className="text-[11px] text-amber-700">
-                        {t("longtask.attempts", { n: s.attempts ?? 0 })}
-                      </span>
-                    )}
-                    {fmtDuration(s.duration_ms) && (
-                      <span className="text-[11px] text-muted-foreground">
-                        {fmtDuration(s.duration_ms)}
-                      </span>
-                    )}
-                    {s.chars > 0 && (
-                      <span className="text-[11px] text-muted-foreground">{s.chars}</span>
-                    )}
-                    <StatusPill status={s.status} />
-                  </span>
-                </button>
+                <div className="flex items-center gap-1 px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => void openArtifact(detail.id, s.index)}
+                    className="flex min-w-0 flex-1 items-center justify-between gap-2 px-1 py-1 text-left"
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5 text-sm">
+                      {openStage === s.index ? (
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                      )}
+                      <span className="truncate">{s.name}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {(s.attempts ?? 0) > 1 && (
+                        <span className="text-[11px] text-amber-700">
+                          {t("longtask.attempts", { n: s.attempts ?? 0 })}
+                        </span>
+                      )}
+                      {fmtDuration(s.duration_ms) && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {fmtDuration(s.duration_ms)}
+                        </span>
+                      )}
+                      {s.chars > 0 && (
+                        <span className="text-[11px] text-muted-foreground">{s.chars}</span>
+                      )}
+                      <StatusPill status={s.status} />
+                    </span>
+                  </button>
+                  {(s.status === "failed" ||
+                    s.status === "cancelled" ||
+                    s.status === "skipped") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void doRetryStage(detail.id, s.index)}
+                    >
+                      <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                      {t("longtask.stageRetry")}
+                    </Button>
+                  )}
+                </div>
                 {s.error && (
                   <div className="px-3 pb-2 text-[11.5px] text-red-600">{s.error}</div>
                 )}

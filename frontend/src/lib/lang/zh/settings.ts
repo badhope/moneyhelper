@@ -306,4 +306,7 @@ export const zh_settings: Record<string, string> = {
   "longtask.progressFailed": "个失败",
   "longtask.progressRetried": "次重试",
   "longtask.attempts": "尝试 {n} 次",
+  "longtask.stageRetry": "重跑此阶段",
+  "longtask.stageStarted": "该阶段已重新启动",
+  "longtask.partialFinished": "本次执行已结束，仍有待执行阶段",
 };

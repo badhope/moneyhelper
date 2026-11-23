@@ -20,6 +20,19 @@ from ._scope import tenant_permission_scope
 router = APIRouter()
 
 
+def _decorate_task(task: dict[str, Any]) -> dict[str, Any]:
+    """给任务补真实 active，并把无后台协程的 running 归一为 pending。
+
+    进程重启后磁盘可能残留 running；如果 API 原样返回，界面会一直显示
+    “执行中”并无限轮询，而实际没有任何协程在跑。
+    """
+    active = longtask.is_active(str(task.get("id") or ""))
+    if task.get("status") == "running" and not active:
+        task["status"] = "pending"
+    task["active"] = active
+    return task
+
+
 
 
 async def _read_scope(
@@ -45,7 +58,7 @@ async def list_templates() -> dict[str, Any]:
 
 @router.get("/api/longtasks")
 async def list_tasks(scope: int = Depends(_read_scope)) -> dict[str, Any]:
-    return {"tasks": longtask.list_tasks()}
+    return {"tasks": [_decorate_task(t) for t in longtask.list_tasks()]}
 
 
 @router.post("/api/longtasks")
@@ -70,7 +83,7 @@ async def create_task(
 @router.get("/api/longtasks/{task_id}")
 async def get_task(task_id: str, scope: int = Depends(_read_scope)) -> Any:
     try:
-        return longtask.get_task(task_id)
+        return _decorate_task(longtask.get_task(task_id))
     except ValueError as exc:
         return _bad(str(exc), 404)
 
@@ -83,20 +96,31 @@ async def run_task(
 ) -> Any:
     data = payload or {}
     raw = data.get("max_stages")
+    raw_index = data.get("stage_index")
     try:
         limit = int(raw) if raw not in (None, "") else None
     except (TypeError, ValueError):
         return _bad("max_stages 需为整数")
     try:
+        index = int(raw_index) if raw_index not in (None, "") else None
+    except (TypeError, ValueError):
+        return _bad("stage_index 需为整数")
+    if limit is not None and index is not None:
+        return _bad("max_stages 与 stage_index 只能二选一")
+    try:
         if data.get("background"):
             # 长任务可能跑到一小时，不能用一次 HTTP 请求一直挂着；
             # 返回 pending 快照，前端轮询 /api/longtasks/{id}。
-            task = await longtask.start_task(task_id, max_stages=limit)
+            task = await longtask.start_task(
+                task_id, max_stages=limit, stage_index=index
+            )
         else:
-            task = await longtask.run_task(task_id, max_stages=limit)
+            task = await longtask.run_task(
+                task_id, max_stages=limit, stage_index=index
+            )
     except (ValueError, PermissionError) as exc:
         return _bad(str(exc))
-    return {"ok": True, "task": task}
+    return {"ok": True, "task": _decorate_task(task)}
 
 
 @router.post("/api/longtasks/{task_id}/cancel")
@@ -105,7 +129,7 @@ async def cancel_task(task_id: str, scope: int = Depends(_write_scope)) -> Any:
         task = longtask.cancel_task(task_id)
     except ValueError as exc:
         return _bad(str(exc))
-    return {"ok": True, "task": task}
+    return {"ok": True, "task": _decorate_task(task)}
 
 
 @router.get("/api/longtasks/{task_id}/stages/{index}")
