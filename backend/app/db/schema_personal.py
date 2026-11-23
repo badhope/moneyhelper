@@ -82,6 +82,26 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS thread_projects (
+    user_id        INTEGER NOT NULL,
+    thread_id      TEXT NOT NULL,
+    instructions   TEXT NOT NULL DEFAULT '',
+    attachments_json TEXT NOT NULL DEFAULT '[]',
+    memories_json  TEXT NOT NULL DEFAULT '[]',
+    updated_at     TEXT NOT NULL,
+    PRIMARY KEY (user_id, thread_id)
+);
+CREATE TABLE IF NOT EXISTS shares (
+    token       TEXT PRIMARY KEY,
+    user_id     INTEGER NOT NULL,
+    thread_id   TEXT NOT NULL,
+    title       TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,
+    revoked     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_shares_thread ON shares(user_id, thread_id, created_at);
 CREATE TABLE IF NOT EXISTS goals (
     name       TEXT PRIMARY KEY,
     target     REAL NOT NULL,

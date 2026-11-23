@@ -2,6 +2,42 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.16.44] - 2026-11-23（会话项目卡、只读分享、回答画布、深研与长度）
+
+### 新增
+
+- **会话项目卡**：会话内「项目资料」入口，可写项目指令、固定工作台文件、项目记忆。只作用于当前 `thread`，按 `user_id + thread_id` 隔离；每次提问自动合并固定文件，不复制、不重传。上限：指令 2000 字、文件 10 个、记忆 10 条（单条 200 字）。
+- **只读分享**：回答头部「分享」入口，生成不可猜 token 的快照链接。可设 1/7/30 天有效期，支持复制、打开、撤销；撤销或过期后 `/s/{token}` 立即 404。分享页只含问答与真实来源，不加载账户、账本、模型或 token 用量。
+- **回答画布**：回答操作条新增「画布」，可编辑、预览、下载 `.md`、一键存入工作台；不新增顶层页面。
+- **深度研究**：输入区新增开关。强制联网、提高工具轮次下限，要求按「结论 / 依据 / 风险与不确定性 / 来源」四节成文，来源只列真实链接。
+- **回答长度**：输入区新增简洁 / 标准 / 详尽三档，只影响本轮系统指令与生成详略；按浏览器 localStorage 记住，不写全局设置。
+
+### 变更
+
+- `run_question → run_graph → AgentState → agent_nodes_final → run_agent → build_turn_context` 全链路新增 `session_context / deep_research / llm_options`，不伪造 provider 级温度或 reasoning 参数。
+- 会话上下文在知识库上下文前后以 system 消息注入，截断 2600 字，并声明「只作用于当前会话，不得越过安全边界」。
+- 公网分享页自写最小 Markdown 渲染：先 HTML 转义，再只放行粗体、行内代码、列表、标题、代码块；链接只允许 `http/https`，加 `noopener noreferrer nofollow`。
+- 联网搜索 DDGS 兜底加 10 秒超时，避免网络受限时整轮问答卡在「思考中」。
+
+### 边界
+
+- 项目卡是会话级，不是全局记忆；清理会话不会自动清理 `thread_projects` 行，当前无跨会话复用入口。
+- 分享快照在创建时固化，后续聊天不会更新；撤销只影响链接，不删除原会话。
+- 画布只编辑这一条回答，不会反向改写消息；存入工作台会新增一个 `.md` 附件。
+- 深度研究仍受联网搜索可用性限制；检索不可用时会在「依据」里明确数据局限，不补造来源。
+- 本轮没有做真实温度 / 最大 token 滑杆：那需要同时穿透工具决策与最终回答两条路径，当前不做「设置不生效」的假功能。
+
+### 截图
+
+- `docs/screenshots/130-project-card.png`。
+- `docs/screenshots/131-project-answer.png`。
+- `docs/screenshots/132-canvas.png`。
+- `docs/screenshots/133-share-dialog.png`。
+- `docs/screenshots/134-share-public.png`。
+- `docs/screenshots/135-share-revoked.png`。
+- `docs/screenshots/136-deep-research.png`。
+- `docs/screenshots/137-answer-length.png`。
+
 ## [4.16.43] - 2026-11-23（聊天里直接引用工作台文件）
 
 ### 新增

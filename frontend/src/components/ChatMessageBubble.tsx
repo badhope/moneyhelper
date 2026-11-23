@@ -307,6 +307,8 @@ interface BubbleProps {
   onFork: (msg: ChatMessage) => void;
   /** 复制这条回答的深链（其他窗口/手机可直达） */
   onCopyLink: (msg: ChatMessage) => void;
+  /** 在画布里打开这条回答：可编辑、预览、下载、存入工作台 */
+  onCanvas?: (msg: ChatMessage) => void;
   /** 用户消息对应的后端 run id（编辑并重发时截断用） */
   turnRunId?: number;
   /** 编辑用户消息并重发 */
@@ -329,6 +331,7 @@ function BubbleInner({
   onExport,
   onFork,
   onCopyLink,
+  onCanvas,
   turnRunId,
   onEdit,
   onDecidePending,
@@ -690,6 +693,18 @@ function BubbleInner({
                 >
                   <GitBranch className="h-3.5 w-3.5" />
                   <span className="text-[11px]">{tr("chat.fork")}</span>
+                </button>
+              ) : null}
+              {onCanvas && !busy ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={tr("chat.canvas")}
+                  title={tr("chat.canvasHint")}
+                  onClick={() => onCanvas(m)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span className="text-[11px]">{tr("chat.canvas")}</span>
                 </button>
               ) : null}
               {m.runId ? (

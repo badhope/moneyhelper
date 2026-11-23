@@ -41,7 +41,13 @@ async def finalize(state: AgentState) -> dict[str, Any]:
         try:
             history = await service._build_history(tid)
             result = await agent.run_agent(
-                q, _emit, history, state.get("lang", "zh")
+                q,
+                _emit,
+                history,
+                state.get("lang", "zh"),
+                session_context=state.get("session_context") or "",
+                deep_research=bool(state.get("deep_research")),
+                llm_options=state.get("llm_options") or {},
             )
             live = state.get("live")
             if live is None:

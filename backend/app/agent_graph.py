@@ -84,6 +84,9 @@ class AgentState(TypedDict, total=False):
     question: str
     thread_id: str | None
     lang: str  # 界面语言：zh | en（回答与确定性兜底文案跟随）
+    session_context: str  # 会话项目卡：项目指令 + 项目记忆（只作用于当前 thread）
+    deep_research: bool  # 深度研究：多轮检索与固定报告结构
+    llm_options: dict[str, Any]  # 本轮生成偏好（answer_mode 等）
     route: str
     reason: str
     mode: str  # agent | deterministic

@@ -258,7 +258,14 @@ def _metrics_from(
 
 
 async def run_question(
-    question: str, emit: Emit, thread_id: str | None = None, lang: str = "zh"
+    question: str,
+    emit: Emit,
+    thread_id: str | None = None,
+    lang: str = "zh",
+    *,
+    session_context: str = "",
+    deep_research: bool = False,
+    llm_options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """执行一轮问答，返回最终元信息（由调用方负责归档与转发 final 事件）。
 
@@ -270,7 +277,15 @@ async def run_question(
     await emit({"type": "start", "question": question})
     from .agent_graph import run_graph
 
-    return await run_graph(question, emit, thread_id, lang)
+    return await run_graph(
+        question,
+        emit,
+        thread_id,
+        lang,
+        session_context=session_context,
+        deep_research=deep_research,
+        llm_options=llm_options,
+    )
 
 from .service_history import (  # noqa: F401,E402 — 对外同名导出与 run_question 使用
     HISTORY_ANSWER_CHARS,

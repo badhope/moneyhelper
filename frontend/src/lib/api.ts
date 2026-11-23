@@ -11,5 +11,6 @@ export * from "./api/banking";
 export * from "./api/procurement";
 export * from "./api/longtask";
 export * from "./api/history";
+export * from "./api/thread-context";
 
 export * from "./api/remote";

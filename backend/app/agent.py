@@ -87,6 +87,9 @@ async def run_agent(    question: str,
     tools_list: list | None = None,
     impl_map: dict | None = None,
     inject_memories: bool = True,
+    session_context: str = "",
+    deep_research: bool = False,
+    llm_options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """跑一轮 agent：模型自主调用工具后成文。失败抛 AgentUnavailable。
 
@@ -113,11 +116,15 @@ async def run_agent(    question: str,
         inject_memories=inject_memories,
         history=history,
         cfg=cfg,
+        session_context=session_context,
     )
     if web_on:
         messages.append({"role": "system", "content": WEB_SEARCH_INSTRUCTION})
     # 工具轮次上限与失败反思重试（设置中心控制，默认与历史一致）
     turn_cap = max(1, min(int((_s.get("agent_tool_turns") or MAX_TURNS) or MAX_TURNS), 30))
+    if deep_research:
+        # 深度研究要拆子问题、至少两路检索再成文；给 2 轮余量，仍受 web_calls<=2 约束
+        turn_cap = max(turn_cap, 8)
     reflect = (_s.get("agent_reflect") or "on") != "off"
 
     steps: list[dict[str, Any]] = []

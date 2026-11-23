@@ -155,7 +155,7 @@ async def test_agent_mode_uses_tool_loop_and_no_steps(temp_db, monkeypatch) -> N
     """已接模型：supervisor 判定 agent 模式，成文节点走工具循环（agent_step 而非 step）。"""
     calls: list[dict] = []
 
-    async def fake_run_agent(question: str, emit, history, lang="zh"):
+    async def fake_run_agent(question: str, emit, history, lang="zh", **kwargs):
         await emit({
             "type": "agent_step", "name": "get_market_view",
             "args": {"symbols": ["600000"]}, "summary": "总市值 100,000 元",

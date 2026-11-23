@@ -76,8 +76,19 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
     lang = ((payload or {}).get("lang") or "zh").strip() or "zh"
     # 联网搜索开关：只在用户显式开启时追加指令；不改变原问题落库内容
     web_search = bool((payload or {}).get("web_search"))
+    # 深度研究：多轮检索 + 固定报告结构；用户开了它就必须联网，否则没有“研究”的输入
+    deep_research = bool((payload or {}).get("deep_research"))
+    if deep_research:
+        web_search = True
+    # 回答长度偏好：只进 system 指令，不改路由，不写进落库问题
+    answer_mode = str((payload or {}).get("answer_mode") or "standard").strip().lower()
+    if answer_mode not in {"concise", "standard", "detailed"}:
+        answer_mode = "standard"
+    # 会话项目卡：固定资料、项目指令、项目记忆都只作用于当前 thread
+    session_ctx = await db.get_thread_context(thread_id)
+    ctx_ids = [int(a.get("id")) for a in (session_ctx.get("attachments") or []) if a.get("id")]
     # @提及附件：前端把附件 id 传过来，正文前附加其内容供模型理解
-    raw_att_ids = (payload or {}).get("attachments") or []
+    raw_att_ids = list((payload or {}).get("attachments") or []) + ctx_ids
     att_ids = raw_att_ids if isinstance(raw_att_ids, list) else []
     attached_text = ""
     attachments_meta: list[dict[str, object]] = []
@@ -120,8 +131,37 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
                 log.exception("delete_last_run failed")
         # @提及附件：把附件内容附加到问题正文，供 agent/模板理解
         full_question = _compose_question(question, attached_text, web_search)
+        ctx_parts: list[str] = []
+        if session_ctx.get("instructions"):
+            ctx_parts.append(
+                "本会话项目指令（优先遵守；仍不得越过安全边界与工具事实）：\n"
+                + str(session_ctx["instructions"])[:2000]
+            )
+        memories = [str(m.get("text") or "").strip() for m in (session_ctx.get("memories") or [])]
+        memories = [m for m in memories if m][:10]
+        if memories:
+            ctx_parts.append(
+                "本会话项目记忆（只在本会话生效，数字以工具结果为准）：\n"
+                + "\n".join(f"- {m[:200]}" for m in memories)
+            )
+        if answer_mode == "concise":
+            ctx_parts.append("回答长度：简洁。先给结论，通常不超过 6 句话；不要重复问题，不写客套开场。")
+        elif answer_mode == "detailed":
+            ctx_parts.append("回答长度：详尽。给出完整推理、口径与边界；能分节就分节，但不要注水。")
+        if deep_research:
+            ctx_parts.append(
+                "深度研究模式：先把问题拆成 2-3 个子问题，至少用两种角度检索或核对，再成文。"
+                "报告必须包含「结论」「依据」「风险与不确定性」「来源」四节；"
+                "来源只列工具实际返回或正文真实出现的链接，不补造。"
+            )
         result = await service.run_question(
-            full_question, emit, thread_id=thread_id, lang=lang
+            full_question,
+            emit,
+            thread_id=thread_id,
+            lang=lang,
+            session_context="\n\n".join(ctx_parts),
+            deep_research=deep_research,
+            llm_options={"answer_mode": answer_mode},
         )
         # 回答依据：知识库命中与正文外链，随回答一起交付/落库，历史可回看
         from ..qa_sources import collect_sources

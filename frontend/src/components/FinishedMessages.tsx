@@ -15,6 +15,7 @@ export interface FinishedMessagesProps {
   onExport: (msg: ChatMessage, action: "copy" | "download") => void;
   onFork: (msg: ChatMessage) => void;
   onCopyLink: (msg: ChatMessage) => void;
+  onCanvas?: (msg: ChatMessage) => void;
   onEdit: (msg: ChatMessage, text: string, runId: number) => void;
   onDecidePending: (msg: ChatMessage, decision: "confirm" | "cancel") => void;
   onFeedback?: (msg: ChatMessage, rating: number, reason?: string) => void;
@@ -47,6 +48,7 @@ const FINISHED_ARE_EQUAL = (prev: FinishedMessagesProps, next: FinishedMessagesP
     prev.onNavigate === next.onNavigate &&
     prev.onFork === next.onFork &&
     prev.onCopyLink === next.onCopyLink &&
+    prev.onCanvas === next.onCanvas &&
     prev.onEdit === next.onEdit &&
     prev.onFeedback === next.onFeedback
   );
@@ -68,7 +70,7 @@ function EarlierGate({ hidden, onExpand }: { hidden: number; onExpand: () => voi
 }
 
 export const FinishedMessages = memo(
-  ({ messages, busy, showSteps, exportOn, voiceOn = false, onToggleSteps, onNavigate, onRegenerate, onExport, onFork, onCopyLink, onEdit, onDecidePending, onFeedback }: FinishedMessagesProps) => {
+  ({ messages, busy, showSteps, exportOn, voiceOn = false, onToggleSteps, onNavigate, onRegenerate, onExport, onFork, onCopyLink, onCanvas, onEdit, onDecidePending, onFeedback }: FinishedMessagesProps) => {
     const [visibleCount, setVisibleCount] = useState(WINDOW);
     const hidden = Math.max(0, messages.length - visibleCount);
     const shown = hidden > 0 ? messages.slice(hidden) : messages;
@@ -92,6 +94,7 @@ export const FinishedMessages = memo(
               onExport={onExport}
               onFork={onFork}
               onCopyLink={onCopyLink}
+              onCanvas={onCanvas}
               onEdit={onEdit}
               onDecidePending={onDecidePending}
               onFeedback={onFeedback}

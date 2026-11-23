@@ -38,7 +38,14 @@ def get_graph() -> Any:
 
 
 async def run_graph(
-    question: str, emit: Emit, thread_id: str | None = None, lang: str = "zh"
+    question: str,
+    emit: Emit,
+    thread_id: str | None = None,
+    lang: str = "zh",
+    *,
+    session_context: str = "",
+    deep_research: bool = False,
+    llm_options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """跑一轮图，返回最终结果（供 service.run_question 使用）。
 
@@ -51,7 +58,14 @@ async def run_graph(
     ctx_token = _facade._emit_ctx.set(emit)
     try:
         await _facade._emit({"type": "agent", "data": {"status": "running", "ts": _facade._now_ms()}})
-        state: AgentState = {"question": question, "thread_id": thread_id, "lang": lang}
+        state: AgentState = {
+            "question": question,
+            "thread_id": thread_id,
+            "lang": lang,
+            "session_context": session_context,
+            "deep_research": deep_research,
+            "llm_options": llm_options or {},
+        }
         # 每次提问独立线程：SqliteSaver 里 thread_id 唯一，避免会话状态串扰；状态落盘可跨运行保留。
         config = {"configurable": {"thread_id": f"run-{uuid.uuid4().hex}"}}
         final_state: dict[str, Any] | None = None

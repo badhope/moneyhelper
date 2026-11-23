@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, BarChart3, Clock3, CreditCard, Download, Gauge, Search, Sparkles, Trash2, Wallet, X, type LucideIcon } from "lucide-react";
+import { ArrowDown, BarChart3, Clock3, CreditCard, Download, FolderKanban, Gauge, Search, Share2, Sparkles, Trash2, Wallet, X, type LucideIcon } from "lucide-react";
 import { useBootstrap, useDashboard, store } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
-import { api, saveBlob } from "@/lib/api";
+import { api, getThreadContext, saveBlob } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { fmtTokens } from "@/lib/format";
 import type { AgentToolStep, AgentPlanStep } from "@/lib/types";
 import type { ChatMessage, StepInfo } from "@/components/ChatMessageBubble";
 import { ChatInput } from "@/components/ChatInput";
+import { CanvasDialog } from "@/components/CanvasDialog";
+import { ShareDialog } from "@/components/ShareDialog";
+import { ThreadProjectDialog } from "@/components/ThreadProjectDialog";
 import { ChatMessageBubble } from "@/components/ChatMessageBubble";
 import { FinishedMessages } from "@/components/FinishedMessages";
 import { useChatView } from "@/components/chat-view-state";
@@ -61,6 +64,10 @@ export function ChatView({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
   const [findOpen, setFindOpen] = useState(false);
+  const [projectOpen, setProjectOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [canvas, setCanvas] = useState<{ title: string; text: string } | null>(null);
+  const [projectCount, setProjectCount] = useState(0);
   const [findQ, setFindQ] = useState("");
   const findInputRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +75,7 @@ export function ChatView({
     messages, setMessages, input, setInput, attachments,
     showSteps, exportOn, scrolledUp, handleListScroll,
     voiceOn, voiceOutputOn, suggestions, hasData, webSearch, setWebSearch,
+    deepResearch, setDeepResearch, answerMode, setAnswerMode,
     stream, streamingMsg, finishedMessages,
     bubbleCallbacks, listening, scrollNow, stableEdit,
     stableSend, stableSendInput, stableStop, stableToggleVoice,
@@ -88,6 +96,26 @@ export function ChatView({
     } catch {
       toast(tr("chat.error"), "error");
     }
+  };
+
+  useEffect(() => {
+    if (!threadId) return;
+    let alive = true;
+    getThreadContext(threadId)
+      .then((ctx) => {
+        if (!alive) return;
+        setProjectCount((ctx.instructions ? 1 : 0) + (ctx.attachments?.length ?? 0) + (ctx.memories?.length ?? 0));
+      })
+      .catch(() => { /* 项目卡读取失败不阻塞聊天 */ });
+    return () => { alive = false; };
+  }, [threadId, projectOpen]);
+
+  const openCanvas = (m: ChatMessage) => {
+    const first = (m.text || "").split("\n").find((line) => line.trim() && !line.trim().startsWith("|")) ?? "";
+    // 标题优先用用户问题：比模型第一行（常是“项目口径/结论”）更好认，也保留 510880 这类编号。
+    const raw = (m.q || first).replace(/^[#>*_`\s]+/, "").replace(/\s+/g, " ").trim();
+    const title = raw.slice(0, 40) || tr("canvas.untitled");
+    setCanvas({ title, text: m.text || "" });
   };
 
   const findResults = useMemo(() => {
@@ -246,6 +274,31 @@ export function ChatView({
                       )}
                     </span>
                   )}
+                  {threadId && (
+                    <button
+                      type="button"
+                      onClick={() => setProjectOpen(true)}
+                      title={tr("project.shortHint")}
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                      <FolderKanban className="h-3 w-3" />
+                      <span className="max-sm:hidden">{tr("project.short")}</span>
+                      {projectCount > 0 && (
+                        <span className="rounded bg-primary/10 px-1 text-[10px] text-primary">{projectCount}</span>
+                      )}
+                    </button>
+                  )}
+                  {threadId && (
+                    <button
+                      type="button"
+                      onClick={() => setShareOpen(true)}
+                      title={tr("share.shortHint")}
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                      <Share2 className="h-3 w-3" />
+                      <span className="max-sm:hidden">{tr("share.short")}</span>
+                    </button>
+                  )}
                   <span className="ml-auto inline-flex items-center gap-1">
                     <Clock3 className="h-3 w-3" />
                     {tr("chat.ctxUpdated", { t: updatedLabel })}
@@ -381,6 +434,17 @@ export function ChatView({
                       </button>
                     ))}
                   </div>
+                  {threadId && (
+                    <button
+                      type="button"
+                      onClick={() => setProjectOpen(true)}
+                      className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border/80 px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
+                    >
+                      <FolderKanban className="h-3.5 w-3.5" />
+                      {tr("project.addForSession")}
+                      {projectCount > 0 && <span className="text-primary">· {projectCount}</span>}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-6 pt-2">
@@ -393,6 +457,7 @@ export function ChatView({
                     onNavigate={onNavigate}
                     onFork={forkMessage}
                     onCopyLink={copyMessageLink}
+                    onCanvas={openCanvas}
                     onEdit={stableEdit}
                     onFeedback={submitFeedback}
                     {...bubbleCallbacks}
@@ -408,6 +473,7 @@ export function ChatView({
                       onNavigate={onNavigate}
                       onFork={forkMessage}
                       onCopyLink={copyMessageLink}
+                      onCanvas={openCanvas}
                       onFeedback={submitFeedback}
                       {...bubbleCallbacks}
                     />
@@ -437,6 +503,10 @@ export function ChatView({
           voiceOn={voiceOn}
           webSearch={webSearch}
           onToggleWebSearch={() => setWebSearch((v) => !v)}
+          deepResearch={deepResearch}
+          onToggleDeepResearch={() => setDeepResearch(!deepResearch)}
+          answerMode={answerMode}
+          onAnswerModeChange={setAnswerMode}
           llmConfigured={!!bootstrap?.health?.llm_configured}
           inputRef={inputRef}
           onToggleVoice={stableToggleVoice}
@@ -468,6 +538,20 @@ export function ChatView({
           }}
         />
       </div>
+
+      <ThreadProjectDialog
+        threadId={threadId}
+        open={projectOpen}
+        onClose={() => setProjectOpen(false)}
+        onSaved={(ctx) => setProjectCount((ctx.instructions ? 1 : 0) + (ctx.attachments?.length ?? 0) + (ctx.memories?.length ?? 0))}
+      />
+      <ShareDialog threadId={threadId} open={shareOpen} onClose={() => setShareOpen(false)} />
+      <CanvasDialog
+        open={Boolean(canvas)}
+        title={canvas?.title ?? ""}
+        text={canvas?.text ?? ""}
+        onClose={() => setCanvas(null)}
+      />
     </div>
   );
 }

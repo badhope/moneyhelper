@@ -46,7 +46,25 @@ export function useChatView({
   const [attachments, setAttachments] = useState<RunAttachment[]>([]);
   const [showSteps, setShowSteps] = useState(false);
   // 联网搜索开关：只在用户显式开启时走外网，默认关（隐私优先）
-  const [webSearch, setWebSearch] = useState(false);
+  const [webSearch, setWebSearch] = useState(false)
+  // 深度研究 / 回答长度：只影响本轮生成，按浏览器记住，不写进设置页
+  const [deepResearch, setDeepResearchState] = useState<boolean>(() => {
+    try { return localStorage.getItem("mh.deepResearch") === "1"; } catch { return false; }
+  })
+  const [answerMode, setAnswerModeState] = useState<"concise" | "standard" | "detailed">(() => {
+    try {
+      const v = localStorage.getItem("mh.answerMode");
+      return v === "concise" || v === "detailed" ? v : "standard";
+    } catch { return "standard"; }
+  })
+  const setDeepResearch = (v: boolean) => {
+    setDeepResearchState(v);
+    try { localStorage.setItem("mh.deepResearch", v ? "1" : "0"); } catch { /* 隐私模式忽略 */ }
+  }
+  const setAnswerMode = (v: "concise" | "standard" | "detailed") => {
+    setAnswerModeState(v);
+    try { localStorage.setItem("mh.answerMode", v); } catch { /* 隐私模式忽略 */ }
+  };
   const [showSessions, setShowSessions] = useState(false);
   const [sessionSearch, setSessionSearch] = useState("");
 
@@ -66,6 +84,8 @@ export function useChatView({
     lang: string;
     attachments: string[];
     web_search: boolean;
+    deep_research: boolean;
+    answer_mode: "concise" | "standard" | "detailed";
   }>({
     run: (payload, onEvent, signal) =>
       apiStream("/api/ask", { ...payload, thread_id: threadId }, onEvent, signal),
@@ -179,6 +199,8 @@ export function useChatView({
         lang: tr("chat.locale"),
         attachments: sentAttachments.map((a) => String(a.id)),
         web_search: webSearch,
+        deep_research: deepResearch,
+        answer_mode: answerMode,
       },
       onEvent: (ev: Record<string, unknown>) => {
         if (!cleared) {
@@ -322,6 +344,7 @@ export function useChatView({
     // state
     messages, setMessages, input, setInput, attachments, setAttachments,
     webSearch, setWebSearch,
+    deepResearch, setDeepResearch, answerMode, setAnswerMode,
     showSteps, showSessions, sessionSearch, setSessionSearch,
     scrolledUp, handleListScroll,
     // derived

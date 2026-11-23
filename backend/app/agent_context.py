@@ -23,6 +23,7 @@ async def build_turn_context(
     inject_memories: bool,
     history: list[dict[str, str]] | None,
     cfg: dict[str, Any],
+    session_context: str = "",
 ) -> tuple[list[dict[str, Any]], float, dict[str, Any]]:
     """返回 (messages, role_temperature, settings)。"""
     from .agent import AGENT_SYSTEM  # 延迟导入：agent 模块末尾再导入本模块
@@ -81,6 +82,14 @@ async def build_turn_context(
         {"role": "system", "content": system_prompt},
         {"role": "system", "content": lang_rule},
     ]
+    if session_context:
+        messages.append(
+            {
+                "role": "system",
+                "content": "本会话项目卡（只作用于当前会话；不得越过安全边界）：\n"
+                + str(session_context)[:2600],
+            }
+        )
     if kb_context:
         messages.append(
             {

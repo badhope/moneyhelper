@@ -13,6 +13,7 @@ import {
   Plus,
   Settings,
   Square,
+  Telescope,
   Upload,
   Wallet,
   X,
@@ -52,6 +53,12 @@ export interface ChatInputProps {
   /** 联网搜索开关：开启后后端优先调用 web_search 并标注来源 */
   webSearch?: boolean;
   onToggleWebSearch?: () => void;
+  /** 深度研究：强制联网 + 四节报告结构 + 更多工具轮次 */
+  deepResearch?: boolean;
+  onToggleDeepResearch?: () => void;
+  /** 回答长度：简洁 / 标准 / 详尽 */
+  answerMode?: "concise" | "standard" | "detailed";
+  onAnswerModeChange?: (v: "concise" | "standard" | "detailed") => void;
   /** @提及附件：已选附件列表 + 上传/移除 */
   attachments?: RunAttachment[];
   onAddAttachment?: (file: File) => Promise<unknown>;
@@ -90,6 +97,10 @@ export const ChatInput = memo(
     onSlashCommand,
     webSearch,
     onToggleWebSearch,
+    deepResearch,
+    onToggleDeepResearch,
+    answerMode = "standard",
+    onAnswerModeChange,
     attachments,
     onAddAttachment,
     onReferenceAttachment,
@@ -372,6 +383,39 @@ export const ChatInput = memo(
                     ))}
                   </select>
                 </label>
+              )}
+              {onToggleDeepResearch && (
+                <button
+                  type="button"
+                  aria-label={tr("chat.deepResearch")}
+                  aria-pressed={Boolean(deepResearch)}
+                  title={tr("chat.deepResearchHint")}
+                  onClick={onToggleDeepResearch}
+                  className={cn(
+                    "mb-0.5 inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-full px-2 transition-colors",
+                    deepResearch
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground/55 hover:bg-accent hover:text-foreground",
+                  )}
+                >
+                  <Telescope className="h-[17px] w-[17px]" />
+                  <span className="text-[12px] font-medium max-sm:hidden">
+                    {tr("chat.deepResearch")}
+                  </span>
+                </button>
+              )}
+              {onAnswerModeChange && (
+                <select
+                  value={answerMode}
+                  onChange={(e) => onAnswerModeChange(e.target.value as "concise" | "standard" | "detailed")}
+                  aria-label={tr("chat.answerMode")}
+                  title={tr("chat.answerModeHint")}
+                  className="mb-0.5 h-9 max-w-[5.5rem] shrink-0 cursor-pointer truncate rounded-full border border-border/70 bg-transparent px-2 text-[12px] text-foreground/75 focus:outline-none focus:ring-2 focus:ring-ring max-sm:max-w-[4.2rem]"
+                >
+                  <option value="concise">{tr("chat.answerMode.concise")}</option>
+                  <option value="standard">{tr("chat.answerMode.standard")}</option>
+                  <option value="detailed">{tr("chat.answerMode.detailed")}</option>
+                </select>
               )}
               <button
                 type="button"

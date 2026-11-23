@@ -186,6 +186,8 @@ from .gl import (
     gl_trial_balance,
 )
 from .goals import add_goal, delete_goal, list_goals, update_goal
+from .thread_context import get_thread_context, save_thread_context
+from .shares import create_share, get_share_public, revoke_share
 from .history import (
     claim_pending_action,
     claim_pending_nl,

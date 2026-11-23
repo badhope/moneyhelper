@@ -32,6 +32,8 @@ from .provenance import router as provenance_router
 from .qa import router as qa_router
 from .remote import router as remote_router
 from .research import router as research_router
+from .thread_context import router as thread_context_router
+from .share import router as share_router
 from .review import router as review_router
 from .settings import router as settings_router
 from .statements import router as statements_router
@@ -68,6 +70,8 @@ __all__ = [
     "qa_router",
     "remote_router",
     "research_router",
+    "thread_context_router",
+    "share_router",
     "review_router",
     "settings_router",
     "statements_router",

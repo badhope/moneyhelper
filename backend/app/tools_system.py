@@ -304,7 +304,13 @@ async def tool_web_search(args: dict[str, Any]) -> str:
                         if r.get("title")
                     ]
 
-            results = await loop.run_in_executor(None, _search)
+            # DDGS 的同步实现没有统一 timeout，网络受限时可能挂很久；
+            # 深研模式强制联网，必须给它封顶，否则整轮问答会一直停在“思考中”。
+            results = await asyncio.wait_for(
+                loop.run_in_executor(None, _search), timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            return "联网搜索超时（10 秒）。请稍后再试，或关闭深度研究先回答资料内的问题。"
         except Exception as exc:  # noqa: BLE001 — 联网失败必须兜底，绝不拖垮对话
             return f"联网搜索暂时不可用：{type(exc).__name__}。请稍后再试。"
     if not results:
