@@ -15,7 +15,7 @@
 
 export const SECTION_GROUPS = [
   { key: "settings.groupGeneral", ids: ["prefs", "rules", "budget", "family", "org"] },
-  { key: "settings.groupAi", ids: ["ai", "knowledge", "report", "memory"] },
+  { key: "settings.groupAi", ids: ["ai", "knowledge", "report", "memory", "eval"] },
   {
     key: "settings.groupStudio",
     ids: [
@@ -31,7 +31,6 @@ export const SECTION_GROUPS = [
     ],
   },
   { key: "settings.groupData", ids: ["data", "token", "logs", "audit", "provenance"] },
-  { key: "settings.groupEval", ids: ["eval"] },
 ] as const;
 
 export type SectionId = (typeof SECTION_GROUPS)[number]["ids"][number];

@@ -24,6 +24,7 @@ async def build_turn_context(
     history: list[dict[str, str]] | None,
     cfg: dict[str, Any],
     session_context: str = "",
+    images: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], float, dict[str, Any]]:
     """返回 (messages, role_temperature, settings)。"""
     from .agent import AGENT_SYSTEM  # 延迟导入：agent 模块末尾再导入本模块
@@ -128,6 +129,37 @@ async def build_turn_context(
         skill_text = await agent_config.custom_skill_prompt()
         if skill_text:
             messages.append({"role": "system", "content": skill_text[:800]})
-    messages.append({"role": "user", "content": question})
+    image_parts: list[dict[str, Any]] = []
+    for image in images or []:
+        mime = str(image.get("mime") or "").strip().lower()
+        data = str(image.get("data") or "").strip()
+        if not mime.startswith("image/") or not data:
+            continue
+        image_parts.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime};base64,{data}"},
+            }
+        )
+        if len(image_parts) >= 4:
+            break
+    if image_parts:
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    f"本轮用户附带 {len(image_parts)} 张图片。先读取图片里真实可见的信息再回答；"
+                    "看不清、被裁掉或与问题无关的部分要明确说明，不得猜测图中数字、文字或人物。"
+                ),
+            }
+        )
+        messages.append(
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": question}, *image_parts],
+            }
+        )
+    else:
+        messages.append({"role": "user", "content": question})
 
     return messages, role_temperature, _s

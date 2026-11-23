@@ -123,7 +123,13 @@ async def upload_attachment(request: Request) -> dict:
             base64.b64encode(raw).decode("ascii"),
             content=text,
         )
-        return {**saved, "text_extracted": bool(text), "text_note": text_note}
+        return {
+            **saved,
+            "kind": kind,
+            "mime": BINARY_TYPES[ext],
+            "text_extracted": bool(text),
+            "text_note": text_note,
+        }
 
     raw = await upload.read(MAX_TEXT_UPLOAD_BYTES + 1)
     size = len(raw)
@@ -139,7 +145,7 @@ async def upload_attachment(request: Request) -> dict:
         )
     kind = "csv" if lower.endswith(".csv") else "text"
     # 正文截 6000 字只用于预览/检索；原始字节另存，下载出来的才是完整文件。
-    return await db.add_attachment(
+    saved = await db.add_attachment(
         filename,
         kind,
         size,
@@ -147,6 +153,7 @@ async def upload_attachment(request: Request) -> dict:
         mime="text/plain; charset=utf-8",
         data_b64=base64.b64encode(raw).decode("ascii"),
     )
+    return {**saved, "kind": kind, "mime": "text/plain; charset=utf-8"}
 
 
 @router.get("/api/attachments/{att_id}")

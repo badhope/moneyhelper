@@ -46,6 +46,7 @@ async def run_graph(
     session_context: str = "",
     deep_research: bool = False,
     llm_options: dict[str, Any] | None = None,
+    images: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """跑一轮图，返回最终结果（供 service.run_question 使用）。
 
@@ -65,6 +66,7 @@ async def run_graph(
             "session_context": session_context,
             "deep_research": deep_research,
             "llm_options": llm_options or {},
+            "images": images or [],
         }
         # 每次提问独立线程：SqliteSaver 里 thread_id 唯一，避免会话状态串扰；状态落盘可跨运行保留。
         config = {"configurable": {"thread_id": f"run-{uuid.uuid4().hex}"}}

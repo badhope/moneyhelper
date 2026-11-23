@@ -82,9 +82,21 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS chat_projects (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id        INTEGER NOT NULL,
+    name           TEXT NOT NULL,
+    instructions   TEXT NOT NULL DEFAULT '',
+    attachments_json TEXT NOT NULL DEFAULT '[]',
+    memories_json  TEXT NOT NULL DEFAULT '[]',
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_projects_user ON chat_projects(user_id, updated_at);
 CREATE TABLE IF NOT EXISTS thread_projects (
     user_id        INTEGER NOT NULL,
     thread_id      TEXT NOT NULL,
+    project_id     INTEGER,
     instructions   TEXT NOT NULL DEFAULT '',
     attachments_json TEXT NOT NULL DEFAULT '[]',
     memories_json  TEXT NOT NULL DEFAULT '[]',

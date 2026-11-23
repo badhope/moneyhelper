@@ -188,6 +188,7 @@ export const ChatInput = memo(
 
     const canSend = Boolean(input.trim()) && !busy;
     const hasAttachments = Boolean(attachments && attachments.length > 0);
+    const hasImageAttachment = Boolean(attachments?.some((a) => a.kind === "image"));
 
     /** 文件选择、粘贴、拖拽共用；多选用 allSettled，不让一个坏文件拖垮整批。 */
     const addFiles = async (files: File[]) => {
@@ -360,6 +361,15 @@ export const ChatInput = memo(
                     </button>
                   </span>
                 ))}
+              </div>
+            )}
+
+            {hasImageAttachment && (
+              <div className="mb-1.5 flex items-start gap-1.5 rounded-lg bg-primary/5 px-2 py-1.5 text-[11.5px] leading-relaxed text-muted-foreground">
+                <span className="mt-0.5 shrink-0 rounded bg-primary/10 px-1 py-0.5 text-[10px] font-medium text-primary">
+                  {tr("chat.imageBadge")}
+                </span>
+                <span>{tr("chat.visionHint")}</span>
               </div>
             )}
 

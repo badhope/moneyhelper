@@ -89,9 +89,20 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
     ctx_ids = [int(a.get("id")) for a in (session_ctx.get("attachments") or []) if a.get("id")]
     # @提及附件：前端把附件 id 传过来，正文前附加其内容供模型理解
     raw_att_ids = list((payload or {}).get("attachments") or []) + ctx_ids
-    att_ids = raw_att_ids if isinstance(raw_att_ids, list) else []
+    # 前端 payload 里的 attachments 是对象数组（{id,filename,kind}），早期测试/脚本
+    # 传的是 id 数组；两种都接受，否则图片会被 int(dict) 静默吞掉。
+    att_ids: list[int] = []
+    for item in raw_att_ids if isinstance(raw_att_ids, list) else []:
+        value = item.get("id") if isinstance(item, dict) else item
+        try:
+            if value is not None:
+                att_ids.append(int(value))
+        except (TypeError, ValueError):
+            continue
     attached_text = ""
     attachments_meta: list[dict[str, object]] = []
+    images: list[dict[str, str]] = []
+    image_chars = 0
     if att_ids:
         parts: list[str] = []
         seen_ids: set[int] = set()
@@ -103,7 +114,8 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
             if not att:
                 continue
             att_id = int(att.get("id") or 0)
-            if att_id and att_id not in seen_ids:
+            new_att = bool(att_id) and att_id not in seen_ids
+            if new_att:
                 seen_ids.add(att_id)
                 meta: dict[str, object] = {
                     "id": att_id,
@@ -113,10 +125,23 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
                 if att.get("mime"):
                     meta["mime"] = str(att["mime"])[:80]
                 attachments_meta.append(meta)
-            if att.get("content"):
-                parts.append(
-                    f"【附件：{att.get('filename')}】\n{att['content'][:2000]}"
-                )
+                # 视觉输入：图片原始字节随本轮消息送模型，最多 4 张 / 20MB base64，
+                # 避免一份超大相册把整轮请求拖到超时。
+                if str(att.get("kind") or "") == "image" and att.get("data"):
+                    data = str(att["data"])
+                    if len(images) < 4 and image_chars + len(data) <= 20_000_000:
+                        images.append(
+                            {
+                                "filename": str(att.get("filename") or ""),
+                                "mime": str(att.get("mime") or "image/png")[:80],
+                                "data": data,
+                            }
+                        )
+                        image_chars += len(data)
+                if att.get("content"):
+                    parts.append(
+                        f"【附件：{att.get('filename')}】\n{att['content'][:2000]}"
+                    )
         if parts:
             attached_text = "\n\n".join(parts)
 
@@ -150,8 +175,8 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
             ctx_parts.append("回答长度：详尽。给出完整推理、口径与边界；能分节就分节，但不要注水。")
         if deep_research:
             ctx_parts.append(
-                "深度研究模式：先把问题拆成 2-3 个子问题，至少用两种角度检索或核对，再成文。"
-                "报告必须包含「结论」「依据」「风险与不确定性」「来源」四节；"
+                "深度研究模式：先把问题拆成 3 个不同角度，逐一检索或核对，再成文。"
+                "报告必须包含「结论」「依据」「风险与不确定性」「后续观察点」「来源」五节；"
                 "来源只列工具实际返回或正文真实出现的链接，不补造。"
             )
         result = await service.run_question(
@@ -162,6 +187,7 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
             session_context="\n\n".join(ctx_parts),
             deep_research=deep_research,
             llm_options={"answer_mode": answer_mode},
+            images=images,
         )
         # 回答依据：知识库命中与正文外链，随回答一起交付/落库，历史可回看
         from ..qa_sources import collect_sources

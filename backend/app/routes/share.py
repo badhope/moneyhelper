@@ -3,94 +3,18 @@
 from __future__ import annotations
 
 import html
-import re
 from typing import Any
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from .. import db
+from ..artifact_export import body_html as _body_html
+from ..artifact_export import body_text as _body_text
+from ..artifact_export import safe_url as _safe_url
 from ..auth import get_current_user
 
 router = APIRouter()
-
-
-def _safe_url(url: str) -> str:
-    try:
-        parsed = urlparse(str(url or ""))
-        if parsed.scheme in {"http", "https"}:
-            return html.escape(str(url), quote=True)
-    except Exception:  # noqa: BLE001
-        pass
-    return ""
-
-
-def _inline(text: str) -> str:
-    """先转义再只放行粗体/行内代码：分享页不执行任何用户 HTML。"""
-    out = html.escape(str(text or ""))
-    out = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", out)
-    out = re.sub(r"`([^`]+)`", r"<code>\1</code>", out)
-    return out
-
-
-def _body_text(text: str) -> str:
-    return _inline(text).replace("\n", "<br>")
-
-
-def _body_html(text: str) -> str:
-    """极简 Markdown：标题、粗体、行内代码、有序/无序列表、代码块，无外链。"""
-    lines = str(text or "").replace("\r", "").split("\n")
-    out: list[str] = []
-    list_tag = ""
-    in_code = False
-    code_buf: list[str] = []
-
-    def close_list() -> None:
-        nonlocal list_tag
-        if list_tag:
-            out.append(f"</{list_tag}>")
-            list_tag = ""
-
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("```"):
-            close_list()
-            if in_code:
-                out.append("<pre><code>" + html.escape("\n".join(code_buf)) + "</code></pre>")
-                code_buf = []
-                in_code = False
-            else:
-                in_code = True
-            continue
-        if in_code:
-            code_buf.append(line)
-            continue
-        if not stripped:
-            close_list()
-            continue
-        heading = re.match(r"^(#{1,4})\s+(.*)$", stripped)
-        if heading:
-            close_list()
-            level = len(heading.group(1)) + 1
-            out.append(f"<h{level}>{_inline(heading.group(2))}</h{level}>")
-            continue
-        bullet = re.match(r"^[-*]\s+(.*)$", stripped)
-        numbered = re.match(r"^\d+[.)]\s+(.*)$", stripped)
-        if bullet or numbered:
-            tag = "ul" if bullet else "ol"
-            if list_tag != tag:
-                close_list()
-                out.append(f"<{tag}>")
-                list_tag = tag
-            out.append(f"<li>{_inline((bullet or numbered).group(1))}</li>")
-            continue
-        close_list()
-        out.append(f"<p>{_inline(stripped)}</p>")
-    close_list()
-    if in_code:
-        out.append("<pre><code>" + html.escape("\n".join(code_buf)) + "</code></pre>")
-    return "".join(out)
 
 
 def _render_share(item: dict[str, Any]) -> str:

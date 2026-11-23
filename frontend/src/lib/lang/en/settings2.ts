@@ -192,6 +192,8 @@ export const en_settings2: Record<string, string> = {
   "settings.auditEmpty": "No audit records",
   "chat.attach": "Attach file",
   "chat.attachHint": "Upload, drop, or paste a file",
+  "chat.imageBadge": "Image",
+  "chat.visionHint": "Images are sent with this question; if the model lacks vision, it falls back to text explicitly",
   "chat.attachUnsupported": "Only text, CSV, images and PDF",
   "chat.dropHere": "Drop to attach",
   "chat.dropHint": "Text, CSV, images, PDF",

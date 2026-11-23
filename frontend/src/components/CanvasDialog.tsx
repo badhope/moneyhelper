@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Download, Eye, FolderDown, Loader2, PencilLine, X } from "lucide-react";
-import { saveBlob, uploadAttachment } from "@/lib/api";
+import { apiDownloadPost, uploadAttachment } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import { errMsg } from "@/lib/utils";
@@ -30,6 +30,8 @@ export function CanvasDialog({
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [format, setFormat] = useState<"md" | "docx" | "html">("md");
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -39,8 +41,19 @@ export function CanvasDialog({
     setSaved(false);
   }, [open, title, text, tr]);
 
-  const download = () => {
-    saveBlob(new Blob([body], { type: "text/markdown;charset=utf-8" }), `${safeName(name)}.md`);
+  const download = async () => {
+    setExporting(true);
+    try {
+      await apiDownloadPost(
+        "/api/canvas/export",
+        { title: name, body, format },
+        `${safeName(name)}.${format}`,
+      );
+    } catch (e) {
+      toast(errMsg(e), "error");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const saveToWorkbench = async () => {
@@ -108,8 +121,24 @@ export function CanvasDialog({
         <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3">
           <span className="text-[11px] text-muted-foreground">{tr("canvas.hint", { n: body.length })}</span>
           <div className="ml-auto flex items-center gap-2">
-            <button type="button" onClick={download} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] hover:bg-accent">
-              <Download className="h-3.5 w-3.5" /> {tr("canvas.download")}
+            <select
+              value={format}
+              onChange={(e) => setFormat(e.target.value as "md" | "docx" | "html")}
+              aria-label={tr("canvas.exportFormat")}
+              className="h-8 rounded-lg border border-border bg-background px-2 text-[12px] outline-none"
+            >
+              <option value="md">Markdown</option>
+              <option value="docx">Word .docx</option>
+              <option value="html">HTML</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => void download()}
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] hover:bg-accent disabled:opacity-50"
+            >
+              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {tr("canvas.download")}
             </button>
             <button
               type="button"

@@ -169,6 +169,23 @@ export async function apiDownload(
   saveBlob(await resp.blob(), filename);
 }
 
+/** POST 导出（正文可能很长，不能塞进 URL）；与 apiDownload 共用口令与错误翻译。 */
+export async function apiDownloadPost(
+  path: string,
+  body: unknown,
+  filename: string,
+  opts: ApiOptions = {},
+): Promise<void> {
+  const resp = await request(
+    path,
+    { method: "POST", body: JSON.stringify(body) },
+    false,
+    opts.timeoutMs ?? SLOW_REQUEST_TIMEOUT_MS,
+  );
+  if (!resp.ok) throw new Error(await responseDetail(resp, true));
+  saveBlob(await resp.blob(), filename);
+}
+
 /** 内部信号：需要用户重新输口令（触发一次带新口令的重试） */
 class ReauthError extends Error {}
 /** 致命错误：不重试，直接抛给调用方 */

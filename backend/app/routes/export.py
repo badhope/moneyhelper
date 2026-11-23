@@ -6,10 +6,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from .. import auth, backup, db
+from ..artifact_export import docx_bytes, html_document
 from ..logging_utils import get_logger as _get_logger
 from .settings import _mask_secret
 
@@ -148,3 +149,46 @@ async def export_report(lang: str = "zh") -> Response:
         media_type="text/html; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _artifact_filename(title: str, ext: str) -> str:
+    """附件名：ASCII 回退 + RFC 5987，中文标题在浏览器里也能保留。"""
+    import re
+    from urllib.parse import quote
+
+    base = re.sub(r'[\\/:*?"<>|\r\n]+', "-", str(title or "canvas")).strip()[:80] or "canvas"
+    fallback = re.sub(r"[^A-Za-z0-9._-]+", "-", base).strip("-")[:80] or "canvas"
+    return f"attachment; filename=\"{fallback}.{ext}\"; filename*=UTF-8''{quote(base + '.' + ext)}"
+
+
+@router.post("/api/canvas/export")
+async def export_canvas(payload: dict = Body(...)) -> Response:
+    """回答画布导出：Markdown / HTML / Word 三档，不新增独立产物页面。
+
+    HTML 与 DOCX 都走共享安全渲染；DOCX 用标准库生成，不把 python-docx /
+    reportlab 塞进运行时依赖，保持轻量安装。
+    """
+    title = str((payload or {}).get("title") or "").strip()[:120] or "未命名文档"
+    body = str((payload or {}).get("body") or "")
+    if len(body) > 200_000:
+        return JSONResponse({"error": "正文过长（最多 20 万字符）"}, status_code=400)
+    fmt = str((payload or {}).get("format") or "md").strip().lower()
+    if fmt == "md":
+        return Response(
+            body.encode("utf-8"),
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": _artifact_filename(title, "md")},
+        )
+    if fmt == "html":
+        return Response(
+            html_document(title, body).encode("utf-8"),
+            media_type="text/html; charset=utf-8",
+            headers={"Content-Disposition": _artifact_filename(title, "html")},
+        )
+    if fmt == "docx":
+        return Response(
+            docx_bytes(title, body),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": _artifact_filename(title, "docx")},
+        )
+    return JSONResponse({"error": "不支持的导出格式"}, status_code=400)

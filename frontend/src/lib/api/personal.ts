@@ -224,7 +224,7 @@ export const setAttachmentIndexed = (id: number, indexed: boolean) =>
 export const uploadAttachment = (file: File) => {
   const fd = new FormData();
   fd.append("file", file);
-  return api<{ ok: boolean; id: number; text_extracted?: boolean; text_note?: string }>(
+  return api<{ ok: boolean; id: number; kind?: string; mime?: string; text_extracted?: boolean; text_note?: string }>(
     "/api/attachments",
     { method: "POST", body: fd },
     { timeoutMs: SLOW_REQUEST_TIMEOUT_MS },

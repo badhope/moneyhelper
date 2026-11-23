@@ -11,10 +11,25 @@ export interface ThreadMemory {
 }
 export interface ThreadContext {
   thread_id: string;
+  project_id?: number | null;
+  project_name?: string;
   instructions: string;
   attachments: ThreadContextAttachment[];
   memories: ThreadMemory[];
   updated_at?: string;
+}
+
+export interface ChatProjectSummary {
+  id: number;
+  name: string;
+  instructions: string;
+  attachment_count: number;
+  memory_count: number;
+  updated_at: string;
+}
+export interface ChatProject extends ChatProjectSummary {
+  attachments: ThreadContextAttachment[];
+  memories: ThreadMemory[];
 }
 
 export const getThreadContext = (threadId: string) =>
@@ -22,7 +37,13 @@ export const getThreadContext = (threadId: string) =>
 
 export const saveThreadContext = (
   threadId: string,
-  body: { instructions: string; attachment_ids: number[]; memories: string[] },
+  body: {
+    instructions: string;
+    attachment_ids: number[];
+    memories: string[];
+    /** null = 退回仅本会话；不传 = 保留已有绑定 */
+    project_id?: number | null;
+  },
 ) =>
   api<ThreadContext>(`/api/threads/${encodeURIComponent(threadId)}/context`, {
     method: "PUT",
@@ -33,6 +54,35 @@ export const clearThreadContext = (threadId: string) =>
   api<ThreadContext>(`/api/threads/${encodeURIComponent(threadId)}/context`, {
     method: "DELETE",
   });
+
+export const listChatProjects = () =>
+  api<{ projects: ChatProjectSummary[] }>("/api/chat-projects").then((r) => r.projects);
+
+export const getChatProject = (id: number) =>
+  api<ChatProject>(`/api/chat-projects/${id}`);
+
+export const createChatProject = (body: {
+  name: string;
+  instructions: string;
+  attachment_ids: number[];
+  memories: string[];
+}) =>
+  api<ChatProject>("/api/chat-projects", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const updateChatProject = (
+  id: number,
+  body: { name: string; instructions: string; attachment_ids: number[]; memories: string[] },
+) =>
+  api<ChatProject>(`/api/chat-projects/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+
+export const deleteChatProject = (id: number) =>
+  api<{ ok: boolean; deleted: boolean }>(`/api/chat-projects/${id}`, { method: "DELETE" });
 
 export interface ShareResult {
   token: string;

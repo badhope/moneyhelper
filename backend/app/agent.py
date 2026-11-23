@@ -57,6 +57,24 @@ def _looks_like_stall(text: str) -> bool:
         return False
     return any(marker in body for marker in _STALL_MARKERS)
 
+
+def _drop_image_parts(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """视觉模型不可用时的降级：把多模态 user 消息还原成纯文本，不丢问题。"""
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        texts = [
+            str(part.get("text") or "")
+            for part in content
+            if isinstance(part, dict) and part.get("type") == "text"
+        ]
+        message["content"] = (
+            "\n".join(t for t in texts if t).strip()
+            + "\n\n（图片未能送入当前模型：请按文字问题回答，并明确说明无法读取图片内容。）"
+        )
+    return messages
+
 # 只按「内置财务工具」过滤，不能把外部 MCP 工具误伤：
 # `mcp__search_symbol` 之类的名字不在内置表里，若按「未登记即排除」处理，
 # 所有外部只读 MCP 工具都会失效（这曾导致 test_mcp_read_tools_not_blocked 失败）。
@@ -72,9 +90,18 @@ def _looks_like_stall(text: str) -> bool:
 # 联网搜索开启时追加到 system 的规则（不拼进用户问题，避免污染意图路由）。
 WEB_SEARCH_INSTRUCTION = (
     "用户已开启联网搜索：涉及事实、价格、政策或新闻时，先调用 web_search 核实；"
-    "检索词用简短中文关键词，不要先猜公司名或型号；最多检索 1–2 次，"
+    "检索词用简短中文关键词，不要先猜公司名或型号；普通问答最多检索 1–2 次，"
     "拿到结果就直接作答，并在回答中用来源链接标注；"
     "查不到就说明查不到，不要凭记忆编造。"
+)
+
+DEEP_RESEARCH_INSTRUCTION = (
+    "深度研究模式：先用 3 个不同角度各检索一次（例如政策/基本面、市场数据、风险与反方证据），"
+    "再按需补充至多 3 次；最多共 6 次检索、10 轮工具调用。"
+    "每次检索后先判断信息是否足够，不要只换同义词重复搜同一个问题。"
+    "成文必须包含「结论」「依据」「风险与不确定性」「后续观察点」「来源」五节；"
+    "来源只列工具实际返回或正文真实出现的链接，并标注发布日期（若工具结果有）。"
+    "数据不足时写明缺什么，不得用常识补造数字或来源。"
 )
 
 
@@ -90,6 +117,7 @@ async def run_agent(    question: str,
     session_context: str = "",
     deep_research: bool = False,
     llm_options: dict[str, Any] | None = None,
+    images: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """跑一轮 agent：模型自主调用工具后成文。失败抛 AgentUnavailable。
 
@@ -117,14 +145,18 @@ async def run_agent(    question: str,
         history=history,
         cfg=cfg,
         session_context=session_context,
+        images=images,
     )
     if web_on:
         messages.append({"role": "system", "content": WEB_SEARCH_INSTRUCTION})
+        if deep_research:
+            messages.append({"role": "system", "content": DEEP_RESEARCH_INSTRUCTION})
     # 工具轮次上限与失败反思重试（设置中心控制，默认与历史一致）
     turn_cap = max(1, min(int((_s.get("agent_tool_turns") or MAX_TURNS) or MAX_TURNS), 30))
     if deep_research:
-        # 深度研究要拆子问题、至少两路检索再成文；给 2 轮余量，仍受 web_calls<=2 约束
-        turn_cap = max(turn_cap, 8)
+        # 深研要给拆题、多角度检索与成文留足轮次；检索次数另有硬上限。
+        turn_cap = max(turn_cap, 10)
+    search_cap = 6 if deep_research else 2
     reflect = (_s.get("agent_reflect") or "on") != "off"
 
     steps: list[dict[str, Any]] = []
@@ -137,7 +169,8 @@ async def run_agent(    question: str,
 
     # 明确「本轮不给工具」：通用闲聊直接一次流式成文，跳掉工具决策轮
     #（这一轮非流式调用要等模型完整输出 tool_calls 判定，是首字延迟的主要来源）。
-    if tools_list is not None and len(tools_list) == 0:
+    # 但带图片时不走快捷路径：视觉端点报错需要经过工具循环里的「去图重试」降级。
+    if tools_list is not None and len(tools_list) == 0 and not images:
         return await final_answer_result(
             client, cfg, messages, [], emit,
             steps=[], used_tools=[], tool_counts={},
@@ -175,12 +208,13 @@ async def run_agent(    question: str,
     # 白烧 token 也拿不到新信息。连续 3 次完全相同则中断并如实说明。
     _guard = RepeatGuard(max_repeat=3)
     web_calls = 0
+    vision_fallback = False
 
     for _turn in range(turn_cap):
-        # 联网检索硬上限 2 次：提示词已要求「1–2 次」，但小模型仍会连搜 4–5 次，
-        # 每轮工具决策 6–10s，用户要等 80s 才看到第一个字。到 2 次就从工具面摘掉
-        # web_search，逼它用已有结果成文。
-        if web_calls >= 2:
+        # 联网检索硬上限：普通问答 2 次（避免小模型反复搜拖慢首字），深研 6 次
+        # （3 个角度起步，允许补搜反方证据）。到上限就从工具面摘掉 web_search，
+        # 逼它用已有结果成文。
+        if web_calls >= search_cap:
             before = len(tool_schemas)
             tool_schemas = [
                 t
@@ -189,6 +223,9 @@ async def run_agent(    question: str,
             ]
             if len(tool_schemas) != before:
                 _log.info("agent.web_search capped at %s calls", web_calls)
+        # 首轮带图请求单独限时：不支持视觉的端点有时不报错而是长时间挂住，
+        # 不设短超时会把整轮问答卡死。45 秒内没结果就按「不支持视觉」回退文字。
+        vision_probe = bool(images) and _turn == 0 and not vision_fallback
         try:
             with timed("llm.tool_loop", model=cfg.get("model", ""), turn=_turn):
                 resp = await client.chat.completions.create(
@@ -199,12 +236,44 @@ async def run_agent(    question: str,
                     temperature=role_temperature,
                     # 单轮输出上限：防止模型陷入超长生成把请求拖到超时
                     max_tokens=2048,
-                    # 429/5xx 由 LiteLLM 自动重试（与流式路径一致）
-                    num_retries=2,
-                    timeout=llm.llm_timeout(),
+                    # 429/5xx 由 LiteLLM 自动重试（与流式路径一致）；带图探测不重试
+                    num_retries=0 if vision_probe else 2,
+                    timeout=45 if vision_probe else llm.llm_timeout(),
                 )
         except Exception as exc:  # noqa: BLE001 — 端点失败/不支持 tools → 降级
-            raise AgentUnavailable(f"模型调用失败：{type(exc).__name__}") from exc
+            if images and _turn == 0 and not vision_fallback:
+                # 模型端点不接受 image_url：去掉图片重试一次，并在过程里说明，
+                # 避免把「模型不支持视觉」误报成整轮问答失败。
+                vision_fallback = True
+                messages = _drop_image_parts(messages)
+                await emit(
+                    {
+                        "type": "thinking",
+                        "data": {
+                            "content": "当前模型端点不接受图片输入，已改按文字问题回答；"
+                            "如需读图，请在设置里换用支持视觉的模型。"
+                        },
+                        "node": "finalize",
+                    }
+                )
+                try:
+                    with timed("llm.tool_loop", model=cfg.get("model", ""), turn=_turn):
+                        resp = await client.chat.completions.create(
+                            model=cfg["model"] or "gpt-4o-mini",
+                            messages=messages,
+                            tools=tool_schemas,
+                            tool_choice="auto",
+                            temperature=role_temperature,
+                            max_tokens=2048,
+                            num_retries=2,
+                            timeout=llm.llm_timeout(),
+                        )
+                except Exception as retry_exc:  # noqa: BLE001
+                    raise AgentUnavailable(
+                        f"模型调用失败：{type(retry_exc).__name__}"
+                    ) from retry_exc
+            else:
+                raise AgentUnavailable(f"模型调用失败：{type(exc).__name__}") from exc
 
         msg = resp.choices[0].message
         tool_calls = getattr(msg, "tool_calls", None)
@@ -257,6 +326,20 @@ async def run_agent(    question: str,
         for tc in tool_calls:
             name = tc.function.name
             if name == "web_search":
+                # 工具面在 cap 后已摘掉 web_search，但模型可能仍按惯性调用；
+                # 执行层再守一次，避免「schema 已移除、实际还在搜」。
+                if web_calls >= search_cap:
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": (
+                                f"本轮联网检索已达上限（{search_cap} 次）。"
+                                "请基于已拿到的结果成文，不要继续检索。"
+                            ),
+                        }
+                    )
+                    continue
                 web_calls += 1
             # P2 MCP：外部 MCP 工具（server 名一致时才走 MCP 调用）
             mcp_hit = mcp_client.resolve_mcp_tool(name) if mcp_schemas else None

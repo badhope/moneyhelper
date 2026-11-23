@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, FileText, Play, Plus, RefreshCw, Square } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileText, Play, Plus, RefreshCw, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
+  apiDownloadPost,
   cancelLongTask,
   createLongTask,
   getLongTask,
@@ -297,9 +298,28 @@ export function LongTaskPage() {
                   <div className="px-3 pb-2 text-[11.5px] text-red-600">{s.error}</div>
                 )}
                 {openStage === s.index && (
-                  <pre className="max-h-80 overflow-auto whitespace-pre-wrap border-t border-border/70 px-3 py-2 text-[12.5px] leading-relaxed">
-                    {stageText || t("longtask.emptyArtifact")}
-                  </pre>
+                  <div className="border-t border-border/70">
+                    {stageText && (
+                      <div className="flex justify-end px-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void apiDownloadPost(
+                              "/api/canvas/export",
+                              { title: `${detail.title} · ${s.name}`, body: stageText, format: "docx" },
+                              `${detail.title}-${s.name}.docx`,
+                            ).catch((e) => toast(errMsg(e), "error"))
+                          }
+                          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                        >
+                          <Download className="h-3 w-3" /> {t("longtask.exportWord")}
+                        </button>
+                      </div>
+                    )}
+                    <pre className="max-h-80 overflow-auto whitespace-pre-wrap px-3 py-2 text-[12.5px] leading-relaxed">
+                      {stageText || t("longtask.emptyArtifact")}
+                    </pre>
+                  </div>
                 )}
               </div>
             ))}

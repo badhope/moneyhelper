@@ -192,6 +192,8 @@ export const zh_settings2: Record<string, string> = {
   "settings.auditEmpty": "暂无审计记录",
   "chat.attach": "上传附件",
   "chat.attachHint": "上传、拖入或粘贴附件",
+  "chat.imageBadge": "图片",
+  "chat.visionHint": "图片会随本轮问题一起送给模型；模型不支持视觉时会明确回退文字",
   "chat.attachUnsupported": "只支持文本、CSV、图片和 PDF",
   "chat.dropHere": "松手即上传",
   "chat.dropHint": "文本、CSV、图片、PDF",

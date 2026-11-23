@@ -171,3 +171,61 @@ async def test_share_expired_returns_404(client, _temp_db) -> None:
     await conn.execute("UPDATE shares SET expires_at=? WHERE token=?", (past, created["token"]))
     await conn.commit()
     assert (await client.get(f"/s/{created['token']}")).status_code == 404
+
+
+async def test_cross_session_project_library(client) -> None:
+    aid = await _upload(client, "项目底稿.md", "固定资料：只谈 ETF。")
+    created = await client.post(
+        "/api/chat-projects",
+        json={
+            "name": "ETF 研究",
+            "instructions": "所有会话都只谈 ETF。",
+            "attachment_ids": [aid],
+            "memories": ["每月 10 日定投"],
+        },
+    )
+    assert created.status_code == 200, created.text
+    pid = created.json()["id"]
+
+    for tid in ("t-proj-a", "t-proj-b"):
+        r = await client.put(
+            f"/api/threads/{tid}/context",
+            json={"project_id": pid, "instructions": "所有会话都只谈 ETF。"},
+        )
+        assert r.status_code == 200, r.text
+        ctx = r.json()
+        assert ctx["project_id"] == pid and ctx["project_name"] == "ETF 研究"
+        assert "只谈 ETF" in ctx["instructions"]
+        assert ctx["attachments"][0]["filename"] == "项目底稿.md"
+
+    # 改项目一次，两个会话都读到最新内容，而不是各自快照
+    upd = await client.put(
+        f"/api/chat-projects/{pid}",
+        json={
+            "name": "ETF 研究 v2",
+            "instructions": "只谈 ETF 与资产配置。",
+            "attachment_ids": [aid],
+            "memories": ["每月 10 日定投"],
+        },
+    )
+    assert upd.status_code == 200, upd.text
+    for tid in ("t-proj-a", "t-proj-b"):
+        ctx = (await client.get(f"/api/threads/{tid}/context")).json()
+        assert ctx["project_name"] == "ETF 研究 v2"
+        assert "资产配置" in ctx["instructions"]
+
+    # 显式取消绑定后回到仅本会话，不删除项目本身
+    unlink = await client.put(
+        "/api/threads/t-proj-a/context",
+        json={"project_id": None, "instructions": "仅本会话", "attachment_ids": [], "memories": []},
+    )
+    assert unlink.status_code == 200, unlink.text
+    assert unlink.json()["project_id"] is None
+    assert (await client.get("/api/chat-projects")).json()["projects"][0]["id"] == pid
+
+    # 删除项目后，原会话退回 thread 里保留的副本，不再 500
+    deleted = await client.delete(f"/api/chat-projects/{pid}")
+    assert deleted.status_code == 200, deleted.text
+    ctx_b = (await client.get("/api/threads/t-proj-b/context")).json()
+    assert ctx_b["project_id"] is None
+    assert "资产配置" in ctx_b["instructions"]

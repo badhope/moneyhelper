@@ -68,6 +68,7 @@ export function ChatView({
   const [shareOpen, setShareOpen] = useState(false);
   const [canvas, setCanvas] = useState<{ title: string; text: string } | null>(null);
   const [projectCount, setProjectCount] = useState(0);
+  const [projectName, setProjectName] = useState("");
   const [findQ, setFindQ] = useState("");
   const findInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,6 +106,7 @@ export function ChatView({
       .then((ctx) => {
         if (!alive) return;
         setProjectCount((ctx.instructions ? 1 : 0) + (ctx.attachments?.length ?? 0) + (ctx.memories?.length ?? 0));
+        setProjectName(ctx.project_name || "");
       })
       .catch(() => { /* 项目卡读取失败不阻塞聊天 */ });
     return () => { alive = false; };
@@ -282,7 +284,9 @@ export function ChatView({
                       className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
                       <FolderKanban className="h-3 w-3" />
-                      <span className="max-sm:hidden">{tr("project.short")}</span>
+                      <span className="max-sm:hidden max-w-[11rem] truncate">
+                        {projectName ? `${tr("project.short")} · ${projectName}` : tr("project.short")}
+                      </span>
                       {projectCount > 0 && (
                         <span className="rounded bg-primary/10 px-1 text-[10px] text-primary">{projectCount}</span>
                       )}
@@ -543,7 +547,10 @@ export function ChatView({
         threadId={threadId}
         open={projectOpen}
         onClose={() => setProjectOpen(false)}
-        onSaved={(ctx) => setProjectCount((ctx.instructions ? 1 : 0) + (ctx.attachments?.length ?? 0) + (ctx.memories?.length ?? 0))}
+        onSaved={(ctx) => {
+          setProjectCount((ctx.instructions ? 1 : 0) + (ctx.attachments?.length ?? 0) + (ctx.memories?.length ?? 0));
+          setProjectName(ctx.project_name || "");
+        }}
       />
       <ShareDialog threadId={threadId} open={shareOpen} onClose={() => setShareOpen(false)} />
       <CanvasDialog

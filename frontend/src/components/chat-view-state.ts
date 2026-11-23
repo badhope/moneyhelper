@@ -361,7 +361,7 @@ export function useChatView({
     // helpers
     uploadAttachment: async (f: File) => {
       const r = await uploadAttachment(f);
-      setAttachments((prev) => [...prev, { id: r.id, filename: f.name, kind: "text" }]);
+      setAttachments((prev) => [...prev, { id: r.id, filename: f.name, kind: r.kind ?? "text", mime: r.mime }]);
       return r;
     },
     referenceAttachment: (a: RunAttachment) => {

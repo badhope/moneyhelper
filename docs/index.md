@@ -37,7 +37,8 @@
 | [Financial identity and monthly review](personal-review.md) | Verifiable identity card, month-end closing review, agent tools |
 | [Answer sources and quality feedback](answer-trust.md) | In-message source chips, thumbs up/down, reason tags, tenant-scoped summary |
 | [Reference a workbench file in chat](chat-file-reference.md) | `@` mention of an existing attachment, no re-upload, removing a reference never deletes the file |
-| [Session project, share, canvas and research](chat-context-tools.md) | Per-session project card, read-only snapshot link, answer canvas, deep research and answer length |
+| [Session project, share, canvas and research](chat-context-tools.md) | Cross-session project library, vision input, read-only share, answer canvas with Word/HTML export, deep research and answer length |
+| [Roadmap completion report 4.16.45](ROADMAP-COMPLETION-4.16.45.md) | The five audit gaps closed in 4.16.45 with evidence and explicit non-goals |
 | [Roadmap completion report 4.16.44](ROADMAP-COMPLETION-4.16.44.md) | The remaining routes closed in 4.16.42–4.16.44, evidence, and explicit non-goals |
 
 ## Engineering

@@ -272,6 +272,7 @@ export const zh_settings: Record<string, string> = {
   "expenses.rejected": "已驳回",
   "nav.procurement": "采购应付",
   "nav.longtask": "长任务",
+  "longtask.exportWord": "导出 Word",
   "longtask.title": "长任务",
   "longtask.desc": "把大任务拆成阶段逐段执行，每段产物落盘可查；失败只影响单阶段，可续跑。",
   "longtask.new": "新建任务",

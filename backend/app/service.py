@@ -128,6 +128,7 @@ async def _run_general(
     emit: Emit,
     thread_id: str | None = None,
     lang: str = "zh",
+    images: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """默认路径：通用 agent。
 
@@ -140,7 +141,8 @@ async def _run_general(
     """
     history = await _build_history(thread_id, only_route="general")
 
-    reply = _smalltalk_reply(question, lang)
+    # 带图片时跳过固定寒暄：图片问题需要模型看，不能被模板句抢答。
+    reply = "" if images else _smalltalk_reply(question, lang)
     if reply:
         await emit({"type": "text", "delta": reply})
         return {
@@ -168,6 +170,7 @@ async def _run_general(
                 tools_list=tools,
                 impl_map=agent_mod.GENERAL_IMPL if tools else {},
                 inject_memories=False,
+                images=images,
             )
             result.update(
                 {
@@ -266,6 +269,7 @@ async def run_question(
     session_context: str = "",
     deep_research: bool = False,
     llm_options: dict[str, Any] | None = None,
+    images: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """执行一轮问答，返回最终元信息（由调用方负责归档与转发 final 事件）。
 
@@ -285,6 +289,7 @@ async def run_question(
         session_context=session_context,
         deep_research=deep_research,
         llm_options=llm_options,
+        images=images,
     )
 
 from .service_history import (  # noqa: F401,E402 — 对外同名导出与 run_question 使用

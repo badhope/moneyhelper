@@ -48,6 +48,7 @@ async def finalize(state: AgentState) -> dict[str, Any]:
                 session_context=state.get("session_context") or "",
                 deep_research=bool(state.get("deep_research")),
                 llm_options=state.get("llm_options") or {},
+                images=state.get("images") or [],
             )
             live = state.get("live")
             if live is None:

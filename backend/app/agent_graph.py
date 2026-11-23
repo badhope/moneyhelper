@@ -87,6 +87,7 @@ class AgentState(TypedDict, total=False):
     session_context: str  # 会话项目卡：项目指令 + 项目记忆（只作用于当前 thread）
     deep_research: bool  # 深度研究：多轮检索与固定报告结构
     llm_options: dict[str, Any]  # 本轮生成偏好（answer_mode 等）
+    images: list[dict[str, Any]]  # 本轮图片附件（data URL 由上下文装配层生成）
     route: str
     reason: str
     mode: str  # agent | deterministic
@@ -127,6 +128,7 @@ async def general(state: AgentState) -> dict[str, Any]:
         _emit,
         state.get("thread_id"),
         state.get("lang", "zh"),
+        images=state.get("images") or [],
     )
     return {"result": result}
 

@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Brain, Check, FileText, Loader2, Plus, X } from "lucide-react";
+import { Brain, Check, FileText, FolderKanban, Loader2, Plus, X } from "lucide-react";
 import {
+  createChatProject,
+  getChatProject,
   getThreadContext,
   listAttachments,
+  listChatProjects,
   saveThreadContext,
+  updateChatProject,
+  type ChatProjectSummary,
   type ThreadContext,
   type AttachmentItem,
 } from "@/lib/api";
@@ -32,18 +37,26 @@ export function ThreadProjectDialog({
   const [memories, setMemories] = useState<string[]>([]);
   const [memoryDraft, setMemoryDraft] = useState("");
   const [files, setFiles] = useState<AttachmentItem[]>([]);
+  const [projects, setProjects] = useState<ChatProjectSummary[]>([]);
+  const [projectId, setProjectId] = useState<number | null>(null);
+  const [projectName, setProjectName] = useState("");
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
 
   useEffect(() => {
     if (!open) return;
     let alive = true;
     setLoading(true);
-    Promise.all([getThreadContext(threadId), listAttachments()])
-      .then(([ctx, items]) => {
+    Promise.all([getThreadContext(threadId), listAttachments(), listChatProjects()])
+      .then(([ctx, items, projectList]) => {
         if (!alive) return;
         setInstructions(ctx.instructions || "");
         setSelected((ctx.attachments || []).map((a) => a.id));
         setMemories((ctx.memories || []).map((m) => m.text));
         setFiles(items);
+        setProjects(projectList);
+        setProjectId(ctx.project_id ?? null);
+        setProjectName(ctx.project_name || "");
       })
       .catch((e) => {
         if (alive) toast(errMsg(e), "error");
@@ -57,6 +70,65 @@ export function ThreadProjectDialog({
   }, [open, threadId, toast]);
 
   const selectedCount = useMemo(() => selected.length, [selected]);
+
+  const chooseProject = async (raw: string) => {
+    if (!raw) {
+      setProjectId(null);
+      setProjectName("");
+      return;
+    }
+    const id = Number(raw);
+    try {
+      setLoading(true);
+      const project = await getChatProject(id);
+      setProjectId(project.id);
+      setProjectName(project.name);
+      setInstructions(project.instructions || "");
+      setSelected((project.attachments || []).map((a) => a.id));
+      setMemories((project.memories || []).map((m) => m.text));
+    } catch (e) {
+      toast(errMsg(e), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createProject = async () => {
+    const name = newProjectName.trim();
+    if (!name) {
+      toast(tr("project.nameRequired"), "error");
+      return;
+    }
+    try {
+      setLoading(true);
+      const project = await createChatProject({
+        name,
+        instructions: instructions.trim(),
+        attachment_ids: selected,
+        memories,
+      });
+      setProjects((prev) => [
+        {
+          id: project.id,
+          name: project.name,
+          instructions: project.instructions,
+          attachment_count: project.attachments.length,
+          memory_count: project.memories.length,
+          updated_at: project.updated_at,
+        },
+        ...prev,
+      ]);
+      setProjectId(project.id);
+      setProjectName(project.name);
+      setNewProjectOpen(false);
+      setNewProjectName("");
+      toast(tr("project.created"), "ok");
+    } catch (e) {
+      toast(errMsg(e), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleFile = (id: number) => {
     setSelected((prev) => {
@@ -83,13 +155,22 @@ export function ThreadProjectDialog({
   const save = async () => {
     setSaving(true);
     try {
+      if (projectId) {
+        await updateChatProject(projectId, {
+          name: projectName.trim() || tr("project.untitled"),
+          instructions: instructions.trim(),
+          attachment_ids: selected,
+          memories,
+        });
+      }
       const ctx = await saveThreadContext(threadId, {
         instructions: instructions.trim(),
         attachment_ids: selected,
         memories,
+        project_id: projectId,
       });
       onSaved?.(ctx);
-      toast(tr("project.saved"), "ok");
+      toast(projectId ? tr("project.savedLibrary") : tr("project.saved"), "ok");
       onClose();
     } catch (e) {
       toast(errMsg(e), "error");
@@ -122,6 +203,64 @@ export function ThreadProjectDialog({
             </div>
           ) : (
             <div className="space-y-5">
+              <section className="rounded-xl border border-border/80 bg-muted/25 px-3 py-3">
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="flex items-center gap-1.5 text-[13px] font-semibold">
+                    <FolderKanban className="h-3.5 w-3.5 text-primary" />
+                    {tr("project.library")}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setNewProjectOpen((v) => !v)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11.5px] hover:bg-accent"
+                  >
+                    <Plus className="h-3 w-3" /> {tr("project.new")}
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={projectId ?? ""}
+                    onChange={(e) => void chooseProject(e.target.value)}
+                    className="h-9 min-w-[180px] flex-1 rounded-lg border border-border bg-background px-2 text-[12.5px] outline-none"
+                  >
+                    <option value="">{tr("project.scopeSession")}</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} · {p.attachment_count}/{p.memory_count}
+                      </option>
+                    ))}
+                  </select>
+                  {projectId && (
+                    <input
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value.slice(0, 60))}
+                      aria-label={tr("project.name")}
+                      className="h-9 min-w-[140px] flex-1 rounded-lg border border-border bg-background px-2.5 text-[12.5px] outline-none"
+                    />
+                  )}
+                </div>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  {projectId ? tr("project.linkedHint") : tr("project.libraryHint")}
+                </p>
+                {newProjectOpen && (
+                  <div className="mt-2 flex gap-1.5">
+                    <input
+                      autoFocus
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value.slice(0, 60))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.nativeEvent.isComposing) void createProject();
+                      }}
+                      placeholder={tr("project.newNamePh")}
+                      className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 text-[12px] outline-none"
+                    />
+                    <button type="button" onClick={() => void createProject()} className="h-8 rounded-lg border border-border px-3 text-[12px] hover:bg-accent">
+                      {tr("project.create")}
+                    </button>
+                  </div>
+                )}
+              </section>
+
               <section>
                 <div className="mb-1.5 flex items-center justify-between">
                   <h3 className="text-[13px] font-semibold">{tr("project.instructions")}</h3>

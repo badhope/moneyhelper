@@ -272,6 +272,7 @@ export const en_settings: Record<string, string> = {
   "expenses.rejected": "Rejected",
   "nav.procurement": "Procurement",
   "nav.longtask": "Long tasks",
+  "longtask.exportWord": "Export Word",
   "longtask.title": "Long tasks",
   "longtask.desc": "Split a large task into stages, run them one by one, and keep every artifact on disk. A failed stage is isolated and can be resumed.",
   "longtask.new": "New task",
