@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 from typing import Any
 
 from .logging_utils import get_logger
+from .longtask_contract import normalize_contract
 from .longtask_store import _artifact_dir, _read, _root, _task_dir, _write
 from .longtask_templates import TEMPLATES
 from .timeutil import now_str as _now
@@ -22,10 +22,14 @@ async def create_task(
     title: str,
     brief: str,
     *,
-    stages: list[str] | None = None,
+    stages: list[Any] | None = None,
     success_criteria: str = "",
 ) -> dict[str, Any]:
-    """建立任务。stages 为空时按模板生成；自定义阶段最多 MAX_STAGES 个。"""
+    """建立任务。stages 为空时按模板生成；自定义阶段最多 MAX_STAGES 个。
+
+    自定义阶段可以是字符串，也可以是 {name, instruction, contract} 对象；
+    UI 目前只传阶段名，契约走模板默认值。
+    """
     template = TEMPLATES.get(kind)
     if template is None and not stages:
         raise ValueError(f"未知任务类型：{kind}（可选 {'/'.join(TEMPLATES)}）")
@@ -37,11 +41,26 @@ async def create_task(
         raise ValueError("任务目标不能为空")
     clean_criteria = str(success_criteria or "").strip()[:1000]
 
+    stage_defs: list[tuple[str, str, dict[str, Any]]] = []
     if stages:
-        stage_defs = [(str(s).strip()[:60], str(s).strip()[:2000]) for s in stages if str(s).strip()]
+        for item in stages:
+            if isinstance(item, dict):
+                name = str(item.get("name") or "").strip()[:60]
+                instruction = str(item.get("instruction") or name).strip()[:2000]
+                contract = normalize_contract(item.get("contract"))
+            else:
+                name = str(item).strip()[:60]
+                instruction = str(item).strip()[:2000]
+                contract = normalize_contract(None)
+            if name:
+                stage_defs.append((name, instruction, contract))
     else:
         assert template is not None
-        stage_defs = list(template["stages"])
+        for spec in template["stages"]:
+            name = str(spec[0]).strip()[:60]
+            instruction = str(spec[1]).strip()[:2000]
+            contract = normalize_contract(spec[2] if len(spec) > 2 else None)
+            stage_defs.append((name, instruction, contract))
     if not stage_defs:
         raise ValueError("至少需要一个阶段")
     if len(stage_defs) > MAX_STAGES:
@@ -50,6 +69,7 @@ async def create_task(
     task_id = uuid.uuid4().hex[:12]
     task = {
         "id": task_id,
+        "schema_version": 2,
         "kind": kind,
         "title": clean_title,
         "brief": clean_brief,
@@ -62,19 +82,28 @@ async def create_task(
                 "index": i,
                 "name": name,
                 "instruction": instruction,
+                "contract": contract,
                 "status": "pending",  # pending/running/done/failed/skipped
                 "chars": 0,
                 "file": "",
                 "error": "",
+                "stale": False,
+                "stale_reason": "",
+                "stale_at": "",
+                "checkpoint_id": "",
+                "tools_used": [],
+                "tool_steps": [],
+                "validation": {},
                 "started_at": "",
                 "finished_at": "",
             }
-            for i, (name, instruction) in enumerate(stage_defs)
+            for i, (name, instruction, contract) in enumerate(stage_defs)
         ],
     }
     _task_dir(task_id).mkdir(parents=True, exist_ok=True)
     _write(task)
     return task
+
 
 
 def get_task(task_id: str) -> dict[str, Any]:
@@ -85,10 +114,11 @@ def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for path in sorted(_root().glob("*/task.json"), key=lambda p: p.stat().st_mtime, reverse=True):
         try:
-            task = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001 — 坏文件跳过，不影响列表
+            task = _read(path.parent.name)
+        except Exception:  # noqa: BLE001 — 坏文件/坏 id 跳过，不影响列表
             continue
         done = sum(1 for s in task.get("stages") or [] if s.get("status") == "done")
+        stale = sum(1 for s in task.get("stages") or [] if s.get("stale"))
         total = len(task.get("stages") or [])
         rows.append(
             {
@@ -97,6 +127,7 @@ def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
                 "title": task.get("title"),
                 "status": task.get("status"),
                 "done": done,
+                "stale": stale,
                 "total": total,
                 "created_at": task.get("created_at"),
                 "updated_at": task.get("updated_at"),
@@ -131,5 +162,6 @@ def _context(task: dict[str, Any], upto: int) -> str:
         if not path.exists():
             continue
         text = path.read_text(encoding="utf-8")
-        parts.append(f"## 已完成：{stage['name']}\n{text[:1200]}")
+        mark = "（此产物已过期，正在等待重算）" if stage.get("stale") else ""
+        parts.append(f"## 已完成：{stage['name']}{mark}\n{text[:1200]}")
     return "\n\n".join(parts)[-8000:]

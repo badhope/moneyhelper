@@ -20,18 +20,22 @@ __all__ = [
     "create_task",
     "get_task",
     "is_active",
+    "list_checkpoints",
     "list_tasks",
     "list_templates",
     "read_artifact",
+    "rollback_task",
     "run_task",
     "start_task",
 ]
 
+from .longtask_checkpoints import list_checkpoints  # noqa: F401,E402
 from .longtask_runner import (  # noqa: F401,E402
     MAX_STAGE_CHARS,
     MAX_TOTAL_SECONDS,
     cancel_task,
     is_active,
+    rollback_task,
     run_task,
     start_task,
 )

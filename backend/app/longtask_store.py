@@ -28,7 +28,27 @@ def _read(task_id: str) -> dict[str, Any]:
     path = _task_dir(task_id) / "task.json"
     if not path.exists():
         raise ValueError("任务不存在")
-    return json.loads(path.read_text(encoding="utf-8"))
+    task = json.loads(path.read_text(encoding="utf-8"))
+    _normalize_task(task)
+    return task
+
+
+def _normalize_task(task: dict[str, Any]) -> dict[str, Any]:
+    """补齐 4.16.48 字段；旧任务不按新模板契约重新判失败。"""
+    from .longtask_contract import normalize_contract
+
+    task.setdefault("schema_version", 2)
+    for stage in task.get("stages") or []:
+        stage["contract"] = normalize_contract(stage.get("contract"))
+        stage.setdefault("stale", False)
+        stage.setdefault("stale_reason", "")
+        stage.setdefault("stale_at", "")
+        stage.setdefault("checkpoint_id", "")
+        stage.setdefault("tools_used", [])
+        stage.setdefault("tool_steps", [])
+        stage.setdefault("validation", {})
+    return task
+
 
 
 def _write(task: dict[str, Any]) -> None:

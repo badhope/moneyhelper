@@ -88,7 +88,7 @@ async def test_run_task_writes_artifacts(monkeypatch) -> None:
 
 
 async def test_stage_failure_is_recorded_and_resumable(monkeypatch) -> None:
-    """单阶段失败标记 failed，其余继续；再跑一次只补失败阶段。"""
+    """单阶段失败标记 failed，下游不再带病执行；补跑成功后继续。"""
     from app import llm
 
     async def fake_available() -> bool:
@@ -113,12 +113,15 @@ async def test_stage_failure_is_recorded_and_resumable(monkeypatch) -> None:
     assert first["stages"][0]["status"] == "failed"
     assert first["stages"][0]["attempts"] == 2
     assert first["stages"][0]["duration_ms"] >= 0
-    assert first["stages"][1]["status"] == "done"
+    assert first["stages"][1]["status"] == "pending"
     assert first["status"] == "failed"
 
     second = await longtask.run_task(task["id"])
     assert second["stages"][0]["status"] == "done"
+    # 第二阶段从未在失败上下文里跑过；补跑时按顺序一起完成。
+    assert second["stages"][1]["status"] == "done"
     assert second["status"] == "done"
+    assert state["n"] == 4
 
 
 async def test_run_requires_model(monkeypatch) -> None:
@@ -159,7 +162,9 @@ async def test_rerun_single_stage_keeps_other_artifacts(monkeypatch) -> None:
     assert state["n"] == 3, "只应新增一次模型调用"
     assert rerun["stages"][0]["chars"] == len("第 3 次生成")
     assert longtask.read_artifact(task["id"], 1) == old_second
-    assert rerun["status"] == "done"
+    # 产物还在，但下游已过期，任务不能显示全绿。
+    assert rerun["stages"][1]["stale"] is True
+    assert rerun["status"] == "pending"
     with pytest.raises(ValueError, match="阶段不存在"):
         await longtask.run_task(task["id"], stage_index=9)
 
@@ -210,3 +215,134 @@ async def test_list_tasks_reports_progress() -> None:
     assert rows
     assert rows[0]["total"] == 2
     assert "done" in rows[0]
+
+
+async def test_contract_retry_and_reject(monkeypatch) -> None:
+    """产物不合格先带违反项重写；两次都不合格落 failed，不把短稿标 done。"""
+    from app import llm
+
+    async def fake_available() -> bool:
+        return True
+
+    long_body = (
+        "世界观：一个被海水包围的城邦。\n"
+        + "人物：主角是普通大学生，靠修理旧机器换口粮。\n"
+        + "核心冲突：城邦的潮汐规则正在失效。\n"
+        + ("补充设定与冲突细节。" * 40)
+    )
+    state = {"n": 0}
+
+    async def fake_chat(messages, *, model=None, temperature=0.3, timeout=60.0):
+        state["n"] += 1
+        # 第一段任务第一次返回过短；第二次补全。第二段任务永远返回过短。
+        if state["n"] in (1, 3, 4):
+            return "太短"
+        return long_body
+
+    monkeypatch.setattr(llm, "llm_available", fake_available)
+    monkeypatch.setattr(llm, "litellm_chat", fake_chat)
+
+    task = await longtask.create_task("novel", "契约重试", "x")
+    out = await longtask.run_task(task["id"], max_stages=1)
+    assert out["stages"][0]["status"] == "done"
+    assert out["stages"][0]["attempts"] == 2
+    assert out["stages"][0]["validation"]["ok"] is True
+    assert out["status"] == "pending"
+
+    bad = await longtask.create_task("novel", "契约拒绝", "x")
+    bad_out = await longtask.run_task(bad["id"], max_stages=1)
+    assert bad_out["stages"][0]["status"] == "failed"
+    assert "字数不足" in bad_out["stages"][0]["error"]
+    assert bad_out["stages"][0]["file"] == ""
+    assert bad_out["status"] == "failed"
+
+
+async def test_checkpoint_rollback_restores_artifact_and_marks_downstream(monkeypatch) -> None:
+    from app import llm
+
+    async def fake_available() -> bool:
+        return True
+
+    state = {"n": 0}
+
+    async def fake_chat(messages, *, model=None, temperature=0.3, timeout=60.0):
+        state["n"] += 1
+        return f"第 {state['n']} 次生成"
+
+    monkeypatch.setattr(llm, "llm_available", fake_available)
+    monkeypatch.setattr(llm, "litellm_chat", fake_chat)
+    task = await longtask.create_task("program", "回滚", "x", stages=["甲", "乙"])
+    await longtask.run_task(task["id"])
+    assert len(longtask.list_checkpoints(task["id"], 0)) == 1
+
+    await longtask.run_task(task["id"], stage_index=0)
+    cps = longtask.list_checkpoints(task["id"], 0)
+    assert len(cps) == 2
+    oldest = cps[-1]
+    rolled = longtask.rollback_task(task["id"], 0, oldest["id"])
+    assert longtask.read_artifact(task["id"], 0) == "第 1 次生成"
+    assert rolled["stages"][0]["checkpoint_id"] == oldest["id"]
+    assert rolled["stages"][1]["stale"] is True
+    assert rolled["status"] == "pending"
+    # 回滚前当前版本被自动备份，避免“回滚完才发现想反悔”。
+    assert len(longtask.list_checkpoints(task["id"], 0)) == 3
+
+
+async def test_cascade_reruns_downstream(monkeypatch) -> None:
+    from app import llm
+
+    async def fake_available() -> bool:
+        return True
+
+    state = {"n": 0}
+
+    async def fake_chat(messages, *, model=None, temperature=0.3, timeout=60.0):
+        state["n"] += 1
+        return f"版本{state['n']}"
+
+    monkeypatch.setattr(llm, "llm_available", fake_available)
+    monkeypatch.setattr(llm, "litellm_chat", fake_chat)
+    task = await longtask.create_task("program", "级联", "x", stages=["a", "b", "c"])
+    await longtask.run_task(task["id"])
+    out = await longtask.run_task(task["id"], stage_index=0, cascade=True)
+    assert state["n"] == 6, "首轮 3 段 + 级联 3 段"
+    assert out["status"] == "done"
+    assert all(s["stale"] is False for s in out["stages"])
+    assert [longtask.read_artifact(task["id"], i) for i in range(3)] == ["版本4", "版本5", "版本6"]
+
+
+async def test_tool_stage_records_real_tool_steps(monkeypatch) -> None:
+    """投研阶段走只读工具循环；工具名和步骤来自真实回包，不是写死的 UI 文案。"""
+    from app import agent, llm
+
+    async def fake_available() -> bool:
+        return True
+
+    async def fake_run_agent(question, emit, **kwargs):
+        return {
+            "answer": (
+                "数据：净资产与月度收支来自本地账本。\n"
+                "口径：金额为人民币，时间为最近一个完整月份。\n"
+                + ("风险与边界说明。" * 60)
+            ),
+            "steps": [
+                {
+                    "name": "get_ledger_view",
+                    "args": {"month": "2026-10"},
+                    "summary": "收入 1,000、支出 800",
+                    "status": "done",
+                    "duration_ms": 120,
+                }
+            ],
+            "tools_used": ["get_ledger_view"],
+        }
+
+    monkeypatch.setattr(llm, "llm_available", fake_available)
+    monkeypatch.setattr(agent, "run_agent", fake_run_agent)
+    task = await longtask.create_task("research", "工具阶段", "x")
+    out = await longtask.run_task(task["id"], max_stages=1)
+    stage = out["stages"][0]
+    assert stage["status"] == "done"
+    assert stage["tools_used"] == ["get_ledger_view"]
+    assert stage["tool_steps"][0]["name"] == "get_ledger_view"
+    assert stage["tool_steps"][0]["status"] == "done"

@@ -7,11 +7,15 @@ import {
   cancelLongTask,
   createLongTask,
   getLongTask,
+  listLongTaskCheckpoints,
   listLongTasks,
   listLongTaskTemplates,
   readLongTaskStage,
+  rollbackLongTask,
   runLongTask,
   type LongTask,
+  type LongTaskCheckpoint,
+  type LongTaskContract,
   type LongTaskSummary,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -76,6 +80,8 @@ export function LongTaskPage() {
   const [busy, setBusy] = useState(false);
   const [openStage, setOpenStage] = useState<number | null>(null);
   const [stageText, setStageText] = useState("");
+  const [checkpoints, setCheckpoints] = useState<LongTaskCheckpoint[]>([]);
+  const [checkpointsLoading, setCheckpointsLoading] = useState(false);
   const [pollingId, setPollingId] = useState<string | null>(null);
   const [form, setForm] = useState({ kind: "novel", title: "", brief: "", success_criteria: "" });
 
@@ -103,6 +109,7 @@ export function LongTaskPage() {
       setPollingId(task.status === "running" && task.active !== false ? id : null);
       setOpenStage(null);
       setStageText("");
+      setCheckpoints([]);
     } catch (e) {
       toast(errMsg(e), "error");
     }
@@ -127,7 +134,11 @@ export function LongTaskPage() {
           if (terminal) {
             toast(t(next.status === "done" ? "longtask.finished" : next.status === "failed" ? "longtask.failed" : "longtask.cancelled"), next.status === "failed" ? "error" : "ok");
           } else if (next.status === "pending") {
-            toast(t("longtask.partialFinished"), "ok");
+            if ((next.stale_count ?? 0) > 0) {
+              toast(t("longtask.downstreamStale", { n: next.stale_count ?? 0 }), "ok");
+            } else {
+              toast(t("longtask.partialFinished"), "ok");
+            }
           }
         }
       } catch (e) {
@@ -190,15 +201,55 @@ export function LongTaskPage() {
     }
   };
 
-  /** 单阶段重跑：只重算目标阶段，已完成的其他阶段与产物保持不动。 */
-  const doRetryStage = async (id: string, index: number) => {
+  /** 单阶段重跑：只重算目标阶段；cascade 时连同后续阶段一起重算。 */
+  const doRetryStage = async (id: string, index: number, cascade = false) => {
     setBusy(true);
     try {
-      const r = await runLongTask(id, undefined, true, index);
+      const r = await runLongTask(id, undefined, true, index, cascade);
       setDetail(r.task);
       setPollingId(id);
-      toast(t("longtask.stageStarted"), "ok");
+      toast(t(cascade ? "longtask.cascadeStarted" : "longtask.stageStarted"), "ok");
       await load();
+    } catch (e) {
+      toast(errMsg(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 重算所有已过期阶段：按阶段顺序跑，后一段能用前一段的新产物。 */
+  const doRunStale = async (id: string) => {
+    setBusy(true);
+    try {
+      const r = await runLongTask(id, undefined, true, undefined, false, true);
+      setDetail(r.task);
+      setPollingId(id);
+      toast(t("longtask.staleStarted"), "ok");
+      await load();
+    } catch (e) {
+      toast(errMsg(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doRollback = async (id: string, index: number, checkpointId: string) => {
+    if (!window.confirm(t("longtask.rollbackConfirm"))) return;
+    setBusy(true);
+    try {
+      const r = await rollbackLongTask(id, index, checkpointId);
+      setDetail(r.task);
+      setPollingId(null);
+      toast(t("longtask.rollbackDone"), "ok");
+      await load();
+      if (openStage === index) {
+        const [text, list] = await Promise.all([
+          readLongTaskStage(id, index),
+          listLongTaskCheckpoints(id, index),
+        ]);
+        setStageText(text || "");
+        setCheckpoints(list);
+      }
     } catch (e) {
       toast(errMsg(e), "error");
     } finally {
@@ -209,24 +260,47 @@ export function LongTaskPage() {
   const openArtifact = async (taskId: string, index: number) => {
     if (openStage === index) {
       setOpenStage(null);
+      setCheckpoints([]);
       return;
     }
+    setCheckpointsLoading(true);
     try {
-      const text = await readLongTaskStage(taskId, index);
+      const [text, list] = await Promise.all([
+        readLongTaskStage(taskId, index),
+        listLongTaskCheckpoints(taskId, index),
+      ]);
       setStageText(text || "");
+      setCheckpoints(list);
       setOpenStage(index);
     } catch (e) {
+      setCheckpoints([]);
       toast(errMsg(e), "error");
+    } finally {
+      setCheckpointsLoading(false);
     }
   };
 
   const currentTemplate = templates.find((x) => x.id === form.kind);
   const stageDone = detail?.stages.filter((s) => s.status === "done").length ?? 0;
   const stageFailed = detail?.stages.filter((s) => s.status === "failed").length ?? 0;
+  const staleCount = detail?.stages.filter((s) => s.stale).length ?? 0;
   const stageRetries = detail?.stages.reduce(
     (sum, s) => sum + Math.max(0, (s.attempts ?? 0) - 1),
     0,
   ) ?? 0;
+
+  const contractText = (c?: LongTaskContract) => {
+    if (!c) return "";
+    const parts: string[] = [];
+    if (c.min_chars > 0) parts.push(t("longtask.minChars", { n: c.min_chars }));
+    if (c.required_sections?.length) {
+      parts.push(`${t("longtask.requiredSections")}：${c.required_sections.join("、")}`);
+    }
+    if (c.use_tools) {
+      parts.push(`${t("longtask.readTools")}：${c.route || t("longtask.routeLocal")}`);
+    }
+    return parts.join(" · ");
+  };
 
   return (
     <div className="space-y-3">
@@ -323,6 +397,11 @@ export function LongTaskPage() {
                   <div className="text-sm font-medium">{x.title}</div>
                   <div className="text-xs text-muted-foreground">
                     {x.done}/{x.total} · {x.created_at}
+                    {(x.stale ?? 0) > 0 && (
+                      <span className="ml-1 text-amber-700">
+                        · {x.stale} {t("longtask.staleShort")}
+                      </span>
+                    )}
                   </div>
                 </button>
                 <div className="flex items-center gap-1.5">
@@ -354,11 +433,26 @@ export function LongTaskPage() {
               <div className="mt-0.5 text-[11px] text-muted-foreground">
                 {stageDone}/{detail.stages.length} · {t("longtask.progressDone")}
                 {stageFailed > 0 && ` · ${stageFailed} ${t("longtask.progressFailed")}`}
+                {staleCount > 0 && ` · ${staleCount} ${t("longtask.staleShort")}`}
                 {stageRetries > 0 && ` · ${stageRetries} ${t("longtask.progressRetried")}`}
               </div>
             </div>
             <StatusPill status={detail.status} />
           </div>
+          {staleCount > 0 && (
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11.5px] text-amber-800">
+              <span>{t("longtask.staleBanner", { n: staleCount })}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => void doRunStale(detail.id)}
+              >
+                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                {t("longtask.staleRun")}
+              </Button>
+            </div>
+          )}
           {detail.success_criteria && (
             <div className="mb-2 rounded-md bg-muted/50 px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
               {t("longtask.criteria")}：{detail.success_criteria}
@@ -385,11 +479,21 @@ export function LongTaskPage() {
                         <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                       )}
                       <span className="truncate">{s.name}</span>
+                      {s.stale && (
+                        <span className="rounded-full border border-amber-500/40 px-1.5 py-0.5 text-[10px] text-amber-700">
+                          {t("longtask.staleBadge")}
+                        </span>
+                      )}
                     </span>
                     <span className="flex shrink-0 items-center gap-2">
                       {(s.attempts ?? 0) > 1 && (
                         <span className="text-[11px] text-amber-700">
                           {t("longtask.attempts", { n: s.attempts ?? 0 })}
+                        </span>
+                      )}
+                      {(s.tools_used?.length ?? 0) > 0 && (
+                        <span className="text-[11px] text-primary">
+                          {t("longtask.toolCount", { n: s.tools_used?.length ?? 0 })}
                         </span>
                       )}
                       {fmtDuration(s.duration_ms) && (
@@ -403,9 +507,7 @@ export function LongTaskPage() {
                       <StatusPill status={s.status} />
                     </span>
                   </button>
-                  {(s.status === "failed" ||
-                    s.status === "cancelled" ||
-                    s.status === "skipped") && (
+                  {s.status !== "running" && s.status !== "pending" && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -422,8 +524,45 @@ export function LongTaskPage() {
                 )}
                 {openStage === s.index && (
                   <div className="border-t border-border/70">
-                    {stageText && (
-                      <div className="flex justify-end px-3 pt-2">
+                    <div className="space-y-1 px-3 pt-2 text-[11.5px]">
+                      {contractText(s.contract) && (
+                        <div className="text-muted-foreground">
+                          {t("longtask.contract")}：{contractText(s.contract)}
+                        </div>
+                      )}
+                      {s.stale && (
+                        <div className="text-amber-700">
+                          {s.stale_reason || t("longtask.staleBanner", { n: 1 })}
+                        </div>
+                      )}
+                      {(s.tools_used?.length ?? 0) > 0 && (
+                        <div className="text-primary">
+                          {t("longtask.toolsUsed")}：{s.tools_used?.join("、")}
+                        </div>
+                      )}
+                      {(s.validation?.errors?.length ?? 0) > 0 && (
+                        <div className="text-red-600">
+                          {t("longtask.contractErrors")}：{s.validation?.errors?.join("；")}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-1.5 px-3 pt-2">
+                      {s.status !== "running" &&
+                        detail.stages.length > s.index + 1 &&
+                        (s.status === "done" ||
+                          s.status === "failed" ||
+                          s.status === "cancelled") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => void doRetryStage(detail.id, s.index, true)}
+                          >
+                            <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                            {t("longtask.cascade")}
+                          </Button>
+                        )}
+                      {stageText && (
                         <button
                           type="button"
                           onClick={() =>
@@ -437,11 +576,52 @@ export function LongTaskPage() {
                         >
                           <Download className="h-3 w-3" /> {t("longtask.exportWord")}
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                     <pre className="max-h-80 overflow-auto whitespace-pre-wrap px-3 py-2 text-[12.5px] leading-relaxed">
                       {stageText || t("longtask.emptyArtifact")}
                     </pre>
+                    <div className="border-t border-border/70 px-3 py-2">
+                      <div className="mb-1 text-[11px] font-medium">{t("longtask.checkpoints")}</div>
+                      {checkpointsLoading ? (
+                        <div className="text-[11px] text-muted-foreground">{t("longtask.loading")}</div>
+                      ) : checkpoints.filter((c) => c.stage_index === s.index).length === 0 ? (
+                        <div className="text-[11px] text-muted-foreground">{t("longtask.noCheckpoints")}</div>
+                      ) : (
+                        <div className="space-y-1">
+                          {checkpoints
+                            .filter((c) => c.stage_index === s.index)
+                            .map((c) => (
+                              <div
+                                key={c.id}
+                                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 px-2 py-1 text-[11px]"
+                              >
+                                <div className="min-w-0">
+                                  <div className="text-muted-foreground">
+                                    {c.created_at} · {c.chars} 字
+                                    {c.source === "pre-rollback"
+                                      ? ` · ${t("longtask.rollbackBackup")}`
+                                      : ""}
+                                  </div>
+                                  {(c.tools_used?.length ?? 0) > 0 && (
+                                    <div className="truncate text-primary">
+                                      {c.tools_used.join("、")}
+                                    </div>
+                                  )}
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={busy}
+                                  onClick={() => void doRollback(detail.id, s.index, c.id)}
+                                >
+                                  {t("longtask.rollback")}
+                                </Button>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

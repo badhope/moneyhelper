@@ -21,7 +21,7 @@ router = APIRouter()
 
 
 def _decorate_task(task: dict[str, Any]) -> dict[str, Any]:
-    """给任务补真实 active，并把无后台协程的 running 归一为 pending。
+    """给任务补真实 active 与过期计数，并把无后台协程的 running 归一为 pending。
 
     进程重启后磁盘可能残留 running；如果 API 原样返回，界面会一直显示
     “执行中”并无限轮询，而实际没有任何协程在跑。
@@ -30,6 +30,7 @@ def _decorate_task(task: dict[str, Any]) -> dict[str, Any]:
     if task.get("status") == "running" and not active:
         task["status"] = "pending"
     task["active"] = active
+    task["stale_count"] = sum(1 for s in task.get("stages") or [] if s.get("stale"))
     return task
 
 
@@ -72,7 +73,7 @@ async def create_task(
             str(data.get("kind") or "program"),
             str(data.get("title") or ""),
             str(data.get("brief") or ""),
-            stages=[str(s) for s in stages] if isinstance(stages, list) else None,
+            stages=stages if isinstance(stages, list) else None,
             success_criteria=str(data.get("success_criteria") or ""),
         )
     except (TypeError, ValueError) as exc:
@@ -97,6 +98,8 @@ async def run_task(
     data = payload or {}
     raw = data.get("max_stages")
     raw_index = data.get("stage_index")
+    cascade = bool(data.get("cascade"))
+    stale_only = bool(data.get("stale_only"))
     try:
         limit = int(raw) if raw not in (None, "") else None
     except (TypeError, ValueError):
@@ -107,16 +110,28 @@ async def run_task(
         return _bad("stage_index 需为整数")
     if limit is not None and index is not None:
         return _bad("max_stages 与 stage_index 只能二选一")
+    if cascade and index is None:
+        return _bad("cascade 需要 stage_index")
+    if stale_only and (limit is not None or index is not None or cascade):
+        return _bad("stale_only 不能与 max_stages/stage_index/cascade 同用")
     try:
         if data.get("background"):
             # 长任务可能跑到一小时，不能用一次 HTTP 请求一直挂着；
             # 返回 pending 快照，前端轮询 /api/longtasks/{id}。
             task = await longtask.start_task(
-                task_id, max_stages=limit, stage_index=index
+                task_id,
+                max_stages=limit,
+                stage_index=index,
+                cascade=cascade,
+                stale_only=stale_only,
             )
         else:
             task = await longtask.run_task(
-                task_id, max_stages=limit, stage_index=index
+                task_id,
+                max_stages=limit,
+                stage_index=index,
+                cascade=cascade,
+                stale_only=stale_only,
             )
     except (ValueError, PermissionError) as exc:
         return _bad(str(exc))
@@ -127,6 +142,39 @@ async def run_task(
 async def cancel_task(task_id: str, scope: int = Depends(_write_scope)) -> Any:
     try:
         task = longtask.cancel_task(task_id)
+    except ValueError as exc:
+        return _bad(str(exc))
+    return {"ok": True, "task": _decorate_task(task)}
+
+
+@router.get("/api/longtasks/{task_id}/stages/{index}/checkpoints")
+async def list_checkpoints(
+    task_id: str, index: int, scope: int = Depends(_read_scope)
+) -> Any:
+    try:
+        # 先确认任务与阶段存在，避免检查点目录按任意 index 建出来。
+        longtask.read_artifact(task_id, index)
+        rows = longtask.list_checkpoints(task_id, index)
+    except ValueError as exc:
+        return _bad(str(exc), 404)
+    return {"checkpoints": rows}
+
+
+@router.post("/api/longtasks/{task_id}/rollback")
+async def rollback(
+    task_id: str, payload: dict[str, Any], scope: int = Depends(_write_scope)
+) -> Any:
+    data = payload or {}
+    raw_index = data.get("stage_index")
+    try:
+        index = int(raw_index)
+    except (TypeError, ValueError):
+        return _bad("stage_index 需为整数")
+    checkpoint_id = str(data.get("checkpoint_id") or "").strip()
+    if not checkpoint_id:
+        return _bad("checkpoint_id 不能为空")
+    try:
+        task = longtask.rollback_task(task_id, index, checkpoint_id)
     except ValueError as exc:
         return _bad(str(exc))
     return {"ok": True, "task": _decorate_task(task)}

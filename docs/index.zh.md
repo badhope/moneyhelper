@@ -34,6 +34,7 @@
 | [Agent Studio](studio.md) | 角色 / 技能 / 提示词 / Hook / 权限 |
 | [工作流](WORKFLOW.md) / [Workflow (EN)](WORKFLOW.en.md) | 典型任务的操作路径 |
 | [可复核性标准](reviewability-standard.md) | 什么叫「这个数字可信」 |
+| [长任务契约与回滚 4.16.48](LONG-TASK-CONTRACT-4.16.48.md) | 阶段交付契约、下游过期、检查点回滚、只读工具阶段与浏览器证据 |
 
 ## 架构与工程
 
