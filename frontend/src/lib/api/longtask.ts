@@ -39,6 +39,15 @@ export interface LongTaskStage {
   stale_reason?: string;
   stale_at?: string;
   checkpoint_id?: string;
+  artifact_sha256?: string;
+  /** 运行中实时进度：只用于展示，不代表已产出 */
+  progress?: {
+    phase?: string;
+    steps?: number;
+    last_tool?: string;
+    label?: string;
+    updated_at?: string;
+  };
   tools_used?: string[];
   tool_steps?: { name: string; summary: string; status: string; duration_ms: number }[];
   validation?: { ok?: boolean; errors?: string[]; checked_at?: string; restored_from?: string };

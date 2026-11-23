@@ -491,6 +491,16 @@ export function LongTaskPage() {
                           {t("longtask.attempts", { n: s.attempts ?? 0 })}
                         </span>
                       )}
+                      {s.status === "running" && (
+                        <span className="max-w-[260px] truncate text-[11px] text-primary">
+                          {s.progress?.last_tool
+                            ? t("longtask.toolProgress", {
+                                name: s.progress.last_tool,
+                                n: s.progress.steps ?? 1,
+                              })
+                            : t("longtask.generating")}
+                        </span>
+                      )}
                       {(s.tools_used?.length ?? 0) > 0 && (
                         <span className="text-[11px] text-primary">
                           {t("longtask.toolCount", { n: s.tools_used?.length ?? 0 })}

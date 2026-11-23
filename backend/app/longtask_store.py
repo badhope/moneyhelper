@@ -34,7 +34,7 @@ def _read(task_id: str) -> dict[str, Any]:
 
 
 def _normalize_task(task: dict[str, Any]) -> dict[str, Any]:
-    """补齐 4.16.48 字段；旧任务不按新模板契约重新判失败。"""
+    """补齐 4.16.48/4.16.49 字段；旧任务不按新模板契约重新判失败。"""
     from .longtask_contract import normalize_contract
 
     task.setdefault("schema_version", 2)
@@ -44,6 +44,8 @@ def _normalize_task(task: dict[str, Any]) -> dict[str, Any]:
         stage.setdefault("stale_reason", "")
         stage.setdefault("stale_at", "")
         stage.setdefault("checkpoint_id", "")
+        stage.setdefault("artifact_sha256", "")
+        stage.setdefault("progress", {})
         stage.setdefault("tools_used", [])
         stage.setdefault("tool_steps", [])
         stage.setdefault("validation", {})

@@ -323,6 +323,8 @@ export const zh_settings: Record<string, string> = {
   "longtask.readTools": "只读工具",
   "longtask.routeLocal": "本地财务",
   "longtask.toolCount": "{n} 个工具",
+  "longtask.toolProgress": "已调用 {name} · 第 {n} 步",
+  "longtask.generating": "模型生成中",
   "longtask.toolsUsed": "调用的工具",
   "longtask.contractErrors": "契约违反项",
   "longtask.checkpoints": "历史版本",

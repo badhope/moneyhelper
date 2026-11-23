@@ -323,6 +323,8 @@ export const en_settings: Record<string, string> = {
   "longtask.readTools": "Read-only tools",
   "longtask.routeLocal": "local finance",
   "longtask.toolCount": "{n} tools",
+  "longtask.toolProgress": "Called {name} · step {n}",
+  "longtask.generating": "Generating",
   "longtask.toolsUsed": "Tools used",
   "longtask.contractErrors": "Contract violations",
   "longtask.checkpoints": "Version history",

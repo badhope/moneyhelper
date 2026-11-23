@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from app import longtask
 
@@ -346,3 +348,75 @@ async def test_tool_stage_records_real_tool_steps(monkeypatch) -> None:
     assert stage["tools_used"] == ["get_ledger_view"]
     assert stage["tool_steps"][0]["name"] == "get_ledger_view"
     assert stage["tool_steps"][0]["status"] == "done"
+
+
+async def test_unchanged_rerun_does_not_invalidate_downstream(monkeypatch) -> None:
+    """上游重跑但产物字节相同，下游结论没有失效，不应制造假过期。"""
+    from app import llm
+
+    async def fake_available() -> bool:
+        return True
+
+    async def fake_chat(messages, *, model=None, temperature=0.3, timeout=60.0):
+        return "固定成果：数字与口径均未变化"
+
+    monkeypatch.setattr(llm, "llm_available", fake_available)
+    monkeypatch.setattr(llm, "litellm_chat", fake_chat)
+    task = await longtask.create_task("program", "零差异重跑", "x", stages=["甲", "乙"])
+    first = await longtask.run_task(task["id"])
+    assert first["status"] == "done"
+    digest = first["stages"][0]["artifact_sha256"]
+    assert digest
+
+    again = await longtask.run_task(task["id"], stage_index=0)
+    assert again["stages"][0]["artifact_sha256"] == digest
+    assert again["stages"][0]["stale"] is False
+    assert again["stages"][1]["stale"] is False
+    assert again["status"] == "done"
+
+
+async def test_tool_stage_progress_is_persisted_while_running(monkeypatch) -> None:
+    """工具调用发生后，运行中进度写进 task.json；结束后清空，不冒充结果。"""
+    from app import agent, llm
+
+    async def fake_available() -> bool:
+        return True
+
+    async def fake_run_agent(question, emit, **kwargs):
+        await emit({"type": "tool", "data": {"name": "get_trend", "status": "done"}})
+        await asyncio.sleep(0.25)
+        return {
+            "answer": (
+                "数据：趋势为空，账本无流水。\n口径：人民币，最近三个月。\n"
+                + ("边界说明。" * 60)
+            ),
+            "steps": [
+                {
+                    "name": "get_trend",
+                    "args": {"months": 3},
+                    "summary": "空数组",
+                    "status": "done",
+                    "duration_ms": 80,
+                }
+            ],
+            "tools_used": ["get_trend"],
+        }
+
+    monkeypatch.setattr(llm, "llm_available", fake_available)
+    monkeypatch.setattr(agent, "run_agent", fake_run_agent)
+    task = await longtask.create_task("research", "进度验证", "x")
+    runner = asyncio.create_task(longtask.run_task(task["id"], max_stages=1))
+    seen: dict[str, Any] = {}
+    for _ in range(20):
+        await asyncio.sleep(0.03)
+        disk = longtask.get_task(task["id"])
+        progress = disk["stages"][0].get("progress") or {}
+        if progress.get("last_tool"):
+            seen = progress
+            break
+    assert seen["last_tool"] == "get_trend"
+    assert seen["steps"] == 1
+    assert "get_trend" in seen["label"]
+    out = await runner
+    assert out["stages"][0]["status"] == "done"
+    assert out["stages"][0]["progress"] == {}

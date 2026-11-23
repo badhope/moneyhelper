@@ -35,6 +35,7 @@
 | [工作流](WORKFLOW.md) / [Workflow (EN)](WORKFLOW.en.md) | 典型任务的操作路径 |
 | [可复核性标准](reviewability-standard.md) | 什么叫「这个数字可信」 |
 | [长任务契约与回滚 4.16.48](LONG-TASK-CONTRACT-4.16.48.md) | 阶段交付契约、下游过期、检查点回滚、只读工具阶段与浏览器证据 |
+| [长任务运行可见性 4.16.49](LONG-TASK-OBSERVABILITY-4.16.49.md) | 工具阶段运行中进度、差异化过期、投研四阶段真实验收 |
 
 ## 架构与工程
 

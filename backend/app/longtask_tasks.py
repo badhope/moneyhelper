@@ -91,6 +91,8 @@ async def create_task(
                 "stale_reason": "",
                 "stale_at": "",
                 "checkpoint_id": "",
+                "artifact_sha256": "",
+                "progress": {},
                 "tools_used": [],
                 "tool_steps": [],
                 "validation": {},

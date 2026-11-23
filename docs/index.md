@@ -38,6 +38,7 @@
 | [Answer sources and quality feedback](answer-trust.md) | In-message source chips, thumbs up/down, reason tags, tenant-scoped summary |
 | [Reference a workbench file in chat](chat-file-reference.md) | `@` mention of an existing attachment, no re-upload, removing a reference never deletes the file |
 | [Session project, share, canvas and research](chat-context-tools.md) | Cross-session project library, vision input, read-only share, answer canvas with Word/HTML export, deep research and answer length |
+| [Long-task observability 4.16.49](LONG-TASK-OBSERVABILITY-4.16.49.md) | Live tool-stage progress, diff-aware staleness, and a real four-stage research run |
 | [Long-task contract and rollback 4.16.48](LONG-TASK-CONTRACT-4.16.48.md) | Stage contracts, downstream staleness, checkpoint rollback, and read-only tool stages with browser evidence |
 | [Long-task stage control 4.16.47](LONG-TASK-CONTROL-4.16.47.md) | Single-stage retry, `active` semantics, and stale-running recovery with browser evidence |
 | [Function audit 4.16.46](FUNCTION-AUDIT-4.16.46.md) | Every setting key traced to a consumer, seven fake/ineffective behaviours fixed, harness depth re-checked with explicit limits |

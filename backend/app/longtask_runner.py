@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 import time
 from typing import Any
@@ -94,6 +95,24 @@ def _clear_stale(stage: dict[str, Any]) -> None:
     stage["stale_at"] = ""
 
 
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()
+
+
+def _artifact_digest(task: dict[str, Any], stage: dict[str, Any]) -> str:
+    """取阶段当前已落盘产物的摘要；没有产物返回空串。"""
+    saved = str(stage.get("artifact_sha256") or "")
+    if saved:
+        return saved
+    name = str(stage.get("file") or "")
+    if not name:
+        return ""
+    path = _artifact_dir(str(task["id"])) / name
+    if not path.exists():
+        return ""
+    return _sha256_text(path.read_text(encoding="utf-8"))
+
+
 def _stale_count(task: dict[str, Any]) -> int:
     return sum(1 for s in task.get("stages") or [] if s.get("stale"))
 
@@ -131,16 +150,29 @@ def _compact_steps(steps: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     return out
 
 
-async def _run_tool_stage(prompt: str, contract: dict[str, Any]) -> tuple[str, list[str], list[dict[str, Any]]]:
+async def _run_tool_stage(
+    prompt: str,
+    contract: dict[str, Any],
+    on_tool: Any = None,
+) -> tuple[str, list[str], list[dict[str, Any]]]:
     """阶段级只读工具循环：复用主 Agent 的 function calling 内核。
 
     工具面由 build_toolset 按 route 收窄，且只包含 READ 档；写操作不会进入
     无人值守长任务。返回成文、工具名与真实步骤，便于界面和检查点审计。
+    on_tool 在每次工具完成后被调用，用于把运行中进度落盘；回调失败不能打断
+    主循环，否则一次写盘抖动会让整个阶段白跑。
     """
     from . import agent
 
-    async def _emit(_event: dict[str, Any]) -> None:
-        return None
+    async def _emit(event: dict[str, Any]) -> None:
+        if on_tool is None or not isinstance(event, dict):
+            return
+        if str(event.get("type") or "") != "tool":
+            return
+        try:
+            await on_tool(event)
+        except Exception as exc:  # noqa: BLE001 — 进度只观测，不影响执行
+            log.warning("longtask.progress_failed %s", exc)
 
     result = await asyncio.wait_for(
         agent.run_agent(
@@ -223,9 +255,37 @@ async def _execute_stage(
     contract_errors: list[str] = []
     timed_out = False
 
+    async def _on_tool(event: dict[str, Any]) -> None:
+        data = event.get("data") if isinstance(event.get("data"), dict) else {}
+        name = str(data.get("name") or "").strip()[:40]
+        if not name:
+            return
+        prev = stage.get("progress") if isinstance(stage.get("progress"), dict) else {}
+        n = int(prev.get("steps") or 0) + 1
+        stage["progress"] = {
+            "phase": "tool",
+            "steps": n,
+            "last_tool": name,
+            "label": f"已调用 {name}（第 {n} 步）",
+            "updated_at": _now(),
+        }
+        task["updated_at"] = _now()
+        _write(task)
+
     # 最多两次：第二次带上一次具体违反项，要求重写完整版本；超时才压短。
     for attempt in range(2):
         stage["attempts"] = attempt + 1
+        stage["progress"] = {
+            "phase": "tool" if contract["use_tools"] else "generate",
+            "steps": 0,
+            "last_tool": "",
+            "label": (
+                f"工具核实中（第 {attempt + 1} 次）"
+                if contract["use_tools"]
+                else f"模型生成中（第 {attempt + 1} 次）"
+            ),
+            "updated_at": _now(),
+        }
         # 尝试次数必须在调用前落盘：取消读取的是磁盘上的任务快照，
         # 只改内存会让界面在取消后显示“重试 0 次”。
         _write(task)
@@ -234,7 +294,7 @@ async def _execute_stage(
         )
         try:
             if contract["use_tools"]:
-                reply, used, tool_steps = await _run_tool_stage(prompt, contract)
+                reply, used, tool_steps = await _run_tool_stage(prompt, contract, _on_tool)
                 if used:
                     tools_used = used
                 if tool_steps:
@@ -339,7 +399,10 @@ async def _run_task_inner(
         if time.time() - started > MAX_TOTAL_SECONDS:
             stage["status"] = "skipped"
             stage["error"] = "超过任务总时长上限，已跳过"
+            stage["progress"] = {}
             continue
+        previous_status = str(stage.get("status") or "")
+        previous_digest = _artifact_digest(task, stage)
         _clear_stale(stage)
         stage["status"] = "running"
         stage["started_at"] = _now()
@@ -350,6 +413,7 @@ async def _run_task_inner(
         stage["tools_used"] = []
         stage["tool_steps"] = []
         stage["validation"] = {}
+        stage["progress"] = {}
         _write(task)
         stage_started = time.time()
         contract = normalize_contract(stage.get("contract"))
@@ -363,6 +427,7 @@ async def _run_task_inner(
             stage["validation"] = validation
             stage["duration_ms"] = duration_ms
             stage["finished_at"] = _now()
+            stage["progress"] = {}
             task["updated_at"] = _now()
             _write(task)
             # 阶段是顺序依赖：上游失败就停，不能拿残缺上下文继续产出下游“完成品”。
@@ -373,8 +438,15 @@ async def _run_task_inner(
 
         name = str(stage.get("file") or "") or _safe_stage_file(stage)
         (_artifact_dir(task_id) / name).write_text(text, encoding="utf-8")
+        new_digest = _sha256_text(text)
+        content_changed = bool(
+            previous_status == "done"
+            and new_digest
+            and (not previous_digest or previous_digest != new_digest)
+        )
         stage["file"] = name
         stage["chars"] = len(text)
+        stage["artifact_sha256"] = new_digest
         stage["status"] = "done"
         stage["stale"] = False
         stage["stale_reason"] = ""
@@ -384,6 +456,7 @@ async def _run_task_inner(
         stage["validation"] = validation
         stage["tools_used"] = tools_used
         stage["tool_steps"] = steps
+        stage["progress"] = {}
         checkpoint = create_checkpoint(
             task,
             stage,
@@ -399,13 +472,21 @@ async def _run_task_inner(
         stage["checkpoint_id"] = str(checkpoint.get("id") or "")
         task["updated_at"] = _now()
         _write(task)
-        _mark_downstream_stale(
-            task,
-            int(stage["index"]),
-            f"上游「{stage['name']}」已重算，本段基于旧产物，需重算确认",
-        )
-        task["updated_at"] = _now()
-        _write(task)
+        if content_changed:
+            _mark_downstream_stale(
+                task,
+                int(stage["index"]),
+                f"上游「{stage['name']}」已重算，本段基于旧产物，需重算确认",
+            )
+            task["updated_at"] = _now()
+            _write(task)
+        elif previous_status == "done" and previous_digest:
+            log.info(
+                "longtask.stage_unchanged id=%s stage=%s digest=%s",
+                task_id,
+                stage["index"],
+                new_digest[:8],
+            )
 
     task["status"] = _final_status(task)
     task["updated_at"] = _now()
@@ -518,6 +599,7 @@ def rollback_task(task_id: str, stage_index: int, checkpoint_id: str) -> dict[st
     task = _read(task_id)
     _validate_stage_index(task, stage_index)
     stage = task["stages"][stage_index]
+    current_digest = _artifact_digest(task, stage)
     # 回滚是覆盖写：先把当前版本留一份，避免“回滚完才发现想反悔”。
     current_file = str(stage.get("file") or "")
     if stage.get("status") == "done" and current_file:
@@ -537,13 +619,21 @@ def rollback_task(task_id: str, stage_index: int, checkpoint_id: str) -> dict[st
                 contract_ok=bool((stage.get("validation") or {}).get("ok")),
             )
     meta, name = restore_checkpoint(task_id, stage_index, checkpoint_id)
+    restored_path = _artifact_dir(task_id) / name
+    restored_digest = (
+        _sha256_text(restored_path.read_text(encoding="utf-8"))
+        if restored_path.exists()
+        else ""
+    )
     stage["file"] = name
     stage["chars"] = int(meta.get("chars") or 0)
+    stage["artifact_sha256"] = restored_digest
     stage["status"] = "done"
     stage["error"] = ""
     stage["stale"] = False
     stage["stale_reason"] = ""
     stage["stale_at"] = ""
+    stage["progress"] = {}
     stage["attempts"] = int(meta.get("attempt") or 0)
     stage["duration_ms"] = int(meta.get("duration_ms") or 0)
     stage["finished_at"] = str(meta.get("created_at") or _now())
@@ -556,9 +646,10 @@ def rollback_task(task_id: str, stage_index: int, checkpoint_id: str) -> dict[st
         "checked_at": _now(),
         "restored_from": checkpoint_id,
     }
-    _mark_downstream_stale(
-        task, stage_index, f"已回滚到检查点 {checkpoint_id}，下游需重算确认"
-    )
+    if current_digest != restored_digest:
+        _mark_downstream_stale(
+            task, stage_index, f"已回滚到检查点 {checkpoint_id}，下游需重算确认"
+        )
     task["status"] = _final_status(task)
     task["updated_at"] = _now()
     _write(task)
