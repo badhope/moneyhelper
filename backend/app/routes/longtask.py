@@ -60,6 +60,7 @@ async def create_task(
             str(data.get("title") or ""),
             str(data.get("brief") or ""),
             stages=[str(s) for s in stages] if isinstance(stages, list) else None,
+            success_criteria=str(data.get("success_criteria") or ""),
         )
     except (TypeError, ValueError) as exc:
         return _bad(str(exc))
@@ -87,7 +88,12 @@ async def run_task(
     except (TypeError, ValueError):
         return _bad("max_stages 需为整数")
     try:
-        task = await longtask.run_task(task_id, max_stages=limit)
+        if data.get("background"):
+            # 长任务可能跑到一小时，不能用一次 HTTP 请求一直挂着；
+            # 返回 pending 快照，前端轮询 /api/longtasks/{id}。
+            task = await longtask.start_task(task_id, max_stages=limit)
+        else:
+            task = await longtask.run_task(task_id, max_stages=limit)
     except (ValueError, PermissionError) as exc:
         return _bad(str(exc))
     return {"ok": True, "task": task}

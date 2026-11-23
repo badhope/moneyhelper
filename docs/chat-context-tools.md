@@ -87,6 +87,20 @@ body: { title, body, format: "md" | "html" | "docx" }
 
 设置顶部分组从 5 个并为 4 个：基础设置、AI 与自动化、Agent 能力、数据与安全。「质量与评测」并入「AI 与自动化」下的「模型评测」，功能没有删，只是不再单独占一个顶层分组。
 
+## 任务可观测性（4.16.46）
+
+### 聊天工具轨迹
+
+- 聚合行显示工具数、失败数与总耗时；展开后每步显示状态、耗时、参数与结果摘要。
+- 轨迹随 `runs.steps_json` 落库，刷新与换端后仍能回看，不再只剩一句“调用了 N 个工具”。
+- 实时流里同一次调用会同时收到 `tool` 与兼容用的 `agent_step`，前端对内容一致的紧邻事件去重，避免 1 个工具显示成 2 个。
+
+### 长任务阶段
+
+- 阶段记录 `attempts` 与 `duration_ms`，成功、失败、取消三路都落盘；详情页显示完成数、失败数、重试次数，单阶段显示耗时。
+- 尝试次数在模型调用前写入磁盘，取消后不会显示“重试 0 次”。
+- 任务仍支持后台执行、真实取消、失败阶段再次执行续跑，以及 `success_criteria` 进入每阶段提示词。
+
 ## 边界
 
 - 会话项目卡默认只作用于当前会话；绑定项目库后才跨会话共享。清会话不会自动删项目库行。
@@ -97,7 +111,7 @@ body: { title, body, format: "md" | "html" | "docx" }
 
 ## 验证
 
-- 后端：`test_vision_research.py` 6 项、`test_deep_research_budget.py` 1 项、`test_thread_share.py` 5 项通过；全量 `1904 passed / 4 已知基线失败`。
-- 前端：`tsc --noEmit` 通过；34 个文件 / 241 项测试通过；`npm run build` 成功。
-- 真实浏览器：上传截图后模型回答出图内左侧栏、顶部工具栏、工作台与输入区设置；两个会话绑定同一「ETF 研究」项目后会话头均显示项目名；画布导出 Word / HTML 下载成功，Word 经 LibreOffice 打开正常；设置顶部为 4 组。
-- 截图：`docs/screenshots/138`–`143`。
+- 后端：`test_vision_research.py` 6 项、`test_deep_research_budget.py` 1 项、`test_thread_share.py` 5 项通过；4.16.46 全量 `1914 passed`。
+- 前端：`tsc --noEmit` 通过；34 个文件 / 243 项测试通过；`npm run build` 成功。
+- 真实浏览器：上传截图后模型回答出图内左侧栏、顶部工具栏、工作台与输入区设置；两个会话绑定同一「ETF 研究」项目后会话头均显示项目名；画布导出 Word / HTML 下载成功，Word 经 LibreOffice 打开正常；设置顶部为 4 组；长任务显示 `1/2 · 19.9s`，工具轨迹显示 `1 个工具 · 810ms`。
+- 截图：`docs/screenshots/138`–`151`。

@@ -1,58 +1,48 @@
-"""agent 的消息历史压缩：把较早的工具轮次折叠成摘要。
+"""agent 消息历史压缩：把较早的工具轮次折叠成摘要。
 
-从 agent.py 拆出；折叠阈值仍由传入的 cfg 决定，不做模块级配置。
+真正的压缩算法在 `context.compact_messages`（token 精确计数 + 安全消息边界）。
+这里只做适配，避免 agent.py 与 context.py 各维护一套互不一致的截断规则。
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from . import llm
+from . import context as _context
 from .logging_utils import get_logger
 
 log = get_logger(__name__)
 
-async def _compress_history(messages: list[dict[str, Any]], cfg: dict[str, Any]) -> list[dict[str, Any]]:
-    """长会话上下文压缩（progressive disclosure）。
+async def _compress_history(
+    messages: list[dict[str, Any]],
+    cfg: dict[str, Any],
+    *,
+    max_tokens: int | None = None,
+) -> list[dict[str, Any]]:
+    """按 token 预算压缩消息；未超预算或压缩失败时原样返回。
 
-    当 messages 超过 8 条（含 system+user+assistant+tool），把除最近 4 条外
-    的早期历史用一句话摘要替代，防 context window 溢出。
-    摘要由 LiteLLM 廉价模型（如 gpt-4o-mini）快速产出。
+    必须在工具循环内部调用：进入循环前的 messages 只有 system + 当前问题，
+    根本不会超过预算；真正膨胀的是 assistant(tool_calls) / tool 结果链。
     """
-    if len(messages) <= 8:
+    if not messages:
         return messages
-    # 保底逻辑：保留 system 消息 + 最近 4 轮对话，把中间部分压缩
-    # 找到 system 消息数量
-    system_count = sum(1 for m in messages if m.get("role") == "system")
-    keep_tail = 4  # 保留最近 4 条对话（含 tool 消息）
-    if len(messages) - system_count <= keep_tail + 1:
-        return messages
-    head = messages[: system_count + 1]  # system + 首个 user
-    tail = messages[-keep_tail:]  # 最近 4 条
-    middle = messages[system_count + 1 : -keep_tail]
-
-    if not middle:
-        return messages
-
-    # 用简短提示请模型摘要早期对话
-    middle_text = "\n".join(
-        f"[{m.get('role', '?')}] {str(m.get('content', ''))[:200]}"
-        for m in middle
-    )[:2000]
-
+    budget = max_tokens or _context.DEFAULT_MAX_TOKENS
     try:
-        summary = await llm.stream_text_short(
-            f"把下面多轮对话压缩为一句话摘要（保留关键数据和意图，≤80字）：\n{middle_text}",
-            timeout=15.0,
+        result = await _context.compact_messages(
+            messages,
+            max_tokens=budget,
+            reserve_recent=8,
+            use_llm=True,
         )
-    except Exception:
-        summary = None
-
-    if not summary:
-        return messages  # 压缩失败不丢数据，原样返回
-
-    compressed = {
-        "role": "system",
-        "content": f"（前面对话摘要：{summary}）以下是最后的对话：",
-    }
-    return [*head, compressed, *tail]
+    except Exception as exc:  # noqa: BLE001 — 压缩失败绝不能中断问答
+        log.warning("agent.context_compact failed: %s", exc)
+        return messages
+    if result.get("compacted"):
+        log.info(
+            "agent.context_compact before=%s after=%s dropped=%s strategy=%s",
+            result.get("before_tokens"),
+            result.get("after_tokens"),
+            result.get("dropped"),
+            result.get("strategy"),
+        )
+    return result["messages"]

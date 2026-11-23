@@ -124,6 +124,32 @@ async def test_ask_merges_fixed_files_and_generation_options(client, monkeypatch
     assert "回答长度：简洁" in sc and "深度研究模式" in sc and "风险与不确定性" in sc
 
 
+async def test_ask_persists_tool_steps_for_history_replay(client, monkeypatch) -> None:
+    """回答落库必须保存工具轨迹，刷新后历史不能只剩一段答案。"""
+    async def fake_run_question(question: str, emit, **kwargs):
+        return {
+            "answer": "已读取总市值。",
+            "level": "ok",
+            "flags": [],
+            "route": "general",
+            "route_reason": "steps",
+            "metrics": {},
+            "llm": "stub",
+            "tools": ["get_market_view"],
+            "actions": [],
+            "steps": [
+                {"name": "get_market_view", "args": {}, "summary": "总市值 100,000 元"},
+            ],
+        }
+
+    monkeypatch.setattr(service, "run_question", fake_run_question)
+    await _final_of_ask(client, {"question": "我的总市值多少", "thread_id": "t-steps"})
+    runs = await db.list_runs("t-steps")
+    assert runs
+    assert runs[0]["steps"][0]["name"] == "get_market_view"
+    assert runs[0]["steps"][0]["summary"] == "总市值 100,000 元"
+
+
 async def test_share_snapshot_public_escape_expiry_and_revoke(client) -> None:
     await _final_of_ask(client, {"question": "分享测试问题", "thread_id": "t-share"})
     r = await client.post("/api/shares", json={"thread_id": "t-share", "expire_days": 7})

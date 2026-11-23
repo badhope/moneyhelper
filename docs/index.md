@@ -38,6 +38,7 @@
 | [Answer sources and quality feedback](answer-trust.md) | In-message source chips, thumbs up/down, reason tags, tenant-scoped summary |
 | [Reference a workbench file in chat](chat-file-reference.md) | `@` mention of an existing attachment, no re-upload, removing a reference never deletes the file |
 | [Session project, share, canvas and research](chat-context-tools.md) | Cross-session project library, vision input, read-only share, answer canvas with Word/HTML export, deep research and answer length |
+| [Function audit 4.16.46](FUNCTION-AUDIT-4.16.46.md) | Every setting key traced to a consumer, seven fake/ineffective behaviours fixed, harness depth re-checked with explicit limits |
 | [Roadmap completion report 4.16.45](ROADMAP-COMPLETION-4.16.45.md) | The five audit gaps closed in 4.16.45 with evidence and explicit non-goals |
 | [Roadmap completion report 4.16.44](ROADMAP-COMPLETION-4.16.44.md) | The remaining routes closed in 4.16.42–4.16.44, evidence, and explicit non-goals |
 

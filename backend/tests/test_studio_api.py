@@ -273,7 +273,7 @@ async def test_primary_role_tool_allowlist_filters_tools(temp_db, monkeypatch) -
     captured: dict = {}
 
     async def _fake_stream(client, cfg_, messages, tools, emit):
-        captured["tools"] = [t["function"]["name"] for t in tools]
+        captured["final_tools"] = tools
         return "ok"
 
     class _Msg:
@@ -289,6 +289,7 @@ async def test_primary_role_tool_allowlist_filters_tools(temp_db, monkeypatch) -
 
     class _Completions:
         async def create(self, **kwargs):
+            captured["tools"] = [t["function"]["name"] for t in (kwargs.get("tools") or [])]
             return _Resp()
 
     class _Chat:
@@ -398,7 +399,7 @@ async def test_tool_allowlist_also_filters_mcp_tools(temp_db, monkeypatch) -> No
     captured: dict = {}
 
     async def _fake_stream(client, cfg_, messages, tools, emit):
-        captured["tools"] = [t["function"]["name"] for t in tools]
+        captured["final_tools"] = tools
         return "ok"
 
     class _Msg:
@@ -414,6 +415,7 @@ async def test_tool_allowlist_also_filters_mcp_tools(temp_db, monkeypatch) -> No
 
     class _Completions:
         async def create(self, **kwargs):
+            captured["tools"] = [t["function"]["name"] for t in (kwargs.get("tools") or [])]
             return _Resp()
 
     class _Chat:

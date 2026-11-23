@@ -56,6 +56,9 @@ export function AiSection({
             ai_model: (form.ai_model ?? "").trim(),
             enabled_models: Array.from(enabledSet).join(","),
             agent_tool_turns: String(Math.max(1, Math.min(30, Number(form.agent_tool_turns) || 5))),
+            agent_context_tokens: String(Math.max(2000, Math.min(128000, Number(form.agent_context_tokens) || 12000))),
+            model_route_economy: (form.model_route_economy ?? "").trim(),
+            model_route_deep: (form.model_route_deep ?? "").trim(),
           },
         }),
       });
@@ -257,6 +260,30 @@ export function AiSection({
           }}
         />
         <div className="pt-2 border-t border-border/60">
+          <div className="mb-2 text-xs font-medium text-foreground/90">{t("settings.modelRouting")}</div>
+          <p className="mb-2 text-xs text-muted-foreground/70">{t("settings.modelRoutingHint")}</p>
+          <div className="space-y-2">
+            <Row label={t("settings.modelEconomy")} hint={t("settings.modelEconomyHint")}>
+              <input
+                className={inputCls + " w-52"}
+                placeholder={form.ai_model || "deepseek-chat"}
+                value={form.model_route_economy ?? ""}
+                onChange={(e) => onField("model_route_economy", e.target.value)}
+                aria-label={t("settings.modelEconomy")}
+              />
+            </Row>
+            <Row label={t("settings.modelDeep")} hint={t("settings.modelDeepHint")}>
+              <input
+                className={inputCls + " w-52"}
+                placeholder={form.ai_model || "deepseek-chat"}
+                value={form.model_route_deep ?? ""}
+                onChange={(e) => onField("model_route_deep", e.target.value)}
+                aria-label={t("settings.modelDeep")}
+              />
+            </Row>
+          </div>
+        </div>
+        <div className="pt-2 border-t border-border/60">
           <div className="mb-2 text-xs font-medium text-foreground/90">{t("settings.agentBehavior")}</div>
           <p className="mb-2 text-xs text-muted-foreground/70">{t("settings.agentBehaviorHint")}</p>
           <div className="space-y-2">
@@ -275,6 +302,18 @@ export function AiSection({
                 value={form.agent_tool_turns ?? "5"}
                 onChange={(e) => onField("agent_tool_turns", e.target.value)}
                 aria-label={t("settings.agentTurns")}
+              />
+            </Row>
+            <Row label={t("settings.agentContext")} hint={t("settings.agentContextHint")}>
+              <input
+                className={inputCls + " w-28 text-center"}
+                type="number"
+                min={2000}
+                max={128000}
+                step={1000}
+                value={form.agent_context_tokens ?? "12000"}
+                onChange={(e) => onField("agent_context_tokens", e.target.value)}
+                aria-label={t("settings.agentContext")}
               />
             </Row>
           </div>

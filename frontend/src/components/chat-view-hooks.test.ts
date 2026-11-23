@@ -29,6 +29,7 @@ function makeRun(over: Partial<RunRecord>): RunRecord {
     route_reason: over.route_reason ?? "",
     llm: over.llm,
     tools: over.tools ?? [],
+    steps: over.steps ?? [],
     actions: over.actions ?? [],
     attachments: over.attachments ?? [],
     sources: over.sources ?? [],
@@ -58,6 +59,21 @@ describe("mapRunsToMessages", () => {
     expect(msgs[2].text).toBe("Q1");
     expect(msgs[3].role).toBe("assistant");
     expect(msgs[3].text).toBe("A1");
+  });
+
+  it("历史回答还原工具执行轨迹（而不是只剩工具名）", () => {
+    const runs = [makeRun({
+      id: 88,
+      tools: ["get_market_view"],
+      steps: [{ name: "get_market_view", args: { account: "all" }, summary: "总市值 10 万", status: "error", duration_ms: 87 }],
+    })];
+    const a = mapRunsToMessages(runs)[1];
+    expect(a.tools).toHaveLength(1);
+    expect(a.tools?.[0].name).toBe("get_market_view");
+    expect(a.tools?.[0].summary).toBe("总市值 10 万");
+    expect(a.tools?.[0].args).toEqual({ account: "all" });
+    expect(a.tools?.[0].status).toBe("error");
+    expect(a.tools?.[0].duration_ms).toBe(87);
   });
 
   it("assistant 消息携带 runId / meta", () => {
@@ -170,6 +186,22 @@ describe("streamEventPatch", () => {
     expect(acc.tools[0].status).toBe("done");
     expect(acc.tools[0].summary).toBe("完成");
     expect(patch).toEqual({ tools: acc.tools });
+  });
+
+  it("同一工具同时发 tool 与 agent_step 时不会重复计数", () => {
+    const acc = makeAcc();
+    streamEventPatch(acc, {
+      type: "tool",
+      data: { id: "t1", name: "get_market_view", status: "done", summary: "总市值 0 元", duration_ms: 12 },
+    });
+    const patch = streamEventPatch(acc, {
+      type: "agent_step",
+      name: "get_market_view",
+      args: {},
+      summary: "总市值 0 元",
+    });
+    expect(patch).toBeNull();
+    expect(acc.tools).toHaveLength(1);
   });
 
   it("step 事件 phase=done 时 push 步骤", () => {

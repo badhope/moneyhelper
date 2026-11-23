@@ -29,9 +29,24 @@ export function mapRunsToMessages(runs: RunRecord[]): ChatMessage[] {
       text: r.answer,
       q: r.question,
       steps: [],
-      tools: [],
+      // 历史里保存了工具轨迹就原样还原；旧记录只有工具名时退化为名称列表。
+      tools: (r.steps && r.steps.length > 0)
+        ? r.steps.map((st, i) => ({
+            ...st,
+            id: st.id ?? `run-${r.id}-${i}`,
+            args: st.args ?? {},
+            summary: st.summary ?? "",
+            status: (st.status as AgentToolStep["status"]) ?? "done",
+            duration_ms: st.duration_ms,
+          }))
+        : (r.tools ?? []).map((name, i) => ({
+            id: `run-${r.id}-${i}`,
+            name,
+            args: {},
+            summary: "",
+            status: "done" as const,
+          })),
       runId: r.id,
-      // 来源随回答落库（route/llm/route_reason）：有就显示真实来源，
       // 来源随回答落库（route/llm/route_reason）：有就显示真实来源，
       // 旧记录或空值一律留空 —— 拿不到就不说，不猜。
       meta: {
@@ -347,14 +362,24 @@ export function streamEventPatch(
         | "running"
         | "done";
       return { agentStatus: acc.agentStatus };
-    case "agent_step":
-      acc.tools.push({
-        name: String(ev.name),
-        args: (ev.args as Record<string, unknown>) ?? {},
-        summary: String(ev.summary ?? ""),
-        status: "done",
-      });
+    case "agent_step": {
+      // 兼容旧事件：新路径对同一次工具调用会先发 tool、再发 agent_step。
+      // 两者都收会让「调用了 1 个工具」显示成 2 个；内容一致的紧邻重复直接忽略。
+      const name = String(ev.name ?? "");
+      const args = (ev.args as Record<string, unknown>) ?? {};
+      const summary = String(ev.summary ?? "");
+      const last = acc.tools[acc.tools.length - 1];
+      if (
+        last &&
+        last.name === name &&
+        last.summary === summary &&
+        JSON.stringify(last.args ?? {}) === JSON.stringify(args)
+      ) {
+        return null;
+      }
+      acc.tools.push({ name, args, summary, status: "done" });
       return { tools: [...acc.tools] };
+    }
     case "step":
       if (ev.phase === "done") {
         acc.steps.push({ id: String(ev.id), label: String(ev.label), detail: String(ev.detail) });

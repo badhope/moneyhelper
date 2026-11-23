@@ -116,10 +116,15 @@ SEED_SETTINGS = {
     "ai_base_url": "",  # 国产示例：DeepSeek https://api.deepseek.com/v1 · 豆包 https://ark.cn-beijing.volces.com/api/v3 · 通义 https://dashscope.aliyuncs.com/compatible-mode/v1
     "ai_api_key": "",  # 仅存本机数据库
     "ai_model": "",  # 对应端点模型：deepseek-chat / doubao 接入点 ID / qwen-plus
+    # 任务模型路由：留空=全部用主模型；设置后只在本端点内换模型名，
+    # 简单问答走轻量模型，深研/长文走深度模型，避免一刀切。
+    "model_route_economy": "",
+    "model_route_deep": "",
     # ---- 模型点亮：设置页可勾选启用哪些模型，逗号分隔的模型名（默认点亮前两个）----
     "enabled_models": "deepseek-chat,qwen-plus",
     # ---- Agent 行为（可配置化：工具轮次 / 规划展示 / 失败反思重试）----
     "agent_tool_turns": "5",  # 单轮问答里模型可调用工具的轮次上限（1-30，防死循环）
+    "agent_context_tokens": "12000",  # 工具循环的上下文 token 软预算；超出后压缩旧轮次与超长工具结果
     "agent_plan": "on",  # 是否展示执行计划（supervisor 计划卡 / 推理轨迹）
     "agent_reflect": "on",  # 工具失败时是否提示模型反思修正后重试
     "custom_system_prompt": "",  # 自定义系统提示词（留空用 agents/supervisor/instructions.md）

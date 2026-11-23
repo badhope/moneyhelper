@@ -23,6 +23,7 @@ __all__ = [
     "list_templates",
     "read_artifact",
     "run_task",
+    "start_task",
 ]
 
 from .longtask_runner import (  # noqa: F401,E402
@@ -30,6 +31,7 @@ from .longtask_runner import (  # noqa: F401,E402
     MAX_TOTAL_SECONDS,
     cancel_task,
     run_task,
+    start_task,
 )
 from .longtask_store import (  # noqa: F401,E402
     _artifact_dir,

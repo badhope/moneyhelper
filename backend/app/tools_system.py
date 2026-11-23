@@ -27,7 +27,7 @@ SETTING_KEYS_ALLOWED = frozenset({
     "quote_source_mode", "report_time", "voice_input", "show_export",
     "expand_process", "show_suggestions", "auto_refresh", "auto_refresh_seconds",
     "compact_numbers", "color_scheme", "default_tab", "savings_goal",
-    "report_focus", "lang",
+    "report_focus", "lang", "agent_context_tokens",
     "ai_base_url", "ai_api_key", "ai_model",  # 这三个在下方被显式拒绝
 })
 
@@ -106,8 +106,8 @@ async def tool_set_setting(args: dict[str, Any], lang: str = "zh") -> str:
         return (f"{key} is AI-connection config — edit it in Settings → AI answers" if en else f"{key} 属于 AI 接入配置，请到「设置 → AI 回答」中修改")
     if key == "color_scheme" and raw not in ("cn", "us"):
         return "color_scheme must be cn (red-up/green-down) or us (green-up/red-down)" if en else "涨跌颜色只能是 cn（红涨绿跌）或 us（绿涨红跌）"
-    if key == "default_tab" and raw not in ("overview", "holdings", "market", "ledger", "chat", "features"):
-        return "default_tab must be overview/holdings/market/ledger/chat/features" if en else "默认首页只能是 总览/持仓/行情/记账/问AI/功能"
+    if key == "default_tab" and raw not in ("chat", "overview", "holdings", "market", "ledger", "health", "strategy", "research", "statements", "review", "paper", "connect", "tax", "debts", "gl", "expenses", "procurement", "longtask", "bank"):
+        return "default_tab must be an existing workspace view" if en else "默认首页只能是现有工作区中的一页"
     if key == "lang" and raw not in ("zh", "en"):
         return "lang must be zh or en" if en else "语言只能是 zh 或 en"
     if key in ("compact_numbers", "show_suggestions") and raw not in ("on", "off"):

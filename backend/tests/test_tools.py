@@ -11,7 +11,7 @@ import json
 
 import pytest
 from app import quotes as quotes_mod
-from app import tools, tools_market, tools_views
+from app import tools, tools_market, tools_system, tools_views
 
 
 @pytest.fixture
@@ -187,6 +187,13 @@ async def test_web_search_fallback_on_search_failure(monkeypatch) -> None:
         def __init__(self, *args, **kwargs):
             raise RuntimeError("boom")
 
+    def _boom_search(q: str):
+        raise RuntimeError("boom")
+
+    # 搜索链已经是 Bing → 360 → DDGS；只打挂 DDGS 不会触发兜底，
+    # 必须把前两级也模拟成不可用，才测得到「全部搜索源失败」的提示。
+    monkeypatch.setattr(tools_system, "_bing_search", _boom_search)
+    monkeypatch.setattr(tools_system, "_so_search", _boom_search)
     monkeypatch.setattr(ddgs_module, "DDGS", _BoomDDGS)
     out = await tools.tool_web_search({"q": "今天的新闻"})
     assert "暂时不可用" in out

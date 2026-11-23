@@ -49,6 +49,7 @@ async def finalize(state: AgentState) -> dict[str, Any]:
                 deep_research=bool(state.get("deep_research")),
                 llm_options=state.get("llm_options") or {},
                 images=state.get("images") or [],
+                route=state.get("route") or "",
             )
             live = state.get("live")
             if live is None:
@@ -90,6 +91,9 @@ async def finalize(state: AgentState) -> dict[str, Any]:
                     "flags": flags,
                     "llm": "llm",
                     "tools": result.get("tools_used", []),
+                    # steps 同时以旧名暴露：路由层/落库层历史字段名不一致，
+                    # 只写 agent_steps 会导致保存进 runs.steps_json 时永远为空。
+                    "steps": result.get("steps", []),
                     "agent_steps": result.get("steps", []),
                     # 单路由命中时另一项为 None，过滤掉避免前端拿到 null 崩溃
                     "actions": [

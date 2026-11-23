@@ -56,6 +56,16 @@ def route_question(question: str, lang: str = "zh") -> tuple[str, str]:
         if en:
             return "action", "A quick action you asked for — I'll run it directly"
         return "action", f"你想让我直接做的操作（{hit_a[0]}）"
+    # 个人财务身份证是账本域的聚合视图，不归企业总账；显式工具名/短语先钉死路由，
+    # 避免模型兜底把「财务」二字误判成 enterprise，导致工具面里根本没有该工具。
+    identity_hits = [
+        w for w in ("财务数字身份证", "财务身份证", "财务画像", "financial identity", "get_financial_identity")
+        if w in q
+    ]
+    if identity_hits:
+        if en:
+            return "ledger", "You want your personal financial identity"
+        return "ledger", f"你想看个人财务数字身份证（{identity_hits[0]}）"
     hit_g = [w for w in GOAL_WORDS if w in q]
     if hit_g:
         if en:

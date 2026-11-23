@@ -77,6 +77,8 @@ export const en_debts: Record<string, string> = {
   "nav.groupBooks": "Operations",
   "nav.groupLedger": "Accounting",
   "nav.groupConnect": "Connect",
+  "nav.overview": "Overview",
+  "nav.health": "Financial health",
   "nav.holdings": "Holdings",
   "nav.market": "Market",
   "nav.main": "Main navigation",

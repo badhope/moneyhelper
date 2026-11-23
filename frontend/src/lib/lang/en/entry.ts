@@ -72,6 +72,7 @@ export const en_entry: Record<string, string> = {
   "summary.booked": "Booked",
   "summary.remembered": "Remembered",
   "summary.tools": "Used {n} tools",
+  "summary.toolsFailed": "{n} failed",
   "error.title": "Something went wrong",
 "error.reload": "Reload",
 "auth.loginSubtitle": "Sign in to your Moneyhelper account",

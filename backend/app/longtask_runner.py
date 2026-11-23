@@ -18,9 +18,93 @@ log = get_logger(__name__)
 MAX_STAGE_CHARS = 12000
 MAX_TOTAL_SECONDS = 3600
 
+# 进程内后台任务登记：取消必须真正 cancel 掉正在跑的协程，而不是只改一个
+# JSON 状态。否则用户点了「取消」，模型还在继续生成并消耗额度，跑完又把
+# cancelled 覆盖成 done——按钮看起来存在，实际没有任何作用。
+_JOBS: dict[str, asyncio.Task[Any]] = {}
+
+
+def _stage_elapsed_ms(stage: dict[str, Any]) -> int:
+    """按阶段开始时间算已耗时；解析失败返回 0，宁可不显示也不编造耗时。"""
+    started = str(stage.get("started_at") or "")
+    if not started:
+        return 0
+    try:
+        return max(0, int((time.time() - time.mktime(time.strptime(started, "%Y-%m-%dT%H:%M:%S"))) * 1000))
+    except ValueError:
+        return 0
+
+
+def _mark_active_stages_cancelled(task: dict[str, Any], message: str) -> None:
+    """取消时把正在跑的阶段也落成 cancelled。
+
+    只改任务顶层状态会让界面出现「任务已取消 / 阶段执行中」的自相矛盾状态，
+    用户无法判断后台是否真的停了。
+    """
+    for stage in task.get("stages") or []:
+        if stage.get("status") == "running":
+            stage["status"] = "cancelled"
+            stage["error"] = message
+            stage["duration_ms"] = _stage_elapsed_ms(stage)
+            stage["finished_at"] = _now()
+
+
+async def start_task(task_id: str, *, max_stages: int | None = None) -> dict[str, Any]:
+    """启动后台执行并立即返回当前快照，前端轮询进度。"""
+    existing = _JOBS.get(task_id)
+    if existing is not None and not existing.done():
+        raise ValueError("任务正在执行")
+    task = _read(task_id)
+    if task.get("status") == "done":
+        raise ValueError("任务已完成")
+    # 后台启动必须在这里做前置校验：否则接口返回 200，错误只出现在后台日志，
+    # 任务停在 pending/running，前端永远等不到失败原因。
+    from . import llm
+    if not await llm.llm_available():
+        raise ValueError("尚未配置模型，无法执行长任务")
+    job = asyncio.create_task(run_task(task_id, max_stages=max_stages))
+    _JOBS[task_id] = job
+
+    def _cleanup(done: asyncio.Task[Any]) -> None:
+        if _JOBS.get(task_id) is done:
+            _JOBS.pop(task_id, None)
+        # 后台异常必须落到日志，不能因为没人 await 就无声消失
+        if not done.cancelled() and done.exception() is not None:
+            err = done.exception()
+            log.error("longtask.background failed id=%s err=%s", task_id, err)
+            latest = _read(task_id)
+            if latest.get("status") not in ("done", "cancelled"):
+                latest["status"] = "failed"
+                latest["error"] = str(err)[:300]
+                latest["updated_at"] = _now()
+                _write(latest)
+
+    job.add_done_callback(_cleanup)
+    return _read(task_id)
+
 
 async def run_task(task_id: str, *, max_stages: int | None = None) -> dict[str, Any]:
     """顺序执行未完成阶段。单阶段失败不中断后续（标记 failed 并继续）。"""
+    current = asyncio.current_task()
+    if current is not None:
+        _JOBS[task_id] = current
+    try:
+        return await _run_task_inner(task_id, max_stages=max_stages)
+    except asyncio.CancelledError:
+        latest = _read(task_id)
+        if latest.get("status") != "done":
+            latest["status"] = "cancelled"
+            _mark_active_stages_cancelled(latest, "用户取消，当前阶段已中断")
+            latest["updated_at"] = _now()
+            _write(latest)
+        raise
+    finally:
+        if _JOBS.get(task_id) is current:
+            _JOBS.pop(task_id, None)
+
+
+async def _run_task_inner(task_id: str, *, max_stages: int | None = None) -> dict[str, Any]:
+    """执行主体；由 run_task 包一层取消语义。"""
     from . import llm
 
     task = _read(task_id)
@@ -59,13 +143,22 @@ async def run_task(task_id: str, *, max_stages: int | None = None) -> dict[str, 
             continue
         stage["status"] = "running"
         stage["started_at"] = _now()
+        stage["finished_at"] = ""
+        stage["error"] = ""
+        stage["attempts"] = 0
+        stage["duration_ms"] = 0
         _write(task)
         stage_error = ""
         reply: str | None = None
+        stage_started = time.time()
         # 最多两次：第二次把字数上限压到 1/3。推理型模型在"写满 12000 字"的
         # 代码阶段经常超过 10 分钟（实测），压短提示词能显著提高完成率，
         # 比无限放大超时更可靠——用户宁可要一份短而完整的产出。
         for attempt in range(2):
+            stage["attempts"] = attempt + 1
+            # 尝试次数必须在调用前落盘：取消读取的是磁盘上的任务快照，
+            # 只改内存会让界面在取消后显示“重试 0 次”。
+            _write(task)
             limit_chars = MAX_STAGE_CHARS if attempt == 0 else MAX_STAGE_CHARS // 3
             suffix = (
                 f"只输出本阶段成果，不要复述前文，不要寒暄。控制在 {limit_chars} 字以内。"
@@ -73,9 +166,11 @@ async def run_task(task_id: str, *, max_stages: int | None = None) -> dict[str, 
                 else "上一次生成超时。请大幅压缩：只保留最核心的内容，控制在 "
                 f"{limit_chars} 字以内，宁可短而完整，不要长而残缺。"
             )
+            criteria = str(task.get("success_criteria") or "").strip()
             prompt = (
-                f"任务：{task['title']}\n目标：{task['brief']}\n\n"
-                f"{_context(task, stage['index'])}\n\n"
+                f"任务：{task['title']}\n目标：{task['brief']}\n"
+                + (f"验收标准：{criteria}\n" if criteria else "")
+                + f"\n{_context(task, stage['index'])}\n\n"
                 f"当前阶段：{stage['name']}\n要求：{stage['instruction']}\n\n{suffix}"
             )
             try:
@@ -104,6 +199,7 @@ async def run_task(task_id: str, *, max_stages: int | None = None) -> dict[str, 
         if not reply:
             stage["status"] = "failed"
             stage["error"] = (stage_error or "模型返回空")[:300]
+            stage["duration_ms"] = int((time.time() - stage_started) * 1000)
             stage["finished_at"] = _now()
             task["updated_at"] = _now()
             _write(task)
@@ -118,6 +214,7 @@ async def run_task(task_id: str, *, max_stages: int | None = None) -> dict[str, 
         stage["file"] = name
         stage["chars"] = len(text)
         stage["status"] = "done"
+        stage["duration_ms"] = int((time.time() - stage_started) * 1000)
         stage["finished_at"] = _now()
         task["updated_at"] = _now()
         _write(task)
@@ -139,6 +236,10 @@ def cancel_task(task_id: str) -> dict[str, Any]:
     if task.get("status") == "done":
         raise ValueError("已完成的任务不能取消")
     task["status"] = "cancelled"
+    _mark_active_stages_cancelled(task, "用户取消，当前阶段已中断")
     task["updated_at"] = _now()
     _write(task)
+    job = _JOBS.get(task_id)
+    if job is not None and not job.done():
+        job.cancel()
     return task

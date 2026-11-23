@@ -55,7 +55,7 @@ FINANCE_TOOL_NAMES: tuple[tuple[str, str], ...] = (
     ("backup_now",
      "生成本地加密备份包（口令只显示一次）。用户说「备份/导出存档」时调用。"),
     ("set_setting",
-     "修改应用偏好：涨跌颜色 color_scheme（cn 红涨绿跌 / us 绿涨红跌）、默认首页 default_tab（overview/holdings/market/ledger/chat）、语言 lang（zh/en）、数字格式 compact_numbers、快捷建议 show_suggestions（on/off）、晨报时间 morning_report_time（HH:MM）。"),
+     "修改应用偏好：涨跌颜色 color_scheme（cn 红涨绿跌 / us 绿涨红跌）、默认首页 default_tab（现有任一工作区视图或 chat）、语言 lang（zh/en）、数字格式 compact_numbers、快捷建议 show_suggestions（on/off）、晨报时间 morning_report_time（HH:MM）。"),
     ("get_portfolio_risk",
      "计算组合风险指标：年化波动率、夏普、索提诺、最大回撤、Calmar、Beta/Alpha、VaR、与沪深300等基准的对比。适合回答「我的组合风险大吗」「收益跑赢大盘了吗」「波动大不大」。"),
     ("get_rebalance_plan",

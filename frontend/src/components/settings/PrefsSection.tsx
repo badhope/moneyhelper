@@ -5,6 +5,8 @@ import { BRAND_DEFAULT_ACCENT, BRAND_PRESETS } from "@/lib/brand";
 import { DEFAULT_PRESET, useTheme } from "@/lib/theme";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { inputCls } from "@/components/ui/field";
+import { DATA_KINDS, isDataKind } from "@/lib/views";
 import { Section } from "./shared";
 
 /** 偏好设置（主题 / 主题色 / 语音 / 语言 / 涨跌配色 / 默认首页）；开关类即改即存，配色与首页走底部批量保存 */
@@ -139,20 +141,49 @@ export function PrefsSection({
           ]}
         />
       </div>
-      {/* 默认首页 */}
-      <div className="mt-3 flex items-center justify-between">
-        <div>
+      {/* 默认首页：只列真实存在的视图，不再保留已删除的“功能页”选项 */}
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <div className="text-sm">{t("settings.defaultTab")}</div>
           <div className="text-xs text-muted-foreground mt-0.5">{t("settings.defaultTabHint")}</div>
         </div>
-        <Segmented
-          value={form.default_tab ?? "chat"}
-          onChange={setDefaultTab}
-          options={[
-            { value: "chat", label: t("nav.chat") },
-            { value: "features", label: t("nav.features") },
-          ]}
-        />
+        <select
+          className={cn(inputCls, "w-40 shrink-0")}
+          value={(form.default_tab === "chat" || isDataKind(form.default_tab || "")) ? (form.default_tab || "chat") : "chat"}
+          onChange={(e) => setDefaultTab(e.target.value)}
+          aria-label={t("settings.defaultTab")}
+        >
+          <option value="chat">{t("nav.chat")}</option>
+          {DATA_KINDS.map((k) => (
+            <option key={k} value={k}>{t(`nav.${k}`)}</option>
+          ))}
+        </select>
+      </div>
+      {/* 仪表盘自动刷新：设置必须真的驱动定时器，否则就是假开关 */}
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm">{t("settings.autoRefresh")}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">{t("settings.autoRefreshHint")}</div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {form.auto_refresh === "on" && (
+            <input
+              type="number"
+              min={30}
+              max={86400}
+              step={30}
+              className={cn(inputCls, "w-24")}
+              value={form.auto_refresh_seconds || "300"}
+              onChange={(e) => onToggle("auto_refresh_seconds", e.target.value)}
+              aria-label={t("settings.autoRefreshSeconds")}
+            />
+          )}
+          <Switch
+            checked={form.auto_refresh === "on"}
+            onChange={() => onToggle("auto_refresh")}
+            label={t("settings.autoRefresh")}
+          />
+        </div>
       </div>
       {/* 版本号：来自后端单一真源（构建时注入），方便用户报问题时带上版本 */}
       <div className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">

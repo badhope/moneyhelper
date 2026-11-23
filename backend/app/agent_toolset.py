@@ -14,14 +14,49 @@ from .logging_utils import get_logger
 
 log = get_logger(__name__)
 
+# 路由到工具面的动态收窄：不是把全部只读工具一次塞给模型，而是按
+# supervisor 判定的问题域只暴露相关工具。对齐 coding harness 的 progressive
+# disclosure——工具越少，小模型误选与 schema 占用越低。
+# 只对明确单一域生效；both/未知路由保留全量，宁可多给也不要用错工具集。
+_ROUTE_TOOLS: dict[str, frozenset[str]] = {
+    "market": frozenset({
+        "get_market_view", "get_kline", "search_symbol", "get_quote", "get_watchlist",
+        "get_portfolio_risk", "get_rebalance_plan", "get_valuation", "get_dca_plans",
+        "get_fire_plan", "research_analyze", "research_backtest", "research_forecast",
+        "statements_analyze", "market_breadth", "stock_profile", "pretrade_check",
+        "connect_catalog", "connect_fund_nav", "paper_overview", "broker_status",
+    }),
+    "ledger": frozenset({
+        "get_ledger_view", "get_financial_identity", "get_monthly_review",
+        "get_risk_flags", "get_budget", "get_trend", "get_goals", "get_user_memory",
+        "get_lessons", "get_health_check", "tax_calc", "debt_payoff_plan",
+        "cashflow_forecast", "scan_subscriptions", "scan_anomalies",
+    }),
+}
+
 
 async def build_toolset(
     tools_list: list | None,
     impl_map: dict | None,
+    *,
+    route: str | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
     """返回 (tool_schemas, tool_map, internal_impl, mcp_schemas)。"""
     tool_schemas = tools_list if tools_list is not None else READ_TOOLS
     tool_map = impl_map if tools_list is not None else ALLOWED_IMPL
+    # 按路由收窄本地只读工具面（显式 tools_list 的通用分支不参与）
+    allowed_by_route = _ROUTE_TOOLS.get(str(route or "").strip())
+    if tools_list is None and allowed_by_route:
+        tool_schemas = [
+            t for t in tool_schemas
+            if t["function"]["name"] in allowed_by_route
+        ]
+        tool_map = {k: v for k, v in tool_map.items() if k in allowed_by_route}
+        log.info(
+            "agent.toolset route=%s tools=%s",
+            route,
+            [t["function"]["name"] for t in tool_schemas],
+        )
     # Studio 内置科研工具：只进财务/科研分支的工具面（内部工具不对外暴露）
     internal_impl: dict[str, Any] = {}
     if tools_list is None:

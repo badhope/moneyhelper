@@ -50,7 +50,7 @@ async def deep_client(monkeypatch, temp_db):
         searches.append(str(args.get("q") or ""))
         return f"搜索结果：{args.get('q')}"
 
-    async def fake_build_toolset(tools_list, impl_map):
+    async def fake_build_toolset(tools_list, impl_map, **_kwargs):
         schema = {
             "type": "function",
             "function": {"name": "web_search", "description": "联网搜索", "parameters": {"type": "object", "properties": {"q": {"type": "string"}}}},

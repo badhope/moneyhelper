@@ -23,6 +23,7 @@ async def create_task(
     brief: str,
     *,
     stages: list[str] | None = None,
+    success_criteria: str = "",
 ) -> dict[str, Any]:
     """建立任务。stages 为空时按模板生成；自定义阶段最多 MAX_STAGES 个。"""
     template = TEMPLATES.get(kind)
@@ -34,6 +35,7 @@ async def create_task(
     clean_brief = str(brief or "").strip()[:4000]
     if not clean_brief:
         raise ValueError("任务目标不能为空")
+    clean_criteria = str(success_criteria or "").strip()[:1000]
 
     if stages:
         stage_defs = [(str(s).strip()[:60], str(s).strip()[:2000]) for s in stages if str(s).strip()]
@@ -51,6 +53,7 @@ async def create_task(
         "kind": kind,
         "title": clean_title,
         "brief": clean_brief,
+        "success_criteria": clean_criteria,
         "status": "pending",  # pending/running/done/failed/cancelled
         "created_at": _now(),
         "updated_at": _now(),

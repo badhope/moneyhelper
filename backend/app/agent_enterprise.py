@@ -196,6 +196,7 @@ async def enterprise(state: AgentState) -> dict[str, Any]:
                     "flags": [],
                     "llm": "llm",
                     "tools": result.get("tools_used", []),
+                    "steps": result.get("steps", []),
                     "agent_steps": result.get("steps", []),
                     "actions": [],
                 }

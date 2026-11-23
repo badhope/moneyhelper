@@ -33,6 +33,8 @@ async def _migrate_add_columns() -> None:
             "tokens_out": "INTEGER NOT NULL DEFAULT 0",
             # 回答依据与质量反馈：随回答落库，历史回看与评测汇总共用
             "sources_json": "TEXT NOT NULL DEFAULT '[]'",
+            # 工具执行轨迹（name/args/summary），历史回看时还原“它做了哪几步”
+            "steps_json": "TEXT NOT NULL DEFAULT '[]'",
             "feedback_rating": "INTEGER NOT NULL DEFAULT 0",
             "feedback_reason": "TEXT NOT NULL DEFAULT ''",
             "feedback_at": "TEXT NOT NULL DEFAULT ''",

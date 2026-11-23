@@ -174,6 +174,8 @@ export interface RunRecord {
   route_reason?: string;
   /** 本轮调用过的工具（agent 模式落库） */
   tools?: string[];
+  /** 工具执行轨迹（名称/参数/结果摘要）：历史回看还原“它做了哪几步” */
+  steps?: AgentToolStep[];
   /** 对话结果附带的页面跳转意图（对话中枢：结果一键去对应页面） */
   actions?: { tab: string }[];
   /** 这一轮用户消息挂过的附件：刷新/换端后仍能回看 */

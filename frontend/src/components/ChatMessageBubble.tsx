@@ -109,6 +109,8 @@ function ToolSteps({ tools }: { tools: AgentToolStep[] }) {
   const [open, setOpen] = useState(false);
   const running = tools.some((t) => t.status === "running");
   if (tools.length === 0) return null;
+  const failed = tools.filter((t) => t.status === "error").length;
+  const totalMs = tools.reduce((sum, t) => sum + (t.duration_ms ?? 0), 0);
   return (
     <div className="mt-2.5">
       <button
@@ -122,6 +124,14 @@ function ToolSteps({ tools }: { tools: AgentToolStep[] }) {
           <Wrench className="w-3 h-3" />
         )}
         {tr("summary.tools", { n: tools.length })}
+        {failed > 0 && (
+          <span className="text-red-600"> · {tr("summary.toolsFailed", { n: failed })}</span>
+        )}
+        {totalMs > 0 && (
+          <span className="text-muted-foreground/70">
+            {" · "}{totalMs < 1000 ? `${totalMs}ms` : `${(totalMs / 1000).toFixed(1)}s`}
+          </span>
+        )}
         {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>
       {open && (
@@ -140,6 +150,11 @@ function ToolSteps({ tools }: { tools: AgentToolStep[] }) {
                 {t.summary ? <span className="ml-1">{t.summary}</span> : null}
                 {t.duration_ms != null && (
                   <span className="ml-1 text-[11px] text-muted-foreground/70">{t.duration_ms}ms</span>
+                )}
+                {t.args && Object.keys(t.args).length > 0 && (
+                  <span className="mt-0.5 block break-all text-[11px] text-muted-foreground/70">
+                    {JSON.stringify(t.args).slice(0, 160)}
+                  </span>
                 )}
               </span>
             </div>
@@ -203,7 +218,7 @@ function Thinking({ items, running }: { items: string[]; running?: boolean }) {
 }
 
 /** 对话结果的页面跳转意图 → 按钮文案 key。
- *  overview/holdings/market/ledger 是「功能」页内的子 tab（由 App 落 features 页对应子 tab）；
+ *  overview/holdings/market/ledger 等是财务工作区的视图（由 App 直接切到对应视图）；
  *  settings 独立页；chat 留在对话。 */
 
 /** 代码块高亮：PrismLight 按需语言 + 明暗主题自适应，带语言标签条与复制按钮。 */

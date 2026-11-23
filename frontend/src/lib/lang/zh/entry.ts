@@ -72,6 +72,7 @@ export const zh_entry: Record<string, string> = {
   "summary.booked": "已入账",
   "summary.remembered": "已记住",
   "summary.tools": "调用了 {n} 个工具",
+  "summary.toolsFailed": "{n} 个失败",
   "error.title": "页面出错了",
   "error.reload": "重新加载",
   "auth.loginSubtitle": "登录你的 Moneyhelper 账号",

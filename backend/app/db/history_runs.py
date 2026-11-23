@@ -34,6 +34,7 @@ async def save_run(
     skip_session: bool = False,
     tokens: dict[str, int] | None = None,
     sources: list[dict[str, Any]] | None = None,
+    steps: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     conn = await _conn()
     created = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -43,8 +44,8 @@ async def save_run(
     async with get_write_lock():
         cur = await conn.execute(
             "INSERT INTO runs(user_id,thread_id,question,answer,level,flags_json,created_at,"
-            "route,llm,route_reason,tools,actions,attachments_json,tokens_in,tokens_out,sources_json)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "route,llm,route_reason,tools,actions,attachments_json,tokens_in,tokens_out,sources_json,steps_json)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             current_user_id(),
             thread_id or "default",
@@ -62,6 +63,7 @@ async def save_run(
             int(usage.get("prompt") or 0),
             int(usage.get("completion") or 0),
             json.dumps(sources or [], ensure_ascii=False),
+            json.dumps(steps or [], ensure_ascii=False),
             ),
         )
         await conn.commit()
@@ -176,6 +178,7 @@ def _hydrate_run(r: dict[str, Any]) -> dict[str, Any]:
         ("actions", "actions"),
         ("attachments_json", "attachments"),
         ("sources_json", "sources"),
+        ("steps_json", "steps"),
     ):
         try:
             out[field] = json.loads(out.pop(col, "[]") or "[]")

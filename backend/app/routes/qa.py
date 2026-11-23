@@ -216,6 +216,7 @@ async def _ask_impl(payload: dict, protocol: str = "internal"):
                 attachments=attachments_meta or replaced_attachments,
                 tokens=result.get("tokens") or None,
                 sources=sources,
+                steps=result.get("steps") or [],
             )
         except Exception:  # noqa: BLE001 — 落库失败不打断交付
             log.exception("save_run failed")

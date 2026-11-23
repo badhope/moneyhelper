@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS runs (
     tokens_in     INTEGER NOT NULL DEFAULT 0,
     tokens_out    INTEGER NOT NULL DEFAULT 0,
     sources_json  TEXT NOT NULL DEFAULT '[]',
+    steps_json    TEXT NOT NULL DEFAULT '[]',
     feedback_rating INTEGER NOT NULL DEFAULT 0,
     feedback_reason TEXT NOT NULL DEFAULT '',
     feedback_at   TEXT NOT NULL DEFAULT ''

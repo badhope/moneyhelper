@@ -174,28 +174,51 @@ async def compact_messages(
     system_msgs = [m for m in messages if m.get("role") == "system"]
     other = [m for m in messages if m.get("role") != "system"]
     if len(other) <= reserve_recent:
-        # 条数不多但单条很长：原样返回（避免把当前上下文切碎）
+        # 条数不多但单条很长：不切历史，只截超长工具结果，保住当前任务链
+        shrunk = _shrink_kept_tool_outputs(other)
+        if shrunk != other:
+            out = [*system_msgs, *shrunk]
+            after = count_messages_tokens(out)
+            return CompactionResult(
+                messages=out, compacted=True, before_tokens=before,
+                after_tokens=after, dropped=0, strategy="deterministic",
+            )
         return CompactionResult(
             messages=messages, compacted=False, before_tokens=before,
             after_tokens=before, dropped=0, strategy="none",
         )
 
-    old, kept = other[:-reserve_recent], other[-reserve_recent:]
+    # 保留区不能从 tool 结果中间切开，否则会生成非法消息序列（见 _safe_keep_start）
+    safe_start = _safe_keep_start(other, len(other) - reserve_recent)
+    old = other[:safe_start]
+    kept = other[safe_start:] if safe_start < len(other) else []
 
     summary: str | None = None
     strategy = "deterministic"
-    if use_llm:
-        summary = await llm_summary(old, lang)
-        if summary:
-            strategy = "llm"
-    if not summary:
-        summary = deterministic_summary(old, lang)
+    if old:
+        if use_llm:
+            summary = await llm_summary(old, lang)
+            if summary:
+                strategy = "llm"
+        if not summary:
+            summary = deterministic_summary(old, lang)
 
+    # 只压缩旧轮次不够：当前一轮就可能塞进多个超大工具结果。先截工具结果头部；
+    # 仍超预算时，再对保留区里的超长自然语言内容做截断，但不动配对结构。
     compacted_msgs = [
         *system_msgs,
-        {"role": "system", "content": summary},
-        *kept,
+        *([{"role": "system", "content": summary}] if summary else []),
+        *_shrink_kept_tool_outputs(kept),
     ]
+    if count_messages_tokens(compacted_msgs) > max_tokens:
+        shrunk: list[dict] = []
+        for m in compacted_msgs:
+            text = str(m.get("content") or "")
+            if m.get("role") in ("assistant", "user") and len(text) > 1200:
+                shrunk.append({**m, "content": text[:1200] + "\n…（长消息已截断以控制上下文预算）"})
+            else:
+                shrunk.append(m)
+        compacted_msgs = shrunk
     after = count_messages_tokens(compacted_msgs)
     log.info(
         "context.compact strategy=%s before=%s after=%s dropped=%s",
@@ -210,6 +233,44 @@ async def compact_messages(
         strategy=strategy,
         summary=summary,
     )
+
+
+def _safe_keep_start(messages: list[dict], start: int) -> int:
+    """把保留区起点推到合法的消息边界。
+
+    工具调用是「assistant(tool_calls) → tool(result)」的强配对。截断落在
+    tool 消息上会得到一条没有前置 tool_calls 的孤立 tool 消息，OpenAI 兼容
+    端点会直接返回 400，长会话反而在压缩后彻底不可用。这里宁可多保留一条
+    assistant，也不制造非法序列。
+    """
+    start = max(0, min(start, len(messages)))
+    # 落在 tool 结果中间：向前回溯到它的 assistant(tool_calls)，保住配对
+    while start > 0 and start < len(messages) and messages[start].get("role") == "tool":
+        start -= 1
+    # 起点本身是一条孤立 tool（没有前置 assistant）时，只能向后找安全边界
+    while start < len(messages) and messages[start].get("role") == "tool":
+        start += 1
+    # 起点是带 tool_calls 的 assistant 时可以保留（后续 tool 结果自然跟随）
+    return start
+
+
+def _shrink_kept_tool_outputs(kept: list[dict], clip: int = 900) -> list[dict]:
+    """压缩保留区里的超长工具结果，但不删除 assistant/tool 配对。
+
+    当前这一轮可能一次取回几万字符 JSON。不能像旧消息一样整段丢掉，否则
+    模型正在推理的证据消失；只截头部并明确标注截断，既保住语义又控预算。
+    """
+    out: list[dict] = []
+    for m in kept:
+        if m.get("role") != "tool":
+            out.append(m)
+            continue
+        text = str(m.get("content") or "")
+        if len(text) <= clip:
+            out.append(m)
+        else:
+            out.append({**m, "content": text[:clip] + "\n…（工具结果过长，已截断；完整值以工具原始返回为准）"})
+    return out
 
 
 def trim_messages(

@@ -219,6 +219,12 @@ export function SettingsView({ onDirtyChange }: { onDirtyChange?: (dirty: boolea
             }}
             setDefaultTab={(v) => {
               set("default_tab", v);
+              // 同步到本标签页，下次打开直接落在目标页，避免先闪一下对话页
+              try {
+                sessionStorage.setItem("mh.defaultTab", v);
+              } catch {
+                /* sessionStorage 不可用时仅影响首屏速度，不影响设置保存 */
+              }
               toggleMutate.mutate({ k: "default_tab", v });
             }}
             onToggle={toggle}

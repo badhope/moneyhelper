@@ -77,6 +77,8 @@ export const zh_debts: Record<string, string> = {
   "nav.groupBooks": "业务",
   "nav.groupLedger": "账务",
   "nav.groupConnect": "接入",
+  "nav.overview": "总览",
+  "nav.health": "财务健康",
   "nav.holdings": "持仓",
   "nav.market": "行情",
   "nav.main": "主导航",

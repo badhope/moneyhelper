@@ -52,9 +52,27 @@ export default function App() {
   const { toast } = useToast();
 
   // 主区视图：对话 or 财务工作区（整页切换，对标 opencode / codex 的 section 导航）
-  const [view, setView] = useState<DataKind | "chat">(() =>
-    new URLSearchParams(window.location.search).get("demo") === "1" ? "overview" : "chat",
-  );
+  const [view, setView] = useState<DataKind | "chat">(() => {
+    if (new URLSearchParams(window.location.search).get("demo") === "1") return "overview";
+    try {
+      const cached = sessionStorage.getItem("mh.defaultTab") || "";
+      if (isDataKind(cached)) return cached;
+    } catch {
+      /* 隐私模式下 sessionStorage 可能不可用，回退对话页 */
+    }
+    return "chat";
+  });
+
+  // 默认首页：bootstrap 异步返回，不能放进 useState 初值里；只应用一次，
+  // 之后用户手动切页不再被设置覆盖。非法旧值（如已删除的 features）静默忽略。
+  const defaultTabApplied = useRef(false);
+  useEffect(() => {
+    if (!bootstrap || defaultTabApplied.current || demoMode) return;
+    defaultTabApplied.current = true;
+    const tab = String(bootstrap.settings.default_tab || "");
+    if (tab === "chat") return;
+    if (isDataKind(tab)) setView(tab);
+  }, [bootstrap, demoMode]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [remoteOpen, setRemoteOpen] = useState(false);
   // 手机扫码进来后带 ?remote=1：用 sessionStorage 记住，刷新页面也知道自己在远程控制中。

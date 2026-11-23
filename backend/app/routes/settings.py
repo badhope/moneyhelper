@@ -27,10 +27,11 @@ NUMERIC_KEYS = (
     "savings_goal",
     "auto_refresh_seconds",
     "agent_tool_turns",
+    "agent_context_tokens",
 )
 QUOTE_MODES = ("auto", "snapshot", "eastmoney")
 COLOR_SCHEMES = ("cn", "us")
-DEFAULT_TABS = ("overview", "holdings", "market", "ledger", "chat", "features")
+DEFAULT_TABS = ("chat", "overview", "holdings", "market", "ledger", "health", "strategy", "research", "statements", "review", "paper", "connect", "tax", "debts", "gl", "expenses", "procurement", "longtask", "bank")
 ONOFF_KEYS = (
     "voice_input",
     "voice_output",
@@ -51,7 +52,7 @@ TEXT_SCALES = ("normal", "large", "xlarge")
 # 灵活化：base_url 允许留空走 OpenAI 默认；model 允许留空走模型默认；api_key 可含前缀（sk- 等）。
 AI_TEXT_KEYS = ("ai_base_url", "ai_api_key", "ai_model")
 # 付费/自由文本设置：直存（长度截断），如晨报关注要点（可 AI 生成）
-FREE_TEXT_KEYS = ("report_focus", "custom_system_prompt")
+FREE_TEXT_KEYS = ("report_focus", "custom_system_prompt", "model_route_economy", "model_route_deep")
 # 模型点亮：逗号分隔的模型名白名单（P0 模型点亮），列表直存但做目录校验
 MODEL_LIST_KEYS = ("enabled_models",)
 AI_KEY_MAX_LEN = 2000
@@ -65,6 +66,7 @@ NUMERIC_RANGES: dict[str, tuple[float, float]] = {
     "savings_goal": (0, 100),
     "auto_refresh_seconds": (30, 86400),
     "agent_tool_turns": (1, 30),
+    "agent_context_tokens": (2000, 128000),
 }
 
 

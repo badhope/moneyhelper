@@ -207,11 +207,12 @@ async def test_agent_calls_tool_then_answers(temp_db, monkeypatch):
     async def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         calls.append(body)
-        if not body.get("tools"):
-            raise AssertionError("请求必须带 tools 定义")
         n_tool_msgs = sum(1 for m in body["messages"] if m["role"] == "tool")
         if n_tool_msgs == 0:
+            # 首轮必须带工具面，模型才有机会发起取数
+            assert body.get("tools"), "首轮请求必须带 tools 定义"
             return _chat_resp(tool_calls=[_tc("get_market_view", {})])
+        # 终答会显式关掉工具面（防止模型再写 <tool_call>），不应再要求 tools
         return _chat_resp(content="你的持仓总市值 X 元。")
 
     _inject(monkeypatch, handler)

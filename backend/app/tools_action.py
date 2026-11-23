@@ -78,8 +78,15 @@ async def run_action(question: str, lang: str = "zh", *, emit: Emit | None = Non
         key, value = None, None
         if "默认首页" in q:
             key = "default_tab"
-            vmap = {"总览": "overview", "持仓": "holdings", "行情": "market",
-                    "记账": "ledger", "问ai": "chat", "对话": "chat", "chat": "chat"}
+            vmap = {
+                "总览": "overview", "持仓": "holdings", "行情": "market",
+                "记账": "ledger", "问ai": "chat", "对话": "chat", "chat": "chat",
+                "健康": "health", "体检": "health", "策略": "strategy",
+                "研究": "research", "报表": "statements", "复盘": "review",
+                "模拟盘": "paper", "连接": "connect", "税": "tax",
+                "负债": "debts", "总账": "gl", "报销": "expenses",
+                "采购": "procurement", "长任务": "longtask", "银行": "bank",
+            }
             for k, v in vmap.items():
                 if k in q:
                     value = v

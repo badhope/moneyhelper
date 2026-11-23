@@ -105,6 +105,26 @@ DEEP_RESEARCH_INSTRUCTION = (
 )
 
 
+def select_task_model(
+    question: str,
+    route: str | None,
+    deep_research: bool,
+    answer_mode: str,
+    settings: dict[str, Any],
+) -> str:
+    """按任务难度选模型名；空字符串表示沿用主模型。
+
+    纯函数，便于单测。只在同一端点内换模型名，不改变 base_url/key。
+    """
+    wants_deep = deep_research or answer_mode == "detailed" or len(question) > 500
+    wants_economy = (
+        not wants_deep
+        and (answer_mode == "concise" or (route in ("market", "ledger") and len(question) <= 200))
+    )
+    key = "model_route_deep" if wants_deep else ("model_route_economy" if wants_economy else "")
+    return str(settings.get(key) or "").strip() if key else ""
+
+
 async def run_agent(    question: str,
     emit: Emit,
     history: list[dict[str, str]] | None = None,
@@ -118,6 +138,7 @@ async def run_agent(    question: str,
     deep_research: bool = False,
     llm_options: dict[str, Any] | None = None,
     images: list[dict[str, Any]] | None = None,
+    route: str | None = None,
 ) -> dict[str, Any]:
     """跑一轮 agent：模型自主调用工具后成文。失败抛 AgentUnavailable。
 
@@ -147,6 +168,16 @@ async def run_agent(    question: str,
         session_context=session_context,
         images=images,
     )
+    # 任务级模型路由：不是伪造 provider 参数，而是在同一端点内真的换模型名。
+    # 简单问答走轻量模型，深研/长文走深度模型；留空则保持主模型。
+    answer_mode = str((llm_options or {}).get("answer_mode") or "standard")
+    routed_model = select_task_model(question, route, deep_research, answer_mode, _s)
+    if routed_model and routed_model != str(cfg.get("model") or ""):
+        cfg = dict(cfg)
+        cfg["model"] = routed_model
+        cfg["litellm_model"] = llm._to_litellm_model(  # noqa: SLF001 — 同包内复用 provider 前缀规则
+            routed_model, str(cfg.get("provider") or ""), str(cfg.get("base") or "")
+        )
     if web_on:
         messages.append({"role": "system", "content": WEB_SEARCH_INSTRUCTION})
         if deep_research:
@@ -158,14 +189,20 @@ async def run_agent(    question: str,
         turn_cap = max(turn_cap, 10)
     search_cap = 6 if deep_research else 2
     reflect = (_s.get("agent_reflect") or "on") != "off"
+    # 上下文预算：按 token 而不是消息条数判断。工具结果（持仓 JSON/K 线）通常
+    # 一条就上千 token，用条数判断会等到模型已经超窗才压缩。
+    try:
+        context_budget = int((_s.get("agent_context_tokens") or 12000) or 12000)
+    except (TypeError, ValueError):
+        context_budget = 12000
+    context_budget = max(2000, min(context_budget, 128000))
 
     steps: list[dict[str, Any]] = []
     used_tools: list[str] = []
     tool_counts: dict[str, int] = {}
 
-    # 长会话上下文压缩：messages 超过 8 条时，用 stream_text_short 把早期历史摘要化
-    # （对齐 Claude Code 的 progressive disclosure：长会话摘要兜底，防 context window 溢出）
-    messages = await _compress_history(messages, cfg)
+    # 进入循环前先按真实 token 预算压一次（历史注入可能已经很长）
+    messages = await _compress_history(messages, cfg, max_tokens=context_budget)
 
     # 明确「本轮不给工具」：通用闲聊直接一次流式成文，跳掉工具决策轮
     #（这一轮非流式调用要等模型完整输出 tool_calls 判定，是首字延迟的主要来源）。
@@ -179,7 +216,7 @@ async def run_agent(    question: str,
     from .agent_toolset import build_toolset
 
     tool_schemas, tool_map, internal_impl, mcp_schemas = await build_toolset(
-        tools_list, impl_map
+        tools_list, impl_map, route=route
     )
     # 用户显式开启「联网搜索」：无论财务还是通用分支，都给工具面补上 web_search
     if web_on:
@@ -489,7 +526,10 @@ async def run_agent(    question: str,
                     ),
                 })
             summary = _tool_summary(name, result)
-            steps.append({"name": name, "args": args, "summary": summary})
+            steps.append({
+                "name": name, "args": args, "summary": summary,
+                "status": status, "duration_ms": duration_ms,
+            })
             await emit({
                 "type": "tool",
                 "node": "finalize",
@@ -500,6 +540,11 @@ async def run_agent(    question: str,
             })
             # 兼容旧契约：agent_step 仍发（summary 聚合）
             await emit({"type": "agent_step", "name": name, "args": args, "summary": summary})
+
+        # 每轮工具结果回填后按 token 预算压缩：真正会让上下文膨胀的是 tool 结果，
+        # 而不是循环开始前那一条 user 问题。压缩只动旧轮次/超长工具头部，
+        # 不拆 assistant(tool_calls)→tool 配对，避免压缩后请求被端点判 400。
+        messages = await _compress_history(messages, cfg, max_tokens=context_budget)
 
     # 轮次用尽：不要让整次问答作废，交给收尾请求兜底成文（失败抛降级）。
     return await wrap_up_answer(

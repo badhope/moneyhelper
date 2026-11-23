@@ -20,6 +20,10 @@ export interface LongTaskStage {
   error: string;
   started_at: string;
   finished_at: string;
+  /** 本阶段实际尝试次数；旧任务可能没有该字段 */
+  attempts?: number;
+  /** 本阶段总耗时（毫秒）；取消或旧任务可能没有 */
+  duration_ms?: number;
 }
 
 export interface LongTask {
@@ -27,6 +31,8 @@ export interface LongTask {
   kind: string;
   title: string;
   brief: string;
+  success_criteria?: string;
+  error?: string;
   status: string; // pending/running/done/failed/cancelled
   created_at: string;
   updated_at: string;
@@ -56,6 +62,7 @@ export const createLongTask = (body: {
   kind: string;
   title: string;
   brief: string;
+  success_criteria?: string;
   stages?: string[];
 }) =>
   api<{ ok: boolean; task: LongTask }>("/api/longtasks", {
@@ -63,10 +70,13 @@ export const createLongTask = (body: {
     body: JSON.stringify(body),
   });
 
-export const runLongTask = (id: string, maxStages?: number) =>
+export const runLongTask = (id: string, maxStages?: number, background = true) =>
   api<{ ok: boolean; task: LongTask }>(`/api/longtasks/${id}/run`, {
     method: "POST",
-    body: JSON.stringify(maxStages ? { max_stages: maxStages } : {}),
+    body: JSON.stringify({
+      ...(maxStages ? { max_stages: maxStages } : {}),
+      ...(background ? { background: true } : {}),
+    }),
   });
 
 export const cancelLongTask = (id: string) =>

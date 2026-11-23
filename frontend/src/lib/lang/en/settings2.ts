@@ -341,4 +341,12 @@ export const en_settings2: Record<string, string> = {
   "settings.localModelsCopyName": "Copy model name",
   "settings.localModelsCopied": "Copied",
   "settings.demoModelNote": "AI is off for the demo ledger (display only)",
+  "settings.agentContext": "Context budget (tokens)",
+  "settings.agentContextHint": "Compacts older turns and oversized tool results when over budget; 2000–128000",
+  "settings.modelRouting": "Task model routing",
+  "settings.modelRoutingHint": "Use different models on the same endpoint by task difficulty; leave blank to always use the primary model",
+  "settings.modelEconomy": "Economy model",
+  "settings.modelEconomyHint": "For concise answers and short lookups; a cheaper flash/chat tier",
+  "settings.modelDeep": "Deep model",
+  "settings.modelDeepHint": "For deep research, long-form and detailed mode; a stronger reasoning tier",
 };

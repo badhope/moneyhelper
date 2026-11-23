@@ -582,12 +582,22 @@ export function Dashboard({
   /** 决策中心「去处理」跳转：传财务页 key（holdings / strategy / tax / health） */
   onNavigateTab?: (tab: string) => void;
 } = {}) {
-  const { dashboard, loading } = useDashboard();
+  const { dashboard, loading, refresh } = useDashboard();
   const { bootstrap } = useBootstrap();
   const { t: tr } = useI18n();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const compact = (bootstrap?.settings.compact_numbers ?? "on") === "on";
+  // 自动刷新：设置页开关 + 间隔真实驱动轮询；页面隐藏时不刷，避免后台空跑。
+  const autoRefresh = bootstrap?.settings.auto_refresh === "on";
+  const refreshSeconds = Math.max(30, Math.min(86400, Number(bootstrap?.settings.auto_refresh_seconds) || 300));
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const id = window.setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, refreshSeconds * 1000);
+    return () => window.clearInterval(id);
+  }, [autoRefresh, refreshSeconds, refresh]);
   const { data: budgetData } = useQuery({
     queryKey: ["budgets"],
     queryFn: async () => api<BudgetUsage>("/api/budgets"),

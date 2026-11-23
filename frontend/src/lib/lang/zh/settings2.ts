@@ -341,4 +341,12 @@ export const zh_settings2: Record<string, string> = {
   "settings.localModelsCopyName": "复制模型名",
   "settings.localModelsCopied": "已复制",
   "settings.demoModelNote": "演示账本不启用 AI（仅展示）",
+  "settings.agentContext": "上下文预算（token）",
+  "settings.agentContextHint": "工具循环超过预算时压缩旧轮次与超长工具结果；2000–128000，越大越贵但记忆更长；默认 12000",
+  "settings.modelRouting": "任务模型路由",
+  "settings.modelRoutingHint": "同一端点内按任务难度换模型；留空则全部使用主模型",
+  "settings.modelEconomy": "轻量任务模型",
+  "settings.modelEconomyHint": "简答、短查询使用；建议选便宜的 flash/chat 档",
+  "settings.modelDeep": "深度任务模型",
+  "settings.modelDeepHint": "深研、长文、详细模式使用；建议选推理更强的档",
 };

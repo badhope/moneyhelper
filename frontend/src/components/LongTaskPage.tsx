@@ -29,6 +29,16 @@ const STATUS_KEYS: Record<string, string> = {
   skipped: "longtask.statusSkipped",
 };
 
+/** 长任务耗时按人可读格式展示；0/缺失不显示，避免出现“0ms 已完成”的噪声 */
+function fmtDuration(ms?: number): string {
+  if (!ms || ms < 0) return "";
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const m = Math.floor(ms / 60_000);
+  const s = Math.round((ms % 60_000) / 1000);
+  return `${m}m${s}s`;
+}
+
 function StatusPill({ status }: { status: string }) {
   const { t } = useI18n();
   return (
@@ -66,7 +76,8 @@ export function LongTaskPage() {
   const [busy, setBusy] = useState(false);
   const [openStage, setOpenStage] = useState<number | null>(null);
   const [stageText, setStageText] = useState("");
-  const [form, setForm] = useState({ kind: "novel", title: "", brief: "" });
+  const [pollingId, setPollingId] = useState<string | null>(null);
+  const [form, setForm] = useState({ kind: "novel", title: "", brief: "", success_criteria: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,12 +100,40 @@ export function LongTaskPage() {
     try {
       const task = await getLongTask(id);
       setDetail(task);
+      setPollingId(task.status === "running" || task.status === "pending" ? id : null);
       setOpenStage(null);
       setStageText("");
     } catch (e) {
       toast(errMsg(e), "error");
     }
   };
+
+  // 后台执行 + 轮询：长任务可能跑几十分钟，启动请求立即返回，页面不再被
+  // 一次同步 HTTP 请求卡住；每 3 秒刷新阶段状态，终态时给一次明确提示。
+  useEffect(() => {
+    if (!pollingId) return;
+    let disposed = false;
+    const tick = async () => {
+      try {
+        const next = await getLongTask(pollingId);
+        if (disposed) return;
+        setDetail(next);
+        await load();
+        if (next.status === "done" || next.status === "failed" || next.status === "cancelled") {
+          setPollingId(null);
+          toast(t(next.status === "done" ? "longtask.finished" : next.status === "failed" ? "longtask.failed" : "longtask.cancelled"), next.status === "failed" ? "error" : "ok");
+        }
+      } catch (e) {
+        if (!disposed) toast(errMsg(e), "error");
+      }
+    };
+    const timer = window.setInterval(() => void tick(), 3000);
+    void tick();
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [pollingId, load, t, toast]);
 
   const doCreate = async () => {
     if (!form.title.trim() || !form.brief.trim()) return;
@@ -104,8 +143,9 @@ export function LongTaskPage() {
         kind: form.kind,
         title: form.title.trim(),
         brief: form.brief.trim(),
+        success_criteria: form.success_criteria.trim(),
       });
-      setForm({ ...form, title: "", brief: "" });
+      setForm({ ...form, title: "", brief: "", success_criteria: "" });
       toast(t("longtask.created"), "ok");
       setDetail(r.task);
       await load();
@@ -119,9 +159,10 @@ export function LongTaskPage() {
   const doRun = async (id: string) => {
     setBusy(true);
     try {
-      const r = await runLongTask(id);
+      const r = await runLongTask(id, undefined, true);
       setDetail(r.task);
-      toast(t("longtask.finished"), "ok");
+      setPollingId(id);
+      toast(t("longtask.started"), "ok");
       await load();
     } catch (e) {
       toast(errMsg(e), "error");
@@ -134,6 +175,7 @@ export function LongTaskPage() {
     try {
       const r = await cancelLongTask(id);
       setDetail(r.task);
+      setPollingId(null);
       toast(t("longtask.cancelled"), "ok");
       await load();
     } catch (e) {
@@ -156,6 +198,12 @@ export function LongTaskPage() {
   };
 
   const currentTemplate = templates.find((x) => x.id === form.kind);
+  const stageDone = detail?.stages.filter((s) => s.status === "done").length ?? 0;
+  const stageFailed = detail?.stages.filter((s) => s.status === "failed").length ?? 0;
+  const stageRetries = detail?.stages.reduce(
+    (sum, s) => sum + Math.max(0, (s.attempts ?? 0) - 1),
+    0,
+  ) ?? 0;
 
   return (
     <div className="space-y-3">
@@ -210,6 +258,16 @@ export function LongTaskPage() {
             onChange={(e) => setForm({ ...form, brief: e.target.value })}
           />
         </div>
+        <div className="mt-2">
+          <label className={labelCls} htmlFor="lt-criteria">{t("longtask.criteria")}</label>
+          <textarea
+            id="lt-criteria"
+            className={cn(inputCls, "min-h-[56px]")}
+            placeholder={t("longtask.criteriaHint")}
+            value={form.success_criteria}
+            onChange={(e) => setForm({ ...form, success_criteria: e.target.value })}
+          />
+        </div>
         {currentTemplate && (
           <div className="mt-2 text-[11.5px] text-muted-foreground">
             {t("longtask.stagesHint")} {currentTemplate.stages.join(" → ")}
@@ -246,7 +304,7 @@ export function LongTaskPage() {
                 </button>
                 <div className="flex items-center gap-1.5">
                   <StatusPill status={x.status} />
-                  {x.status !== "done" && x.status !== "cancelled" && (
+                  {x.status !== "done" && (
                     <Button size="sm" disabled={busy} onClick={() => void doRun(x.id)}>
                       <Play className="mr-1 h-3.5 w-3.5" />
                       {t("longtask.run")}
@@ -268,9 +326,26 @@ export function LongTaskPage() {
       {detail && (
         <Card className="p-[var(--card-pad)]">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-medium">{detail.title}</div>
+            <div>
+              <div className="text-sm font-medium">{detail.title}</div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                {stageDone}/{detail.stages.length} · {t("longtask.progressDone")}
+                {stageFailed > 0 && ` · ${stageFailed} ${t("longtask.progressFailed")}`}
+                {stageRetries > 0 && ` · ${stageRetries} ${t("longtask.progressRetried")}`}
+              </div>
+            </div>
             <StatusPill status={detail.status} />
           </div>
+          {detail.success_criteria && (
+            <div className="mb-2 rounded-md bg-muted/50 px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
+              {t("longtask.criteria")}：{detail.success_criteria}
+            </div>
+          )}
+          {detail.error && (
+            <div className="mb-2 rounded-md border border-red-500/30 bg-red-500/5 px-2.5 py-1.5 text-[11.5px] text-red-700">
+              {detail.error}
+            </div>
+          )}
           <div className="space-y-1">
             {detail.stages.map((s) => (
               <div key={s.index} className="rounded-lg border border-border/70">
@@ -288,6 +363,16 @@ export function LongTaskPage() {
                     <span className="truncate">{s.name}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
+                    {(s.attempts ?? 0) > 1 && (
+                      <span className="text-[11px] text-amber-700">
+                        {t("longtask.attempts", { n: s.attempts ?? 0 })}
+                      </span>
+                    )}
+                    {fmtDuration(s.duration_ms) && (
+                      <span className="text-[11px] text-muted-foreground">
+                        {fmtDuration(s.duration_ms)}
+                      </span>
+                    )}
                     {s.chars > 0 && (
                       <span className="text-[11px] text-muted-foreground">{s.chars}</span>
                     )}

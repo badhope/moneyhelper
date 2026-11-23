@@ -132,6 +132,9 @@ async def test_enterprise_route_not_stealing_ledger_questions(temp_db) -> None:
     assert svc.route_question("我欠供应商多少钱？")[0] == "enterprise"
     # 个人收支口径优先
     assert svc.route_question("我这个月报销花了多少")[0] == "ledger"
+    # 个人财务身份证必须留在账本域：走企业域会让工具面里没有 get_financial_identity
+    assert svc.route_question("请调用 get_financial_identity 工具，告诉我财务数字身份证")[0] == "ledger"
+    assert svc.route_question("我的财务数字身份证是什么")[0] == "ledger"
     assert svc.route_question("这个月的开销怎么样")[0] == "ledger"
     # 纯写作/流程咨询不进企业域（避免把「报销制度」当成查库）
     assert svc.route_question("帮我写个报销制度")[0] == "general"
@@ -165,7 +168,14 @@ async def test_agent_mode_uses_tool_loop_and_no_steps(temp_db, monkeypatch) -> N
             "args": {}, "summary": "未发现明显风险项",
         })
         calls.append({"question": question, "history": history})
-        return {"answer": "你的组合总市值 100,000 元，表现平稳。", "tools_used": ["get_market_view", "get_risk_flags"], "steps": []}
+        return {
+            "answer": "你的组合总市值 100,000 元，表现平稳。",
+            "tools_used": ["get_market_view", "get_risk_flags"],
+            "steps": [
+                {"name": "get_market_view", "args": {"symbols": ["600000"]}, "summary": "总市值 100,000 元"},
+                {"name": "get_risk_flags", "args": {}, "summary": "未发现明显风险项"},
+            ],
+        }
 
     async def _has_llm() -> bool:
         return True
@@ -178,6 +188,9 @@ async def test_agent_mode_uses_tool_loop_and_no_steps(temp_db, monkeypatch) -> N
     assert [a["name"] for a in agent_steps] == ["get_market_view", "get_risk_flags"]
     assert result["llm"] == "llm"
     assert result["tools"] == ["get_market_view", "get_risk_flags"]
+    # 回包同时暴露 steps 与旧字段 agent_steps：API 落库读 steps，前端历史读 steps
+    assert [s["name"] for s in result["steps"]] == ["get_market_view", "get_risk_flags"]
+    assert result["steps"] == result["agent_steps"]
     assert result["answer"].endswith(analysis.DISCLAIMER) or analysis.DISCLAIMER in result["answer"]
 
 

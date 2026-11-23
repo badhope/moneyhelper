@@ -83,6 +83,8 @@ async def test_run_task_writes_artifacts(monkeypatch) -> None:
         assert content.startswith("阶段成果：")
         assert stage["chars"] == len(content)
         assert stage["file"].startswith(f"{i:02d}-")
+        assert stage["attempts"] == 1
+        assert stage["duration_ms"] >= 0
 
 
 async def test_stage_failure_is_recorded_and_resumable(monkeypatch) -> None:
@@ -109,6 +111,8 @@ async def test_stage_failure_is_recorded_and_resumable(monkeypatch) -> None:
     )
     first = await longtask.run_task(task["id"])
     assert first["stages"][0]["status"] == "failed"
+    assert first["stages"][0]["attempts"] == 2
+    assert first["stages"][0]["duration_ms"] >= 0
     assert first["stages"][1]["status"] == "done"
     assert first["status"] == "failed"
 
