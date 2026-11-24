@@ -35,7 +35,9 @@ def _packet_hash(packet: dict[str, Any]) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
 
-async def _build(kind: str, tenant_id: int, user_id: int, period: str, group_id: str) -> dict[str, Any]:
+async def _build(
+    kind: str, tenant_id: int, user_id: int, period: str, group_id: str
+) -> dict[str, Any]:
     kind = _text(kind, 20).lower()
     if kind not in KINDS:
         raise ValueError("kind 必须是 tax / payment / consolidation")
@@ -102,12 +104,50 @@ async def handoff_records(tenant_id: int, limit: int = 20) -> dict[str, Any]:
         if record["handed_at"] > record["last_activity"]:
             record["last_activity"] = record["handed_at"]
     items = sorted(records.values(), key=lambda r: r["last_activity"], reverse=True)
+    deliveries = await db.external_list_deliveries(100)
+    by_packet: dict[str, dict[str, Any]] = {}
+    for delivery in deliveries:
+        packet_id = str(delivery.get("packet_id") or "")
+        if not packet_id:
+            continue
+        summary = by_packet.setdefault(
+            packet_id,
+            {
+                "delivery_count": 0,
+                "delivery_status": "",
+                "delivery_channel": "",
+                "delivery_at": "",
+            },
+        )
+        summary["delivery_count"] += 1
+        # 列表按时间倒序；第一条就是该包最近一次投递。
+        if not summary["delivery_channel"]:
+            summary["delivery_status"] = str(delivery.get("status") or "")
+            summary["delivery_channel"] = str(delivery.get("channel_id") or "")
+            summary["delivery_at"] = str(
+                delivery.get("updated_at") or delivery.get("created_at") or ""
+            )
+    for item in items:
+        item.update(
+            by_packet.get(
+                str(item["packet_id"]),
+                {
+                    "delivery_count": 0,
+                    "delivery_status": "",
+                    "delivery_channel": "",
+                    "delivery_at": "",
+                },
+            )
+        )
     return {
         "records": items[: max(1, min(int(limit or 20), 100))],
         "total": len(items),
         "archived_count": sum(1 for r in items if r["state"] == "archived"),
         "handed_count": sum(1 for r in items if r["state"] == "handed_over"),
-        "boundary": "留档与线下交接确认不是税局申报、付款回单或审计意见；仅证明资料包已生成并交给人工处理。",
+        "delivered_count": sum(
+            1 for r in items if r.get("delivery_status") == "accepted"
+        ),
+        "boundary": "留档与线下交接确认不是税局申报、付款回单或审计意见；投递只证明外部通道受理，仍以持牌通道官方回执为准。",
     }
 
 

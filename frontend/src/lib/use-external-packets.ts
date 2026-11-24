@@ -150,6 +150,10 @@ export interface HandoffRecord {
   handed_note: string;
   state: "archived" | "handed_over";
   last_activity?: string;
+  delivery_count?: number;
+  delivery_status?: "pending" | "accepted" | "failed" | "";
+  delivery_channel?: string;
+  delivery_at?: string;
 }
 
 export interface HandoffLedger {
@@ -157,6 +161,48 @@ export interface HandoffLedger {
   total: number;
   archived_count: number;
   handed_count: number;
+  delivered_count?: number;
+  boundary: string;
+}
+
+export interface ExternalChannel {
+  id?: string;
+  channel_id?: string;
+  label: string;
+  transport: "smtp" | "https";
+  kinds: HandoffRecord["kind"][];
+  secret_fields: string[];
+  config_fields: string[];
+  config: Record<string, unknown>;
+  enabled: boolean;
+  configured: boolean;
+  ready: boolean;
+  missing: string[];
+  last_test_at: string;
+  last_test_ok: boolean | null;
+  last_test_detail: string;
+  updated_at?: string;
+}
+
+export interface ExternalDelivery {
+  id: number;
+  channel_id: string;
+  kind: HandoffRecord["kind"];
+  packet_id: string;
+  source_hash: string;
+  status: "pending" | "accepted" | "failed";
+  recipient: string;
+  request_summary: Record<string, unknown>;
+  receipt: Record<string, unknown>;
+  error: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExternalChannelsResult {
+  channels: ExternalChannel[];
+  deliveries: ExternalDelivery[];
+  stats: { accepted: number; failed: number; pending: number };
   boundary: string;
 }
 
@@ -188,5 +234,68 @@ export function useAckHandoff() {
         body: JSON.stringify(input),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["external", "handoffs"] }),
+  });
+}
+
+export function useExternalChannels() {
+  return useQuery({
+    queryKey: ["external", "channels"],
+    queryFn: () => api<ExternalChannelsResult>("/api/external/channels"),
+  });
+}
+
+export function useSaveExternalChannel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { channel_id: string; label?: string; config: Record<string, unknown>; secret?: Record<string, string>; enabled: boolean }) =>
+      api<{ channel: ExternalChannel }>(`/api/external/channels/${encodeURIComponent(input.channel_id)}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          label: input.label,
+          config: input.config,
+          secret: input.secret && Object.keys(input.secret).length > 0 ? input.secret : undefined,
+          enabled: input.enabled,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["external", "channels"] });
+      queryClient.invalidateQueries({ queryKey: ["external", "handoffs"] });
+    },
+  });
+}
+
+export function useTestExternalChannel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { channel_id: string }) =>
+      api<{ ok: boolean; detail: string; receipt: Record<string, unknown> }>(
+        `/api/external/channels/${encodeURIComponent(input.channel_id)}/test`,
+        { method: "POST", body: JSON.stringify({}) },
+      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["external", "channels"] }),
+  });
+}
+
+export function useDeleteExternalChannel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (channelId: string) =>
+      api<{ deleted: boolean }>(`/api/external/channels/${encodeURIComponent(channelId)}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["external", "channels"] }),
+  });
+}
+
+export function useDeliverPacket() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { channel_id: string; kind: HandoffRecord["kind"]; period: string; group_id?: string; note?: string }) =>
+      api<{ duplicate: boolean; delivery: ExternalDelivery }>("/api/external/deliver", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["external", "channels"] });
+      queryClient.invalidateQueries({ queryKey: ["external", "handoffs"] });
+    },
   });
 }

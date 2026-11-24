@@ -95,6 +95,39 @@ from .broker_credentials import (
 from .broker_credentials import (
     save_credentials as broker_save_credentials,
 )
+from .external_channels import (
+    create_delivery as external_create_delivery,
+)
+from .external_channels import (
+    delete_channel as external_delete_channel,
+)
+from .external_channels import (
+    delivery_stats as external_delivery_stats,
+)
+from .external_channels import (
+    finish_delivery as external_finish_delivery,
+)
+from .external_channels import (
+    get_channel as external_get_channel,
+)
+from .external_channels import (
+    get_delivery_by_key as external_get_delivery_by_key,
+)
+from .external_channels import (
+    get_secret as external_get_secret,
+)
+from .external_channels import (
+    list_channels as external_list_channels,
+)
+from .external_channels import (
+    list_deliveries as external_list_deliveries,
+)
+from .external_channels import (
+    mark_test as external_mark_test,
+)
+from .external_channels import (
+    save_channel as external_save_channel,
+)
 from .budgets import (
     budget_usage,
     count_transactions,
@@ -280,6 +313,7 @@ from .org import (
     resolve_tenant_id,
     set_active_tenant,
 )
+
 # 注意：consolidation 必须在 .org 之后导入，避免 org_tenant -> org -> org_dept -> org_tenant 循环。
 from .consolidation import (
     account_catalog as consolidation_account_catalog,
@@ -419,6 +453,17 @@ __all__ = [
     "broker_list_credentials",
     "broker_save_credentials",
     "budget_usage",
+    "external_create_delivery",
+    "external_delete_channel",
+    "external_delivery_stats",
+    "external_finish_delivery",
+    "external_get_channel",
+    "external_get_delivery_by_key",
+    "external_get_secret",
+    "external_list_channels",
+    "external_list_deliveries",
+    "external_mark_test",
+    "external_save_channel",
     "cast_vote",
     "claim_pending_action",
     "claim_pending_nl",

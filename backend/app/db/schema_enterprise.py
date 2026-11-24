@@ -7,10 +7,21 @@ from __future__ import annotations
 from .schema_attribution import SQL as _attribution
 from .schema_automation import SQL as _automation
 from .schema_consolidation import SQL as _consolidation
+from .schema_external import SQL as _external
 from .schema_enterprise_fin import SQL as _fin
 from .schema_enterprise_gl import SQL as _gl
 from .schema_enterprise_org import SQL as _org
 from .schema_enterprise_proc import SQL as _proc
 from .schema_plan import SQL as _plan
 
-SCHEMA_ENTERPRISE = _org + _gl + _fin + _proc + _attribution + _automation + _consolidation + _plan
+SCHEMA_ENTERPRISE = (
+    _org
+    + _gl
+    + _fin
+    + _proc
+    + _attribution
+    + _automation
+    + _consolidation
+    + _external
+    + _plan
+)

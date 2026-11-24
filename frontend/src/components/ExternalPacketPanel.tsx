@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ExternalDeliveryCenter } from "@/components/ExternalDeliveryCenter";
 import {
   BlockHeading,
   CashFlowChart,
@@ -787,6 +788,24 @@ function handoffKindLabel(kind: string, t: (key: string) => string): string {
   return kind;
 }
 
+function deliveryBadge(record: HandoffRecord, t: (key: string) => string) {
+  if (!record.delivery_status) return null;
+  const tone = record.delivery_status === "accepted" ? "ok" : record.delivery_status === "failed" ? "danger" : "warn";
+  const label =
+    record.delivery_status === "accepted"
+      ? t("external.deliveryAccepted")
+      : record.delivery_status === "failed"
+        ? t("external.deliveryFailed")
+        : t("external.deliveryPending");
+  return (
+    <Badge variant={tone} className="gap-1 px-2 py-0.5 text-[10.5px]">
+      <ArrowRight className="h-3 w-3" />
+      {label}
+      {record.delivery_channel ? ` · ${t(`external.channel.${record.delivery_channel}.name`)}` : ""}
+    </Badge>
+  );
+}
+
 function handoffKindVisual(kind: string): { icon: ReactNode; className: string } {
   if (kind === "tax") {
     return { icon: <FileCheck2 className="h-4 w-4" />, className: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300" };
@@ -866,6 +885,7 @@ function LedgerRecordCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[15.5px] font-semibold">{handoffKindLabel(record.kind, t)}</span>
               <StatusBadge status={record.state} t={t} />
+              {deliveryBadge(record, t)}
               <span className="rounded-lg bg-muted/45 px-2 py-0.5 text-[11px] text-muted-foreground">{record.period}</span>
             </div>
             <div className="mt-1 break-all font-mono text-[12px] text-muted-foreground">{record.packet_id}</div>
@@ -1230,6 +1250,20 @@ export function ExternalPacketPanel() {
       </Card>
 
       <BoundaryNote />
+
+      <ExternalDeliveryCenter
+        period={period}
+        groupId={groupId}
+        packets={[
+          { kind: "tax", packetId: tax.data?.packet_id ?? "", status: tax.data?.status ?? "missing" },
+          { kind: "payment", packetId: payment.data?.packet_id ?? "", status: payment.data?.status ?? "missing" },
+          {
+            kind: "consolidation",
+            packetId: consolidation.data?.packet_id ?? "",
+            status: consolidation.data?.status ?? "missing",
+          },
+        ]}
+      />
 
       <TaxCard
         packet={tax.data}
