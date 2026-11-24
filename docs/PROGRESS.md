@@ -60,7 +60,8 @@
 - [x] 连接中心「电商经营」分类与抖店/淘宝/拼多多/有赞四入口；插件市场 Playwright MCP。
 - [x] 前端托管台与电商经营两个顶层视图、亮暗主题、390×844 移动端。
 - [x] 回归：后端 1975 项通过（261.90s）；前端 247 项通过（71.74s）；`tsc`、`build` 通过。
-- [x] 截图 `199`–`208`；文档 `PLAN-4.23.0.md`、`RELEASE-4.23.0.md`。
+- [x] 截图 `199`–`208`；文档 `PLAN-4.23.0.md`、`RELEASE-4.23.0.md`、`PRODUCT-STRATEGY-4.23.0.md`。
+- [x] 发布：功能提交 `4b37d6d`；五远端 `main` 已核对为同一 SHA；飞书交付 https://my.feishu.cn/file/MPuGbPQCoof7Texg3IMcCoTp6DI ，产品备忘 https://my.feishu.cn/file/DDEZb9jUlo2FHoxu7QocI4f16tc 。
 
 ## 2026-11-24 · 4.22.0 外部投递通道（完成）
 

@@ -11,6 +11,8 @@
 - 测试基线：后端 1975 项通过（261.90s）；前端 247 项通过（71.74s）；`tsc` 与 `build` 通过
 - 截图：`docs/screenshots/199`–`208`
 - 产品判断：见 [PRODUCT-STRATEGY-4.23.0.md](PRODUCT-STRATEGY-4.23.0.md)
+- 飞书交付：https://my.feishu.cn/file/MPuGbPQCoof7Texg3IMcCoTp6DI
+- 产品备忘（飞书）：https://my.feishu.cn/file/DDEZb9jUlo2FHoxu7QocI4f16tc
 
 ## 一、这版改变了什么
 
