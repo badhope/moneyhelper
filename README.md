@@ -47,6 +47,13 @@ Both sides share one engine, so a family ledger and a company ledger obey the sa
   <img src="docs/screenshots/159-automation-runs.png" width="100%" alt="Automation runs: real workflows, manual rerun, per-step status and duration" />
 </p>
 
+**Failure is recorded, not swallowed.** Month-end and its snapshot retry with exponential backoff because they are idempotent; sync and inbox imports do not auto-retry, so a restart cannot duplicate transactions. A failed or partial run creates a dead-letter alert, and replay creates a new run instead of overwriting the old evidence. On startup, only a month-end that was missed and is still safe to replay is caught up.
+
+<p align="center">
+  <img src="docs/screenshots/162-automation-dead-letter.png" width="49%" alt="Dead-letter alert with acknowledge and replay" />
+  <img src="docs/screenshots/163-automation-alert-acked.png" width="49%" alt="Alert acknowledged; the failed run evidence remains" />
+</p>
+
 **A tax and cash timeline you can audit, and attribution you approve.** The tax workspace now reads only posted entries and aggregates revenue, expense, profit, cash in/out and tax accrual by month; missing months stay explicitly missing instead of showing a fake zero. Attribution proposes a category from the rule table or the ledger history, shows the rule id, matched term and confidence, and writes nothing until you confirm — the confirmation, before/after and rule evidence are all recorded.
 
 <p align="center">

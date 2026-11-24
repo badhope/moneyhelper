@@ -11,9 +11,10 @@
 | [Quick start](quickstart.md) | Full stack running in about 15 minutes |
 | [Architecture](architecture.md) | Layers and data flow (Mermaid) |
 | [Module map](module-map.md) | Which file owns what |
-| [Project baseline 4.17.1](BASELINE.md) | Four blocks: current state, delivered, backlog, roadmap; includes tax timeline and attribution |
+| [Project baseline 4.17.2](BASELINE.md) | Four blocks: current state, delivered, backlog, roadmap; includes tax timeline, attribution, retry/dead-letter |
 | [Market positioning 4.17.0 / 4.17.1](POSITIONING-4.17.0.md) | Competitor matrix, personal/enterprise boundary, compliance limits; 4.17.1 capability addendum |
 | [Stress test 4.17.0](STRESS-4.17.0.md) | Personal 10M assets, multi-entity ledger, SQLite concurrency |
+| [Scheduler resilience 4.17.2](SCHEDULER-4.17.2.md) | Retry boundaries, dead letters, replay, startup month-end catch-up |
 | [Progress](PROGRESS.md) | What is done, what is left |
 | [Self-check log](SELF-CHECK.md) | Measured evidence per delivery round |
 

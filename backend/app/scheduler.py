@@ -15,7 +15,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from . import db
-from .automation_runner import run_scheduled_month_end
+from .automation_runner import recover_missed_month_end, run_scheduled_month_end
 from .logging_utils import get_logger
 from .scheduler_background import (  # noqa: F401,E402 — 对外同名导出（含测试直调）
     _month_end_close,
@@ -196,6 +196,14 @@ async def start() -> None:
     await sync_skill_jobs()
     _sched.start()
     _state["enabled"] = True
+    # 4.17.2 启动补偿：只补上月月结（幂等），不补每小时同步/十分钟收件箱，
+    # 避免停机恢复时把积压文件一次性重复导入。
+    try:
+        catchup = await recover_missed_month_end()
+        if catchup.get("status") not in {"skipped", "before_window"}:
+            log.info("scheduler catch-up: %s", catchup.get("status"))
+    except Exception as exc:  # noqa: BLE001 — 补偿失败不能阻止调度器启动
+        log.exception("scheduler catch-up failed: %s", exc)
 
 
 async def stop() -> None:

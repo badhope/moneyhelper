@@ -43,6 +43,10 @@
 
 **无人值守，而且每次运行都有台账。** 月末结账按计划自动过账草稿并关账。定时导入、异常扫描、晨报不需要等你点。长周期工作——报告、论文、小型网页应用——按阶段执行，每阶段留可续跑的产物。
 
+<p align="center">
+  <img src="docs/screenshots/159-automation-runs.png" width="100%" alt="Automation runs: real workflows, manual rerun, per-step status and duration" />
+</p>
+
 **可审计的财税时序，以及必须由你确认的归因。** 报税助手只读已过账凭证，按月聚合收入、费用、利润、现金流入流出与税费计提；缺账月份显式标出，不用 0 冒充已结账。收支归因从规则表或账本历史给出候选，展示规则 id、命中词与置信度，确认前不改账；确认动作、前后分类与规则依据都会留痕。
 
 <p align="center">
@@ -54,8 +58,11 @@
 
 ---
 
+**失败会留痕，不会被吞掉。** 月结与关账快照本身幂等，按 0.5s→1s 指数退避；同步与收件箱不自动重试，避免重启后重复导入。失败或部分失败写死信告警，重放生成新的运行记录，不覆盖原证据。启动时只补跑“上月期间存在、尚未关账且本月没有成功运行”的月结。
+
 <p align="center">
-  <img src="docs/screenshots/159-automation-runs.png" width="100%" alt="Automation runs: real workflows, manual rerun, per-step status and duration" />
+  <img src="docs/screenshots/162-automation-dead-letter.png" width="49%" alt="死信告警：确认与重放" />
+  <img src="docs/screenshots/163-automation-alert-acked.png" width="49%" alt="确认后只清未读，失败运行证据仍在" />
 </p>
 
 ## 快速开始

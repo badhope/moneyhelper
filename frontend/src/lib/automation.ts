@@ -32,22 +32,38 @@ export type AutomationWorkflow = {
   steps: string[];
 };
 
+export type AutomationAlert = {
+  id: string;
+  run_id: string;
+  workflow: string;
+  severity: "error" | "warning" | string;
+  message: string;
+  created_at: string;
+  acknowledged_at: string;
+  acknowledged: boolean;
+};
+
 const POLL_MS = 60_000;
 
 export function useAutomation(active: boolean) {
   const [workflows, setWorkflows] = useState<AutomationWorkflow[]>([]);
   const [runs, setRuns] = useState<AutomationRun[] | null>(null);
+  const [alerts, setAlerts] = useState<AutomationAlert[]>([]);
+  const [unread, setUnread] = useState(0);
   const [running, setRunning] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
     try {
-      const [w, r] = await Promise.all([
+      const [w, r, a] = await Promise.all([
         api<{ workflows: AutomationWorkflow[] }>("/api/automation/workflows"),
         api<{ runs: AutomationRun[] }>("/api/automation/runs?limit=8"),
+        api<{ alerts: AutomationAlert[]; unread: number }>("/api/automation/alerts?limit=8"),
       ]);
       setWorkflows(w.workflows ?? []);
       setRuns(r.runs ?? []);
+      setAlerts(a.alerts ?? []);
+      setUnread(a.unread ?? 0);
       setError("");
     } catch {
       setRuns((prev) => prev ?? []);
@@ -81,5 +97,44 @@ export function useAutomation(active: boolean) {
     [refresh],
   );
 
-  return { workflows, runs, running, error, refresh, run };
+  const acknowledge = useCallback(
+    async (alertId: string) => {
+      try {
+        await api(`/api/automation/alerts/${alertId}/ack`, { method: "POST", body: "{}" });
+        await refresh();
+      } catch {
+        setError("ack");
+      }
+    },
+    [refresh],
+  );
+
+  const replay = useCallback(
+    async (runId: string) => {
+      setRunning(`replay:${runId}`);
+      setError("");
+      try {
+        await api(`/api/automation/runs/${runId}/replay`, { method: "POST", body: "{}" });
+        await refresh();
+      } catch {
+        setError("replay");
+      } finally {
+        setRunning(null);
+      }
+    },
+    [refresh],
+  );
+
+  return {
+    workflows,
+    runs,
+    alerts,
+    unread,
+    running,
+    error,
+    refresh,
+    run,
+    acknowledge,
+    replay,
+  };
 }

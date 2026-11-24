@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
-from app import db
-from app.automation_runner import list_workflows, run_workflow
+from app import automation_runner, db
+from app.automation_runner import list_workflows, recover_missed_month_end, run_workflow
 from app.db import automation as automation_db
 
 
@@ -82,3 +82,87 @@ async def test_api_runs_and_history(client) -> None:
     hist = await client.get("/api/automation/runs?limit=5")
     assert hist.status_code == 200
     assert hist.json()["count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_step_retry_uses_backoff_and_records_attempts(client, monkeypatch) -> None:
+    calls = {"n": 0}
+
+    async def flaky() -> dict:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            return {"status": "failed", "error": "database is locked"}
+        return {"status": "done", "value": 1}
+
+    monkeypatch.setitem(
+        automation_runner.WORKFLOWS,
+        "retry_probe",
+        {"name": "重试探针", "scope": "test", "description": "", "steps": [("探针", flaky)]},
+    )
+    monkeypatch.setitem(automation_runner.STEP_MAX_ATTEMPTS, "探针", 3)
+    monkeypatch.setattr(automation_runner, "RETRY_BASE_SECONDS", 0)
+
+    out = await run_workflow("retry_probe")
+    assert out["status"] == "done", out
+    assert calls["n"] == 3
+    assert out["steps"][0]["attempts"] == 3
+    assert out["steps"][0]["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_failed_run_creates_alert_and_can_be_acked_and_replayed(
+    client, monkeypatch
+) -> None:
+    async def always_fail() -> dict:
+        return {"status": "failed", "error": "boom"}
+
+    monkeypatch.setitem(
+        automation_runner.WORKFLOWS,
+        "alert_probe",
+        {"name": "告警探针", "scope": "test", "description": "", "steps": [("必败", always_fail)]},
+    )
+
+    out = await run_workflow("alert_probe")
+    assert out["status"] == "failed"
+    alerts = await automation_db.list_alerts(unread_only=True)
+    assert alerts and alerts[0]["run_id"] == out["id"]
+    assert alerts[0]["severity"] == "error"
+
+    ack = await client.post(f"/api/automation/alerts/{alerts[0]['id']}/ack")
+    assert ack.status_code == 200
+    assert ack.json()["alert"]["acknowledged"] is True
+    assert (await client.get("/api/automation/alerts?unread_only=true")).json()["unread"] == 0
+
+    replay = await client.post(f"/api/automation/runs/{out['id']}/replay")
+    assert replay.status_code == 200
+    assert replay.json()["id"] != out["id"]
+    assert replay.json()["trigger"] == "replay"
+    assert replay.json()["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_startup_catchup_closes_missed_period(client) -> None:
+    prev_end = date.today().replace(day=1) - timedelta(days=1)
+    await db.gl_bootstrap(0, ref_date=prev_end.isoformat())
+    accounts = await db.gl_list_accounts(0)
+    cash = next(a for a in accounts if str(a["code"]) == "1001")
+    rent = next(a for a in accounts if str(a["code"]) == "6602")
+    await db.gl_create_entry(
+        0,
+        prev_end.isoformat(),
+        "停机补偿测试",
+        [
+            {"account_id": cash["id"], "debit": 233, "credit": 0},
+            {"account_id": rent["id"], "debit": 0, "credit": 233},
+        ],
+    )
+
+    out = await recover_missed_month_end(date.today(), hour=12)
+    assert out["status"] == "done", out
+    assert out["trigger"] == "catchup"
+    assert out["steps"][0]["result"]["status"] == "done"
+    assert out["steps"][1]["result"]["period"] == "closed"
+
+    again = await recover_missed_month_end(date.today(), hour=12)
+    assert again["status"] == "skipped"
+    assert again["reason"] == "already_closed"

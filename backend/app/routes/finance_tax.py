@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends
 
 from .. import db
 from ..auth import get_current_user
-from ..automation_runner import list_workflows, run_workflow
+from ..automation_runner import list_workflows, replay_run, run_workflow
 from ..calculations import (
     cashflow_forecast,
     corporate_income_tax,
@@ -327,6 +327,31 @@ async def automation_run(key: str, payload: dict[str, Any] | None = None) -> Any
     idem = str(body.get("idempotency_key") or "").strip()[:120]
     try:
         return await run_workflow(key, trigger="manual", idempotency_key=idem)
+    except ValueError as exc:
+        return _bad(str(exc))
+
+
+@router.get("/api/automation/alerts")
+async def automation_alerts(limit: int = 20, unread_only: bool = False) -> Any:
+    alerts = await automation_db.list_alerts(
+        max(1, min(limit, 100)), unread_only=unread_only
+    )
+    return {"alerts": alerts, "unread": await automation_db.unread_alert_count()}
+
+
+@router.post("/api/automation/alerts/{alert_id}/ack")
+async def automation_alert_ack(alert_id: str) -> Any:
+    alert = await automation_db.acknowledge_alert(alert_id)
+    if alert is None:
+        return _bad("告警不存在")
+    return {"ok": True, "alert": alert}
+
+
+@router.post("/api/automation/runs/{run_id}/replay")
+async def automation_run_replay(run_id: str) -> Any:
+    """人工重放失败/部分失败运行；原运行证据保留，新运行单独记账。"""
+    try:
+        return await replay_run(run_id)
     except ValueError as exc:
         return _bad(str(exc))
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import { Activity, Inbox, Play, Sunrise, Zap } from "lucide-react";
+import { Activity, BellRing, Check, Inbox, Play, RotateCcw, Sunrise, Zap } from "lucide-react";
 import { SidePanel } from "@/components/ui/side-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useI18n } from "@/lib/i18n";
@@ -74,7 +74,8 @@ export function ScheduledOutputsPanel({
 
 function AutomationSection({ active }: { active: boolean }) {
   const { t } = useI18n();
-  const { workflows, runs, running, run } = useAutomation(active);
+  const { workflows, runs, alerts, unread, running, run, acknowledge, replay } =
+    useAutomation(active);
 
   return (
     <section aria-label={t("inbox.autoTitle")}>
@@ -90,6 +91,50 @@ function AutomationSection({ active }: { active: boolean }) {
       <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
         {t("inbox.autoHint")}
       </p>
+      {alerts.length > 0 && (
+        <div className="mb-2 rounded-lg border border-rose-500/30 bg-rose-500/[0.04] px-2.5 py-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-rose-600 dark:text-rose-400">
+            <BellRing className="h-3.5 w-3.5" />
+            {t("inbox.autoAlerts")}
+            {unread > 0 && (
+              <span className="rounded-full bg-rose-500/15 px-1.5 py-0.5 text-[10px]">
+                {t("inbox.autoUnread", { n: unread })}
+              </span>
+            )}
+          </div>
+          <ul className="mt-1.5 space-y-1.5">
+            {alerts.slice(0, 4).map((a) => (
+              <li key={a.id} className="text-[11px] leading-relaxed">
+                <span className="text-foreground/90">{a.message || a.workflow}</span>
+                <span className="mt-1 flex flex-wrap items-center gap-2">
+                  {a.acknowledged ? (
+                    <span className="text-muted-foreground">{t("inbox.autoAcked")}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void acknowledge(a.id)}
+                      className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-muted-foreground hover:text-foreground"
+                    >
+                      <Check className="h-3 w-3" />
+                      {t("inbox.autoAck")}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void replay(a.run_id)}
+                    disabled={running !== null}
+                    className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-primary hover:bg-primary/10 disabled:opacity-50"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    {running === `replay:${a.run_id}` ? t("inbox.autoRunning") : t("inbox.autoReplay")}
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-[10.5px] text-muted-foreground">{t("inbox.autoAlertHint")}</p>
+        </div>
+      )}
       <div className="space-y-2">
         {workflows.map((w) => (
           <div key={w.key} className="rounded-lg border border-border bg-card/60 px-2.5 py-2">
