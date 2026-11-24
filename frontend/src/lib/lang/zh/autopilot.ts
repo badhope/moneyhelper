@@ -1,4 +1,4 @@
-/** 中文词条 · 托管台（4.24.0）。 */
+/** 中文词条 · 托管台（4.25.0）。 */
 
 export const zh_autopilot: Record<string, string> = {
   "autopilot.title": "托管台",
@@ -16,6 +16,16 @@ export const zh_autopilot: Record<string, string> = {
   "autopilot.modeAutoHint": "在规则内直接做完，超阈值才停。",
   "autopilot.listTitle": "今天的托管清单",
   "autopilot.listHint": "点一下模式就保存，不用再进设置。",
+  "autopilot.bankName": "银行流水批量匹配",
+  "autopilot.bankDesc": "把本期未匹配的银行支出与付款记录配对，只配同账户、同金额、日期相近的唯一候选。",
+  "autopilot.bankMaxAmount": "本批合计上限（元）",
+  "autopilot.bankWindowDays": "日期窗口（天）",
+  "autopilot.bankMaxHint": "只配金额与账户一致、日期相差不超过窗口的支出；同一流水或付款有多个候选就跳过。金额填 0 表示不限，窗口范围 0–30 天。",
+  "autopilot.bankAmount": "本批金额",
+  "autopilot.bankMatchedCount": "已配对 {n} 笔",
+  "autopilot.bankWindow": "日期窗口 {n} 天",
+  "autopilot.resultManualBank": "手动模式：只生成了计划，流水没有配对。",
+  "autopilot.resultExecutedBank": "已配对 {n} 笔流水与付款，证据写入溯源链，可在银行页撤销。",
   "autopilot.attributionName": "收支归因批量确认",
   "autopilot.attributionDesc": "按月读取规则命中，只确认达到置信度阈值的分类，并留可回滚记录。",
   "autopilot.taxName": "税务核对包交接",
@@ -63,10 +73,11 @@ export const zh_autopilot: Record<string, string> = {
   "autopilot.recent": "最近决策",
   "autopilot.recentHint": "每次“评估 / 执行 / 阻断”都留一条，不覆盖历史。",
   "autopilot.emptyRecent": "还没有决策记录。",
-  "autopilot.boundary": "边界：托管只延展现有的归因、月结与投递能力，不代表税局已申报、银行已划款或审计已出具意见。",
+  "autopilot.boundary": "边界：托管只延展现有的流水匹配、归因、月结与投递能力，不代表税局已申报、银行已划款或审计已出具意见。",
   "autopilot.selfTitle": "想自己走完整流程？",
   "autopilot.selfTax": "税务测算与报税助手",
   "autopilot.selfExternal": "外部协同与投递",
+  "autopilot.selfBank": "银行流水与对账",
   "autopilot.selfConnect": "连接与开放平台",
   "autopilot.selfEcommerce": "电商经营测算",
   "autopilot.attributionShort": "归因",

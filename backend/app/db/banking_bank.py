@@ -14,7 +14,12 @@ from .banking_bank_import import (  # noqa: F401 — 对外同名导出
     _parse_csv_rows,
     bank_import_csv,
 )
-from .banking_bank_match import bank_match, bank_unmatch  # noqa: F401
+from .banking_bank_match import (  # noqa: F401
+    bank_match,
+    bank_match_batch,
+    bank_match_candidates,
+    bank_unmatch,
+)
 from .banking_bank_query import (  # noqa: F401
     _assert_bank_account,
     _bank,

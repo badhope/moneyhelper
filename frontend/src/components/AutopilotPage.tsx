@@ -1,8 +1,8 @@
-/** 托管台（4.24.0）。
+/** 托管台（4.25.0）。
  *
  * 一屏三件事：
  *   1. 当前三个模式各有多少动作；
- *   2. 每个动作的规则与一次运行结果；
+ *   2. 四个动作的规则与一次运行结果；
  *   3. 最近决策、边界，以及“我要自己走”的入口。
  *
  * 关键交互：模式切换即保存；“只评估”永远 dry-run；“一键托管”按规则执行，
@@ -17,6 +17,7 @@ import {
   Bot,
   CalendarCheck,
   CheckCircle2,
+  Landmark,
   Clock3,
   Loader2,
   Mail,
@@ -95,6 +96,8 @@ interface RunResult {
   count?: number;
   pending?: number;
   skipped?: number;
+  ambiguous?: number;
+  window_days?: number;
   min_confidence?: number;
   requires_confirmation?: boolean;
   confirm_reason?: string;
@@ -102,6 +105,7 @@ interface RunResult {
   outcome?: {
     duplicate?: boolean;
     confirmed?: number;
+    matched?: number;
     delivery?: {
       status?: string;
       receipt?: Record<string, unknown>;
@@ -135,12 +139,14 @@ const DECISION_ICON: Record<Decision, typeof CheckCircle2> = {
 };
 
 const ACTION_LABEL: Record<string, string> = {
+  bank_match: "bankName",
   attribution_confirm: "attributionName",
   tax_deliver: "taxName",
   month_end_close: "monthName",
 };
 
 const ACTION_DESC: Record<string, string> = {
+  bank_match: "bankDesc",
   attribution_confirm: "attributionDesc",
   tax_deliver: "taxDesc",
   month_end_close: "monthDesc",
@@ -178,20 +184,23 @@ function ActionCard({
   const { t } = useI18n();
   const isTax = action.action_key === "tax_deliver";
   const isAttribution = action.action_key === "attribution_confirm";
-  const defaultMax = isTax ? 50000 : 10000;
+  const isBank = action.action_key === "bank_match";
+  const defaultMax = isAttribution ? 10000 : 50000;
   const [channel, setChannel] = useState(String(action.config.channel_id ?? ""));
   const [maxAmount, setMaxAmount] = useState(String(action.config.max_amount ?? defaultMax));
   const [minConfidence, setMinConfidence] = useState(
     String(action.config.min_confidence ?? 0.7),
   );
+  const [windowDays, setWindowDays] = useState(String(action.config.window_days ?? 3));
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     setChannel(String(action.config.channel_id ?? ""));
     setMaxAmount(String(action.config.max_amount ?? defaultMax));
     setMinConfidence(String(action.config.min_confidence ?? 0.7));
+    setWindowDays(String(action.config.window_days ?? 3));
     setDirty(false);
-  }, [action.config.channel_id, action.config.max_amount, action.config.min_confidence, defaultMax]);
+  }, [action.config.channel_id, action.config.max_amount, action.config.min_confidence, action.config.window_days, defaultMax]);
 
   const configNow = (): PolicyConfig => {
     if (isTax) {
@@ -206,6 +215,13 @@ function ActionCard({
         ...action.config,
         max_amount: Number(maxAmount) || 0,
         min_confidence: Number(minConfidence),
+      };
+    }
+    if (isBank) {
+      return {
+        ...action.config,
+        max_amount: Number(maxAmount) || 0,
+        window_days: Number(windowDays) || 0,
       };
     }
     return action.config;
@@ -223,6 +239,8 @@ function ActionCard({
             <Mail className="h-4 w-4" />
           ) : isAttribution ? (
             <ListChecks className="h-4 w-4" />
+          ) : isBank ? (
+            <Landmark className="h-4 w-4" />
           ) : (
             <CalendarCheck className="h-4 w-4" />
           )}
@@ -317,6 +335,47 @@ function ActionCard({
         </p>
       )}
 
+      {isBank && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+            {t("autopilot.bankMaxAmount")}
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              className="h-9 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+              value={maxAmount}
+              onChange={(e) => {
+                setMaxAmount(e.target.value);
+                setDirty(true);
+              }}
+              onBlur={() => onSaveConfig(configNow())}
+            />
+          </label>
+          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+            {t("autopilot.bankWindowDays")}
+            <input
+              type="number"
+              min={0}
+              max={30}
+              step={1}
+              className="h-9 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+              value={windowDays}
+              onChange={(e) => {
+                setWindowDays(e.target.value);
+                setDirty(true);
+              }}
+              onBlur={() => onSaveConfig(configNow())}
+            />
+          </label>
+        </div>
+      )}
+      {isBank && (
+        <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">
+          {t("autopilot.bankMaxHint")}
+        </p>
+      )}
+
       {isAttribution && (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
@@ -378,19 +437,25 @@ function ActionCard({
                       ? t("autopilot.resultExecutedAttribution", {
                           n: result.outcome?.confirmed ?? result.count ?? 0,
                         })
-                      : t("autopilot.resultExecuted")}
+                      : isBank
+                        ? t("autopilot.resultExecutedBank", {
+                            n: result.outcome?.matched ?? result.count ?? 0,
+                          })
+                        : t("autopilot.resultExecuted")}
                 </p>
               ) : (
                 <p>
                   {isAttribution
                     ? t("autopilot.resultManualAttribution")
-                    : t("autopilot.resultManual")}
+                    : isBank
+                      ? t("autopilot.resultManualBank")
+                      : t("autopilot.resultManual")}
                 </p>
               )}
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10.5px] opacity-90">
                 {typeof result.amount === "number" && result.amount > 0 && (
                   <span>
-                    {t(isAttribution ? "autopilot.attributionAmount" : "autopilot.amount")}{" "}
+                    {t(isAttribution ? "autopilot.attributionAmount" : isBank ? "autopilot.bankAmount" : "autopilot.amount")}{" "}
                     {fmtMoney(result.amount)}
                   </span>
                 )}
@@ -399,6 +464,12 @@ function ActionCard({
                 )}
                 {typeof result.outcome?.confirmed === "number" && result.outcome.confirmed > 0 && (
                   <span>{t("autopilot.confirmedCount", { n: result.outcome.confirmed })}</span>
+                )}
+                {typeof result.outcome?.matched === "number" && result.outcome.matched > 0 && (
+                  <span>{t("autopilot.bankMatchedCount", { n: result.outcome.matched })}</span>
+                )}
+                {isBank && typeof result.window_days === "number" && (
+                  <span>{t("autopilot.bankWindow", { n: result.window_days })}</span>
                 )}
                 {result.channel_label && <span>{t("autopilot.channelLabel")} {result.channel_label}</span>}
                 {result.packet_id && <span>{t("autopilot.packet")} {result.packet_id}</span>}
@@ -423,7 +494,7 @@ function ActionCard({
         <Button size="sm" variant="outline" onClick={() => onRun(true)} disabled={busy}>
           {t("autopilot.evaluate")}
         </Button>
-        {dirty && (isTax || isAttribution) ? (
+        {dirty && (isTax || isAttribution || isBank) ? (
           <Button
             size="sm"
             variant="ghost"
@@ -610,7 +681,7 @@ export function AutopilotPage({ onGo }: { onGo: (kind: DataKind) => void }) {
         {policies.length === 0 && !overview.isLoading ? (
           <Card className="p-4 text-[12px] text-muted-foreground">{t("autopilot.resultEmpty")}</Card>
         ) : (
-          <div className="grid gap-3 xl:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-2">
             {policies.map((action) => (
               <ActionCard
                 key={action.action_key}
@@ -709,6 +780,7 @@ export function AutopilotPage({ onGo }: { onGo: (kind: DataKind) => void }) {
             <div className="mt-2 grid gap-1.5">
               {[
                 ["statements", "autopilot.selfTax"],
+                ["bank", "autopilot.selfBank"],
                 ["external", "autopilot.selfExternal"],
                 ["connect", "autopilot.selfConnect"],
                 ["ecommerce", "autopilot.selfEcommerce"],

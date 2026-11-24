@@ -1,4 +1,4 @@
-"""4.23-4.24 托管台：策略边界、待确认、自动执行与留痕。"""
+"""4.23-4.25 托管台：策略边界、待确认、自动执行与留痕。"""
 
 from __future__ import annotations
 
@@ -324,3 +324,142 @@ async def test_attribution_confidence_must_be_in_range(client) -> None:
     )
     assert resp.status_code == 400, resp.text
     assert "置信度" in resp.json()["detail"]
+
+
+async def _bank_account() -> dict[str, Any]:
+    await db.gl_bootstrap(0, ref_date=date.today().isoformat())
+    accounts = {a["code"]: a for a in await db.gl_list_accounts(0)}
+    return accounts["1001"]
+
+
+async def _bank_payment(account_id: int, amount: float, suffix: str) -> dict[str, Any]:
+    from app.timeutil import now_str
+
+    today = date.today().isoformat()
+    conn = await db._conn()
+    cur = await conn.execute(
+        "INSERT INTO payments(tenant_id,payment_no,claim_id,amount_cents,payee,"
+        "bank_account_id,method,status,paid_at,note,created_at,updated_at)"
+        " VALUES(0,?,0,?,?,?,'bank','paid',?, '',?,?)",
+        (
+            f"PAY-4250-{suffix}",
+            round(amount * 100),
+            f"测试收款方 {suffix}",
+            int(account_id),
+            f"{today} 10:00:00",
+            now_str(),
+            now_str(),
+        ),
+    )
+    await conn.commit()
+    return await db.payment_get(0, int(cur.lastrowid or 0))
+
+
+async def _bank_txn(account_id: int, amount: float, suffix: str) -> dict[str, Any]:
+    return await db.bank_create(
+        0,
+        int(account_id),
+        date.today().isoformat(),
+        "out",
+        amount,
+        counterparty=f"测试收款方 {suffix}",
+        memo=f"流水 {suffix}",
+        bank_ref=f"REF-{suffix}",
+    )
+
+
+@pytest.mark.asyncio
+async def test_bank_match_auto_executes_unique_pair(client) -> None:
+    account = await _bank_account()
+    payment = await _bank_payment(account["id"], 148.0, "A")
+    txn = await _bank_txn(account["id"], 148.0, "A")
+    policy = await client.put(
+        "/api/autopilot/policies/bank_match",
+        json={"mode": "auto", "enabled": True, "config": {"max_amount": 10000}},
+    )
+    assert policy.status_code == 200, policy.text
+    period = date.today().strftime("%Y-%m")
+    run = await client.post(
+        "/api/autopilot/actions/bank_match/run", json={"period": period}
+    )
+    assert run.status_code == 200, run.text
+    body = run.json()
+    assert body["decision"] == "executed", body
+    assert body["outcome"]["matched"] == 1
+    txns = [t for t in await db.bank_list(0, status="matched") if t["id"] == txn["id"]]
+    assert len(txns) == 1
+    assert txns[0]["payment_id"] == payment["id"]
+
+
+@pytest.mark.asyncio
+async def test_bank_match_ambiguous_is_left_for_human(client) -> None:
+    account = await _bank_account()
+    await _bank_payment(account["id"], 220.0, "B1")
+    await _bank_payment(account["id"], 220.0, "B2")
+    txn = await _bank_txn(account["id"], 220.0, "B")
+    period = date.today().strftime("%Y-%m")
+    plan = await autopilot.build_plan("bank_match", period=period)
+    assert plan["decision"] == "blocked"
+    assert "不唯一" in plan["reason"]
+    assert plan["ambiguous"] == 1
+    assert (await db.bank_get(0, txn["id"]))["status"] == "unmatched"
+
+
+@pytest.mark.asyncio
+async def test_bank_match_amount_cap_waits_then_confirms(client) -> None:
+    account = await _bank_account()
+    await _bank_payment(account["id"], 148.0, "C1")
+    await _bank_payment(account["id"], 220.0, "C2")
+    await _bank_txn(account["id"], 148.0, "C1")
+    await _bank_txn(account["id"], 220.0, "C2")
+    policy = await client.put(
+        "/api/autopilot/policies/bank_match",
+        json={"mode": "auto", "enabled": True, "config": {"max_amount": 100}},
+    )
+    assert policy.status_code == 200, policy.text
+    period = date.today().strftime("%Y-%m")
+    first = await client.post(
+        "/api/autopilot/actions/bank_match/run", json={"period": period}
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["decision"] == "awaiting"
+    assert first.json()["amount"] == 368.0
+    again = await client.post(
+        "/api/autopilot/actions/bank_match/run",
+        json={"period": period, "confirm": True},
+    )
+    assert again.status_code == 200, again.text
+    assert again.json()["decision"] == "executed"
+    assert again.json()["outcome"]["matched"] == 2
+
+
+@pytest.mark.asyncio
+async def test_bank_match_batch_rolls_back_on_stale_plan(client) -> None:
+    account = await _bank_account()
+    payment_one = await _bank_payment(account["id"], 148.0, "D1")
+    await _bank_payment(account["id"], 220.0, "D2")
+    txn_one = await _bank_txn(account["id"], 148.0, "D1")
+    txn_two = await _bank_txn(account["id"], 220.0, "D2")
+    period = date.today().strftime("%Y-%m")
+    plan = await autopilot.build_plan("bank_match", period=period)
+    assert plan["decision"] == "ready"
+    await db.bank_match(0, txn_one["id"], payment_one["id"], 0)
+    with pytest.raises(ValueError):
+        await autopilot._execute_bank_match(plan)
+    assert (await db.bank_get(0, txn_two["id"]))["status"] == "unmatched"
+    assert (await db.bank_get(0, txn_two["id"]))["payment_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_bank_match_window_must_be_integral_and_in_range(client) -> None:
+    for days in (1.5, 31):
+        resp = await client.put(
+            "/api/autopilot/policies/bank_match",
+            json={
+                "mode": "auto",
+                "enabled": True,
+                "config": {"max_amount": 50000, "window_days": days},
+            },
+        )
+        assert resp.status_code == 400, resp.text
+        assert "日期窗口" in resp.json()["detail"]

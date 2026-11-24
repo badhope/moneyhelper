@@ -21,6 +21,8 @@ from .banking_bank import (  # noqa: F401,E402
     bank_import_csv,
     bank_list,
     bank_match,
+    bank_match_batch,
+    bank_match_candidates,
     bank_unmatch,
 )
 from .banking_payments import (  # noqa: F401,E402

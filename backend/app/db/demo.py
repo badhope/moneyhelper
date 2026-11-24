@@ -170,6 +170,12 @@ async def reset_demo_ledger() -> dict[str, Any]:
         async with write_txn() as conn:
             for table in _DEMO_TABLES:
                 await conn.execute(f"DELETE FROM {table} WHERE user_id=?", (DEMO_USER_ID,))
+            await conn.execute(
+                "DELETE FROM bank_transactions WHERE tenant_id=?", (DEMO_USER_ID,)
+            )
+            await conn.execute(
+                "DELETE FROM payments WHERE tenant_id=?", (DEMO_USER_ID,)
+            )
 
             await conn.executemany(
                 "INSERT INTO positions(user_id,symbol,name,kind,industry,shares,cost,last,buy_date,fee)"
@@ -228,6 +234,7 @@ async def reset_demo_ledger() -> dict[str, Any]:
 
     await _seed_demo_gl()
     await _seed_plan_demo()
+    await _seed_bank_demo()
     return await ledger_counts(DEMO_USER_ID)
 
 
@@ -299,3 +306,59 @@ async def _seed_demo_gl() -> None:
             ("2026-11 管理费用", [("6602", 100, 0), ("1001", 0, 100)]),
         ),
     )
+
+
+async def _seed_bank_demo() -> None:
+    """演示银行对账：两条支出流水与两笔付款一一对应，可直接跑批量匹配。"""
+    from ..timeutil import now_iso
+    from .gl_accounts import gl_bootstrap, gl_list_accounts
+
+    await gl_bootstrap(DEMO_USER_ID, ref_date="2026-11-20")
+    accounts = {a["code"]: a for a in await gl_list_accounts(DEMO_USER_ID)}
+    bank = accounts.get("1001")
+    if not bank:
+        return
+    now = now_iso()
+    payments = (
+        ("PAY-DEMO-4250-1", 14800, "云仓耗材", "2026-11-18 10:00:00"),
+        ("PAY-DEMO-4250-2", 22000, "顺丰月结", "2026-11-20 09:30:00"),
+    )
+    bank_rows = (
+        ("2026-11-18", "out", 14800, "云仓耗材", "打包胶带与标签纸", "DEMO-BANK-4250-1"),
+        ("2026-11-20", "out", 22000, "顺丰月结", "11 月快递月结", "DEMO-BANK-4250-2"),
+    )
+    async with write_txn() as conn:
+        for no, amount, payee, paid_at in payments:
+            await conn.execute(
+                "INSERT INTO payments(tenant_id,payment_no,claim_id,amount_cents,payee,"
+                "bank_account_id,method,status,paid_at,note,created_at,updated_at)"
+                " VALUES(?,?,0,?,?,?,'bank','paid',?, '',?,?)",
+                (
+                    DEMO_USER_ID,
+                    no,
+                    amount,
+                    payee,
+                    int(bank["id"]),
+                    paid_at,
+                    now,
+                    now,
+                ),
+            )
+        for txn_date, direction, amount, counterparty, memo, ref in bank_rows:
+            await conn.execute(
+                "INSERT INTO bank_transactions(tenant_id,bank_account_id,txn_date,"
+                "direction,amount_cents,counterparty,memo,bank_ref,status,created_at,updated_at)"
+                " VALUES(?,?,?,?,?,?,?,?,'unmatched',?,?)",
+                (
+                    DEMO_USER_ID,
+                    int(bank["id"]),
+                    txn_date,
+                    direction,
+                    amount,
+                    counterparty,
+                    memo,
+                    ref,
+                    now,
+                    now,
+                ),
+            )

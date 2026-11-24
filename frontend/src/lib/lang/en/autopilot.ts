@@ -1,4 +1,4 @@
-/** English copy · Autopilot desk (4.24.0). */
+/** English copy · Autopilot desk (4.25.0). */
 
 export const en_autopilot: Record<string, string> = {
   "autopilot.title": "Autopilot desk",
@@ -16,6 +16,16 @@ export const en_autopilot: Record<string, string> = {
   "autopilot.modeAutoHint": "Runs inside the rule. Stops when over the limit.",
   "autopilot.listTitle": "Today's autopilot list",
   "autopilot.listHint": "Changing the mode saves it immediately. No settings trip.",
+  "autopilot.bankName": "Bank transaction batch match",
+  "autopilot.bankDesc": "Match unmatched bank expenses to payment records, only when account, amount, and dates point to one unique pair.",
+  "autopilot.bankMaxAmount": "Batch ceiling (CNY)",
+  "autopilot.bankWindowDays": "Date window (days)",
+  "autopilot.bankMaxHint": "Only same-account, same-amount expenses within the date window are matched. Ambiguous candidates are skipped. 0 means no ceiling; the window must be 0–30 days.",
+  "autopilot.bankAmount": "Batch amount",
+  "autopilot.bankMatchedCount": "Matched: {n}",
+  "autopilot.bankWindow": "Date window: {n} days",
+  "autopilot.resultManualBank": "Manual mode: the plan is ready; no transactions were matched.",
+  "autopilot.resultExecutedBank": "Matched {n} bank transactions to payments. Evidence is in the provenance chain and can be undone on the bank page.",
   "autopilot.attributionName": "Attribution batch confirm",
   "autopilot.attributionDesc": "Read rule hits for the month, confirm only those above the confidence threshold, and keep a rollback record.",
   "autopilot.taxName": "Tax packet handoff",
@@ -63,10 +73,11 @@ export const en_autopilot: Record<string, string> = {
   "autopilot.recent": "Recent decisions",
   "autopilot.recentHint": "Every evaluate, run, and block is recorded; history is never overwritten.",
   "autopilot.emptyRecent": "No decisions yet.",
-  "autopilot.boundary": "Boundary: autopilot only extends existing attribution, close, and delivery capabilities. It does not mean the tax bureau filed, the bank paid, or an auditor issued an opinion.",
+  "autopilot.boundary": "Boundary: autopilot only extends existing transaction matching, attribution, close, and delivery capabilities. It does not mean the tax bureau filed, the bank paid, or an auditor issued an opinion.",
   "autopilot.selfTitle": "Prefer the full manual path?",
   "autopilot.selfTax": "Tax calculators and filing helper",
   "autopilot.selfExternal": "External collaboration and delivery",
+  "autopilot.selfBank": "Bank transactions and reconciliation",
   "autopilot.selfConnect": "Connections and open platforms",
   "autopilot.selfEcommerce": "E-commerce margin calculator",
   "autopilot.attributionShort": "Rules",

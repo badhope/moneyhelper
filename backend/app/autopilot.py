@@ -5,7 +5,7 @@
 - assist：先生成计划，用户看过再点一次确认。
 - auto：规则内直接执行；超过金额阈值、缺通道或数据阻断时回落到待确认/阻断。
 
-当前动作接三个已有、可审计的能力：收支归因批量确认、企业月结、税务核对包外发。
+当前动作接四个已有、可审计的能力：银行流水批量匹配、收支归因批量确认、企业月结、税务核对包外发。
 不把税局申报、银行划款、审计意见等外部资质动作伪装成自动完成。
 """
 
@@ -25,6 +25,14 @@ from .finance_attribution import suggest_attributions
 from .provenance import record_provenance
 
 ACTION_SPECS: dict[str, dict[str, Any]] = {
+    "bank_match": {
+        "key": "bank_match",
+        "name": "银行流水批量匹配",
+        "scope": "books",
+        "description": "把本期未匹配的银行支出与付款记录配对，只配同账户、同金额、日期相近的唯一候选。",
+        "defaults": {"max_amount": 50000.0, "window_days": 3},
+        "boundary": "只改流水与付款的匹配关系，不动金额与余额；候选不唯一就跳过，可在银行页撤销。",
+    },
     "attribution_confirm": {
         "key": "attribution_confirm",
         "name": "收支归因批量确认",
@@ -52,7 +60,7 @@ ACTION_SPECS: dict[str, dict[str, Any]] = {
 }
 
 MODES = ("manual", "assist", "auto")
-RUN_ORDER = ("attribution_confirm", "month_end_close", "tax_deliver")
+RUN_ORDER = ("bank_match", "attribution_confirm", "month_end_close", "tax_deliver")
 
 
 def actions_catalog() -> list[dict[str, Any]]:
@@ -77,6 +85,17 @@ def _strict_float(value: Any, default: float, field: str) -> float:
     return number
 
 
+def _strict_int(value: Any, default: int, field: str) -> int:
+    """整数校验：3.0 可以，3.5 拒绝，避免静默截断。"""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field}必须是整数") from None
+    if not math.isfinite(number) or number != int(number):
+        raise ValueError(f"{field}必须是整数")
+    return int(number)
+
+
 def _normalize_config(action_key: str, config: dict[str, Any] | None) -> dict[str, Any]:
     raw = dict(config or {})
     if action_key == "tax_deliver":
@@ -85,6 +104,14 @@ def _normalize_config(action_key: str, config: dict[str, Any] | None) -> dict[st
         if not math.isfinite(max_amount) or max_amount < 0:
             raise ValueError("金额阈值不能为负")
         return {"channel_id": channel_id, "max_amount": max_amount}
+    if action_key == "bank_match":
+        max_amount = _strict_float(raw.get("max_amount"), 50000.0, "金额阈值")
+        if max_amount < 0:
+            raise ValueError("金额阈值不能为负")
+        window_days = _strict_int(raw.get("window_days", 3), 3, "日期窗口")
+        if window_days < 0 or window_days > 30:
+            raise ValueError("日期窗口需在 0 到 30 天之间")
+        return {"max_amount": max_amount, "window_days": window_days}
     if action_key == "attribution_confirm":
         max_amount = _strict_float(raw.get("max_amount"), 10000.0, "金额阈值")
         if max_amount < 0:
@@ -244,6 +271,67 @@ async def _tax_plan(
     }
 
 
+async def _bank_match_plan(
+    tenant_id: int, period: str, config: dict[str, Any]
+) -> dict[str, Any]:
+    try:
+        start = date.fromisoformat(f"{period}-01")
+    except ValueError:
+        raise ValueError("账期需为 YYYY-MM") from None
+    if start.month == 12:
+        end = date(start.year + 1, 1, 1)
+    else:
+        end = date(start.year, start.month + 1, 1)
+    window_days = int(config.get("window_days", 3))
+    max_amount = _as_float(config.get("max_amount"), 50000.0)
+    candidates = await db.bank_match_candidates(
+        tenant_id,
+        start.isoformat(),
+        end.isoformat(),
+        window_days=window_days,
+        limit=100,
+    )
+    items = candidates.get("items") or []
+    if not items:
+        return {
+            "action_key": "bank_match",
+            "decision": "blocked",
+            "reason": (
+                f"当期没有可唯一匹配的银行支出；金额/账户不符、"
+                f"日期超过 {window_days} 天或候选不唯一都会跳过"
+            ),
+            "period": period,
+            "skipped": int(candidates.get("skipped") or 0),
+            "ambiguous": int(candidates.get("ambiguous") or 0),
+            "window_days": window_days,
+        }
+    total_amount = round(
+        sum(abs(_as_float(item.get("amount"), 0.0)) for item in items), 2
+    )
+    above = max_amount > 0 and total_amount > max_amount
+    return {
+        "action_key": "bank_match",
+        "decision": "ready",
+        "period": period,
+        "count": len(items),
+        "amount": total_amount,
+        "max_amount": max_amount,
+        "window_days": window_days,
+        "pending": int(candidates.get("pending") or 0),
+        "skipped": int(candidates.get("skipped") or 0),
+        "ambiguous": int(candidates.get("ambiguous") or 0),
+        "items": items,
+        "preview": items[:6],
+        "requires_confirmation": above,
+        "confirm_reason": (
+            f"本批待匹配金额合计 ¥{total_amount:,.2f} 超过预设阈值 "
+            f"¥{max_amount:,.2f}"
+            if above
+            else ""
+        ),
+    }
+
+
 async def _attribution_plan(
     tenant_id: int, user_id: int, period: str, config: dict[str, Any]
 ) -> dict[str, Any]:
@@ -332,6 +420,42 @@ async def _attribution_plan(
     }
 
 
+async def _execute_bank_match(plan: dict[str, Any]) -> dict[str, Any]:
+    tenant, user = current_tenant_id(), current_user_id()
+    pairs = [
+        {
+            "transaction_id": int(item["transaction_id"]),
+            "payment_id": int(item["payment_id"]),
+        }
+        for item in (plan.get("items") or [])
+    ]
+    if not pairs:
+        return {"matched": 0, "items": []}
+    matched = await db.bank_match_batch(
+        tenant,
+        pairs,
+        user,
+        window_days=int(plan.get("window_days") or 3),
+    )
+    for item in matched:
+        await record_provenance(
+            "bank_match",
+            "bank_transaction",
+            str(item["id"]),
+            before={"status": "unmatched"},
+            after={"status": "matched", "payment_id": item.get("payment_id")},
+            source="autopilot",
+            metadata={
+                "payment_no": item.get("payment_no"),
+                "amount": item.get("amount"),
+                "txn_date": item.get("txn_date"),
+                "batch": True,
+                "period": str(plan.get("period") or ""),
+            },
+        )
+    return {"matched": len(matched), "items": matched[:20]}
+
+
 async def _execute_attribution(plan: dict[str, Any]) -> dict[str, Any]:
     tenant, user = current_tenant_id(), current_user_id()
     items = [
@@ -391,6 +515,8 @@ async def build_plan(
     cfg = {**ACTION_SPECS[action_key]["defaults"], **(config or {})}
     if action_key == "tax_deliver":
         return await _tax_plan(current_tenant_id(), current_user_id(), period, cfg)
+    if action_key == "bank_match":
+        return await _bank_match_plan(current_tenant_id(), period, cfg)
     if action_key == "attribution_confirm":
         return await _attribution_plan(
             current_tenant_id(), current_user_id(), period, cfg
@@ -415,6 +541,8 @@ async def _execute_plan(plan: dict[str, Any]) -> dict[str, Any]:
             trigger="autopilot",
             idempotency_key=f"autopilot:{current_tenant_id()}:{plan.get('period')}",
         )
+    if action_key == "bank_match":
+        return await _execute_bank_match(plan)
     if action_key == "attribution_confirm":
         return await _execute_attribution(plan)
     raise ValueError("未知托管动作")
