@@ -140,3 +140,149 @@ async def test_attribution_candidates_and_confirm(client) -> None:
         json={"transaction_id": 999999, "category": "餐饮"},
     )
     assert missing.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_attribution_rules_batch_rollback_and_stats(client) -> None:
+    today = date.today().isoformat()
+    cloud = await db.add_transaction(today, "云 GPU 订阅", "其他", -50.0)
+    taxi = await db.add_transaction(today, "夜里打车", "其他", -28.0)
+
+    created = await client.post(
+        "/api/finance/attribution/rules",
+        json={
+            "name": "云资源",
+            "keyword": "云 GPU",
+            "category": "办公软件",
+            "direction": "支出",
+            "priority": 10,
+        },
+    )
+    assert created.status_code == 200, created.text
+    rule_id = created.json()["rule"]["rule_id"]
+
+    rules = (await client.get("/api/finance/attribution/rules")).json()
+    assert rules["count"] == 1
+    assert rules["rules"][0]["confirmed"] == 0
+    assert "办公软件" in rules["categories"]
+
+    test = await client.post(
+        "/api/finance/attribution/rules/test",
+        json={"item": "云 GPU 订阅 11 月", "direction": "支出", "amount": -50},
+    )
+    assert test.status_code == 200, test.text
+    assert test.json()["matched"] is True
+    assert test.json()["candidate"]["source"] == "custom_rule"
+
+    body = (await client.get("/api/finance/attribution/candidates?limit=10")).json()
+    row = next(t for t in body["transactions"] if "云 GPU" in t["item"])
+    assert row["candidate"]["category"] == "办公软件"
+    assert row["candidate"]["source"] == "custom_rule"
+    assert row["candidate"]["rule_id"] == rule_id
+    assert body["custom_rule_hits"][rule_id] >= 1
+
+    disabled = await client.put(
+        f"/api/finance/attribution/rules/{rule_id}", json={"enabled": False}
+    )
+    assert disabled.status_code == 200, disabled.text
+    after_disable = (await client.get("/api/finance/attribution/candidates?limit=10")).json()
+    assert not any(
+        t["candidate"]["rule_id"] == rule_id for t in after_disable["transactions"]
+    )
+    restored = await client.put(
+        f"/api/finance/attribution/rules/{rule_id}", json={"enabled": True}
+    )
+    assert restored.status_code == 200, restored.text
+
+    rejected = await client.post(
+        "/api/finance/attribution/confirm-batch",
+        json={
+            "items": [
+                {"transaction_id": cloud["id"], "category": "办公软件", "source": "custom_rule"},
+                {"transaction_id": 999999, "category": "交通"},
+            ]
+        },
+    )
+    assert rejected.status_code == 400
+    rows_before = await db.list_transactions(limit=20)
+    cloud_before = next(t for t in rows_before if int(t["id"]) == cloud["id"])
+    assert cloud_before["category"] == "其他"
+
+    batch = await client.post(
+        "/api/finance/attribution/confirm-batch",
+        json={
+            "items": [
+                {
+                    "transaction_id": cloud["id"],
+                    "category": "办公软件",
+                    "source": "custom_rule",
+                    "rule_id": rule_id,
+                    "confidence": 0.92,
+                    "matched": ["keyword:云 GPU"],
+                },
+                {
+                    "transaction_id": taxi["id"],
+                    "category": "交通",
+                    "source": "manual",
+                    "confidence": 1,
+                    "matched": ["manual"],
+                },
+            ]
+        },
+    )
+    assert batch.status_code == 200, batch.text
+    assert batch.json()["confirmed"] == 2
+
+    confirmed = (await client.get("/api/finance/attribution/confirmed?limit=10")).json()
+    assert confirmed["count"] == 2
+    assert any(int(r["transaction_id"]) == cloud["id"] for r in confirmed["items"])
+
+    stats = (await client.get("/api/finance/attribution/stats")).json()
+    assert stats["confirmed_total"] == 2
+    assert stats["by_source"]["custom_rule"] == 1
+    assert stats["by_source"]["manual"] == 1
+
+    rollback = await client.post(
+        "/api/finance/attribution/rollback", json={"transaction_id": cloud["id"]}
+    )
+    assert rollback.status_code == 200, rollback.text
+    rows = await db.list_transactions(limit=20)
+    restored_row = next(t for t in rows if int(t["id"]) == cloud["id"])
+    assert restored_row["category"] == "其他"
+    assert await attribution_db.get_confirmation(0, 0, cloud["id"]) is None
+    stats2 = (await client.get("/api/finance/attribution/stats")).json()
+    assert stats2["reverted_total"] == 1
+
+    again = await client.post(
+        "/api/finance/attribution/rollback", json={"transaction_id": cloud["id"]}
+    )
+    assert again.status_code == 400
+
+    deleted = await client.delete(f"/api/finance/attribution/rules/{rule_id}")
+    assert deleted.status_code == 200, deleted.text
+    empty = (await client.get("/api/finance/attribution/rules")).json()
+    assert empty["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_demo_reset_clears_attribution_state(client) -> None:
+    demo = {"X-Demo-Mode": "1"}
+    created = await client.post(
+        "/api/finance/attribution/rules",
+        headers=demo,
+        json={
+            "name": "演示规则",
+            "keyword": "演示关键词",
+            "category": "办公软件",
+            "direction": "支出",
+            "priority": 1,
+        },
+    )
+    assert created.status_code == 200, created.text
+    reset = await client.post("/api/demo/enter", headers=demo)
+    assert reset.status_code == 200, reset.text
+    rules = (await client.get("/api/finance/attribution/rules", headers=demo)).json()
+    assert rules["count"] == 0
+    stats = (await client.get("/api/finance/attribution/stats", headers=demo)).json()
+    assert stats["confirmed_total"] == 0
+    assert stats["reverted_total"] == 0

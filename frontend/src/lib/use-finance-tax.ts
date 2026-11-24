@@ -165,7 +165,7 @@ export interface TimelineResult {
 
 export interface AttributionCandidate {
   category: string;
-  source: "rule" | "history" | "existing" | "fallback";
+  source: "custom_rule" | "rule" | "history" | "existing" | "fallback";
   confidence: number;
   rule_id: string;
   matched: string[];
@@ -194,10 +194,64 @@ export interface AttributionResult {
   source: string;
   boundary: string;
   scan_limit: number;
+  custom_rule_hits: Record<string, number>;
+}
+
+export interface AttributionRule {
+  rule_id: string;
+  name: string;
+  keyword: string;
+  category: string;
+  direction: "" | "收入" | "支出";
+  priority: number;
+  enabled: number;
+  confirmed: number;
+  reverted: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttributionRulesResult {
+  rules: AttributionRule[];
+  count: number;
+  enabled: number;
+  max_rules: number;
+  categories: string[];
+  boundary: string;
+}
+
+export interface ConfirmedAttribution {
+  transaction_id: number;
+  original_category: string;
+  confirmed_category: string;
+  source: string;
+  rule_id: string;
+  confidence: number;
+  confirmed_at: string;
+  date: string;
+  item: string;
+  amount: number;
+}
+
+export interface AttributionStats {
+  confirmed_total: number;
+  reverted_total: number;
+  by_source: Record<string, number>;
+  by_rule: { source: string; rule_id: string; n: number }[];
+  reverted_by_rule: { rule_id: string; n: number }[];
+  boundary: string;
 }
 
 function post<T>(path: string, body: unknown): Promise<T> {
   return api<T>(path, { method: "POST", body: JSON.stringify(body) });
+}
+
+function put<T>(path: string, body: unknown): Promise<T> {
+  return api<T>(path, { method: "PUT", body: JSON.stringify(body) });
+}
+
+function del<T>(path: string): Promise<T> {
+  return api<T>(path, { method: "DELETE" });
 }
 
 export function useCalcVat() {
@@ -277,10 +331,106 @@ export function useConfirmAttribution() {
         "/api/finance/attribution/confirm",
         body,
       ),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["/api/finance/attribution/candidates"] });
-      void qc.invalidateQueries({ queryKey: ["dashboard"] });
-    },
+    onSuccess: () => invalidateAttribution(qc),
+  });
+}
+
+export function useAttributionRules() {
+  return useQuery({
+    queryKey: ["/api/finance/attribution/rules"],
+    queryFn: () => api<AttributionRulesResult>("/api/finance/attribution/rules"),
+    staleTime: 30_000,
+  });
+}
+
+export function useConfirmedAttributions(limit = 20) {
+  return useQuery({
+    queryKey: ["/api/finance/attribution/confirmed", limit],
+    queryFn: () =>
+      api<{ items: ConfirmedAttribution[]; count: number }>(
+        `/api/finance/attribution/confirmed?limit=${limit}`,
+      ),
+    staleTime: 30_000,
+  });
+}
+
+export function useAttributionStats() {
+  return useQuery({
+    queryKey: ["/api/finance/attribution/stats"],
+    queryFn: () => api<AttributionStats>("/api/finance/attribution/stats"),
+    staleTime: 30_000,
+  });
+}
+
+function invalidateAttribution(qc: ReturnType<typeof useQueryClient>) {
+  // 不能只传 queryKey 前缀数组：React Query 按元素相等做前缀匹配，
+  // "/api/finance/attribution" 不等于 "/api/finance/attribution/rules"。
+  void qc.invalidateQueries({
+    predicate: (q) => String(q.queryKey[0] ?? "").startsWith("/api/finance/attribution"),
+  });
+  void qc.invalidateQueries({ queryKey: ["dashboard"] });
+}
+
+export function useConfirmAttributionBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (items: Record<string, unknown>[]) =>
+      post<{ ok: boolean; confirmed: number }>("/api/finance/attribution/confirm-batch", {
+        items,
+      }),
+    onSuccess: () => invalidateAttribution(qc),
+  });
+}
+
+export function useRollbackAttribution() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (transactionId: number) =>
+      post<{ ok: boolean; transaction_id: number; restored_category: string }>(
+        "/api/finance/attribution/rollback",
+        { transaction_id: transactionId },
+      ),
+    onSuccess: () => invalidateAttribution(qc),
+  });
+}
+
+export function useCreateAttributionRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      post<{ ok: boolean; rule: AttributionRule }>("/api/finance/attribution/rules", body),
+    onSuccess: () => invalidateAttribution(qc),
+  });
+}
+
+export function useUpdateAttributionRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ruleId, body }: { ruleId: string; body: Record<string, unknown> }) =>
+      put<{ ok: boolean; rule: AttributionRule }>(
+        `/api/finance/attribution/rules/${ruleId}`,
+        body,
+      ),
+    onSuccess: () => invalidateAttribution(qc),
+  });
+}
+
+export function useDeleteAttributionRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ruleId: string) =>
+      del<{ ok: boolean; rule_id: string }>(`/api/finance/attribution/rules/${ruleId}`),
+    onSuccess: () => invalidateAttribution(qc),
+  });
+}
+
+export function useTestAttributionRule() {
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      post<{ matched: boolean; candidate: AttributionCandidate | null; rules_checked: number }>(
+        "/api/finance/attribution/rules/test",
+        body,
+      ),
   });
 }
 

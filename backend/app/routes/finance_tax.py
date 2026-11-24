@@ -238,9 +238,299 @@ async def attribution_candidates(limit: int = 50) -> Any:
     confirmations = await attribution_db.list_confirmations(
         current_tenant_id(), current_user_id()
     )
-    out = suggest_attributions(rows, confirmations, limit=limit)
+    rules = await attribution_db.list_rules(
+        current_tenant_id(), current_user_id(), enabled_only=True
+    )
+    out = suggest_attributions(
+        rows, confirmations, limit=limit, custom_rules=rules
+    )
     out["scan_limit"] = 800
     return out
+
+
+def _rule_text(value: Any, field: str, limit: int) -> str:
+    text = " ".join(str(value or "").split()).strip()
+    if not text:
+        raise ValueError(f"{field}不能为空")
+    if len(text) > limit:
+        raise ValueError(f"{field}不能超过 {limit} 个字")
+    if any(ord(ch) < 32 for ch in text):
+        raise ValueError(f"{field}不能包含控制字符")
+    return text
+
+
+def _rule_fields(body: dict[str, Any], current: dict[str, Any] | None = None) -> dict[str, Any]:
+    base = current or {}
+    keyword = _rule_text(body.get("keyword", base.get("keyword")), "关键词", 30)
+    name = _rule_text(body.get("name", base.get("name")) or keyword, "规则名", 40)
+    category = validate_category(body.get("category", base.get("category")))
+    direction = str(body.get("direction", base.get("direction")) or "").strip()
+    if direction not in {"", "收入", "支出"}:
+        raise ValueError("方向只能是空、收入或支出")
+    try:
+        priority = int(body.get("priority", base.get("priority", 0)) or 0)
+    except (TypeError, ValueError):
+        raise ValueError("优先级必须是整数") from None
+    if priority < -100 or priority > 100:
+        raise ValueError("优先级需在 -100 到 100 之间")
+    raw_enabled = body.get("enabled", base.get("enabled", True))
+    enabled = bool(int(raw_enabled)) if isinstance(raw_enabled, (int, bool)) else bool(raw_enabled)
+    return {
+        "name": name,
+        "keyword": keyword,
+        "category": category,
+        "direction": direction,
+        "priority": priority,
+        "enabled": enabled,
+    }
+
+
+@router.get("/api/finance/attribution/rules")
+async def attribution_rules() -> Any:
+    tenant, user = current_tenant_id(), current_user_id()
+    rules = await attribution_db.list_rules(tenant, user)
+    stats = await attribution_db.confirmation_stats(tenant, user)
+    confirmed = {(r["rule_id"], r["source"]): int(r["n"]) for r in stats["by_rule"]}
+    reverted = {str(r["rule_id"]): int(r["n"]) for r in stats["reverted_by_rule"]}
+    for rule in rules:
+        rule["confirmed"] = confirmed.get((rule["rule_id"], "custom_rule"), 0)
+        rule["reverted"] = reverted.get(rule["rule_id"], 0)
+    return {
+        "rules": rules,
+        "count": len(rules),
+        "enabled": sum(1 for r in rules if int(r.get("enabled") or 0) == 1),
+        "max_rules": 20,
+        "categories": [
+            c for c in suggest_attributions([], {}, limit=1, custom_rules=rules)["categories"]
+        ],
+        "boundary": "自定义规则只影响候选，不自动改账；按优先级从高到低取第一条命中。",
+    }
+
+
+@router.post("/api/finance/attribution/rules")
+async def attribution_rule_create(payload: dict[str, Any]) -> Any:
+    body = payload or {}
+    tenant, user = current_tenant_id(), current_user_id()
+    existing = await attribution_db.list_rules(tenant, user)
+    if len(existing) >= 20:
+        return _bad("最多配置 20 条归因规则")
+    try:
+        fields = _rule_fields(body)
+    except ValueError as exc:
+        return _bad(str(exc))
+    try:
+        rule = await attribution_db.create_rule(
+            tenant_id=tenant,
+            user_id=user,
+            name=fields["name"],
+            keyword=fields["keyword"],
+            category=fields["category"],
+            direction=fields["direction"],
+            priority=fields["priority"],
+        )
+    except Exception as exc:  # noqa: BLE001 — 唯一约束等数据库错误要变 400 而不是 500
+        return _bad(f"规则保存失败：{str(exc)[:80]}")
+    if not fields["enabled"]:
+        rule = await attribution_db.update_rule(
+            tenant, user, rule["rule_id"], enabled=False
+        ) or rule
+    return {"ok": True, "rule": rule}
+
+
+@router.put("/api/finance/attribution/rules/{rule_id}")
+async def attribution_rule_update(rule_id: str, payload: dict[str, Any]) -> Any:
+    body = payload or {}
+    tenant, user = current_tenant_id(), current_user_id()
+    current = next(
+        (r for r in await attribution_db.list_rules(tenant, user) if r["rule_id"] == rule_id),
+        None,
+    )
+    if current is None:
+        return _bad("规则不存在")
+    try:
+        fields = _rule_fields(body, current)
+    except ValueError as exc:
+        return _bad(str(exc))
+    rule = await attribution_db.update_rule(
+        tenant, user, rule_id,
+        name=fields["name"], keyword=fields["keyword"], category=fields["category"],
+        direction=fields["direction"], priority=fields["priority"],
+        enabled=fields["enabled"],
+    )
+    if rule is None:
+        return _bad("规则不存在")
+    return {"ok": True, "rule": rule}
+
+
+@router.delete("/api/finance/attribution/rules/{rule_id}")
+async def attribution_rule_delete(rule_id: str) -> Any:
+    ok = await attribution_db.delete_rule(current_tenant_id(), current_user_id(), rule_id)
+    if not ok:
+        return _bad("规则不存在")
+    return {"ok": True, "rule_id": rule_id}
+
+
+@router.post("/api/finance/attribution/rules/test")
+async def attribution_rule_test(payload: dict[str, Any]) -> Any:
+    body = payload or {}
+    item = " ".join(str(body.get("item") or "").split()).strip()
+    if not item:
+        return _bad("请填写要测试的流水摘要")
+    try:
+        amount = float(body.get("amount") or 0)
+    except (TypeError, ValueError):
+        return _bad("金额必须是数字")
+    direction = str(body.get("direction") or "").strip()
+    if direction not in {"收入", "支出"}:
+        direction = "收入" if amount > 0 else "支出"
+    rules = await attribution_db.list_rules(
+        current_tenant_id(), current_user_id(), enabled_only=True
+    )
+    raw_rule = body.get("rule")
+    if isinstance(raw_rule, dict):
+        try:
+            fields = _rule_fields(raw_rule)
+        except ValueError as exc:
+            return _bad(str(exc))
+        rules = [{
+            "rule_id": "preview", "name": fields["name"], "keyword": fields["keyword"],
+            "category": fields["category"], "direction": fields["direction"],
+            "priority": fields["priority"], "enabled": 1, "created_at": "",
+        }]
+    out = suggest_attributions(
+        [{"id": 1, "date": "", "item": item, "amount": amount, "category": "其他"}],
+        {}, limit=1, custom_rules=rules,
+    )
+    row = (out.get("transactions") or [None])[0]
+    candidate = row.get("candidate") if row else None
+    matched = bool(candidate and candidate.get("source") == "custom_rule")
+    return {
+        "matched": matched,
+        "candidate": candidate,
+        "direction": direction,
+        "rules_checked": len(rules),
+    }
+
+
+@router.get("/api/finance/attribution/confirmed")
+async def attribution_confirmed(limit: int = 20) -> Any:
+    rows = await attribution_db.list_confirmed_rows(
+        current_tenant_id(), current_user_id(), limit=limit
+    )
+    return {"items": rows, "count": len(rows)}
+
+
+@router.post("/api/finance/attribution/confirm-batch")
+async def attribution_confirm_batch(payload: dict[str, Any]) -> Any:
+    body = payload or {}
+    raw_items = body.get("items")
+    if not isinstance(raw_items, list) or not raw_items:
+        return _bad("items 不能为空")
+    if len(raw_items) > 100:
+        return _bad("单次最多确认 100 条")
+    tenant, user = current_tenant_id(), current_user_id()
+    prepared: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for idx, raw in enumerate(raw_items):
+        if not isinstance(raw, dict):
+            return _bad(f"第 {idx + 1} 条格式错误")
+        try:
+            tx_id = int(raw.get("transaction_id") or 0)
+            category = validate_category(raw.get("category"))
+        except (TypeError, ValueError) as exc:
+            return _bad(f"第 {idx + 1} 条：{exc}")
+        if tx_id <= 0:
+            return _bad(f"第 {idx + 1} 条：transaction_id 必须是正整数")
+        if tx_id in seen:
+            return _bad(f"第 {idx + 1} 条：流水 {tx_id} 重复")
+        seen.add(tx_id)
+        tx = await attribution_db.get_transaction(user, tx_id)
+        if tx is None:
+            return _bad(f"第 {idx + 1} 条：流水 {tx_id} 不存在")
+        source = str(raw.get("source") or "manual")
+        if source not in {"custom_rule", "rule", "history", "existing", "manual"}:
+            source = "manual"
+        try:
+            confidence = max(0.0, min(float(raw.get("confidence") or 0), 1.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        matched = raw.get("matched")
+        matched_list = [str(x)[:24] for x in matched][:5] if isinstance(matched, list) else []
+        prepared.append({
+            "transaction_id": tx_id,
+            "original_category": str(tx.get("category") or ""),
+            "confirmed_category": category,
+            "source": source,
+            "rule_id": str(raw.get("rule_id") or "")[:64],
+            "confidence": confidence,
+            "matched": matched_list,
+        })
+    try:
+        written = await attribution_db.batch_apply_confirmations(
+            tenant_id=tenant, user_id=user, items=prepared
+        )
+    except ValueError as exc:
+        return _bad(str(exc))
+    for item in written:
+        await record_provenance(
+            "attribution_confirm", "transaction", str(item["transaction_id"]),
+            before={"category": item["previous_category"]},
+            after={"category": item["category"]},
+            source="api",
+            metadata={
+                "rule_id": item["rule_id"], "confidence": item["confidence"],
+                "matched": item["matched"], "attribution_source": item["source"],
+                "batch": True,
+            },
+        )
+    return {"ok": True, "confirmed": len(written), "items": written}
+
+
+@router.post("/api/finance/attribution/rollback")
+async def attribution_rollback(payload: dict[str, Any]) -> Any:
+    body = payload or {}
+    try:
+        tx_id = int(body.get("transaction_id") or 0)
+    except (TypeError, ValueError):
+        return _bad("transaction_id 必须是正整数")
+    if tx_id <= 0:
+        return _bad("transaction_id 必须是正整数")
+    try:
+        out = await attribution_db.rollback_confirmation(
+            tenant_id=current_tenant_id(), user_id=current_user_id(), transaction_id=tx_id
+        )
+    except ValueError as exc:
+        return _bad(str(exc))
+    await record_provenance(
+        "attribution_rollback", "transaction", str(tx_id),
+        before={"category": out["reverted_category"]},
+        after={"category": out["restored_category"]},
+        source="api",
+        metadata={
+            "rule_id": out["rule_id"], "attribution_source": out["source"],
+            "reverted_at": out["reverted_at"],
+        },
+    )
+    return out
+
+
+@router.get("/api/finance/attribution/stats")
+async def attribution_stats() -> Any:
+    tenant, user = current_tenant_id(), current_user_id()
+    stats = await attribution_db.confirmation_stats(tenant, user)
+    by_rule = [dict(r) for r in stats["by_rule"]]
+    reverted = [dict(r) for r in stats["reverted_by_rule"]]
+    by_source: dict[str, int] = {}
+    for row in by_rule:
+        by_source[str(row["source"])] = by_source.get(str(row["source"]), 0) + int(row["n"])
+    return {
+        "confirmed_total": sum(int(r["n"]) for r in by_rule),
+        "reverted_total": sum(int(r["n"]) for r in reverted),
+        "by_source": by_source,
+        "by_rule": by_rule,
+        "reverted_by_rule": reverted,
+        "boundary": "统计来自真实确认记录与回滚记录，不推算未发生的采纳率。",
+    }
 
 
 @router.post("/api/finance/attribution/confirm")
@@ -259,7 +549,7 @@ async def attribution_confirm(payload: dict[str, Any]) -> Any:
         return _bad(f"流水 {tx_id} 不存在")
 
     source = str(body.get("source") or "manual")
-    if source not in {"rule", "history", "existing", "manual"}:
+    if source not in {"custom_rule", "rule", "history", "existing", "manual"}:
         source = "manual"
     try:
         confidence = max(0.0, min(float(body.get("confidence") or 0), 1.0))

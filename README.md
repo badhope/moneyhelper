@@ -54,11 +54,15 @@ Both sides share one engine, so a family ledger and a company ledger obey the sa
   <img src="docs/screenshots/163-automation-alert-acked.png" width="49%" alt="Alert acknowledged; the failed run evidence remains" />
 </p>
 
-**A tax and cash timeline you can audit, and attribution you approve.** The tax workspace now reads only posted entries and aggregates revenue, expense, profit, cash in/out and tax accrual by month; missing months stay explicitly missing instead of showing a fake zero. Attribution proposes a category from the rule table or the ledger history, shows the rule id, matched term and confidence, and writes nothing until you confirm — the confirmation, before/after and rule evidence are all recorded.
+**A tax and cash timeline you can audit, and attribution you approve.** The tax workspace now reads only posted entries and aggregates revenue, expense, profit, cash in/out and tax accrual by month; missing months stay explicitly missing instead of showing a fake zero. Attribution proposes a category from the rule table or the ledger history, shows the rule id, matched term and confidence, and writes nothing until you confirm. You can add keyword/direction/priority rules, confirm up to 100 rows in one atomic batch, and roll back a wrong call row by row; before/after and rule evidence stay recorded.
 
 <p align="center">
   <img src="docs/screenshots/160-finance-timeline.png" width="49%" alt="Finance timeline: only posted vouchers, missing months flagged, cash and tax lines" />
   <img src="docs/screenshots/161-attribution-confirm.png" width="49%" alt="Attribution: evidence and confidence stay visible before a human confirms" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/164-attribution-rules.png" width="49%" alt="Attribution rules: keyword, category, direction, priority and scan hits" />
+  <img src="docs/screenshots/166-attribution-rollback.png" width="49%" alt="Rollback: the row returns to the candidate pool and the rollback count is kept" />
 </p>
 
 **Everything is addressable by your own agent.** The same capabilities are exposed through MCP, so Claude, Codex or any MCP client can drive the books with your permission.

@@ -55,9 +55,32 @@ def _rule_specificity(rule_id: str, matched: list[str]) -> int:
     return max(1, len(matched))
 
 
-def category_options() -> list[str]:
+def _match_custom_rule(
+    item: str, direction: str, custom_rules: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    text = _clean_text(item).lower()
+    ordered = sorted(
+        custom_rules,
+        key=lambda r: (-int(r.get("priority") or 0), str(r.get("created_at") or "")),
+    )
+    for rule in ordered:
+        if int(rule.get("enabled", 1) or 0) != 1:
+            continue
+        keyword = _clean_text(rule.get("keyword")).lower()
+        category = _clean_text(rule.get("category"))
+        rule_direction = _clean_text(rule.get("direction"))
+        if not keyword or not category:
+            continue
+        if rule_direction and rule_direction != direction:
+            continue
+        if keyword in text:
+            return rule
+    return None
+
+
+def category_options(custom_rules: list[dict[str, Any]] | None = None) -> list[str]:
     seen: list[str] = []
-    for rule in BUILTIN_RULES:
+    for rule in [*BUILTIN_RULES, *(custom_rules or [])]:
         cat = _clean_text(rule.get("category"))
         if cat and cat not in seen:
             seen.append(cat)
@@ -68,11 +91,13 @@ def suggest_attributions(
     rows: list[dict[str, Any]],
     confirmations: dict[int, dict[str, Any]] | None = None,
     limit: int = 50,
+    custom_rules: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     confirmed = confirmations or {}
     history = _history_index(rows)
     pending: list[dict[str, Any]] = []
     resolved = 0
+    rule_hits: dict[str, int] = {}
 
     for tx in rows:
         try:
@@ -95,18 +120,25 @@ def suggest_attributions(
             direction=direction,
             amount=amount,
         )
+        custom = _match_custom_rule(item, direction, custom_rules or [])
+        if custom is not None:
+            custom_id = str(custom.get("rule_id") or "")
+            rule_hits[custom_id] = rule_hits.get(custom_id, 0) + 1
 
         bucket = history.get(_normalize_item(item), {})
         history_top = _top_history(bucket)
         history_cat, history_count = history_top[0] if history_top else ("", 0)
 
+        candidate_category = (
+            _clean_text(custom.get("category")) if custom is not None else rule.category
+        )
         alternatives: list[dict[str, Any]] = []
-        if not rule.fallback and rule.category != history_cat:
+        if not rule.fallback and rule.category != candidate_category:
             alternatives.append({"category": rule.category, "source": "rule", "confidence": 0.7})
         for cat, count in history_top:
-            if cat == rule.category and not rule.fallback:
+            if cat == candidate_category:
                 continue
-            if cat == history_cat and rule.fallback:
+            if cat == history_cat and custom is None and rule.fallback:
                 continue
             alternatives.append(
                 {
@@ -117,7 +149,19 @@ def suggest_attributions(
                 }
             )
 
-        if not rule.fallback:
+        if custom is not None:
+            custom_id = str(custom.get("rule_id") or "")
+            keyword = _clean_text(custom.get("keyword"))
+            name = _clean_text(custom.get("name")) or keyword
+            candidate = {
+                "category": _clean_text(custom.get("category")),
+                "source": "custom_rule",
+                "confidence": 0.92,
+                "rule_id": custom_id,
+                "matched": [f"keyword:{keyword}"[:24]],
+                "reason": f"自定义规则「{name}」命中关键词「{keyword}」",
+            }
+        elif not rule.fallback:
             specificity = _rule_specificity(rule.rule_id, rule.matched)
             candidate = {
                 "category": rule.category,
@@ -181,10 +225,11 @@ def suggest_attributions(
         "resolved": resolved,
         "total": total,
         "coverage": round((total - len(pending)) / total * 100, 1) if total else 0.0,
-        "categories": category_options(),
+        "categories": category_options(custom_rules),
+        "custom_rule_hits": rule_hits,
         "source": "rules+history",
         "boundary": (
-            "候选来自内置规则与账本历史，不是模型猜测；未命中时返回 fallback，"
+            "候选来自自定义规则、内置规则与账本历史，不是模型猜测；未命中时返回 fallback，"
             "确认前不改动流水分类。"
         ),
     }

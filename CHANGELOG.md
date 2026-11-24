@@ -2,6 +2,38 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.17.3] - 2026-11-24（归因规则配置、批量确认与误判回滚）
+
+### 新增
+
+- **自定义归因规则**：新增 `attribution_rules` 表与规则 CRUD 接口。规则包含名称、关键词、目标分类、方向、优先级和启用状态；按 `enabled DESC, priority DESC, created_at ASC` 取第一条命中，大小写不敏感、支持中文。内置分类与自定义分类合并展示，允许输入「办公软件」这类非内置分类。
+- **候选融合**：`finance_attribution` 新增 `custom_rule` 来源，置信度 0.92，候选带 `rule_id`、命中关键词与依据；扫描结果额外返回每条规则本次命中数。规则仍只产出候选，不自动改账。
+- **批量确认**：`POST /api/finance/attribution/confirm-batch` 最多 100 条，先全量校验再单事务逐条写回；任一条流水不存在、原分类已变化、分类无效或 id 重复，整批 400，不部分成功。
+- **误判回滚**：新增 `attribution_rollbacks` 表与 `POST /api/finance/attribution/rollback`。仅当流水当前分类仍等于确认分类时恢复原分类、删除 active confirmation 并写入撤销证据；若确认后又人工改过分类则 400，避免覆盖后续判断。
+- **确认明细与统计**：`GET /api/finance/attribution/confirmed` 返回最近确认的原分类 → 新分类；`GET /api/finance/attribution/stats` 按来源与规则聚合确认/回滚数，规则卡片的采纳与回滚使用同一口径。
+- **前端规则与批量操作**：归因页新增「规则设置」折叠区（列表、启用/停用、编辑、删除、新增、测试预览）、行级复选框与本页全选、批量确认、最近确认列表与单笔撤销。中文/英文各补约 30 条文案。
+
+### 变更
+
+- 演示重置 `_DEMO_TABLES` 增加归因规则、确认、回滚与自动化运行/告警表；重置后规则 0、确认 0、回滚 0，避免旧演示确认穿透新账本。
+- 归因域缓存失效改为 predicate 前缀匹配。`queryKey: ["/api/finance/attribution"]` 不会命中 `"/api/finance/attribution/rules"`，因为 React Query 按元素相等做前缀匹配；修复前保存规则后列表仍显示 0/20。
+- 单条确认也统一失效候选、规则、确认列表与统计，不再只刷新候选。
+- 版本升到 4.17.3：`backend/app/version.py`（`PREVIOUS_VERSION=4.17.2`）、`pyproject.toml`、`frontend/package.json`、`frontend/package-lock.json` 根两层。
+
+### 边界
+
+- 规则只匹配摘要关键词，不做正则、金额区间、账户或商户 ID 匹配；没有规则版本历史与自动学习。
+- 批量确认上限 100 条，不跨租户；确认与回滚都是显式人工动作。
+- 回滚只撤销归因，不改金额、日期或凭证；已过账凭证的分类修正仍需走既有冲销/更正流程。
+- 没有邮件、短信或 Webhook 通知；规则命中与撤销只在站内展示。
+
+### 验证
+
+- 后端定向 `tests/test_finance_timeline.py` 4 项通过（15.51s）；后端全量 `1935 passed, 1 warning in 246.84s`。
+- 前端 34 文件 / 243 项通过（68.45s）；`tsc --noEmit` 通过；`npm run build` 18.20s。
+- 浏览器：创建「云资源」规则（「云 GPU」→「办公软件」，支出，P10）后扫描命中 1 笔；批量确认 2 笔后规则累计采纳 1、最近确认出现 2 条；撤销「深夜打车回家」后回滚徽标为 1，流水回到候选池。
+- 文档：新增 `docs/ATTRIBUTION-4.17.3.md`；截图 `164-attribution-rules.png`、`165-attribution-batch-confirm.png`、`166-attribution-rollback.png`。
+
 ## [4.17.2] - 2026-11-24（调度韧性：退避重试、死信告警、重放与启动补偿）
 
 ### 新增

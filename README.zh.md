@@ -47,11 +47,15 @@
   <img src="docs/screenshots/159-automation-runs.png" width="100%" alt="Automation runs: real workflows, manual rerun, per-step status and duration" />
 </p>
 
-**可审计的财税时序，以及必须由你确认的归因。** 报税助手只读已过账凭证，按月聚合收入、费用、利润、现金流入流出与税费计提；缺账月份显式标出，不用 0 冒充已结账。收支归因从规则表或账本历史给出候选，展示规则 id、命中词与置信度，确认前不改账；确认动作、前后分类与规则依据都会留痕。
+**可审计的财税时序，以及必须由你确认的归因。** 报税助手只读已过账凭证，按月聚合收入、费用、利润、现金流入流出与税费计提；缺账月份显式标出，不用 0 冒充已结账。收支归因从规则表或账本历史给出候选，展示规则 id、命中词与置信度，确认前不改账；自定义规则可按关键词、方向与优先级配置，批量确认最多 100 条单事务写回，误判可逐笔撤销，前后分类与规则依据都会留痕。
 
 <p align="center">
   <img src="docs/screenshots/160-finance-timeline.png" width="49%" alt="财税时序：只统计已过账凭证，缺账月份显式标记" />
   <img src="docs/screenshots/161-attribution-confirm.png" width="49%" alt="收支归因：确认前展示规则、命中词与置信度" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/164-attribution-rules.png" width="49%" alt="归因规则：关键词、分类、方向、优先级与本次命中" />
+  <img src="docs/screenshots/166-attribution-rollback.png" width="49%" alt="误判回滚：撤销后流水回到候选池，回滚数留痕" />
 </p>
 
 **可以被你自己的 Agent 调用。** 同一套能力通过 MCP 暴露，Claude、Codex 或任何 MCP 客户端都能在你授权下操作账本。

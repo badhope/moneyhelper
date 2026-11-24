@@ -40,6 +40,11 @@ _DEMO_TABLES = (
     "runs",
     "net_worth_snapshots",
     "settings",
+    "attribution_confirmations",
+    "attribution_rules",
+    "attribution_rollbacks",
+    "automation_runs",
+    "automation_alerts",
 )
 
 
