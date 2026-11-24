@@ -2,6 +2,46 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.22.0] - 2026-11-24（外部投递通道：真实 SMTP 与签名 HTTPS 网关）
+
+### 新增
+
+- **真实出站层**：新增 `app/external_delivery.py`，支持 `smtp`、`tax_gateway`、`bank_gateway`、`audit_gateway` 四类通道。
+- **SMTP**：`smtplib` 真发信，支持 STARTTLS / SSL / 本机明文联调；邮件附包体 JSON、SHA256 摘要，付款包附 CSV；返回受理收件人、拒收与 Message-ID。
+- **HTTPS 网关**：`httpx` 真 POST，带 `X-MH-Timestamp`、`X-MH-Signature`（HMAC-SHA256）与 `Idempotency-Key`；记录状态码、回执号与响应片段。
+- **通道管理**：`GET/PUT/DELETE /api/external/channels`、`POST /api/external/channels/{id}/test`、`POST /api/external/deliver`、`GET /api/external/deliveries`。
+- **存储**：新增 `external_channels` 与 `external_deliveries`；密钥只进 vault，配置只存非敏感参数。
+- **幂等**：同用户、通道、包类型、包 ID、来源摘要组合哈希；已受理重复投递返回 `duplicate`，不重复外发。
+- **台账联动**：投递成功自动进交接台账，失败写 `HANDOFF_SEND_FAIL` 审计，不伪装成功。
+- **前端**：新增 `ExternalDeliveryCenter.tsx`，四张通道卡、配置侧栏、二次确认投递、最近投递与台账投递徽章；中英文案补约 80 键。
+
+### 修正
+
+- 通道目录漏 `channel_id`，`readiness()` 识别成 `unknown`，四张卡显示“未知通道”；已补 `channel_id: spec["id"]`。
+- 税务 `filing_channel`、付款 `execution_channel`、合并 `audit_basis` 本身就是“无外部通道”的阻断项，不再反过来阻断投递；只拦真正的数据阻断项。
+- 无密码的本机 SMTP 已就绪但测试按钮按 `configured` 被禁用；改为按 `ready` 判断。
+- SMTP 投递摘要的附件数原先在发送后补、未回写数据库；改为创建投递前计算并落库，税务包固定 2 个附件。
+
+### 安全
+
+- 外部邮箱必须 STARTTLS / SSL；明文只允许本机测试且需 `MH_ALLOW_LOCAL_CHANNELS=1`。
+- 外部网关只允许 HTTPS；拒绝 URL 内嵌账号密码、内网与保留地址；本地 HTTP 联调同样需显式环境变量。
+- 无密钥、未启用、地址缺失时 fail-closed；SMTP 用户名与授权码必须成对；网关签名密钥 16–128 字符。
+
+### 边界
+
+- `accepted` 只代表对端受理，不代表税局申报成功、银行付款成功或审计意见。
+- 税局直连仍需乐企准入或服务商通道；资金划转仍需持牌通道与授权；法定合并仍需审计口径；五社区代发布仍需平台账号与授权。
+- 4.22.0 只交付真实投递层，不宣称上述外部动作已完成。
+
+### 验证与发布
+
+- 后端 1960 项通过（306.75s）；前端 36 文件 / 247 项通过（79.86s）；`tsc` 与 build（18.76s）通过。
+- `ExternalPacketPanel` 分包 67.03 kB / gzip 15.18 kB。
+- 本地真实验收：SMTP 测试与税务包业务邮件均发出；税费网关收到签名 POST 并返回 `SINK-RECEIPT-4220`；两笔投递 `accepted` 落库。
+- 浏览器验收亮色、暗色、390×844 移动端与配置侧栏；截图 `192`–`198`。
+- 版本升到 4.22.0；功能提交与五远端 SHA 见 `docs/RELEASE-4.22.0.md`。
+
 ## [4.21.1] - 2026-11-24（外部协同界面可视化重构）
 
 ### 变更

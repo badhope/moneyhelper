@@ -11,7 +11,7 @@
 | [Quick start](quickstart.md) | Full stack running in about 15 minutes |
 | [Architecture](architecture.md) | Layers and data flow (Mermaid) |
 | [Module map](module-map.md) | Which file owns what |
-| [Project baseline 4.21.1](BASELINE.md) | Four blocks: current state, delivered, backlog, roadmap; includes tax timeline, attribution rules, retry/dead-letter, consolidation, enterprise budget & cash plan, external handoff packets, handoff ledger and the 4.21.1 visual rebuild |
+| [Project baseline 4.22.0](BASELINE.md) | Four blocks: current state, delivered, backlog, roadmap; includes tax timeline, attribution rules, retry/dead-letter, consolidation, enterprise budget & cash plan, external delivery channels and real outbound boundaries |
 | [Market positioning 4.17.0 / 4.17.1](POSITIONING-4.17.0.md) | Competitor matrix, personal/enterprise boundary, compliance limits; 4.17.1 capability addendum |
 | [Stress test 4.17.0](STRESS-4.17.0.md) | Personal 10M assets, multi-entity ledger, SQLite concurrency |
 | [Scheduler resilience 4.17.2](SCHEDULER-4.17.2.md) | Retry boundaries, dead letters, replay, startup month-end catch-up |
@@ -21,6 +21,8 @@
 | [External handoff layer 4.20.0](PLAN-4.20.0.md) | Tax worksheet, payment draft and consolidation audit packets: basis, APIs and boundaries |
 | [Handoff ledger 4.21.0](PLAN-4.21.0.md) | Archive, offline confirmation, source-digest verification and audit-chain reuse |
 | [External UI visualization 4.21.1](PLAN-4.21.1.md) | Hero and overview metrics, tax donut, cash-buffer SVG, consolidation bars, responsive handoff cards |
+| [External delivery channels 4.22.0](PLAN-4.22.0.md) | Real SMTP, signed HTTPS gateway, channel config, idempotency, security boundaries and real receipts |
+| [4.22.0 release note](RELEASE-4.22.0.md) | Delivery status, real test/delivery evidence, verification numbers, screenshots 192–198 and unchanged P2 boundaries |
 | [4.21.1 release note](RELEASE-4.21.1.md) | Delivery status, verification numbers, screenshots 184–191 and unchanged product boundaries |
 | [4.21.0 release note](RELEASE-4.21.0.md) | Delivery status, verification numbers, screenshots 181–183 and the "not a receipt" boundary |
 | [4.20.0 release note](RELEASE-4.20.0.md) | Delivery status, verification numbers, screenshots 177–180 and external qualification boundaries |
