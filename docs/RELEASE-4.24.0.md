@@ -48,3 +48,8 @@
 - 计划：[PLAN-4.24.0.md](PLAN-4.24.0.md)
 - 截图：`docs/screenshots/209`–`212`
 - 关键代码：`backend/app/autopilot.py`、`backend/tests/test_autopilot.py`、`frontend/src/components/AutopilotPage.tsx`、`frontend/src/lib/lang/{zh,en}/autopilot.ts`
+
+## 飞书
+
+- 交付说明：https://my.feishu.cn/file/JlUabKdwfo8RpmxO8ldctyWA6Gc
+- 归因托管计划：https://my.feishu.cn/file/Syh2bOHJcoToTQxDgcYcu3Jr6rf

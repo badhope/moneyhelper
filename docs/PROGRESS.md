@@ -60,6 +60,7 @@
 - [x] `run-all` 改为归因→企业月结→税务交接；前端三卡、归因配置、中英文案与结果文案同步。
 - [x] 回归：后端 1979 项通过（287.14s）；前端 247 项通过（71.55s）；`tsc`、`build` 通过。
 - [x] 截图 `209`–`212`；文档 `PLAN-4.24.0.md`、`RELEASE-4.24.0.md`。
+- [x] 发布：功能提交 `a8ca9e2`；五远端 `main` 已核对为同一 SHA；飞书交付 https://my.feishu.cn/file/JlUabKdwfo8RpmxO8ldctyWA6Gc ，计划 https://my.feishu.cn/file/Syh2bOHJcoToTQxDgcYcu3Jr6rf 。
 
 ## 2026-11-24 · 4.23.0 AI 托管台与电商经营测算（完成）
 
