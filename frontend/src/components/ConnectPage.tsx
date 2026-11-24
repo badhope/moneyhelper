@@ -30,6 +30,7 @@ import {
   RefreshCw,
   ScanLine,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
   Trash2,
   TrendingUp,
@@ -101,6 +102,7 @@ const CATEGORY_ICON: Record<string, typeof Wallet> = {
   pay: Wallet,
   invoice: FileSpreadsheet,
   company: Cloud,
+  commerce: ShoppingBag,
 };
 
 const STATUS_STYLE: Record<string, string> = {

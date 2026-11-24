@@ -35,6 +35,12 @@ const BankBody = lazy(() =>
 const LongTaskBody = lazy(() =>
   import("@/components/LongTaskPage").then((m) => ({ default: m.LongTaskPage })),
 );
+const AutopilotBody = lazy(() =>
+  import("@/components/AutopilotPage").then((m) => ({ default: m.AutopilotPage })),
+);
+const EcommerceBody = lazy(() =>
+  import("@/components/EcommercePage").then((m) => ({ default: m.EcommercePage })),
+);
 
 export type { DataKind } from "@/lib/views";
 
@@ -74,6 +80,8 @@ export function FinancePage({
               </div>
             }
           >
+            {kind === "autopilot" && <AutopilotBody onGo={onKindChange} />}
+            {kind === "ecommerce" && <EcommerceBody onGo={onKindChange} />}
             {kind === "overview" && (
               <Dashboard
                 // 空态三个主按钮必须有真实去处：此前 FinancePage 没传这几个

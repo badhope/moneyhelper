@@ -72,6 +72,8 @@ export const en_debts: Record<string, string> = {
   "debts.goLedger": "Add a debt",
   "debts.loadError": "Could not load the plan",
   "nav.dashboard": "Dashboard",
+  "nav.autopilot": "Autopilot desk",
+  "nav.ecommerce": "E-commerce",
   "nav.groupDaily": "Daily",
   "nav.groupAnalyze": "Analyze",
   "nav.groupBooks": "Operations",

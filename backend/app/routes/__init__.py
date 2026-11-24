@@ -5,6 +5,7 @@ Keeps main.py focused on middleware / core endpoints (ask, confirm, bootstrap, d
 
 # Re-export each sub-router for inclusion in the main app.
 from .authz import router as authz_router
+from .autopilot import router as autopilot_router
 from .banking import router as banking_router
 from .budgets import router as budgets_router
 from .calculations import router as calculations_router
@@ -14,6 +15,7 @@ from .consolidation import router as consolidation_router
 from .debt_payoff import router as debt_payoff_router
 from .debts_subs import router as debts_subs_router
 from .demo import router as demo_router
+from .ecommerce import router as ecommerce_router
 from .evaluation import router as evaluation_router
 from .execute import router as execute_router
 from .expenses import router as expenses_router

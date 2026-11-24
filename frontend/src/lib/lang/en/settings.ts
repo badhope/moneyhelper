@@ -10,6 +10,8 @@ export const en_settings: Record<string, string> = {
   "cmd.goMarket": "Go to Market",
   "cmd.goStrategy": "Go to Strategy",
   "cmd.goResearch": "Go to Research",
+  "cmd.goAutopilot": "Open Autopilot desk",
+  "cmd.goEcommerce": "Open E-commerce",
   "cmd.goStatements": "Go to Statements",
   "cmd.goPaper": "Go to Paper Trading",
   "cmd.goLedger": "Go to Ledger",

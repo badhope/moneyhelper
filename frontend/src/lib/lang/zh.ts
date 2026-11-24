@@ -14,6 +14,8 @@ import { zh_tax } from "./zh/tax";
 import { zh_review } from "./zh/review";
 import { zh_plan } from "./zh/plan";
 import { zh_external } from "./zh/external";
+import { zh_autopilot } from "./zh/autopilot";
+import { zh_ecommerce } from "./zh/autopilot";
 
 export const zh: Record<string, string> = {
   ...zh_entry,
@@ -27,4 +29,6 @@ export const zh: Record<string, string> = {
   ...zh_review,
   ...zh_plan,
   ...zh_external,
+  ...zh_autopilot,
+  ...zh_ecommerce,
 };

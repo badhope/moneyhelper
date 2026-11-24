@@ -95,6 +95,21 @@ from .broker_credentials import (
 from .broker_credentials import (
     save_credentials as broker_save_credentials,
 )
+from .autopilot import (
+    decision_stats as autopilot_decision_stats,
+    get_policy as autopilot_get_policy,
+    list_decisions as autopilot_list_decisions,
+    list_policies as autopilot_list_policies,
+    record_decision as autopilot_record_decision,
+    save_policy as autopilot_save_policy,
+)
+
+from .ecommerce import (
+    delete_scenario as ecommerce_delete_scenario,
+    list_scenarios as ecommerce_list_scenarios,
+    save_scenario as ecommerce_save_scenario,
+)
+
 from .external_channels import (
     create_delivery as external_create_delivery,
 )
@@ -454,6 +469,15 @@ __all__ = [
     "broker_save_credentials",
     "budget_usage",
     "external_create_delivery",
+    "autopilot_decision_stats",
+    "autopilot_get_policy",
+    "autopilot_list_decisions",
+    "autopilot_list_policies",
+    "autopilot_record_decision",
+    "autopilot_save_policy",
+    "ecommerce_delete_scenario",
+    "ecommerce_list_scenarios",
+    "ecommerce_save_scenario",
     "external_delete_channel",
     "external_delivery_stats",
     "external_finish_delivery",

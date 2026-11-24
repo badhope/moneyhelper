@@ -27,6 +27,7 @@ from .middleware import setup as setup_middleware
 from .routes import (
     authz_router,
     banking_router,
+    autopilot_router,
     budgets_router,
     calculations_router,
     connect_deep_router,
@@ -35,6 +36,7 @@ from .routes import (
     debt_payoff_router,
     debts_subs_router,
     demo_router,
+    ecommerce_router,
     evaluation_router,
     execute_router,
     expenses_router,
@@ -110,6 +112,7 @@ app.include_router(settings_router)
 app.include_router(goals_router)
 app.include_router(debts_subs_router)
 app.include_router(demo_router)
+app.include_router(ecommerce_router)
 app.include_router(debt_payoff_router)
 app.include_router(market_router)
 app.include_router(calculations_router)
@@ -118,6 +121,7 @@ app.include_router(connect_deep_router)
 app.include_router(consolidation_router)
 app.include_router(plan_router)
 app.include_router(external_router)
+app.include_router(autopilot_router)
 app.include_router(finance_tax_router)
 app.include_router(gl_router)
 app.include_router(execute_router)

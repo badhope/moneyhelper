@@ -5,8 +5,10 @@
 from __future__ import annotations
 
 from .schema_attribution import SQL as _attribution
+from .schema_autopilot import SQL as _autopilot
 from .schema_automation import SQL as _automation
 from .schema_consolidation import SQL as _consolidation
+from .schema_ecommerce import SQL as _ecommerce
 from .schema_external import SQL as _external
 from .schema_enterprise_fin import SQL as _fin
 from .schema_enterprise_gl import SQL as _gl
@@ -24,4 +26,6 @@ SCHEMA_ENTERPRISE = (
     + _consolidation
     + _external
     + _plan
+    + _autopilot
+    + _ecommerce
 )

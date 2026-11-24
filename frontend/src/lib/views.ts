@@ -14,6 +14,7 @@
 
 export const DATA_KINDS = [
   "overview",
+  "autopilot",
   "holdings",
   "market",
   "ledger",
@@ -32,6 +33,7 @@ export const DATA_KINDS = [
   "expenses",
   "procurement",
   "longtask",
+  "ecommerce",
   "bank",
 ] as const;
 

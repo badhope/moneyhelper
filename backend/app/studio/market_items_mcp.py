@@ -26,6 +26,20 @@ ITEMS: tuple[dict[str, Any], ...] = (
         "server": {"name": "fetch", "command": "uvx", "args": ["mcp-server-fetch"]},
     },
 
+
+    {
+        "id": "mcp-playwright",
+        "aliases": ["浏览器", "开放平台", "抖店", "淘宝", "拼多多", "playwright"],
+        "name": "Playwright MCP（浏览器授权读取）",
+        "kind": "mcp",
+        "category": "电商与浏览器 MCP",
+        "source": "Microsoft 官方",
+        "url": "https://github.com/microsoft/playwright-mcp",
+        "stars": 39966,
+        "description": "官方浏览器自动化 MCP：用于让 Agent 打开商家后台、在用户授权下读取订单与账单；不代下单、不改价。",
+        "server": {"name": "playwright", "command": "npx", "args": ["@playwright/mcp@latest"]},
+    },
+
     {
         "id": "mcp-aktools",
         "aliases": ["akshare", "财经", "A股", "行情", "aktools"],

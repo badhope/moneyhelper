@@ -20,6 +20,7 @@ CATEGORIES = (
     ("pay", "支付与钱包"),
     ("invoice", "发票与票据"),
     ("company", "公司与财税"),
+    ("commerce", "电商经营"),
 )
 
 

@@ -2,6 +2,43 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.23.0] - 2026-11-24（AI 托管台与电商经营测算）
+
+### 新增
+
+- **AI 托管台**：新增 `app/autopilot.py`、`app/routes/autopilot.py`、`app/db/schema_autopilot.py`、`app/db/autopilot.py`，按用户 + 动作保存 `manual / assist / auto` 三档策略。
+- **规则字段**：税务动作可预设通道与自动执行上限（默认 50000，0 表示不限）；超阈值、缺通道、数据阻断回落为 `awaiting` 或 `blocked`。
+- **两个真实动作**：`tax_deliver` 复用税务核对包与 4.22 外部投递层；`month_end_close` 复用 `enterprise_month_end` 工作流，幂等键按租户 + 账期。
+- **执行顺序**：`run-all` 先月结、后税务交接；新增 `dry_run`，只评估不触发外部动作，仍记决策。
+- **决策台账**：`autopilot_decisions` 记录 `manual / awaiting / executed / blocked / failed`，每用户最多 300 条。
+- **接口**：`GET /api/autopilot/overview`、`GET/PUT /api/autopilot/policies`、`POST /api/autopilot/actions/{key}/run`、`POST /api/autopilot/run-all`、`GET /api/autopilot/decisions`。
+- **电商经营测算**：新增 `app/calculations/ecommerce.py`、`app/routes/ecommerce.py`、`app/db/schema_ecommerce.py`、`app/db/ecommerce.py` 与 `ecommerce_scenarios` 表；确定性计算净利、净利率、单均净利、客单价、退款率、当前 ROAS、盈亏平衡广告费/ROAS 与告警。
+- **电商接口**：`POST /api/ecommerce/calculate`、`GET/POST /api/ecommerce/scenarios`、`DELETE /api/ecommerce/scenarios/{id}`。
+- **开放平台**：连接中心新增 `commerce` 分类与抖店、淘宝、拼多多、有赞四入口，授权后只读订单/账单，不代下单。
+- **MCP**：插件市场新增 `Playwright MCP（浏览器授权读取）`，用于商家后台授权读取，不代下单、不改价。
+- **前端**：新增 `AutopilotPage.tsx`、`EcommercePage.tsx` 与 `autopilot` / `ecommerce` 顶层视图；导航、命令面板与中英文案同步。
+
+### 修正
+
+- 手动模式即使请求带 `confirm=true` 也只出计划，不会绕过“绝不执行”的边界；`dry_run` 统一标记在决策里。
+- 托管/电商参数错误由 500 改为 400；金额阈值、GMV、成本等非有限数字直接拒绝，避免 NaN 绕过阈值。
+- 托管台切换模式后旧结果仍显示旧模式；改为切模式清空该动作的结果，避免把旧计划当新规则。
+- 电商页删除方案后「已保存」提示仍残留；改为保存提示 2.2 秒自动消失，删除成功即清。
+- 电商净利率/退款率曾按比例直接显示为百分数；改为乘 100 后展示。
+- 抖店名称过长在卡片头被截断；缩短为「抖店开放平台」。
+
+### 安全
+
+- 托管 `auto` 也只在规则内执行；金额超阈值、通道未就绪、数据阻断都会回落，不绕过确认。
+- 投递仍复用 4.22 的 fail-closed、TLS/HTTPS 限制、幂等键与回执留痕；`duplicate` 不重复发信或重复 POST。
+- 托管不新增税局直连、银行划款、法定合并或社区代发布；没有资质与授权的地方仍停在边界说明。
+
+### 验证
+
+- 后端全量 1975 项通过（261.90s）；前端 36 文件 / 247 项通过（71.74s）；`tsc` 与 `build` 通过。
+- 浏览器：手动只评估、助理待确认、确认后执行、幂等去重、自动月结执行、电商保存/删除、电商分类、Playwright MCP 均完成验收。
+- 截图 `docs/screenshots/199`–`208`。
+
 ## [4.22.0] - 2026-11-24（外部投递通道：真实 SMTP 与签名 HTTPS 网关）
 
 ### 新增

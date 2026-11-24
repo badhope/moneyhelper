@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Bot,
   BookOpenCheck,
   CandlestickChart,
   CalendarCheck,
@@ -11,6 +12,7 @@ import {
   LayoutGrid,
   NotebookPen,
   Plug,
+  ShoppingBag,
   TrendingUp,
   Users,
   Wallet,
@@ -51,6 +53,7 @@ export const NAV_GROUPS: NavGroup<DataKind>[] = [
     labelKey: "nav.groupDaily",
     items: [
       { key: "overview", labelKey: "nav.dashboard", icon: LayoutGrid },
+      { key: "autopilot", labelKey: "nav.autopilot", icon: Bot },
       { key: "holdings", labelKey: "nav.holdings", icon: Wallet },
       { key: "ledger", labelKey: "nav.ledger", icon: NotebookPen },
       { key: "debts", labelKey: "nav.debts", icon: CreditCard },
@@ -70,6 +73,7 @@ export const NAV_GROUPS: NavGroup<DataKind>[] = [
     labelKey: "nav.groupBooks",
     items: [
       { key: "expenses", labelKey: "nav.billsWorkspace", icon: ClipboardList },
+      { key: "ecommerce", labelKey: "nav.ecommerce", icon: ShoppingBag },
       { key: "longtask", labelKey: "nav.longtask", icon: FileText },
     ],
   },

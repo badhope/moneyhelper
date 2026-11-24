@@ -10,6 +10,8 @@ export const zh_settings: Record<string, string> = {
   "cmd.goMarket": "去行情",
   "cmd.goStrategy": "去投资策略",
   "cmd.goResearch": "去投研",
+  "cmd.goAutopilot": "打开托管台",
+  "cmd.goEcommerce": "打开电商经营",
   "cmd.goStatements": "去看经营报表",
   "cmd.goPaper": "去模拟交易",
   "cmd.goLedger": "去记账",

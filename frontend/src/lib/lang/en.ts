@@ -14,6 +14,8 @@ import { en_tax } from "./en/tax";
 import { en_review } from "./en/review";
 import { en_plan } from "./en/plan";
 import { en_external } from "./en/external";
+import { en_autopilot } from "./en/autopilot";
+import { en_ecommerce } from "./en/autopilot";
 
 export const en: Record<string, string> = {
   ...en_entry,
@@ -27,4 +29,6 @@ export const en: Record<string, string> = {
   ...en_review,
   ...en_plan,
   ...en_external,
+  ...en_autopilot,
+  ...en_ecommerce,
 };

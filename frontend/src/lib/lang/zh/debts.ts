@@ -72,6 +72,8 @@ export const zh_debts: Record<string, string> = {
   "debts.goLedger": "去录入负债",
   "debts.loadError": "规划加载失败",
   "nav.dashboard": "总览",
+  "nav.autopilot": "托管台",
+  "nav.ecommerce": "电商经营",
   "nav.groupDaily": "每天看",
   "nav.groupAnalyze": "判断时",
   "nav.groupBooks": "业务",
