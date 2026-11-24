@@ -10,7 +10,7 @@
 - 代码规模：`backend/app` 531 个 Python 文件；`frontend/src` 260 个 TS/TSX 文件
 - 功能提交：`fa007cd1d9fea8d966085a48c96ef02ee3832ae4`
 - 五远端：GitCode / GitHub ×3 / Gitee 的 `main` 同为同一 SHA
-- 飞书交付：见文末
+- 飞书交付：https://my.feishu.cn/file/QsPabnPgLoyqAoxvkMzc5IBf68c
 
 ## 一、这次改了什么
 
