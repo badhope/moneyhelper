@@ -160,6 +160,16 @@ describe("ExternalPacketPanel", () => {
     expect(screen.getAllByText("external.hashMatched").length).toBeGreaterThan(0);
     expect(screen.getAllByText("external.status.handed_over").length).toBeGreaterThan(0);
     expect(screen.getByText("external.handoffAck")).toBeInTheDocument();
+    // 4.21.1：顶部总览、税务环图、现金安全垫、合并主体卡与交接路径都要真实渲染
+    expect(screen.getByText("external.heroKicker")).toBeInTheDocument();
+    expect(screen.getByText("external.heroHandedShort")).toBeInTheDocument();
+    expect(screen.getByText("external.overviewPacks")).toBeInTheDocument();
+    expect(screen.getByText("external.overviewHanded")).toBeInTheDocument();
+    expect(screen.getAllByText("external.taxSplit").length).toBeGreaterThan(0);
+    expect(screen.getByText("external.paymentFlow")).toBeInTheDocument();
+    expect(screen.getByText("external.consolidationEntities")).toBeInTheDocument();
+    expect(screen.getAllByText("external.ledgerStepArchive").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("external.ledgerStepHandoff").length).toBeGreaterThan(0);
   });
 
   it("留档按钮把类型、期间与备注一起提交", () => {
