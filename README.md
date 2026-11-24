@@ -84,6 +84,13 @@ On the personal side, the dashboard adds an asset tune-up card that turns emerge
   <img src="docs/screenshots/175-asset-tune.png" width="100%" alt="Asset tune-up: concentration and savings candidates with impact, risk and confirmation" />
 </p>
 
+**The last mile of filing, paying and auditing becomes a handoff packet.** The ledger workspace gains an External Handoff tab. The tax worksheet reads only the month's posted vouchers and reports income, expense, tax, debit-credit totals and eight reconciliation checks, always marked "not submitted · review only". The payment draft turns each cash-plan outflow into an instruction with payee, amount and certainty, always marked "draft · cannot execute". The consolidation audit packet bundles the management-basis worksheet, entity status, eliminations and a source hash, always marked "not audited · management basis". All three are downloadable and reviewable, but none submits to a tax bureau, moves money or issues a statutory opinion.
+
+<p align="center">
+  <img src="docs/screenshots/177-external-tax.png" width="49%" alt="Tax filing worksheet: eight checks, account summary and not-submitted status" />
+  <img src="docs/screenshots/178-external-payment.png" width="49%" alt="Payment instruction draft: line items, blocked execution channel and non-executable status" />
+</p>
+
 **Everything is addressable by your own agent.** The same capabilities are exposed through MCP, so Claude, Codex or any MCP client can drive the books with your permission.
 
 ---

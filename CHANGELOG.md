@@ -2,6 +2,23 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.20.0] - 2026-11-24（外部协同前置层）
+
+### 新增
+
+- **税务申报核对包**：`GET /api/external/tax-packet?period=YYYY-MM`。复用单月财税时序，只读已过账凭证，汇总收入/费用/利润/现金/税费/借贷/科目，输出八项勾稽；`submission_status=not_submitted`，不生成申报表、不提交税局。
+- **付款指令草稿包**：`GET /api/external/payment-packet?period=YYYY-MM`。把资金计划流出逐笔转成付款草稿，标计划日期、账户、收款方、金额、确定性与复核提示；`execution_status=draft_only`、`can_execute=false`，不校验余额、不发起支付。
+- **合并审计包**：`GET /api/external/consolidation-packet?group_id=&period=YYYY-MM`。包装管理口径合并底稿、主体状态、抵销、合并摘要、warnings 与稳定 `source_hash`；`basis=management`、`audit_status=not_audited`，不出法定意见。
+- **前端外部协同页**：财务工作区「账务」组新增「外部协同」，三卡片展示状态、指标、勾稽、明细与边界；税务/合并下载 JSON，付款下载 UTF-8 BOM CSV；亮暗双主题与手机入口同步。
+- **无新表、无迁移**：73 张业务表保持不变；三个接口全部只读。
+
+### 验证与发布
+
+- 后端定向 3 项通过；全量 `1954 passed / 332.54s`。
+- 前端 36 文件 / `246 passed / 77.17s`；`tsc` 通过；build 23.78s。
+- OpenAPI `4.20.0` / 350 paths；浏览器真实下载并核验 `TAX-202611-f9ccecd1.json`。
+- 截图 `177`–`180`；版本升到 4.20.0，`PREVIOUS_VERSION=4.19.0`。
+
 ## [4.19.0] - 2026-11-24（企业预算与资金计划 + P1）
 
 ### 新增

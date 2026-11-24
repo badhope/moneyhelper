@@ -90,7 +90,7 @@ export function FinancePage({
             )}
             {kind === "holdings" && <HoldingsView onGoMarket={() => onKindChange("market")} />}
             {kind === "connect" && <ConnectBody />}
-            {(kind === "gl" || kind === "statements" || kind === "tax" || kind === "review" || kind === "budget") && (
+            {(kind === "gl" || kind === "statements" || kind === "tax" || kind === "review" || kind === "budget" || kind === "external") && (
               <LedgerWorkspace initial={kind} />
             )}
 

@@ -39,6 +39,7 @@ from .routes import (
     execute_router,
     expenses_router,
     family_router,
+    external_router,
     finance_tax_router,
     gl_router,
     goals_router,
@@ -116,6 +117,7 @@ app.include_router(connect_router)
 app.include_router(connect_deep_router)
 app.include_router(consolidation_router)
 app.include_router(plan_router)
+app.include_router(external_router)
 app.include_router(finance_tax_router)
 app.include_router(gl_router)
 app.include_router(execute_router)

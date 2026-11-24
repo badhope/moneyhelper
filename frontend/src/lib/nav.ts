@@ -104,6 +104,7 @@ export const WORKSPACE_HOME: Partial<Record<DataKind, DataKind>> = {
   gl: "statements",
   tax: "statements",
   budget: "statements",
+  external: "statements",
   procurement: "expenses",
   strategy: "research",
 };

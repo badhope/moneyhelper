@@ -26,6 +26,7 @@ export const DATA_KINDS = [
   "connect",
   "tax",
   "budget",
+  "external",
   "debts",
   "gl",
   "expenses",

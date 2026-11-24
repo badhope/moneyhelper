@@ -25,6 +25,9 @@ const TaxBody = lazy(() => import("@/components/TaxPage").then((m) => ({ default
 const BudgetBody = lazy(() =>
   import("@/components/EnterprisePlanPanel").then((m) => ({ default: m.EnterprisePlanPanel })),
 );
+const ExternalBody = lazy(() =>
+  import("@/components/ExternalPacketPanel").then((m) => ({ default: m.ExternalPacketPanel })),
+);
 const ReviewBody = lazy(() =>
   import("@/components/MonthlyReviewPage").then((m) => ({ default: m.MonthlyReviewPage })),
 );
@@ -63,7 +66,7 @@ function Frame({
 }
 
 /** 账务：总账 / 财报 / 公司财税 */
-export function LedgerWorkspace({ initial }: { initial: "gl" | "statements" | "tax" | "review" | "budget" }) {
+export function LedgerWorkspace({ initial }: { initial: "gl" | "statements" | "tax" | "review" | "budget" | "external" }) {
   const { t } = useI18n();
   return (
     <Frame
@@ -74,8 +77,9 @@ export function LedgerWorkspace({ initial }: { initial: "gl" | "statements" | "t
         { value: "review", label: t("nav.review") },
         { value: "tax", label: t("nav.tax") },
         { value: "budget", label: t("nav.budget") },
+        { value: "external", label: t("nav.external") },
       ]}
-      bodies={{ gl: <GlBody />, statements: <StatementsBody />, review: <ReviewBody />, tax: <TaxBody />, budget: <BudgetBody /> }}
+      bodies={{ gl: <GlBody />, statements: <StatementsBody />, review: <ReviewBody />, tax: <TaxBody />, budget: <BudgetBody />, external: <ExternalBody /> }}
     />
   );
 }

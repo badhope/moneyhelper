@@ -18,6 +18,7 @@ from .evaluation import router as evaluation_router
 from .execute import router as execute_router
 from .expenses import router as expenses_router
 from .family import router as family_router
+from .external import router as external_router
 from .finance_tax import router as finance_tax_router
 from .gl import router as gl_router
 from .goals import router as goals_router
@@ -58,6 +59,7 @@ __all__ = [
     "execute_router",
     "expenses_router",
     "family_router",
+    "external_router",
     "finance_tax_router",
     "gl_router",
     "goals_router",

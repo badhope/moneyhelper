@@ -13,6 +13,7 @@ import { en_connect } from "./en/connect";
 import { en_tax } from "./en/tax";
 import { en_review } from "./en/review";
 import { en_plan } from "./en/plan";
+import { en_external } from "./en/external";
 
 export const en: Record<string, string> = {
   ...en_entry,
@@ -25,4 +26,5 @@ export const en: Record<string, string> = {
   ...en_tax,
   ...en_review,
   ...en_plan,
+  ...en_external,
 };
