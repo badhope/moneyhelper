@@ -59,6 +59,7 @@
 | 浏览器 | 演示 2026-11 税务包留档→备注→线下确认；付款包留档；台账 2 条、仅留档 1、已交接 1；摘要均「与当前包一致」；审计链 `ok=true`、64 条 |
 | 截图 | `181-handoff-ledger-dark.png`、`182-handoff-ledger-light.png`、`183-handoff-actions.png` |
 | 边界 | 留档不是税局回执，线下确认不是付款回单，不是审计意见；不改账、不改包 |
+| 发布 | 功能提交 `807b7da`；五远端 `main` 已核对为同一 SHA；飞书交付 https://my.feishu.cn/file/R4jrbvRmSoTGDlx0eCXcDViZ6NS |
 
 ## 2026-11-24 · 4.20.0 外部协同前置层（完成）
 

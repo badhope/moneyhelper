@@ -8,6 +8,9 @@
 - 业务表：73 张（未新增、未迁移）
 - 代码规模：`backend/app` 531 个 Python 文件；`frontend/src` 259 个 TS/TSX 文件；OpenAPI 352 个路径
 - 新增接口：3 个 `/api/external/handoffs*`（1 读 2 写）
+- 提交：`807b7dadabd932e34d177d893586942fb9f5781c`
+- 五远端：GitCode / GitHub ×3 / Gitee 的 `main` 均为同一 SHA
+- 飞书交付：https://my.feishu.cn/file/R4jrbvRmSoTGDlx0eCXcDViZ6NS
 
 ## 一、交接台账
 
