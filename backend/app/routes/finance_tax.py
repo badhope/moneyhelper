@@ -25,7 +25,11 @@ from ..calculations import (
     tax_summary,
     vat,
 )
+from ..db import attribution as attribution_db
 from ..db import automation as automation_db
+from ..db.tenant import current_tenant_id, current_user_id
+from ..finance_attribution import suggest_attributions, validate_category
+from ..provenance import record_provenance
 from ._responses import bad as _bad
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -211,6 +215,93 @@ async def anomalies(lookback_days: int = 180) -> dict[str, Any]:
         as_of=date.today(),
         lookback_days=max(30, min(lookback_days, 730)),
     )
+
+
+# ---------------------------------------------------------------------------
+# 财税时序（4.17.1）：只读总账已过账凭证，按月压成一条时间轴
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/finance/timeline")
+async def finance_timeline_view(months: int = 12) -> Any:
+    return await db.finance_timeline(current_tenant_id(), months=months)
+
+
+# ---------------------------------------------------------------------------
+# 收支归因（4.17.1）：规则/历史候选 + 用户确认，确认前不改账
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/finance/attribution/candidates")
+async def attribution_candidates(limit: int = 50) -> Any:
+    rows = await db.list_transactions(limit=800)
+    confirmations = await attribution_db.list_confirmations(
+        current_tenant_id(), current_user_id()
+    )
+    out = suggest_attributions(rows, confirmations, limit=limit)
+    out["scan_limit"] = 800
+    return out
+
+
+@router.post("/api/finance/attribution/confirm")
+async def attribution_confirm(payload: dict[str, Any]) -> Any:
+    body = payload or {}
+    try:
+        tx_id = int(body.get("transaction_id") or 0)
+        category = validate_category(body.get("category"))
+    except (TypeError, ValueError) as exc:
+        return _bad(str(exc))
+    if tx_id <= 0:
+        return _bad("transaction_id 必须是正整数")
+
+    tx = await attribution_db.get_transaction(current_user_id(), tx_id)
+    if tx is None:
+        return _bad(f"流水 {tx_id} 不存在")
+
+    source = str(body.get("source") or "manual")
+    if source not in {"rule", "history", "existing", "manual"}:
+        source = "manual"
+    try:
+        confidence = max(0.0, min(float(body.get("confidence") or 0), 1.0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    matched = body.get("matched")
+    matched_list = [str(x)[:24] for x in matched][:5] if isinstance(matched, list) else []
+
+    previous = str(tx.get("category") or "")
+    await db.update_transaction(tx_id, category=category)
+    confirmation = await attribution_db.upsert_confirmation(
+        tenant_id=current_tenant_id(),
+        user_id=current_user_id(),
+        transaction_id=tx_id,
+        original_category=previous,
+        confirmed_category=category,
+        source=source,
+        rule_id=str(body.get("rule_id") or "")[:64],
+        confidence=confidence,
+        matched=matched_list,
+    )
+    await record_provenance(
+        "attribution_confirm",
+        "transaction",
+        str(tx_id),
+        before={"category": previous},
+        after={"category": category},
+        source="api",
+        metadata={
+            "rule_id": confirmation["rule_id"],
+            "confidence": confirmation["confidence"],
+            "matched": matched_list,
+            "attribution_source": source,
+        },
+    )
+    return {
+        "ok": True,
+        "transaction_id": tx_id,
+        "previous_category": previous,
+        "category": category,
+        "confirmation": confirmation,
+    }
 
 
 # ---------------------------------------------------------------------------

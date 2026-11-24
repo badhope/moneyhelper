@@ -29,6 +29,8 @@ import { Segmented } from "@/components/ui/segmented";
 import { useI18n } from "@/lib/i18n";
 import { fmtMoney, fmtPct, pnlClass } from "@/lib/format";
 import { StatTile } from "@/components/ui/stat";
+import { TaxTimelinePanel } from "@/components/TaxTimelinePanel";
+import { AttributionPanel } from "@/components/AttributionPanel";
 import { cn } from "@/lib/utils";
 import {
   useAnomalies,
@@ -46,7 +48,7 @@ import {
   type VatResult,
 } from "@/lib/use-finance-tax";
 
-type TaxTab = "vat" | "cit" | "iit" | "payroll" | "monthend";
+type TaxTab = "timeline" | "vat" | "cit" | "iit" | "payroll" | "attribution" | "monthend";
 
 function Field({
   label,
@@ -610,7 +612,7 @@ function SubsAnomalyCard() {
 
 export function TaxPage() {
   const { t } = useI18n();
-  const [tab, setTab] = useState<TaxTab>("vat");
+  const [tab, setTab] = useState<TaxTab>("timeline");
   return (
     <div className="space-y-3">
       <Card className="p-[var(--card-pad)]">
@@ -625,10 +627,12 @@ export function TaxPage() {
             onChange={setTab}
             size="sm"
             options={[
+              { value: "timeline", label: t("tax.tabTimeline") },
               { value: "vat", label: t("tax.tabVat") },
               { value: "cit", label: t("tax.tabCit") },
               { value: "iit", label: t("tax.tabIit") },
               { value: "payroll", label: t("tax.tabPayroll") },
+              { value: "attribution", label: t("tax.tabAttribution") },
               { value: "monthend", label: t("tax.tabMonthEnd") },
             ]}
           />
@@ -637,13 +641,17 @@ export function TaxPage() {
 
       <ForecastCard />
 
-      <Card className="p-[var(--card-pad)]">
-        {tab === "vat" && <VatPanel />}
-        {tab === "cit" && <CitPanel />}
-        {tab === "iit" && <IitPanel />}
-        {tab === "payroll" && <PayrollPanel />}
-        {tab === "monthend" && <MonthEndPanel />}
-      </Card>
+      {tab === "timeline" ? <TaxTimelinePanel /> : null}
+      {tab === "attribution" ? <AttributionPanel /> : null}
+      {tab !== "timeline" && tab !== "attribution" ? (
+        <Card className="p-[var(--card-pad)]">
+          {tab === "vat" && <VatPanel />}
+          {tab === "cit" && <CitPanel />}
+          {tab === "iit" && <IitPanel />}
+          {tab === "payroll" && <PayrollPanel />}
+          {tab === "monthend" && <MonthEndPanel />}
+        </Card>
+      ) : null}
 
       <SubsAnomalyCard />
 

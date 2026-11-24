@@ -2,6 +2,37 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.17.1] - 2026-11-24（财税时序看板、收支归因确认）
+
+### 新增
+
+- **财税时序（只读已过账）**：新增 `db/finance_timeline.py` 与 `GET /api/finance/timeline?months=`。按月聚合收入（贷方净额）、费用（借方净额）、利润、现金流入/流出（1001/1002）、税费计提/缴纳（2203）、已过账与草稿凭证数；只统计 `gl_entries.status = posted`。缺失月份返回 `status=missing`，不拿 0 冒充已结账；默认 12 个月、上限 36，按租户隔离。
+- **收支归因候选**：新增 `finance_attribution.py`、`db/attribution.py` 与 `GET /api/finance/attribution/candidates?limit=`。复用既有 `categorize.py` 规则表，历史样本只取账本中已有明确分类的同类摘要；每条候选带 `source`（rule/history/existing/fallback）、`rule_id`、`matched`、`confidence`、`reason`。无命中返回空分类的 fallback，不编分类。
+- **确认与留痕**：新增 `attribution_confirmations` 表与 `POST /api/finance/attribution/confirm`。确认前不改账；确认后经 `update_transaction` 写回分类，并调用 `record_provenance` 记录 before/after、规则与置信度。确认接口校验流水存在、分类非空/非「其他」/≤20 字，source 只允许 rule/history/existing/manual，confidence 夹在 0–1。
+- **前端两个页签**：在既有「报税助手 / 公司财税」内新增「财税时序」与「收支归因」，不新增顶层板块。时序默认近 6 个月，ECharts 收入/费用柱 + 利润/现金净流线，附明细表与缺账/开放状态；归因页展示来源徽章、置信度、规则理由、替代分类、人工选择与确认按钮。中英各新增 30 余条 i18n。
+- **演示数据与截图**：演示租户重建 2026-08..11 四个已过账期间（各三张凭证），补齐 4 笔「其他」流水用于归因；`docs/screenshots/160-finance-timeline.png`、`161-attribution-confirm.png` 为真实浏览器截图。
+
+### 变更
+
+- 「报税助手」默认页签改为「财税时序」，原有增值税/企业所得税/个税/工资核算/月度结账保留。
+- 归因成功提示改用语义绿、错误提示改用语义红，不再借用 A 股涨跌色；fallback 行建议文案显示「需人工」。
+- 版本升到 4.17.1：`backend/app/version.py`（`PREVIOUS_VERSION=4.17.0`）、`pyproject.toml`、`frontend/package.json`、`frontend/package-lock.json` 根两层。
+
+### 边界
+
+- **仍没有税局直连申报/缴款**，也没有银行/券商资金划转。时序里的「税费」只反映已过账的 2203 计提/缴纳，不等于完整申报底稿。
+- 时序只读已过账凭证；草稿、未审核、跨期调整不计入，缺账月份不推算、不插值。
+- 归因不是模型猜测：不调用 LLM 生成分类，无命中就留空要求人工；只扫描最近 800 笔流水，未做规则阈值配置、同商户记忆、批量确认与撤回。
+- 确认写入的是用户当前租户账本；演示模式只在演示租户内生效，真实账本不被演示数据污染。
+- 调度仍是内存 JobStore；停机补偿、重试退避、死信与告警仍在 4.17.2，未因本版本改变。
+
+### 验证
+
+- 后端全量 `1930 passed`（267.53s）；新增 2 项覆盖时序口径与归因确认。
+- 前端 34 文件 / 243 项通过（70.72s）；`tsc --noEmit` 通过；`npm run build` 成功（19.31s，语义色与缺账空值修正后重建）。
+- 浏览器：演示账本 4 个期间、2 个缺账，缺账行金额显示「—」而非 0；归因 3 条规则候选 + 1 条 fallback；确认后 pending 递减、已确认递增，流水分类真实写回。
+- 五远端 `main` 同步：发布后以 `git ls-remote` 核验 GitCode / GitHub 三账号 / Gitee 指向同一提交，提交 SHA 以仓库 `git log -1` 为准。
+
 ## [4.17.0] - 2026-11-24（平台基线、自动化运行台账、真实压测）
 
 ### 新增

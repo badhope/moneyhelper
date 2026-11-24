@@ -136,6 +136,66 @@ export interface AnomalyResult {
   lookback_days: number;
 }
 
+export interface TimelineMonth {
+  month: string;
+  status: "open" | "closed" | "missing";
+  closed_at: string;
+  income: number;
+  expense: number;
+  profit: number;
+  cash_in: number;
+  cash_out: number;
+  cash_net: number;
+  tax_accrued: number;
+  tax_paid: number;
+  tax_net: number;
+  posted_entries: number;
+  draft_entries: number;
+  source: "gl_posted" | "none";
+}
+
+export interface TimelineResult {
+  months: TimelineMonth[];
+  range: { from: string; to: string };
+  period_count: number;
+  missing_count: number;
+  source: string;
+  boundary: string;
+}
+
+export interface AttributionCandidate {
+  category: string;
+  source: "rule" | "history" | "existing" | "fallback";
+  confidence: number;
+  rule_id: string;
+  matched: string[];
+  reason: string;
+}
+
+export interface AttributionRow {
+  transaction_id: number;
+  date: string;
+  item: string;
+  amount: number;
+  direction: "收入" | "支出";
+  current_category: string;
+  candidate: AttributionCandidate;
+  alternatives: { category: string; source: string; confidence: number; count?: number }[];
+  needs_review: boolean;
+}
+
+export interface AttributionResult {
+  transactions: AttributionRow[];
+  pending: number;
+  resolved: number;
+  total: number;
+  coverage: number;
+  categories: string[];
+  source: string;
+  boundary: string;
+  scan_limit: number;
+}
+
 function post<T>(path: string, body: unknown): Promise<T> {
   return api<T>(path, { method: "POST", body: JSON.stringify(body) });
 }
@@ -189,6 +249,38 @@ export function useAnomalies(lookbackDays = 180) {
     queryKey: ["/api/finance/anomalies", lookbackDays],
     queryFn: () => api<AnomalyResult>(`/api/finance/anomalies?lookback_days=${lookbackDays}`),
     staleTime: 60_000,
+  });
+}
+
+/** 财税时序：只读总账已过账凭证，12 个月时间轴。 */
+export function useFinanceTimeline(months = 12) {
+  return useQuery({
+    queryKey: ["/api/finance/timeline", months],
+    queryFn: () => api<TimelineResult>(`/api/finance/timeline?months=${months}`),
+    staleTime: 60_000,
+  });
+}
+
+export function useAttributionCandidates(limit = 50) {
+  return useQuery({
+    queryKey: ["/api/finance/attribution/candidates", limit],
+    queryFn: () => api<AttributionResult>(`/api/finance/attribution/candidates?limit=${limit}`),
+    staleTime: 30_000,
+  });
+}
+
+export function useConfirmAttribution() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      post<{ ok: boolean; transaction_id: number; category: string; previous_category: string }>(
+        "/api/finance/attribution/confirm",
+        body,
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["/api/finance/attribution/candidates"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
   });
 }
 

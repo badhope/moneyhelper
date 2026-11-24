@@ -168,6 +168,7 @@ from .family import (
     member_summary,
     member_update,
 )
+from .finance_timeline import finance_timeline
 from .gl import (
     gl_bootstrap,
     gl_close_period,
