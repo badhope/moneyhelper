@@ -15,8 +15,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from . import db
+from .automation_runner import run_scheduled_month_end
 from .logging_utils import get_logger
-from .scheduler_background import (  # noqa: F401,E402 — 对外同名导出
+from .scheduler_background import (  # noqa: F401,E402 — 对外同名导出（含测试直调）
     _month_end_close,
     _scan_connect_inbox,
     _sync_connect_sources,
@@ -79,7 +80,7 @@ def _reschedule() -> None:
     _sched.add_job(_scan_connect_inbox, trigger="interval", minutes=10, id="connect_inbox_scan")
     # 月末结账：每月 1 日 02:00 把上月草稿过账后关账（用户不需要点任何按钮）
     _sched.add_job(
-        _month_end_close,
+        run_scheduled_month_end,
         CronTrigger(day=1, hour=2, minute=0, timezone="Asia/Shanghai"),
         id="month_end_close",
     )

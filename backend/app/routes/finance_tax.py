@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends
 
 from .. import db
 from ..auth import get_current_user
+from ..automation_runner import list_workflows, run_workflow
 from ..calculations import (
     cashflow_forecast,
     corporate_income_tax,
@@ -24,6 +25,7 @@ from ..calculations import (
     tax_summary,
     vat,
 )
+from ..db import automation as automation_db
 from ._responses import bad as _bad
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -209,6 +211,33 @@ async def anomalies(lookback_days: int = 180) -> dict[str, Any]:
         as_of=date.today(),
         lookback_days=max(30, min(lookback_days, 730)),
     )
+
+
+# ---------------------------------------------------------------------------
+# 自动化运行台账（4.17.0）：真实后台任务的可审计入口
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/automation/workflows")
+async def automation_workflows() -> Any:
+    return {"workflows": list_workflows()}
+
+
+@router.get("/api/automation/runs")
+async def automation_runs(limit: int = 20) -> Any:
+    runs = await automation_db.list_runs(max(1, min(limit, 200)))
+    return {"runs": runs, "count": len(runs)}
+
+
+@router.post("/api/automation/workflows/{key}/run")
+async def automation_run(key: str, payload: dict[str, Any] | None = None) -> Any:
+    """手动补跑：与定时任务走同一条实现；同工作流串行。"""
+    body = payload or {}
+    idem = str(body.get("idempotency_key") or "").strip()[:120]
+    try:
+        return await run_workflow(key, trigger="manual", idempotency_key=idem)
+    except ValueError as exc:
+        return _bad(str(exc))
 
 
 __all__ = ["router"]

@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-11-24T08:53:53+0800",
+  "personal_10m": {
+    "positions": 2001,
+    "total_market_value": 10200000.0,
+    "runs": 100,
+    "p50_ms": 0.33,
+    "p95_ms": 0.346,
+    "max_ms": 0.413,
+    "score_sample": 96,
+    "grade_sample": "A"
+  },
+  "tax_multi_entity": {
+    "entities": 100,
+    "months_per_entity": 12,
+    "runs": 1200,
+    "failures": 0,
+    "p50_ms": 0.017,
+    "p95_ms": 0.024,
+    "max_ms": 0.048,
+    "total_tax": 488715416.91
+  },
+  "enterprise_ledger": {
+    "entities": 10,
+    "periods": 12,
+    "entries_per_period": 20,
+    "entries": 2400,
+    "elapsed_s": 2.695,
+    "entries_per_s": 890.5
+  },
+  "sqlite_concurrency": {
+    "writers": 32,
+    "writes_per_writer": 20,
+    "writes": 640,
+    "errors": 0,
+    "error_samples": [],
+    "elapsed_s": 0.145,
+    "writes_per_s": 4413.5,
+    "p50_ms": 4.569,
+    "p95_ms": 13.738,
+    "max_ms": 14.025
+  },
+  "boundary": "确定性计算与本地 SQLite 压测；不含税局/银行外部接口，不等于 100% 场景覆盖。"
+}

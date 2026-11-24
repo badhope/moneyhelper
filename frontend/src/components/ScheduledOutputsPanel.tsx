@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import { Inbox, Sunrise, Zap } from "lucide-react";
+import { Activity, Inbox, Play, Sunrise, Zap } from "lucide-react";
 import { SidePanel } from "@/components/ui/side-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useI18n } from "@/lib/i18n";
 import { fmtDate } from "@/lib/format";
 import { levelLabel, isLevelAlert } from "@/lib/level";
+import { useAutomation, type AutomationRun } from "@/lib/automation";
 import { useScheduledOutputs } from "@/lib/inbox";
 import type { ScheduledOutput } from "@/lib/types";
 
@@ -44,23 +45,116 @@ export function ScheduledOutputsPanel({
         ) : undefined
       }
     >
-      {outputs === null ? (
-        <div className="py-10 text-center text-xs text-muted-foreground">{t("app.loading")}</div>
-      ) : outputs.length === 0 ? (
-        <EmptyState mode="compact" text={t("inbox.empty")} className="py-8" />
+      <div className="space-y-5">
+        <AutomationSection active={open} />
+        <div>
+          {outputs === null ? (
+            <div className="py-10 text-center text-xs text-muted-foreground">
+              {t("app.loading")}
+            </div>
+          ) : outputs.length === 0 ? (
+            <EmptyState mode="compact" text={t("inbox.empty")} className="py-8" />
+          ) : (
+            <ul className="space-y-2.5">
+              {outputs.map((o) => (
+                <OutputCard
+                  key={o.id}
+                  item={o}
+                  expanded={expanded === o.id}
+                  onToggle={() => setExpanded(expanded === o.id ? null : o.id)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </SidePanel>
+  );
+}
+
+function AutomationSection({ active }: { active: boolean }) {
+  const { t } = useI18n();
+  const { workflows, runs, running, run } = useAutomation(active);
+
+  return (
+    <section aria-label={t("inbox.autoTitle")}>
+      <div className="mb-2 flex items-center gap-2">
+        <Activity className="h-3.5 w-3.5 text-primary" />
+        <h3 className="text-xs font-semibold text-foreground">{t("inbox.autoTitle")}</h3>
+        {runs && runs.length > 0 && (
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            {t("inbox.autoSteps", { n: runs[0].steps.length })}
+          </span>
+        )}
+      </div>
+      <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
+        {t("inbox.autoHint")}
+      </p>
+      <div className="space-y-2">
+        {workflows.map((w) => (
+          <div key={w.key} className="rounded-lg border border-border bg-card/60 px-2.5 py-2">
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-medium text-foreground">{w.name}</span>
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  {w.steps.join(" · ")}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => void run(w.key)}
+                disabled={running !== null}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+              >
+                <Play className="h-3 w-3" />
+                {running === w.key ? t("inbox.autoRunning") : t("inbox.autoRun")}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {runs === null ? null : runs.length === 0 ? (
+        <p className="mt-2 text-[11px] text-muted-foreground">{t("inbox.autoEmpty")}</p>
       ) : (
-        <ul className="space-y-2.5">
-          {outputs.map((o) => (
-            <OutputCard
-              key={o.id}
-              item={o}
-              expanded={expanded === o.id}
-              onToggle={() => setExpanded(expanded === o.id ? null : o.id)}
-            />
+        <ul className="mt-2 space-y-1.5">
+          {runs.slice(0, 4).map((r) => (
+            <RunRow key={r.id} run={r} />
           ))}
         </ul>
       )}
-    </SidePanel>
+    </section>
+  );
+}
+
+function RunRow({ run }: { run: AutomationRun }) {
+  const { t } = useI18n();
+  const tone =
+    run.status === "done"
+      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+      : run.status === "partial"
+        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+        : run.status === "failed"
+          ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+          : "bg-primary/10 text-primary";
+  const label =
+    run.status === "done"
+      ? t("inbox.autoDone")
+      : run.status === "partial"
+        ? t("inbox.autoPartial")
+        : run.status === "failed"
+          ? t("inbox.autoFailed")
+          : t("inbox.autoRunning");
+
+  return (
+    <li className="flex items-center gap-2 text-[11px]">
+      <span className={`shrink-0 rounded-full px-1.5 py-0.5 font-medium ${tone}`}>{label}</span>
+      <span className="min-w-0 flex-1 truncate text-muted-foreground">
+        {run.workflow_name} · {run.steps.map((s) => s.name).join(" · ")}
+      </span>
+      <span className="shrink-0 text-muted-foreground">
+        {run.duration_ms > 0 ? `${(run.duration_ms / 1000).toFixed(1)}s` : "—"}
+      </span>
+    </li>
   );
 }
 

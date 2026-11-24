@@ -41,7 +41,11 @@ Every figure carries a provenance record: which tool, which arguments, which cod
 
 Both sides share one engine, so a family ledger and a company ledger obey the same accounting rules — one installation can hold your household and your business without mixing them.
 
-**Automation that runs unattended.** Month-end close posts the drafts and locks the period on a schedule. Recurring imports, anomaly scans and the morning digest do not wait for a click. Long-running work — a report, a paper, a small web app — runs as a staged task with resumable artifacts.
+**Automation that runs unattended, with a ledger of its own.** Month-end close posts the drafts and locks the period on a schedule. Recurring imports, anomaly scans and the morning digest do not wait for a click. Each scheduled or manual run records its workflow, steps, duration, return values and errors; reruns are idempotent and serialised per workflow. Long-running work — a report, a paper, a small web app — runs as a staged task with resumable artifacts.
+
+<p align="center">
+  <img src="docs/screenshots/159-automation-runs.png" width="100%" alt="Automation runs: real workflows, manual rerun, per-step status and duration" />
+</p>
 
 **Everything is addressable by your own agent.** The same capabilities are exposed through MCP, so Claude, Codex or any MCP client can drive the books with your permission.
 

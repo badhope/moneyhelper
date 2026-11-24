@@ -13,7 +13,7 @@ from .logging_utils import get_logger
 
 log = get_logger(__name__)
 
-async def _month_end_close() -> None:
+async def _month_end_close() -> dict[str, object]:
     """每月 1 日 02:00 自动结账上月——「全托管」的最后一块。
 
     用户的立场是"我不懂会计，也不想点任何一个结账按钮"，所以：
@@ -35,8 +35,10 @@ async def _month_end_close() -> None:
         ),
         None,
     )
-    if target is None or str(target.get("status")) == "closed":
-        return
+    if target is None:
+        return {"status": "skipped", "reason": "no_period", "posted": 0}
+    if str(target.get("status")) == "closed":
+        return {"status": "skipped", "reason": "already_closed", "posted": 0}
     posted = 0
     for entry in await db.gl_list_entries(tenant, int(target["id"]), limit=500):
         if str(entry.get("status")) != "draft":
@@ -52,34 +54,46 @@ async def _month_end_close() -> None:
         log.warning(
             "月末结账：%s-%02d 关账失败（可能仍有草稿）：%s", prev_end.year, prev_end.month, exc
         )
-        return
+        return {"status": "failed", "reason": "close_failed", "posted": posted, "error": str(exc)}
     log.info("月末结账：%s-%02d 已自动关账（补过账 %d 张）", prev_end.year, prev_end.month, posted)
+    return {
+        "status": "done",
+        "period": f"{prev_end.year}-{prev_end.month:02d}",
+        "posted": posted,
+    }
 
 
-async def _sync_connect_sources() -> None:
+async def _sync_connect_sources() -> dict[str, int]:
     """后台自动同步「全自动」类连接（公开行情 / 基金净值）。
 
     只碰 automation=auto 且未停用的连接：登录类连接需要用户在场，
     绝不在后台凭空消耗配对码。单条失败只记日志，不影响其他连接。
     """
+    synced = failed = skipped = 0
     try:
         from . import connect
 
         for conn in await connect.list_connections():
             if conn["status"] == "disabled":
+                skipped += 1
                 continue
             connector = connect.get_connector(conn["connector_id"]) or {}
             if connector.get("automation") != "auto":
+                skipped += 1
                 continue
             try:
                 await connect.sync_connection(conn["id"])
+                synced += 1
             except Exception as exc:  # noqa: BLE001 — 单条同步失败不阻断调度
+                failed += 1
                 log.warning("connect.auto_sync_failed id=%s err=%s", conn["id"], exc)
     except Exception as exc:  # noqa: BLE001 — 调度任务失败不能炸服务
         log.warning("connect.auto_sync crashed: %s", exc)
+        return {"synced": synced, "failed": failed, "skipped": skipped, "error": str(exc)}
+    return {"synced": synced, "failed": failed, "skipped": skipped}
 
 
-async def _scan_connect_inbox() -> None:
+async def _scan_connect_inbox() -> dict[str, object]:
     """后台自动扫描账单收件箱：用户只需把官方导出的 CSV 放进去。"""
     try:
         from . import connect
@@ -87,5 +101,7 @@ async def _scan_connect_inbox() -> None:
         out = await connect.scan_import_inbox()
         if out.get("imported"):
             log.info("connect.inbox_auto_imported n=%s", out["imported"])
+        return out
     except Exception as exc:  # noqa: BLE001
         log.warning("connect.inbox_scan crashed: %s", exc)
+        return {"imported": 0, "error": str(exc)}

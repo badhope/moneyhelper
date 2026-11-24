@@ -10,12 +10,12 @@ from . import db
 SUBS_REMIND_WITHIN_DAYS = 7
 
 
-async def _check_subscriptions_due() -> None:
+async def _check_subscriptions_due() -> dict[str, object]:
     """检查 subscriptions.due_day：7 天内到期的写入 user_memory（kind=subscription_due）。
     每个自然月只写一条提醒（due_day 列表拼接），避免每日重复刷屏。"""
     subs = await db.list_subscriptions()
     if not subs:
-        return
+        return {"subscriptions": 0, "due": 0, "reminded": False}
     today = datetime.now().astimezone().date()
     soon: list[dict[str, Any]] = []
     for s in subs:
@@ -42,7 +42,7 @@ async def _check_subscriptions_due() -> None:
                 }
             )
     if not soon:
-        return
+        return {"subscriptions": len(subs), "due": 0, "reminded": False}
     soon.sort(key=lambda x: x["days_until"])
     month_key = today.strftime("%Y-%m")
     marker = f"subscription_due:{month_key}"
@@ -68,6 +68,12 @@ async def _check_subscriptions_due() -> None:
         ]
     )
     await db.add_memory(content, kind=marker)
+    return {
+        "subscriptions": len(subs),
+        "due": len(soon),
+        "reminded": True,
+        "monthly_total": round(total, 2),
+    }
 
 
 def _upcoming_due_date(today, due_day: int) -> Any:
