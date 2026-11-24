@@ -91,6 +91,13 @@ On the personal side, the dashboard adds an asset tune-up card that turns emerge
   <img src="docs/screenshots/178-external-payment.png" width="49%" alt="Payment instruction draft: line items, blocked execution channel and non-executable status" />
 </p>
 
+**A handed-off pack still needs a paper trail.** Each pack card now has an Archive action that appends its packet ID, period, source digest and note to the local audit hash chain, with no new business table. The handoff ledger at the bottom separates "archive only" from "handed over offline" and compares the stored digest with the pack regenerated on screen, showing "matches current pack" or a red mismatch. Offline confirmation only records that you say it was given to a person; it is not a tax receipt, payment confirmation or audit opinion.
+
+<p align="center">
+  <img src="docs/screenshots/181-handoff-ledger-dark.png" width="49%" alt="Handoff ledger: archive, offline confirmation, source digest and current-pack match" />
+  <img src="docs/screenshots/183-handoff-actions.png" width="49%" alt="Tax packet marked handed over offline with its action and download" />
+</p>
+
 **Everything is addressable by your own agent.** The same capabilities are exposed through MCP, so Claude, Codex or any MCP client can drive the books with your permission.
 
 ---

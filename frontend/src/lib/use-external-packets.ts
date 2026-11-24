@@ -1,5 +1,5 @@
 /** 外部协同前置包 hooks（4.20.0）。 */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 export interface ExternalCheck {
@@ -15,6 +15,7 @@ export interface TaxPacket {
   generated_at: string;
   status: "ready" | "review" | "blocked" | "missing";
   submission_status: "not_submitted";
+  source_hash: string;
   period_status: string;
   closed_at: string;
   posted_entries: number;
@@ -63,6 +64,7 @@ export interface PaymentPacket {
   status: "ready" | "review" | "blocked" | "missing";
   execution_status: "draft_only";
   can_execute: false;
+  source_hash: string;
   total: number;
   total_cents: number;
   count: number;
@@ -130,5 +132,61 @@ export function useConsolidationPacket(groupId: string | null, period: string) {
         `/api/external/consolidation-packet?group_id=${encodeURIComponent(groupId ?? "")}&period=${encodeURIComponent(period)}`,
       ),
     enabled: Boolean(groupId && period),
+  });
+}
+
+
+export interface HandoffRecord {
+  packet_id: string;
+  kind: "tax" | "payment" | "consolidation";
+  period: string;
+  group_id: string;
+  source_hash: string;
+  packet_status: string;
+  note: string;
+  archived_at: string;
+  archived_by: string;
+  handed_at: string;
+  handed_note: string;
+  state: "archived" | "handed_over";
+  last_activity?: string;
+}
+
+export interface HandoffLedger {
+  records: HandoffRecord[];
+  total: number;
+  archived_count: number;
+  handed_count: number;
+  boundary: string;
+}
+
+export function useHandoffLedger(limit = 20) {
+  return useQuery({
+    queryKey: ["external", "handoffs", limit],
+    queryFn: () => api<HandoffLedger>(`/api/external/handoffs?limit=${limit}`),
+  });
+}
+
+export function useArchiveHandoff() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { kind: HandoffRecord["kind"]; period: string; group_id?: string; note?: string }) =>
+      api<{ record: HandoffRecord; created: boolean }>("/api/external/handoffs", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["external", "handoffs"] }),
+  });
+}
+
+export function useAckHandoff() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { packet_id: string; note?: string }) =>
+      api<{ record: HandoffRecord; updated: boolean }>("/api/external/handoffs/ack", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["external", "handoffs"] }),
   });
 }

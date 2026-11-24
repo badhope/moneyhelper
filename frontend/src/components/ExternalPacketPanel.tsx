@@ -1,7 +1,10 @@
-/** 外部协同前置包（4.20.0）：税务核对、付款草稿、合并审计。只导出，不代执行。 */
+/** 外部协同前置包（4.21.0）：税务核对、付款草稿、合并审计，附交接留档台账。只导出，不代执行。 */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  Archive,
   Building2,
+  CheckCircle2,
+  ClipboardList,
   Download,
   FileCheck2,
   Landmark,
@@ -24,8 +27,13 @@ import {
   useTaxPacket,
   type ConsolidationPacket,
   type ExternalCheck,
+  type HandoffLedger,
+  type HandoffRecord,
   type PaymentPacket,
   type TaxPacket,
+  useAckHandoff,
+  useArchiveHandoff,
+  useHandoffLedger,
 } from "@/lib/use-external-packets";
 import { usePlanPeriods } from "@/lib/use-enterprise-plan";
 
@@ -60,7 +68,8 @@ function downloadPaymentCsv(packet: PaymentPacket) {
 }
 
 function statusTone(status: string): "ok" | "warn" | "danger" | "muted" {
-  if (status === "ready" || status === "ok") return "ok";
+  if (status === "ready" || status === "ok" || status === "handed_over") return "ok";
+  if (status === "archived") return "warn";
   if (status === "error" || status === "blocked") return "danger";
   if (status === "review" || status === "manual") return "warn";
   return "muted";
@@ -68,6 +77,27 @@ function statusTone(status: string): "ok" | "warn" | "danger" | "muted" {
 
 function StatusBadge({ status, t }: { status: string; t: (key: string) => string }) {
   return <Badge variant={statusTone(status)}>{t(`external.status.${status}`)}</Badge>;
+}
+
+function ArchiveButton({
+  record,
+  pending,
+  onArchive,
+}: {
+  record?: HandoffRecord;
+  pending: boolean;
+  onArchive: () => void;
+}) {
+  const { t } = useI18n();
+  if (record) {
+    return <StatusBadge status={record.state} t={t} />;
+  }
+  return (
+    <Button size="sm" variant="secondary" onClick={onArchive} disabled={pending}>
+      <Archive className="h-3.5 w-3.5" />
+      {pending ? t("external.archiving") : t("external.archive")}
+    </Button>
+  );
 }
 
 function BoundaryNote() {
@@ -145,7 +175,21 @@ function SectionHead({
   );
 }
 
-function TaxCard({ packet, loading, error }: { packet?: TaxPacket; loading: boolean; error: unknown }) {
+function TaxCard({
+  packet,
+  loading,
+  error,
+  handoff,
+  archivePending,
+  onArchive,
+}: {
+  packet?: TaxPacket;
+  loading: boolean;
+  error: unknown;
+  handoff?: HandoffRecord;
+  archivePending: boolean;
+  onArchive: () => void;
+}) {
   const { t } = useI18n();
   return (
     <Card className="p-[var(--card-pad)]">
@@ -155,15 +199,18 @@ function TaxCard({ packet, loading, error }: { packet?: TaxPacket; loading: bool
         hint={t("external.taxHint")}
         status={packet?.status}
         action={
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => packet && downloadJson(packet, `${packet.packet_id}.json`)}
-            disabled={!packet}
-          >
-            <Download className="h-3.5 w-3.5" />
-            {t("external.downloadJson")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ArchiveButton record={handoff} pending={archivePending} onArchive={onArchive} />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => packet && downloadJson(packet, `${packet.packet_id}.json`)}
+              disabled={!packet}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {t("external.downloadJson")}
+            </Button>
+          </div>
         }
       />
       {loading ? (
@@ -194,10 +241,10 @@ function TaxCard({ packet, loading, error }: { packet?: TaxPacket; loading: bool
                 <Table size="2xs" minWidth={520}>
                   <thead className="bg-muted/30 text-muted-foreground">
                     <tr>
-                      <th className="px-2 py-1.5 text-left">科目</th>
-                      <th className="px-2 py-1.5 text-right">借方</th>
-                      <th className="px-2 py-1.5 text-right">贷方</th>
-                      <th className="px-2 py-1.5 text-right">余额</th>
+                      <th className="px-2 py-1.5 text-left">{t("external.taxAccount")}</th>
+                      <th className="px-2 py-1.5 text-right">{t("external.taxDebit")}</th>
+                      <th className="px-2 py-1.5 text-right">{t("external.taxCredit")}</th>
+                      <th className="px-2 py-1.5 text-right">{t("external.taxBalance")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -224,7 +271,21 @@ function TaxCard({ packet, loading, error }: { packet?: TaxPacket; loading: bool
   );
 }
 
-function PaymentCard({ packet, loading, error }: { packet?: PaymentPacket; loading: boolean; error: unknown }) {
+function PaymentCard({
+  packet,
+  loading,
+  error,
+  handoff,
+  archivePending,
+  onArchive,
+}: {
+  packet?: PaymentPacket;
+  loading: boolean;
+  error: unknown;
+  handoff?: HandoffRecord;
+  archivePending: boolean;
+  onArchive: () => void;
+}) {
   const { t } = useI18n();
   return (
     <Card className="p-[var(--card-pad)]">
@@ -234,15 +295,18 @@ function PaymentCard({ packet, loading, error }: { packet?: PaymentPacket; loadi
         hint={t("external.paymentHint")}
         status={packet?.status}
         action={
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => packet && downloadPaymentCsv(packet)}
-            disabled={!packet || packet.count === 0}
-          >
-            <Download className="h-3.5 w-3.5" />
-            {t("external.downloadCsv")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ArchiveButton record={handoff} pending={archivePending} onArchive={onArchive} />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => packet && downloadPaymentCsv(packet)}
+              disabled={!packet || packet.count === 0}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {t("external.downloadCsv")}
+            </Button>
+          </div>
         }
       />
       {loading ? (
@@ -267,7 +331,7 @@ function PaymentCard({ packet, loading, error }: { packet?: PaymentPacket; loadi
                   <tr>
                     <th className="px-2 py-1.5 text-left">{t("external.paymentDate")}</th>
                     <th className="px-2 py-1.5 text-left">{t("external.paymentPayee")}</th>
-                    <th className="px-2 py-1.5 text-left">账户</th>
+                    <th className="px-2 py-1.5 text-left">{t("external.paymentAccount")}</th>
                     <th className="px-2 py-1.5 text-right">{t("external.paymentAmount")}</th>
                     <th className="px-2 py-1.5 text-left">{t("external.paymentCertainty")}</th>
                     <th className="px-2 py-1.5 text-left">{t("external.paymentReview")}</th>
@@ -310,6 +374,9 @@ function ConsolidationCard({
   groups,
   groupId,
   onGroup,
+  handoff,
+  archivePending,
+  onArchive,
 }: {
   packet?: ConsolidationPacket;
   loading: boolean;
@@ -317,6 +384,9 @@ function ConsolidationCard({
   groups: { id: string; name: string }[];
   groupId: string;
   onGroup: (value: string) => void;
+  handoff?: HandoffRecord;
+  archivePending: boolean;
+  onArchive: () => void;
 }) {
   const { t } = useI18n();
   return (
@@ -328,6 +398,7 @@ function ConsolidationCard({
         status={packet?.status}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <ArchiveButton record={handoff} pending={archivePending} onArchive={onArchive} />
             <select
               className="h-8 rounded-md border border-border/70 bg-background px-2 text-xs outline-none focus:border-primary"
               value={groupId}
@@ -390,7 +461,7 @@ function ConsolidationCard({
                 <tr>
                   <th className="px-2 py-1.5 text-left">{t("external.consolidationEntities")}</th>
                   <th className="px-2 py-1.5 text-left">method</th>
-                  <th className="px-2 py-1.5 text-right">持股</th>
+                  <th className="px-2 py-1.5 text-right">{t("external.consolidationOwnership")}</th>
                   <th className="px-2 py-1.5 text-left">status</th>
                 </tr>
               </thead>
@@ -421,6 +492,188 @@ function ConsolidationCard({
   );
 }
 
+function handoffKindLabel(kind: string, t: (key: string) => string): string {
+  if (kind === "tax") return t("external.handoffKindTax");
+  if (kind === "payment") return t("external.handoffKindPayment");
+  if (kind === "consolidation") return t("external.handoffKindConsolidation");
+  return kind;
+}
+
+function formatTs(value: string): string {
+  return value ? value.replace("T", " ").slice(0, 16) : "—";
+}
+
+function HandoffLedger({
+  data,
+  loading,
+  error,
+  note,
+  onNote,
+  onAck,
+  ackPendingId,
+  flash,
+  hashes,
+}: {
+  data?: HandoffLedger;
+  loading: boolean;
+  error: unknown;
+  note: string;
+  onNote: (value: string) => void;
+  onAck: (packetId: string) => void;
+  ackPendingId?: string;
+  flash: { tone: "ok" | "danger"; text: string } | null;
+  hashes: Record<string, string>;
+}) {
+  const { t } = useI18n();
+  const records = data?.records ?? [];
+  return (
+    <Card className="p-[var(--card-pad)]">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <ClipboardList className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+              {t("external.ledgerTitle")}
+              {data ? (
+                <>
+                  <Badge variant="muted">
+                    {t("external.handoffTotal")} {data.total}
+                  </Badge>
+                  <Badge variant="warn">
+                    {t("external.handoffArchived")} {data.archived_count}
+                  </Badge>
+                  <Badge variant="ok">
+                    {t("external.handoffHanded")} {data.handed_count}
+                  </Badge>
+                </>
+              ) : null}
+            </div>
+            <div className="mt-0.5 max-w-3xl text-[11px] leading-relaxed text-muted-foreground">
+              {t("external.ledgerHint")}
+            </div>
+          </div>
+        </div>
+        <label className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+          {t("external.handoffNote")}
+          <input
+            className="h-8 w-52 rounded-md border border-border/70 bg-background px-2 text-xs text-foreground outline-none focus:border-primary"
+            value={note}
+            maxLength={120}
+            placeholder={t("external.handoffNotePlaceholder")}
+            onChange={(event) => onNote(event.target.value)}
+          />
+        </label>
+      </div>
+
+      {flash ? (
+        <div
+          className={
+            "mt-3 rounded-lg px-2.5 py-2 text-[11px] " +
+            (flash.tone === "ok"
+              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+              : "bg-red-500/10 text-red-700 dark:text-red-400")
+          }
+        >
+          {flash.text}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="mt-3 h-20 animate-pulse rounded-lg bg-muted/30" />
+      ) : error ? (
+        <div className="mt-3 text-xs text-down">{t("external.loadFailed")}</div>
+      ) : records.length === 0 ? (
+        <div className="mt-3">
+          <EmptyState mode="compact" text={t("external.ledgerEmpty")} />
+        </div>
+      ) : (
+        <div className="mt-3 overflow-x-auto rounded-lg border border-border/60">
+          <Table size="2xs" minWidth={1080}>
+            <thead className="bg-muted/30 text-muted-foreground">
+              <tr>
+                <th className="px-2 py-1.5 text-left">{t("external.handoffKind")}</th>
+                <th className="px-2 py-1.5 text-left">{t("external.handoffPeriod")}</th>
+                <th className="px-2 py-1.5 text-left">{t("external.handoffPacket")}</th>
+                <th className="px-2 py-1.5 text-left">{t("external.handoffHash")}</th>
+                <th className="px-2 py-1.5 text-left">{t("external.handoffArchivedAt")}</th>
+                <th className="px-2 py-1.5 text-left">{t("external.handoffState")}</th>
+                <th className="px-2 py-1.5 text-left">{t("external.handoffAction")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((record) => {
+                const currentHash = hashes[record.packet_id];
+                const matches = currentHash ? currentHash === record.source_hash : null;
+                const acking = ackPendingId === record.packet_id;
+                return (
+                  <tr key={record.packet_id} className="border-t border-border/50 align-top">
+                    <td className="whitespace-nowrap px-2 py-2">{handoffKindLabel(record.kind, t)}</td>
+                    <td className="whitespace-nowrap px-2 py-2 tabular-nums">{record.period}</td>
+                    <td className="px-2 py-2">
+                      <div className="font-mono text-[10px]">{record.packet_id}</div>
+                      {record.note ? (
+                        <div className="mt-0.5 max-w-[180px] truncate text-muted-foreground" title={record.note}>
+                          {record.note}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-start gap-1.5">
+                        <span className="max-w-[230px] break-all font-mono text-[10px]" title={record.source_hash}>
+                          {record.source_hash || "—"}
+                        </span>
+                        {matches === null ? null : (
+                          <Badge variant={matches ? "ok" : "danger"}>
+                            {matches ? t("external.hashMatched") : t("external.hashMismatch")}
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2 tabular-nums">{formatTs(record.archived_at)}</td>
+                    <td className="whitespace-nowrap px-2 py-2">
+                      <StatusBadge status={record.state} t={t} />
+                    </td>
+                    <td className="px-2 py-2">
+                      {record.state === "handed_over" ? (
+                        <div className="text-[10.5px] text-muted-foreground">
+                          <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                            <CheckCircle2 className="h-3 w-3" />
+                            {formatTs(record.handed_at)}
+                          </div>
+                          {record.handed_note ? (
+                            <div className="mt-0.5 max-w-[160px] truncate" title={record.handed_note}>
+                              {record.handed_note}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onAck(record.packet_id)}
+                          disabled={acking}
+                        >
+                          {acking ? t("external.handoffAcking") : t("external.handoffAck")}
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        </div>
+      )}
+
+      <div className="mt-3 text-[10.5px] leading-relaxed text-muted-foreground">
+        {data?.boundary ?? t("external.boundaryText")}
+      </div>
+    </Card>
+  );
+}
+
 export function ExternalPacketPanel() {
   const { t } = useI18n();
   const periods = usePlanPeriods();
@@ -446,6 +699,51 @@ export function ExternalPacketPanel() {
   const tax = useTaxPacket(period);
   const payment = usePaymentPacket(period);
   const consolidation = useConsolidationPacket(groupId || null, period);
+  const ledger = useHandoffLedger(50);
+  const archive = useArchiveHandoff();
+  const ack = useAckHandoff();
+  const [note, setNote] = useState("");
+  const [flash, setFlash] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
+
+  const recordsByPacket = useMemo(() => {
+    const map = new Map<string, HandoffRecord>();
+    for (const record of ledger.data?.records ?? []) map.set(record.packet_id, record);
+    return map;
+  }, [ledger.data]);
+
+  const currentHashes: Record<string, string> = {};
+  if (tax.data?.source_hash) currentHashes[tax.data.packet_id] = tax.data.source_hash;
+  if (payment.data?.source_hash) currentHashes[payment.data.packet_id] = payment.data.source_hash;
+  if (consolidation.data?.source_hash) currentHashes[consolidation.data.packet_id] = consolidation.data.source_hash;
+
+  function archivePacket(kind: HandoffRecord["kind"], packetId?: string, group?: string) {
+    if (!packetId) return;
+    setFlash(null);
+    archive.mutate(
+      { kind, period, group_id: group, note },
+      {
+        onSuccess: (result) =>
+          setFlash({
+            tone: "ok",
+            text: result.created ? t("external.archiveDone") : t("external.archivedBadge"),
+          }),
+        onError: (error: Error) =>
+          setFlash({ tone: "danger", text: `${t("external.handoffFailed")}：${error.message}` }),
+      },
+    );
+  }
+
+  function acknowledge(packetId: string) {
+    setFlash(null);
+    ack.mutate(
+      { packet_id: packetId, note },
+      {
+        onSuccess: () => setFlash({ tone: "ok", text: t("external.handoffAckDone") }),
+        onError: (error: Error) =>
+          setFlash({ tone: "danger", text: `${t("external.handoffFailed")}：${error.message}` }),
+      },
+    );
+  }
 
   return (
     <div className="grid gap-3">
@@ -473,8 +771,22 @@ export function ExternalPacketPanel() {
         </label>
       </div>
       <BoundaryNote />
-      <TaxCard packet={tax.data} loading={tax.isLoading} error={tax.error} />
-      <PaymentCard packet={payment.data} loading={payment.isLoading} error={payment.error} />
+      <TaxCard
+        packet={tax.data}
+        loading={tax.isLoading}
+        error={tax.error}
+        handoff={tax.data ? recordsByPacket.get(tax.data.packet_id) : undefined}
+        archivePending={archive.isPending && archive.variables?.kind === "tax"}
+        onArchive={() => archivePacket("tax", tax.data?.packet_id)}
+      />
+      <PaymentCard
+        packet={payment.data}
+        loading={payment.isLoading}
+        error={payment.error}
+        handoff={payment.data ? recordsByPacket.get(payment.data.packet_id) : undefined}
+        archivePending={archive.isPending && archive.variables?.kind === "payment"}
+        onArchive={() => archivePacket("payment", payment.data?.packet_id)}
+      />
       <ConsolidationCard
         packet={consolidation.data}
         loading={consolidation.isLoading}
@@ -482,6 +794,20 @@ export function ExternalPacketPanel() {
         groups={groupOptions}
         groupId={groupId}
         onGroup={setGroupId}
+        handoff={consolidation.data ? recordsByPacket.get(consolidation.data.packet_id) : undefined}
+        archivePending={archive.isPending && archive.variables?.kind === "consolidation"}
+        onArchive={() => archivePacket("consolidation", consolidation.data?.packet_id, groupId)}
+      />
+      <HandoffLedger
+        data={ledger.data}
+        loading={ledger.isLoading}
+        error={ledger.error}
+        note={note}
+        onNote={setNote}
+        onAck={acknowledge}
+        ackPendingId={ack.isPending ? ack.variables?.packet_id : undefined}
+        flash={flash}
+        hashes={currentHashes}
       />
     </div>
   );

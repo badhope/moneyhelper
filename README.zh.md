@@ -84,6 +84,13 @@
   <img src="docs/screenshots/178-external-payment.png" width="49%" alt="付款指令草稿包：逐笔指令、执行通道 blocked 与不可执行状态" />
 </p>
 
+**包交出去了，也要留得下痕。** 每张包卡新增「留档」，把包标识、期间、来源摘要与备注追加到本机审计哈希链，不新增业务表。页面底部的「交接台账」把「仅留档」与「已线下交接」分开计数；来源摘要和当前重新生成的同包比对，显示「与当前包一致」，不一致就亮红。线下确认只代表你声明已交给人工，不是税局受理回执、银行付款回单或审计意见。
+
+<p align="center">
+  <img src="docs/screenshots/181-handoff-ledger-dark.png" width="49%" alt="交接台账：留档、线下确认、来源摘要与当前包比对" />
+  <img src="docs/screenshots/183-handoff-actions.png" width="49%" alt="税务包已线下交接：卡片状态与下载入口" />
+</p>
+
 **可以被你自己的 Agent 调用。** 同一套能力通过 MCP 暴露，Claude、Codex 或任何 MCP 客户端都能在你授权下操作账本。
 
 ---

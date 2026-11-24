@@ -2,6 +2,31 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.21.0] - 2026-11-24（交接留档与线下确认）
+
+### 新增
+
+- **交接台账**：`GET /api/external/handoffs?limit=`。合并 `HANDOFF` 与 `HANDOFF_ACK` 审计事件，按 `packet_id` 输出类型、期间、来源摘要、留档时间、线下确认时间、备注与状态；响应含总数、仅留档、已交接与边界说明。
+- **留档**：`POST /api/external/handoffs`。按 `tax|payment|consolidation` + `YYYY-MM` 生成包并追加 `HANDOFF` 事件；同 `packet_id` 幂等，重复调用 `created=false`。
+- **线下确认**：`POST /api/external/handoffs/ack`。只允许已留档的包转为 `handed_over`；未留档 404，重复确认 `updated=false`。
+- **来源摘要**：税务包与付款包补 32 位 `source_hash`，覆盖包体除 `generated_at` 与摘要本身外的全部字段；台账与当前同 `packet_id` 包比对，显示「与当前包一致 / 不一致」。
+- **前端交接台账**：三卡新增「留档」，底部台账支持操作备注、状态徽标与「标记已线下交接」；亮暗主题与 1800×931 验收。
+- **复用审计链**：不新增业务表、不写迁移；`detail` 存 JSON 并受 500 字符截断，备注前后端限 120 字。
+
+### 边界
+
+- 留档不是税局受理回执，线下确认不是银行付款回单，也不是审计意见。
+- 台账只追加，不提供删除/篡改入口；不改账、不改资金计划、不改合并结果。
+- 状态只有 `archived` 与 `handed_over`，不出现 `submitted`、`paid`、`audited`。
+
+### 验证与发布
+
+- 后端定向 3 项通过；全量 `1957 passed / 313.44s`。
+- 前端 36 文件 / `247 passed / 70.20s`；`tsc` 通过；build 24.31s。
+- OpenAPI `4.21.0` / 352 paths，新增 `GET/POST /api/external/handoffs` 与 `POST /api/external/handoffs/ack`。
+- 浏览器演示 2026-11：税务包留档→备注→线下确认，付款包留档；台账 2 条、仅留档 1、已交接 1，摘要均与当前包一致；演示审计链 `ok=true`、64 条。
+- 截图 `181`–`183`；版本升到 4.21.0，`PREVIOUS_VERSION=4.20.0`。
+
 ## [4.20.0] - 2026-11-24（外部协同前置层）
 
 ### 新增

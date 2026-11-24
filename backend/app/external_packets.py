@@ -44,6 +44,13 @@ def _check(item: str, status: str, detail: str) -> dict[str, str]:
     return {"id": item, "status": status, "detail": detail}
 
 
+def _with_digest(packet: dict[str, Any], length: int = 32) -> dict[str, Any]:
+    """给整份包（除生成时间与摘要本身）算稳定摘要，便于核对是否同一份底稿。"""
+    core = {k: v for k, v in packet.items() if k not in {"generated_at", "source_hash"}}
+    packet["source_hash"] = _hash(core, length)
+    return packet
+
+
 def _status(checks: list[dict[str, str]], *, has_data: bool) -> str:
     if not has_data:
         return "missing"
@@ -122,7 +129,7 @@ async def tax_packet(tenant_id: int, period: Any) -> dict[str, Any]:
         "credit": _money(total_credit),
     }
     packet_id = f"TAX-{label.replace('-', '')}-{_hash({'period': label, 'summary': summary, 'entries': entries}, 8)}"
-    return {
+    packet = {
         "packet_id": packet_id,
         "kind": "tax_filing_worksheet",
         "period": label,
@@ -151,6 +158,7 @@ async def tax_packet(tenant_id: int, period: Any) -> dict[str, Any]:
             "无税局直连资质。申报前请由税务人员复核发票、优惠资格与地方口径。"
         ),
     }
+    return _with_digest(packet)
 
 
 async def payment_packet(tenant_id: int, period: Any) -> dict[str, Any]:
@@ -204,7 +212,7 @@ async def payment_packet(tenant_id: int, period: Any) -> dict[str, Any]:
         _check("execution_channel", "blocked", "无持牌支付通道与用户授权，只能导出后人工执行"),
     ]
     batch_id = f"PAY-{label.replace('-', '')}-{_hash({'period': label, 'lines': instructions}, 8)}"
-    return {
+    packet = {
         "packet_id": batch_id,
         "kind": "payment_instruction",
         "period": label,
@@ -224,6 +232,7 @@ async def payment_packet(tenant_id: int, period: Any) -> dict[str, Any]:
             "本机不保存任何支付凭证。实际付款必须由持牌渠道与授权人执行并回传回单。"
         ),
     }
+    return _with_digest(packet)
 
 
 async def consolidation_packet(user_id: int, group_id: str, period: Any) -> dict[str, Any]:
@@ -266,7 +275,7 @@ async def consolidation_packet(user_id: int, group_id: str, period: Any) -> dict
         "warnings": report.get("warnings") or [],
     }
     packet_id = f"CON-{label.replace('-', '')}-{_hash(core, 8)}"
-    return {
+    packet = {
         "packet_id": packet_id,
         "kind": "consolidation_audit_pack",
         "period": label,
@@ -282,13 +291,13 @@ async def consolidation_packet(user_id: int, group_id: str, period: Any) -> dict
         "totals": report.get("totals") or {},
         "balanced": balanced,
         "warnings": report.get("warnings") or [],
-        "source_hash": _hash(core, 32),
         "checks": checks,
         "boundary": (
             "合并底稿按管理口径生成：只读各主体已过账凭证，full 需 100% 持股，"
             "proportional 按持股折算；不做法定合并、NCI、权益法、外币折算与审计意见。"
         ),
     }
+    return _with_digest(packet)
 
 
 __all__ = ["consolidation_packet", "payment_packet", "tax_packet"]
