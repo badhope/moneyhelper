@@ -5,7 +5,7 @@
 - assist：先生成计划，用户看过再点一次确认。
 - auto：规则内直接执行；超过金额阈值、缺通道或数据阻断时回落到待确认/阻断。
 
-当前动作只接两个已有、可审计的能力：税务核对包外发、企业月结。
+当前动作接三个已有、可审计的能力：收支归因批量确认、企业月结、税务核对包外发。
 不把税局申报、银行划款、审计意见等外部资质动作伪装成自动完成。
 """
 
@@ -17,11 +17,22 @@ from typing import Any
 
 from . import db
 from .automation_runner import run_workflow
+from .db import attribution as attribution_db
 from .db.tenant import current_tenant_id, current_user_id
 from .external_delivery import deliver, list_channels
 from .external_packets import tax_packet
+from .finance_attribution import suggest_attributions
+from .provenance import record_provenance
 
 ACTION_SPECS: dict[str, dict[str, Any]] = {
+    "attribution_confirm": {
+        "key": "attribution_confirm",
+        "name": "收支归因批量确认",
+        "scope": "books",
+        "description": "按月读取规则命中，只确认达到置信度阈值的分类，并留可回滚记录。",
+        "defaults": {"max_amount": 10000.0, "min_confidence": 0.7},
+        "boundary": "只改流水分类，不动金额、日期与余额；不拿历史同类去猜，确认可在归因页回滚。",
+    },
     "tax_deliver": {
         "key": "tax_deliver",
         "name": "税务核对包交接",
@@ -41,7 +52,7 @@ ACTION_SPECS: dict[str, dict[str, Any]] = {
 }
 
 MODES = ("manual", "assist", "auto")
-RUN_ORDER = ("month_end_close", "tax_deliver")
+RUN_ORDER = ("attribution_confirm", "month_end_close", "tax_deliver")
 
 
 def actions_catalog() -> list[dict[str, Any]]:
@@ -56,6 +67,16 @@ def _as_float(value: Any, default: float = 0.0) -> float:
     return number if math.isfinite(number) else default
 
 
+def _strict_float(value: Any, default: float, field: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field}必须是数字") from None
+    if not math.isfinite(number):
+        raise ValueError(f"{field}必须是有限数字")
+    return number
+
+
 def _normalize_config(action_key: str, config: dict[str, Any] | None) -> dict[str, Any]:
     raw = dict(config or {})
     if action_key == "tax_deliver":
@@ -64,6 +85,19 @@ def _normalize_config(action_key: str, config: dict[str, Any] | None) -> dict[st
         if not math.isfinite(max_amount) or max_amount < 0:
             raise ValueError("金额阈值不能为负")
         return {"channel_id": channel_id, "max_amount": max_amount}
+    if action_key == "attribution_confirm":
+        max_amount = _strict_float(raw.get("max_amount"), 10000.0, "金额阈值")
+        if max_amount < 0:
+            raise ValueError("金额阈值不能为负")
+        min_confidence = _strict_float(
+            raw.get("min_confidence"), 0.7, "最低置信度"
+        )
+        if min_confidence < 0 or min_confidence > 1:
+            raise ValueError("最低置信度需在 0 到 1 之间")
+        return {
+            "max_amount": max_amount,
+            "min_confidence": round(min_confidence, 4),
+        }
     return {}
 
 
@@ -210,6 +244,133 @@ async def _tax_plan(
     }
 
 
+async def _attribution_plan(
+    tenant_id: int, user_id: int, period: str, config: dict[str, Any]
+) -> dict[str, Any]:
+    rows = await db.list_transactions_by_month(period)
+    confirmations = await attribution_db.list_confirmations(tenant_id, user_id)
+    rules = await attribution_db.list_rules(
+        tenant_id, user_id, enabled_only=True
+    )
+    suggested = suggest_attributions(
+        rows, confirmations, limit=100, custom_rules=rules
+    )
+    min_confidence = _as_float(config.get("min_confidence"), 0.7)
+    max_amount = _as_float(config.get("max_amount"), 10000.0)
+
+    items: list[dict[str, Any]] = []
+    for row in suggested.get("transactions") or []:
+        candidate = row.get("candidate") or {}
+        source = str(candidate.get("source") or "")
+        category = str(candidate.get("category") or "")
+        confidence = _as_float(candidate.get("confidence"), 0.0)
+        # 只自动确认规则命中。历史同类最多 0.78，仍可能是“同一商户、不同用途”，
+        # 不能因为出现过两次就替用户改账。
+        if source not in {"custom_rule", "rule"}:
+            continue
+        if not category or confidence + 1e-9 < min_confidence:
+            continue
+        items.append(
+            {
+                "transaction_id": int(row["transaction_id"]),
+                "date": str(row.get("date") or ""),
+                "item": str(row.get("item") or "")[:80],
+                "amount": round(_as_float(row.get("amount"), 0.0), 2),
+                "current_category": str(row.get("current_category") or ""),
+                "category": category,
+                "source": source,
+                "confidence": round(confidence, 4),
+                "rule_id": str(candidate.get("rule_id") or ""),
+                "matched": [
+                    str(x)[:24] for x in (candidate.get("matched") or []) if str(x)
+                ][:5],
+                "reason": str(candidate.get("reason") or "")[:160],
+            }
+        )
+
+    if not items:
+        return {
+            "action_key": "attribution_confirm",
+            "decision": "blocked",
+            "reason": (
+                f"当期没有达到置信度 {min_confidence:.2f} 的规则候选；"
+                "历史同类不会自动确认"
+            ),
+            "period": period,
+            "pending": int(suggested.get("pending") or 0),
+            "min_confidence": min_confidence,
+        }
+
+    total_amount = round(
+        sum(abs(_as_float(item.get("amount"), 0.0)) for item in items), 2
+    )
+    above = max_amount > 0 and total_amount > max_amount
+    source_counts: dict[str, int] = {}
+    for item in items:
+        source_counts[item["source"]] = source_counts.get(item["source"], 0) + 1
+
+    return {
+        "action_key": "attribution_confirm",
+        "decision": "ready",
+        "period": period,
+        "count": len(items),
+        "pending": int(suggested.get("pending") or 0),
+        "skipped": max(0, int(suggested.get("pending") or 0) - len(items)),
+        "amount": total_amount,
+        "max_amount": max_amount,
+        "min_confidence": min_confidence,
+        "source_counts": source_counts,
+        "items": items,
+        "preview": items[:6],
+        "requires_confirmation": above,
+        "confirm_reason": (
+            f"本批待确认金额合计 ¥{total_amount:,.2f} 超过预设阈值 "
+            f"¥{max_amount:,.2f}"
+            if above
+            else ""
+        ),
+    }
+
+
+async def _execute_attribution(plan: dict[str, Any]) -> dict[str, Any]:
+    tenant, user = current_tenant_id(), current_user_id()
+    items = [
+        {
+            "transaction_id": int(item["transaction_id"]),
+            "original_category": str(item["current_category"]),
+            "confirmed_category": str(item["category"]),
+            "source": str(item["source"]),
+            "rule_id": str(item.get("rule_id") or ""),
+            "confidence": _as_float(item.get("confidence"), 0.0),
+            "matched": list(item.get("matched") or []),
+        }
+        for item in (plan.get("items") or [])
+    ]
+    if not items:
+        return {"confirmed": 0, "items": []}
+    written = await attribution_db.batch_apply_confirmations(
+        tenant_id=tenant, user_id=user, items=items
+    )
+    for item in written:
+        await record_provenance(
+            "attribution_confirm",
+            "transaction",
+            str(item["transaction_id"]),
+            before={"category": item["previous_category"]},
+            after={"category": item["category"]},
+            source="autopilot",
+            metadata={
+                "rule_id": item["rule_id"],
+                "confidence": item["confidence"],
+                "matched": item["matched"],
+                "attribution_source": item["source"],
+                "batch": True,
+                "period": str(plan.get("period") or ""),
+            },
+        )
+    return {"confirmed": len(written), "items": written[:20]}
+
+
 async def _month_end_plan(period: str) -> dict[str, Any]:
     return {
         "action_key": "month_end_close",
@@ -230,6 +391,10 @@ async def build_plan(
     cfg = {**ACTION_SPECS[action_key]["defaults"], **(config or {})}
     if action_key == "tax_deliver":
         return await _tax_plan(current_tenant_id(), current_user_id(), period, cfg)
+    if action_key == "attribution_confirm":
+        return await _attribution_plan(
+            current_tenant_id(), current_user_id(), period, cfg
+        )
     return await _month_end_plan(period)
 
 
@@ -250,6 +415,8 @@ async def _execute_plan(plan: dict[str, Any]) -> dict[str, Any]:
             trigger="autopilot",
             idempotency_key=f"autopilot:{current_tenant_id()}:{plan.get('period')}",
         )
+    if action_key == "attribution_confirm":
+        return await _execute_attribution(plan)
     raise ValueError("未知托管动作")
 
 

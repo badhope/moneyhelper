@@ -1,4 +1,4 @@
-"""4.23.0 托管台：策略边界、待确认、自动执行与留痕。"""
+"""4.23-4.24 托管台：策略边界、待确认、自动执行与留痕。"""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from typing import Any
 
 import pytest
 from app import autopilot, db
+from app.db import attribution as attribution_db
+from app.db.tenant import current_tenant_id, current_user_id
 
 
 async def _fake_channels() -> dict[str, Any]:
@@ -214,3 +216,111 @@ async def test_disabled_policy_blocks_execution(client, monkeypatch) -> None:
     assert run.status_code == 200, run.text
     assert run.json()["decision"] == "blocked"
     assert "停用" in run.json()["reason"]
+
+
+async def _attribution_rule(keyword: str, category: str) -> dict[str, Any]:
+    return await attribution_db.create_rule(
+        tenant_id=current_tenant_id(),
+        user_id=current_user_id(),
+        name=f"托管测试规则-{keyword}",
+        keyword=keyword,
+        category=category,
+        direction="支出",
+        priority=10,
+    )
+
+
+@pytest.mark.asyncio
+async def test_attribution_auto_confirms_rule_hit(client) -> None:
+    period = date.today().strftime("%Y-%m")
+    day = date.today().isoformat()
+    await _attribution_rule("托管归因专用", "测试餐饮")
+    tx = await db.add_transaction(day, "托管归因专用商户 8848", "其他", -88)
+    policy = await client.put(
+        "/api/autopilot/policies/attribution_confirm",
+        json={
+            "mode": "auto",
+            "enabled": True,
+            "config": {"max_amount": 10000, "min_confidence": 0.7},
+        },
+    )
+    assert policy.status_code == 200, policy.text
+    run = await client.post(
+        "/api/autopilot/actions/attribution_confirm/run",
+        json={"period": period},
+    )
+    assert run.status_code == 200, run.text
+    body = run.json()
+    assert body["decision"] == "executed"
+    assert body["outcome"]["confirmed"] >= 1
+    rows = await db.list_transactions_by_month(period)
+    row = next(r for r in rows if int(r["id"]) == int(tx["id"]))
+    assert row["category"] == "测试餐饮"
+
+
+@pytest.mark.asyncio
+async def test_attribution_does_not_auto_confirm_history(client) -> None:
+    period = date.today().strftime("%Y-%m")
+    day = date.today().isoformat()
+    await db.add_transaction(day, "历史同类测试商户 9921", "餐饮", -20)
+    await db.add_transaction(day, "历史同类测试商户 9922", "餐饮", -21)
+    current = await db.add_transaction(day, "历史同类测试商户 9923", "其他", -22)
+    plan = await autopilot.build_plan(
+        "attribution_confirm",
+        period=period,
+        config={"max_amount": 10000, "min_confidence": 0.7},
+    )
+    ids = {int(item["transaction_id"]) for item in plan.get("items") or []}
+    assert int(current["id"]) not in ids
+    assert all(
+        item["source"] in {"custom_rule", "rule"}
+        for item in plan.get("items") or []
+    )
+
+
+@pytest.mark.asyncio
+async def test_attribution_batch_amount_stops_for_confirmation(client) -> None:
+    period = date.today().strftime("%Y-%m")
+    day = date.today().isoformat()
+    await _attribution_rule("托管大额归因", "测试大额")
+    first = await db.add_transaction(day, "托管大额归因 A", "其他", -6000)
+    second = await db.add_transaction(day, "托管大额归因 B", "其他", -6000)
+    policy = await client.put(
+        "/api/autopilot/policies/attribution_confirm",
+        json={
+            "mode": "auto",
+            "enabled": True,
+            "config": {"max_amount": 10000, "min_confidence": 0.7},
+        },
+    )
+    assert policy.status_code == 200, policy.text
+    run = await client.post(
+        "/api/autopilot/actions/attribution_confirm/run", json={"period": period}
+    )
+    assert run.status_code == 200, run.text
+    assert run.json()["decision"] == "awaiting"
+    assert run.json()["requires_confirmation"] is True
+    confirmed = await client.post(
+        "/api/autopilot/actions/attribution_confirm/run",
+        json={"period": period, "confirm": True},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["decision"] == "executed"
+    rows = await db.list_transactions_by_month(period)
+    by_id = {int(r["id"]): r for r in rows}
+    assert by_id[int(first["id"])]["category"] == "测试大额"
+    assert by_id[int(second["id"])]["category"] == "测试大额"
+
+
+@pytest.mark.asyncio
+async def test_attribution_confidence_must_be_in_range(client) -> None:
+    resp = await client.put(
+        "/api/autopilot/policies/attribution_confirm",
+        json={
+            "mode": "auto",
+            "enabled": True,
+            "config": {"max_amount": 10000, "min_confidence": 1.2},
+        },
+    )
+    assert resp.status_code == 400, resp.text
+    assert "置信度" in resp.json()["detail"]

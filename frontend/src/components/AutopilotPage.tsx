@@ -1,4 +1,4 @@
-/** 托管台（4.23.0）。
+/** 托管台（4.24.0）。
  *
  * 一屏三件事：
  *   1. 当前三个模式各有多少动作；
@@ -20,6 +20,7 @@ import {
   Clock3,
   Loader2,
   Mail,
+  ListChecks,
   Play,
   ShieldCheck,
   Sparkles,
@@ -40,6 +41,7 @@ type Decision = "manual" | "awaiting" | "executed" | "blocked" | "failed";
 interface PolicyConfig {
   channel_id?: string;
   max_amount?: number;
+  min_confidence?: number;
   [key: string]: unknown;
 }
 
@@ -90,11 +92,16 @@ interface RunResult {
   packet_id?: string;
   amount?: number;
   max_amount?: number;
+  count?: number;
+  pending?: number;
+  skipped?: number;
+  min_confidence?: number;
   requires_confirmation?: boolean;
   confirm_reason?: string;
   dry_run?: boolean;
   outcome?: {
     duplicate?: boolean;
+    confirmed?: number;
     delivery?: {
       status?: string;
       receipt?: Record<string, unknown>;
@@ -127,13 +134,26 @@ const DECISION_ICON: Record<Decision, typeof CheckCircle2> = {
   failed: XCircle,
 };
 
+const ACTION_LABEL: Record<string, string> = {
+  attribution_confirm: "attributionName",
+  tax_deliver: "taxName",
+  month_end_close: "monthName",
+};
+
+const ACTION_DESC: Record<string, string> = {
+  attribution_confirm: "attributionDesc",
+  tax_deliver: "taxDesc",
+  month_end_close: "monthDesc",
+};
+
 function actionLabel(t: (key: string) => string, key: string): string {
-  const known = ["tax_deliver", "month_end_close"];
-  return known.includes(key) ? t(`autopilot.${key === "tax_deliver" ? "taxName" : "monthName"}`) : key;
+  const labelKey = ACTION_LABEL[key];
+  return labelKey ? t(`autopilot.${labelKey}`) : key;
 }
 
 function actionDesc(t: (key: string) => string, key: string): string {
-  return key === "tax_deliver" ? t("autopilot.taxDesc") : t("autopilot.monthDesc");
+  const descKey = ACTION_DESC[key];
+  return descKey ? t(`autopilot.${descKey}`) : "";
 }
 
 function ActionCard({
@@ -156,16 +176,40 @@ function ActionCard({
   onConfirm: () => void;
 }) {
   const { t } = useI18n();
-  const [channel, setChannel] = useState(String(action.config.channel_id ?? ""));
-  const [maxAmount, setMaxAmount] = useState(String(action.config.max_amount ?? 50000));
-  const [dirty, setDirty] = useState(false);
   const isTax = action.action_key === "tax_deliver";
+  const isAttribution = action.action_key === "attribution_confirm";
+  const defaultMax = isTax ? 50000 : 10000;
+  const [channel, setChannel] = useState(String(action.config.channel_id ?? ""));
+  const [maxAmount, setMaxAmount] = useState(String(action.config.max_amount ?? defaultMax));
+  const [minConfidence, setMinConfidence] = useState(
+    String(action.config.min_confidence ?? 0.7),
+  );
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     setChannel(String(action.config.channel_id ?? ""));
-    setMaxAmount(String(action.config.max_amount ?? 50000));
+    setMaxAmount(String(action.config.max_amount ?? defaultMax));
+    setMinConfidence(String(action.config.min_confidence ?? 0.7));
     setDirty(false);
-  }, [action.config.channel_id, action.config.max_amount]);
+  }, [action.config.channel_id, action.config.max_amount, action.config.min_confidence, defaultMax]);
+
+  const configNow = (): PolicyConfig => {
+    if (isTax) {
+      return {
+        ...action.config,
+        channel_id: channel,
+        max_amount: Number(maxAmount) || 0,
+      };
+    }
+    if (isAttribution) {
+      return {
+        ...action.config,
+        max_amount: Number(maxAmount) || 0,
+        min_confidence: Number(minConfidence),
+      };
+    }
+    return action.config;
+  };
 
   const ready = isTax ? channels.length > 0 : true;
   const status = result?.decision;
@@ -175,7 +219,13 @@ function ActionCard({
       <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-primary/10 blur-3xl" />
       <div className="relative flex items-start gap-3">
         <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          {isTax ? <Mail className="h-4 w-4" /> : <CalendarCheck className="h-4 w-4" />}
+          {isTax ? (
+            <Mail className="h-4 w-4" />
+          ) : isAttribution ? (
+            <ListChecks className="h-4 w-4" />
+          ) : (
+            <CalendarCheck className="h-4 w-4" />
+          )}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -203,14 +253,7 @@ function ActionCard({
             key={mode}
             type="button"
             disabled={busy}
-            onClick={() =>
-              onMode(
-                mode,
-                isTax
-                  ? { ...action.config, channel_id: channel, max_amount: Number(maxAmount) || 0 }
-                  : action.config,
-              )
-            }
+            onClick={() => onMode(mode, configNow())}
             className={cn(
               "rounded-md border px-2 py-1.5 text-[11.5px] font-medium transition disabled:opacity-60",
               action.mode === mode
@@ -236,7 +279,11 @@ function ActionCard({
               onChange={(e) => {
                 setChannel(e.target.value);
                 setDirty(true);
-                onSaveConfig({ channel_id: e.target.value, max_amount: Number(maxAmount) || 0 });
+                onSaveConfig({
+                  ...action.config,
+                  channel_id: e.target.value,
+                  max_amount: Number(maxAmount) || 0,
+                });
               }}
             >
               <option value="">{t("autopilot.channelAuto")}</option>
@@ -259,7 +306,7 @@ function ActionCard({
                 setMaxAmount(e.target.value);
                 setDirty(true);
               }}
-              onBlur={() => onSaveConfig({ channel_id: channel, max_amount: Number(maxAmount) || 0 })}
+              onBlur={() => onSaveConfig(configNow())}
             />
           </label>
         </div>
@@ -267,6 +314,47 @@ function ActionCard({
       {isTax && (
         <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">
           {t("autopilot.maxAmountHint")}
+        </p>
+      )}
+
+      {isAttribution && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+            {t("autopilot.batchMaxAmount")}
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              className="h-9 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+              value={maxAmount}
+              onChange={(e) => {
+                setMaxAmount(e.target.value);
+                setDirty(true);
+              }}
+              onBlur={() => onSaveConfig(configNow())}
+            />
+          </label>
+          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+            {t("autopilot.minConfidence")}
+            <input
+              type="number"
+              min={0}
+              max={1}
+              step={0.01}
+              className="h-9 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+              value={minConfidence}
+              onChange={(e) => {
+                setMinConfidence(e.target.value);
+                setDirty(true);
+              }}
+              onBlur={() => onSaveConfig(configNow())}
+            />
+          </label>
+        </div>
+      )}
+      {isAttribution && (
+        <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">
+          {t("autopilot.minConfidenceHint")}
         </p>
       )}
 
@@ -286,14 +374,31 @@ function ActionCard({
                 <p>
                   {result.outcome?.duplicate
                     ? t("autopilot.resultDuplicate")
-                    : t("autopilot.resultExecuted")}
+                    : isAttribution
+                      ? t("autopilot.resultExecutedAttribution", {
+                          n: result.outcome?.confirmed ?? result.count ?? 0,
+                        })
+                      : t("autopilot.resultExecuted")}
                 </p>
               ) : (
-                <p>{t("autopilot.resultManual")}</p>
+                <p>
+                  {isAttribution
+                    ? t("autopilot.resultManualAttribution")
+                    : t("autopilot.resultManual")}
+                </p>
               )}
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10.5px] opacity-90">
                 {typeof result.amount === "number" && result.amount > 0 && (
-                  <span>{t("autopilot.amount")} {fmtMoney(result.amount)}</span>
+                  <span>
+                    {t(isAttribution ? "autopilot.attributionAmount" : "autopilot.amount")}{" "}
+                    {fmtMoney(result.amount)}
+                  </span>
+                )}
+                {typeof result.count === "number" && result.count > 0 && (
+                  <span>{t("autopilot.candidateCount", { n: result.count })}</span>
+                )}
+                {typeof result.outcome?.confirmed === "number" && result.outcome.confirmed > 0 && (
+                  <span>{t("autopilot.confirmedCount", { n: result.outcome.confirmed })}</span>
                 )}
                 {result.channel_label && <span>{t("autopilot.channelLabel")} {result.channel_label}</span>}
                 {result.packet_id && <span>{t("autopilot.packet")} {result.packet_id}</span>}
@@ -318,11 +423,11 @@ function ActionCard({
         <Button size="sm" variant="outline" onClick={() => onRun(true)} disabled={busy}>
           {t("autopilot.evaluate")}
         </Button>
-        {dirty && isTax ? (
+        {dirty && (isTax || isAttribution) ? (
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => onSaveConfig({ channel_id: channel, max_amount: Number(maxAmount) || 0 })}
+            onClick={() => onSaveConfig(configNow())}
             disabled={busy}
           >
             {t("autopilot.saveRule")}
@@ -505,7 +610,7 @@ export function AutopilotPage({ onGo }: { onGo: (kind: DataKind) => void }) {
         {policies.length === 0 && !overview.isLoading ? (
           <Card className="p-4 text-[12px] text-muted-foreground">{t("autopilot.resultEmpty")}</Card>
         ) : (
-          <div className="grid gap-3 xl:grid-cols-2">
+          <div className="grid gap-3 xl:grid-cols-3">
             {policies.map((action) => (
               <ActionCard
                 key={action.action_key}
