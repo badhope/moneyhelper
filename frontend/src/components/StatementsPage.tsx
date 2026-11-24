@@ -35,6 +35,8 @@ import {
   type StatementAnalysis,
 } from "@/lib/use-research";
 import { StatTile as MetricCell } from "@/components/ui/stat";
+import { Segmented } from "@/components/ui/segmented";
+import { ConsolidationPanel } from "@/components/ConsolidationPanel";
 
 /** 示例三表：一家高杠杆+低现金流质量的制造企业（能触发多条预警） */
 const SAMPLE_PAYLOAD = `{
@@ -392,6 +394,7 @@ function ComparisonTable({ result }: { result: StatementAnalysis }) {
 
 export function StatementsPage() {
   const { t } = useI18n();
+  const [view, setView] = useState<"single" | "group">("single");
   const [input, setInput] = useState<string>(SAMPLE_PAYLOAD);
   const [payload, setPayload] = useState<Record<string, unknown> | null>(() => {
     try {
@@ -469,8 +472,36 @@ export function StatementsPage() {
     },
   ];
 
+  const viewSwitch = (
+    <Card className="flex flex-wrap items-center justify-between gap-2 p-3">
+      <div className="min-w-0">
+        <div className="text-sm font-semibold">{t("stmt.view")}</div>
+        <div className="mt-0.5 text-[11.5px] text-muted-foreground">{t("stmt.view.hint")}</div>
+      </div>
+      <Segmented
+        value={view}
+        onChange={setView}
+        size="sm"
+        options={[
+          { value: "single", label: t("stmt.view.single") },
+          { value: "group", label: t("stmt.view.group") },
+        ]}
+      />
+    </Card>
+  );
+
+  if (view === "group") {
+    return (
+      <div className="flex flex-col gap-4">
+        {viewSwitch}
+        <ConsolidationPanel />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
+      {viewSwitch}
       {/* 默认路径：不用填任何东西，按总账自动出三表 */}
       <Card className="p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">

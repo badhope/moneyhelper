@@ -58,6 +58,12 @@
   <img src="docs/screenshots/166-attribution-rollback.png" width="49%" alt="误判回滚：撤销后流水回到候选池，回滚数留痕" />
 </p>
 
+**企业多主体，按管理口径合并。** 在既有财报页内就能把总部、子公司拼成集团三表，不新增顶层板块。`full` 只允许 100% 持股，`proportional` 按持股比例折算每个试算科目。合并只读已过账凭证；没有会计期间或没有已过账凭证的主体显式标记缺账并排除，不拿 0 冒充。抵销分录人工录入、写入时校验借贷平衡，永远不回写任何主体账本。
+
+<p align="center">
+  <img src="docs/screenshots/167-consolidation-overview.png" width="100%" alt="多主体合并：范围、持股折算、抵销与合并试算平衡" />
+</p>
+
 **可以被你自己的 Agent 调用。** 同一套能力通过 MCP 暴露，Claude、Codex 或任何 MCP 客户端都能在你授权下操作账本。
 
 ---

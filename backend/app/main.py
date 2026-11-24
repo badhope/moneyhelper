@@ -31,6 +31,7 @@ from .routes import (
     calculations_router,
     connect_deep_router,
     connect_router,
+    consolidation_router,
     debt_payoff_router,
     debts_subs_router,
     demo_router,
@@ -112,6 +113,7 @@ app.include_router(market_router)
 app.include_router(calculations_router)
 app.include_router(connect_router)
 app.include_router(connect_deep_router)
+app.include_router(consolidation_router)
 app.include_router(finance_tax_router)
 app.include_router(gl_router)
 app.include_router(execute_router)

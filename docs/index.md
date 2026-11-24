@@ -11,11 +11,12 @@
 | [Quick start](quickstart.md) | Full stack running in about 15 minutes |
 | [Architecture](architecture.md) | Layers and data flow (Mermaid) |
 | [Module map](module-map.md) | Which file owns what |
-| [Project baseline 4.17.3](BASELINE.md) | Four blocks: current state, delivered, backlog, roadmap; includes tax timeline, attribution rules, batch confirm, retry/dead-letter |
+| [Project baseline 4.18.0](BASELINE.md) | Four blocks: current state, delivered, backlog, roadmap; includes tax timeline, attribution rules, retry/dead-letter, multi-entity consolidation |
 | [Market positioning 4.17.0 / 4.17.1](POSITIONING-4.17.0.md) | Competitor matrix, personal/enterprise boundary, compliance limits; 4.17.1 capability addendum |
 | [Stress test 4.17.0](STRESS-4.17.0.md) | Personal 10M assets, multi-entity ledger, SQLite concurrency |
 | [Scheduler resilience 4.17.2](SCHEDULER-4.17.2.md) | Retry boundaries, dead letters, replay, startup month-end catch-up |
 | [Attribution rules 4.17.3](ATTRIBUTION-4.17.3.md) | Custom rules, batch confirm, rollback and adoption stats |
+| [Multi-entity consolidation 4.18.0](CONSOLIDATION-4.18.0.md) | Group scope, ownership scaling, eliminations, consolidated statements, explicit boundaries |
 | [Progress](PROGRESS.md) | What is done, what is left |
 | [Self-check log](SELF-CHECK.md) | Measured evidence per delivery round |
 

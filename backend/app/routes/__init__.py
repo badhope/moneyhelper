@@ -10,6 +10,7 @@ from .budgets import router as budgets_router
 from .calculations import router as calculations_router
 from .connect import router as connect_router
 from .connect_deep import router as connect_deep_router
+from .consolidation import router as consolidation_router
 from .debt_payoff import router as debt_payoff_router
 from .debts_subs import router as debts_subs_router
 from .demo import router as demo_router
@@ -48,6 +49,7 @@ __all__ = [
     "calculations_router",
     "connect_deep_router",
     "connect_router",
+    "consolidation_router",
     "debt_payoff_router",
     "debts_subs_router",
     "demo_router",

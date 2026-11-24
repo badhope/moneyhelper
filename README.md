@@ -65,6 +65,12 @@ Both sides share one engine, so a family ledger and a company ledger obey the sa
   <img src="docs/screenshots/166-attribution-rollback.png" width="49%" alt="Rollback: the row returns to the candidate pool and the rollback count is kept" />
 </p>
 
+**Multi-entity consolidation on a management basis.** Parent and subsidiaries can be combined inside the existing statements page, without adding a new top-level section. `full` is allowed only at 100%; `proportional` scales each trial-balance line by ownership. Consolidation reads posted vouchers only; an entity with no period or no posted entries is marked missing and excluded instead of being counted as zero. Eliminations are entered manually, checked for debit-credit balance, and never written back to any entity ledger.
+
+<p align="center">
+  <img src="docs/screenshots/167-consolidation-overview.png" width="100%" alt="Multi-entity consolidation: scope, ownership-adjusted totals, eliminations and consolidated trial balance" />
+</p>
+
 **Everything is addressable by your own agent.** The same capabilities are exposed through MCP, so Claude, Codex or any MCP client can drive the books with your permission.
 
 ---
