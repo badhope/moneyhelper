@@ -11,5 +11,6 @@ from .schema_enterprise_fin import SQL as _fin
 from .schema_enterprise_gl import SQL as _gl
 from .schema_enterprise_org import SQL as _org
 from .schema_enterprise_proc import SQL as _proc
+from .schema_plan import SQL as _plan
 
-SCHEMA_ENTERPRISE = _org + _gl + _fin + _proc + _attribution + _automation + _consolidation
+SCHEMA_ENTERPRISE = _org + _gl + _fin + _proc + _attribution + _automation + _consolidation + _plan

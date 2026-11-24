@@ -60,6 +60,13 @@ async def _migrate_add_columns() -> None:
         "bank_transactions": {"gl_entry_id": "INTEGER"},
         # 4.16.45：会话卡可指向跨会话项目库；旧库补列，旧数据仍按 thread 独立
         "thread_projects": {"project_id": "INTEGER"},
+        # 4.19.0：归因规则增加商户、金额区间与成员维度；0 表示不限
+        "attribution_rules": {
+            "merchant": "TEXT NOT NULL DEFAULT ''",
+            "min_amount_cents": "INTEGER NOT NULL DEFAULT 0",
+            "max_amount_cents": "INTEGER NOT NULL DEFAULT 0",
+            "member_id": "INTEGER",
+        },
     }
     # transactions 表：新增 owner_id（交易归属成员）与 is_shared（是否共享）
     tx_cols = await _core._db.execute("PRAGMA table_info(transactions)")

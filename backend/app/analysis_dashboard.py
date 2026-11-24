@@ -16,6 +16,7 @@ from .analysis_health import goal_progress
 from .analysis_rules import risk_checks
 from .analysis_views import _month_prefix, ledger_view, market_view
 from .calculations import decisions as _decisions
+from .calculations.asset_tune import build_asset_tune
 
 _DASHBOARD_TTL_SECONDS = 10.0
 _dashboard_cache: TTLCache[str, dict[str, Any]] = TTLCache(
@@ -90,11 +91,26 @@ async def collect_dashboard(lang: str = "zh", *, use_cache: bool = True) -> dict
     led["by_category"] = cashflow["by_category"]
     flags = risk_checks(m, led, lang)
     goals = goal_progress(await db.list_goals())
+    allocation_targets = await db.list_allocation_targets()
     # 三个外部行情请求并行：最坏路径由串行的 8s+4s+12s 压缩为取最大者
     indices, today_pnl = await asyncio.gather(quotes.indices_quotes(), quotes.portfolio_today_pnl(positions))
 
+    asset_tune = build_asset_tune(
+        positions=m["positions"],
+        targets=allocation_targets,
+        emergency=led["emergency"],
+        debts=debts,
+        cashflow={
+            "income": led["income"],
+            "expense": led["expense"],
+            "savings_rate": led["savings_rate"],
+        },
+        concentration=m["concentration"],
+        lang=lang,
+    )
     out = {
         "positions": m["positions"],
+        "asset_tune": asset_tune,
         "goals": goals,
         "totals": {
             "total_market_value": m["total_market_value"],

@@ -134,4 +134,91 @@ async def finance_timeline(tenant_id: int, months: int = 12) -> dict[str, Any]:
     }
 
 
-__all__ = ["finance_timeline"]
+
+
+async def finance_timeline_month(tenant_id: int, month: str) -> dict[str, Any]:
+    """单月下钻：返回该月已过账凭证与逐行科目发生额。
+
+    `month` 必须是 `YYYY-MM`；没有会计期间的月份返回 `status=missing` 与空列表，
+    不拿上月或估算值补。只读，不改账。
+    """
+    import re
+
+    text = str(month or "").strip()
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", text):
+        raise ValueError("月份必须是 YYYY-MM")
+    year, mon = int(text[:4]), int(text[5:])
+    if not 2000 <= year <= 2100:
+        raise ValueError("年份必须在 2000-2100")
+
+    period = await fetch_all(
+        "SELECT id,status,closed_at FROM gl_periods WHERE tenant_id=? AND year=? AND month=?",
+        (int(tenant_id), year, mon),
+    )
+    if not period:
+        return {
+            "month": text, "status": "missing", "closed_at": "", "entries": [],
+            "posted_entries": 0, "draft_entries": 0, "totals": {"debit": 0.0, "credit": 0.0},
+            "boundary": "只读已过账凭证；没有会计期间时返回 empty，不用 0 或上月数据代替。",
+        }
+    p = period[0]
+
+    entries = await fetch_all(
+        "SELECT id,entry_no,entry_date,description,source,posted_at FROM gl_entries"
+        " WHERE tenant_id=? AND period_id=? AND status='posted'"
+        " ORDER BY entry_date,id",
+        (int(tenant_id), int(p["id"])),
+    )
+    lines = await fetch_all(
+        "SELECT l.entry_id,l.line_no,l.debit_cents,l.credit_cents,l.memo,"
+        "a.code,a.name,a.type FROM gl_entry_lines l"
+        " JOIN gl_accounts a ON a.tenant_id=l.tenant_id AND a.id=l.account_id"
+        " JOIN gl_entries e ON e.tenant_id=l.tenant_id AND e.id=l.entry_id"
+        " WHERE e.tenant_id=? AND e.period_id=? AND e.status='posted'"
+        " ORDER BY l.entry_id,l.line_no",
+        (int(tenant_id), int(p["id"])),
+    )
+    by_entry: dict[int, list[dict[str, Any]]] = {}
+    total_debit = total_credit = 0
+    for line in lines:
+        debit = int(line["debit_cents"] or 0)
+        credit = int(line["credit_cents"] or 0)
+        total_debit += debit
+        total_credit += credit
+        by_entry.setdefault(int(line["entry_id"]), []).append({
+            "line_no": int(line["line_no"]),
+            "account_code": str(line["code"]),
+            "account_name": str(line["name"]),
+            "account_type": str(line["type"]),
+            "debit": _money(debit),
+            "credit": _money(credit),
+            "memo": str(line.get("memo") or ""),
+        })
+    draft = await fetch_all(
+        "SELECT COUNT(*) AS n FROM gl_entries WHERE tenant_id=? AND period_id=? AND status='draft'",
+        (int(tenant_id), int(p["id"])),
+    )
+    return {
+        "month": text,
+        "status": str(p["status"]),
+        "closed_at": str(p.get("closed_at") or ""),
+        "entries": [
+            {
+                "id": int(e["id"]),
+                "entry_no": str(e["entry_no"]),
+                "entry_date": str(e["entry_date"]),
+                "description": str(e["description"] or ""),
+                "source": str(e["source"] or ""),
+                "posted_at": str(e.get("posted_at") or ""),
+                "lines": by_entry.get(int(e["id"]), []),
+            }
+            for e in entries
+        ],
+        "posted_entries": len(entries),
+        "draft_entries": int(draft[0]["n"] or 0) if draft else 0,
+        "totals": {"debit": _money(total_debit), "credit": _money(total_credit)},
+        "boundary": "只读已过账凭证；没有会计期间时返回 empty，不用 0 或上月数据代替。",
+    }
+
+
+__all__ = ["finance_timeline", "finance_timeline_month"]

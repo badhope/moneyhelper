@@ -129,7 +129,38 @@ export interface DashboardData {
   transactions: Transaction[];
   /** 决策中心：把风险与目标收敛成的可执行待办（后端纯函数产出） */
   actions?: ActionCenter;
+  /** 个人资产调优：确定性候选与风险，不代下单 */
+  asset_tune?: AssetTune;
   source: { portfolio: string; ledger: string; quotes: string; seeded: boolean; demo?: boolean };
+}
+
+export interface AssetTuneCandidate {
+  kind: "liquidity" | "debt" | "concentration" | "rebalance" | "savings";
+  priority: number;
+  title: string;
+  detail: string;
+  impact: string;
+  risk: string;
+  amount: number;
+  symbol: string;
+  action_tab: string;
+  confidence: "high" | "medium" | "low" | string;
+  requires_confirmation: boolean;
+}
+
+export interface AssetTune {
+  candidates: AssetTuneCandidate[];
+  count: number;
+  metrics: {
+    emergency_months: number;
+    emergency_target_months: number;
+    non_cash_value: number;
+    high_rate_debts: number;
+    rebalance_needed: boolean;
+    rebalance_max_drift_pct: number;
+    rebalance_notes: string[];
+  };
+  boundary: string;
 }
 
 /** 单条待办：priority 越小越紧急；action_tab 指向应跳转的财务页 */

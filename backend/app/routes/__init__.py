@@ -28,6 +28,7 @@ from .market import router as market_router
 from .members import router as members_router
 from .org import router as org_router
 from .paper import router as paper_router
+from .plan import router as plan_router
 from .procurement import router as procurement_router
 from .provenance import router as provenance_router
 from .qa import router as qa_router
@@ -67,6 +68,7 @@ __all__ = [
     "members_router",
     "org_router",
     "paper_router",
+    "plan_router",
     "procurement_router",
     "provenance_router",
     "qa_router",

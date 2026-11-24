@@ -227,6 +227,14 @@ async def finance_timeline_view(months: int = 12) -> Any:
     return await db.finance_timeline(current_tenant_id(), months=months)
 
 
+@router.get("/api/finance/timeline/{month}")
+async def finance_timeline_month_view(month: str) -> Any:
+    try:
+        return await db.finance_timeline_month(current_tenant_id(), month)
+    except ValueError as exc:
+        return _bad(str(exc))
+
+
 # ---------------------------------------------------------------------------
 # 收支归因（4.17.1）：规则/历史候选 + 用户确认，确认前不改账
 # ---------------------------------------------------------------------------
@@ -275,6 +283,28 @@ def _rule_fields(body: dict[str, Any], current: dict[str, Any] | None = None) ->
         raise ValueError("优先级需在 -100 到 100 之间")
     raw_enabled = body.get("enabled", base.get("enabled", True))
     enabled = bool(int(raw_enabled)) if isinstance(raw_enabled, (int, bool)) else bool(raw_enabled)
+    merchant = " ".join(str(body.get("merchant", base.get("merchant")) or "").split()).strip()
+    if len(merchant) > 30:
+        raise ValueError("商户不能超过 30 个字")
+    try:
+        min_cents = int(body.get("min_amount_cents", base.get("min_amount_cents", 0)) or 0)
+        max_cents = int(body.get("max_amount_cents", base.get("max_amount_cents", 0)) or 0)
+    except (TypeError, ValueError):
+        raise ValueError("金额区间必须是整数分") from None
+    if min_cents < 0 or max_cents < 0:
+        raise ValueError("金额区间不能为负")
+    if min_cents and max_cents and max_cents < min_cents:
+        raise ValueError("金额上限不能小于下限")
+    raw_member = body.get("member_id", base.get("member_id"))
+    if raw_member in (None, "", 0, "0"):
+        member_id = None
+    else:
+        try:
+            member_id = int(raw_member)
+        except (TypeError, ValueError):
+            raise ValueError("成员必须是整数 id") from None
+        if member_id <= 0:
+            raise ValueError("成员 id 必须是正整数")
     return {
         "name": name,
         "keyword": keyword,
@@ -282,6 +312,10 @@ def _rule_fields(body: dict[str, Any], current: dict[str, Any] | None = None) ->
         "direction": direction,
         "priority": priority,
         "enabled": enabled,
+        "merchant": merchant,
+        "min_amount_cents": min_cents,
+        "max_amount_cents": max_cents,
+        "member_id": member_id,
     }
 
 
@@ -327,6 +361,10 @@ async def attribution_rule_create(payload: dict[str, Any]) -> Any:
             category=fields["category"],
             direction=fields["direction"],
             priority=fields["priority"],
+            merchant=fields["merchant"],
+            min_amount_cents=fields["min_amount_cents"],
+            max_amount_cents=fields["max_amount_cents"],
+            member_id=fields["member_id"],
         )
     except Exception as exc:  # noqa: BLE001 — 唯一约束等数据库错误要变 400 而不是 500
         return _bad(f"规则保存失败：{str(exc)[:80]}")
@@ -355,7 +393,10 @@ async def attribution_rule_update(rule_id: str, payload: dict[str, Any]) -> Any:
         tenant, user, rule_id,
         name=fields["name"], keyword=fields["keyword"], category=fields["category"],
         direction=fields["direction"], priority=fields["priority"],
-        enabled=fields["enabled"],
+        enabled=fields["enabled"], merchant=fields["merchant"],
+        min_amount_cents=fields["min_amount_cents"],
+        max_amount_cents=fields["max_amount_cents"],
+        member_id=fields["member_id"] or 0,
     )
     if rule is None:
         return _bad("规则不存在")
@@ -395,7 +436,10 @@ async def attribution_rule_test(payload: dict[str, Any]) -> Any:
         rules = [{
             "rule_id": "preview", "name": fields["name"], "keyword": fields["keyword"],
             "category": fields["category"], "direction": fields["direction"],
-            "priority": fields["priority"], "enabled": 1, "created_at": "",
+            "priority": fields["priority"], "merchant": fields["merchant"],
+            "min_amount_cents": fields["min_amount_cents"],
+            "max_amount_cents": fields["max_amount_cents"],
+            "member_id": fields["member_id"], "enabled": 1, "created_at": "",
         }]
     out = suggest_attributions(
         [{"id": 1, "date": "", "item": item, "amount": amount, "category": "其他"}],

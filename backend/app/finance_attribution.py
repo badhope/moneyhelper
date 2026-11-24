@@ -56,9 +56,14 @@ def _rule_specificity(rule_id: str, matched: list[str]) -> int:
 
 
 def _match_custom_rule(
-    item: str, direction: str, custom_rules: list[dict[str, Any]]
+    item: str,
+    direction: str,
+    custom_rules: list[dict[str, Any]],
+    amount: float = 0,
+    owner_id: int | None = None,
 ) -> dict[str, Any] | None:
     text = _clean_text(item).lower()
+    amount_cents = abs(int(round(float(amount or 0) * 100)))
     ordered = sorted(
         custom_rules,
         key=lambda r: (-int(r.get("priority") or 0), str(r.get("created_at") or "")),
@@ -69,12 +74,25 @@ def _match_custom_rule(
         keyword = _clean_text(rule.get("keyword")).lower()
         category = _clean_text(rule.get("category"))
         rule_direction = _clean_text(rule.get("direction"))
+        merchant = _clean_text(rule.get("merchant")).lower()
         if not keyword or not category:
             continue
         if rule_direction and rule_direction != direction:
             continue
-        if keyword in text:
-            return rule
+        if keyword not in text:
+            continue
+        if merchant and merchant not in text:
+            continue
+        min_cents = int(rule.get("min_amount_cents") or 0)
+        max_cents = int(rule.get("max_amount_cents") or 0)
+        if min_cents > 0 and amount_cents < min_cents:
+            continue
+        if max_cents > 0 and amount_cents > max_cents:
+            continue
+        member_id = rule.get("member_id")
+        if member_id not in (None, "", 0) and int(member_id) != int(owner_id or 0):
+            continue
+        return rule
     return None
 
 
@@ -120,7 +138,9 @@ def suggest_attributions(
             direction=direction,
             amount=amount,
         )
-        custom = _match_custom_rule(item, direction, custom_rules or [])
+        custom = _match_custom_rule(
+            item, direction, custom_rules or [], amount=amount, owner_id=tx.get("owner_id")
+        )
         if custom is not None:
             custom_id = str(custom.get("rule_id") or "")
             rule_hits[custom_id] = rule_hits.get(custom_id, 0) + 1
@@ -153,13 +173,32 @@ def suggest_attributions(
             custom_id = str(custom.get("rule_id") or "")
             keyword = _clean_text(custom.get("keyword"))
             name = _clean_text(custom.get("name")) or keyword
+            dimensions = [f"keyword:{keyword}"[:24]]
+            detail = [f"关键词「{keyword}」"]
+            merchant = _clean_text(custom.get("merchant"))
+            if merchant:
+                dimensions.append(f"merchant:{merchant}"[:24])
+                detail.append(f"商户「{merchant}」")
+            min_cents = int(custom.get("min_amount_cents") or 0)
+            max_cents = int(custom.get("max_amount_cents") or 0)
+            if min_cents or max_cents:
+                dimensions.append("amount")
+                if min_cents and max_cents:
+                    detail.append(f"金额 {min_cents / 100:.2f}-{max_cents / 100:.2f} 元")
+                elif min_cents:
+                    detail.append(f"金额 ≥ {min_cents / 100:.2f} 元")
+                else:
+                    detail.append(f"金额 ≤ {max_cents / 100:.2f} 元")
+            if custom.get("member_id") not in (None, "", 0):
+                dimensions.append(f"member:{int(custom['member_id'])}")
+                detail.append(f"成员 #{int(custom['member_id'])}")
             candidate = {
                 "category": _clean_text(custom.get("category")),
                 "source": "custom_rule",
                 "confidence": 0.92,
                 "rule_id": custom_id,
-                "matched": [f"keyword:{keyword}"[:24]],
-                "reason": f"自定义规则「{name}」命中关键词「{keyword}」",
+                "matched": dimensions,
+                "reason": f"自定义规则「{name}」命中" + "、".join(detail),
             }
         elif not rule.fallback:
             specificity = _rule_specificity(rule.rule_id, rule.matched)

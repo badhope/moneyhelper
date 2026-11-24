@@ -24,6 +24,7 @@ import { HealthCheckDialog } from "@/components/HealthCheckDialog";
 import { IndicesStrip } from "@/components/IndicesStrip";
 import { NetWorthCard } from "@/components/dashboard/NetWorthCard";
 import { ActionCenterCard } from "@/components/dashboard/ActionCenterCard";
+import { AssetTuneCard } from "@/components/dashboard/AssetTuneCard";
 import { AccountsMergeCard } from "@/components/dashboard/AccountsMergeCard";
 import { IdentityCard } from "@/components/dashboard/IdentityCard";
 import { NetWorthTrendCard } from "@/components/dashboard/NetWorthTrendCard";
@@ -714,6 +715,7 @@ export function Dashboard({
       {/* 决策中心：先回答「我现在该做什么」，再给指标。
           放在净值之前是刻意的——用户打开总览的第一诉求是行动项，不是数字罗列。 */}
       <ActionCenterCard actions={dashboard.actions} onNavigate={onNavigateTab} />
+      <AssetTuneCard data={dashboard.asset_tune} onNavigate={onNavigateTab} />
 
       {/* 净值总览：资产 / 负债 / 组成饼图，一眼看到净资产 */}
       <NetWorthCard />

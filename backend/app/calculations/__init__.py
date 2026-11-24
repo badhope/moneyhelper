@@ -86,6 +86,7 @@ from .pretrade import (
 )
 from .returns import calculate_simple_return, calculate_twr, calculate_xirr
 from .sandbox import ScenarioInput, simulate
+from .asset_tune import build_asset_tune
 from .strategy import RebalancePlan, compute_fire, compute_rebalance
 from .tax import (
     PayrollResult,
@@ -136,6 +137,7 @@ __all__ = [
     "compute_fire",
     "compute_period_metrics",
     "compute_rebalance",
+    "build_asset_tune",
     "compute_risk_metrics",
     "compute_valuation",
     "corporate_income_tax",

@@ -75,6 +75,11 @@ async def _seed_consolidation_demo(conn: Any) -> None:
     from ..timeutil import new_id, now_iso
 
     parent, sub, empty = DEMO_USER_ID, 10000002, 10000003
+    for tid in (parent, sub, empty):
+        await conn.execute("DELETE FROM enterprise_budget_lines WHERE tenant_id=?", (tid,))
+        await conn.execute("DELETE FROM enterprise_budget_plans WHERE tenant_id=?", (tid,))
+        await conn.execute("DELETE FROM enterprise_cash_plan_lines WHERE tenant_id=?", (tid,))
+        await conn.execute("DELETE FROM enterprise_cash_plans WHERE tenant_id=?", (tid,))
     await conn.execute(
         "DELETE FROM consolidation_adjustments WHERE group_id IN"
         " (SELECT id FROM tenant_groups WHERE owner_user_id=?)", (DEMO_USER_ID,)
@@ -222,7 +227,35 @@ async def reset_demo_ledger() -> dict[str, Any]:
             await _seed_consolidation_demo(conn)
 
     await _seed_demo_gl()
+    await _seed_plan_demo()
     return await ledger_counts(DEMO_USER_ID)
+
+
+async def _seed_plan_demo() -> None:
+    """演示预算与资金计划：与 2026-11 已过账总账同源，重置可复现。"""
+    from .enterprise_plan import budget_plan_save, cash_plan_save
+
+    await budget_plan_save(
+        DEMO_USER_ID, "2026-11",
+        [
+            {"account_code": "6001", "amount": 420000, "note": "月度销售目标"},
+            {"account_code": "6602", "amount": 210000, "note": "管理费用上限"},
+        ],
+        name="主预算", note="演示：收入略高于实际，管理费用略高于实际", created_by=DEMO_USER_ID,
+    )
+    await cash_plan_save(
+        DEMO_USER_ID, "2026-11",
+        [
+            {"expected_date": "2026-11-05", "direction": "in", "amount": 410000,
+             "account_code": "1001", "counterparty": "客户回款", "certainty": "high"},
+            {"expected_date": "2026-11-20", "direction": "out", "amount": 200000,
+             "account_code": "1001", "counterparty": "供应商付款", "certainty": "high"},
+            {"expected_date": "2026-11-25", "direction": "out", "amount": 30000,
+             "account_code": "1001", "counterparty": "税费", "certainty": "medium"},
+        ],
+        name="资金计划", opening=200000, target_min=150000,
+        note="演示：保留至少 15 万安全垫", created_by=DEMO_USER_ID,
+    )
 
 
 async def _seed_demo_gl() -> None:
@@ -232,7 +265,7 @@ async def _seed_demo_gl() -> None:
     from .gl_entries_write import gl_create_entry
 
     async def seed(tenant_id: int, entries: tuple[tuple[str, list[tuple[str, float, float]]], ...]) -> None:
-        await gl_bootstrap(tenant_id, ref_date="2026-11-28")
+        await gl_bootstrap(tenant_id, ref_date="2026-11-20")
         periods = await gl_list_periods(tenant_id)
         found = next(
             (p for p in periods if int(p["year"]) == 2026 and int(p["month"]) == 11), None
@@ -242,7 +275,7 @@ async def _seed_demo_gl() -> None:
         accounts = {a["code"]: a for a in await gl_list_accounts(tenant_id)}
         for desc, lines in entries:
             entry = await gl_create_entry(
-                tenant_id, "2026-11-28", desc,
+                tenant_id, "2026-11-20", desc,
                 [
                     {"account_id": accounts[code]["id"], "debit": debit, "credit": credit}
                     for code, debit, credit in lines

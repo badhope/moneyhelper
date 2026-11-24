@@ -4,9 +4,9 @@
  * 没有期间的月份显示“缺账”，避免把空月看成 0 收入。
  */
 
-import { useMemo, useRef } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import type { EChartsCoreOption } from "echarts/core";
-import { AlertTriangle, CalendarRange } from "lucide-react";
+import { AlertTriangle, CalendarRange, ChevronDown, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,7 +15,7 @@ import { useEChart, usePalette, axisLabelColor } from "@/lib/charts";
 import { useTheme } from "@/lib/theme";
 import { fmtMoney, pnlClass } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { useFinanceTimeline, type TimelineMonth } from "@/lib/use-finance-tax";
+import { useFinanceTimeline, useFinanceTimelineMonth, type TimelineMonth } from "@/lib/use-finance-tax";
 
 function statusBadge(m: TimelineMonth, t: (k: string) => string) {
   if (m.status === "closed") return <Badge variant="ok">{t("tax.timelineStatusClosed")}</Badge>;
@@ -26,6 +26,8 @@ function statusBadge(m: TimelineMonth, t: (k: string) => string) {
 export function TaxTimelinePanel() {
   const { t } = useI18n();
   const { data, isLoading, error } = useFinanceTimeline(6);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const detail = useFinanceTimelineMonth(expanded);
   const ref = useRef<HTMLDivElement>(null);
   const palette = usePalette();
   const { resolved } = useTheme();
@@ -170,7 +172,21 @@ export function TaxTimelinePanel() {
               </thead>
               <tbody>
                 {data.months.map((m) => (
-                  <tr key={m.month} className="border-b border-border/60 last:border-0">
+                  <Fragment key={m.month}>
+                  <tr
+                    className="cursor-pointer border-b border-border/60 last:border-0 hover:bg-muted/20"
+                    onClick={() => setExpanded(expanded === m.month ? null : m.month)}
+                  >
+                    <td className="py-1.5 pr-3 font-medium tabular-nums">
+                      <span className="inline-flex items-center gap-1">
+                        {expanded === m.month ? (
+                          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                        )}
+                        {m.month}
+                      </span>
+                    </td>
                     <td className="py-1.5 pr-3 font-medium tabular-nums">{m.month}</td>
                     <td className="py-1.5 pr-3">{statusBadge(m, t)}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">
@@ -197,12 +213,67 @@ export function TaxTimelinePanel() {
                       {m.status === "missing" ? "—" : fmtMoney(m.cash_net, true)}
                     </td>
                   </tr>
+                  {expanded === m.month ? (
+                    <tr key={`${m.month}-detail`} className="border-b border-border/60 bg-muted/10">
+                      <td colSpan={7} className="px-3 py-2">
+                        {detail.isLoading ? (
+                          <Skeleton className="h-16 w-full" />
+                        ) : detail.error ? (
+                          <div className="text-[11px] text-down">
+                            {detail.error instanceof Error ? detail.error.message : String(detail.error)}
+                          </div>
+                        ) : !detail.data || detail.data.entries.length === 0 ? (
+                          <div className="text-[11px] text-muted-foreground">{t("tax.drillEmpty")}</div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2 text-[10.5px] text-muted-foreground">
+                              <span>{t("tax.drillEntries")} · {detail.data.posted_entries}</span>
+                              <span>{t("tax.drillDebit")} {fmtMoney(detail.data.totals.debit)}</span>
+                              <span>{t("tax.drillCredit")} {fmtMoney(detail.data.totals.credit)}</span>
+                              {detail.data.draft_entries > 0 ? (
+                                <Badge variant="warn">{t("tax.timelineStatusOpen")} {detail.data.draft_entries}</Badge>
+                              ) : null}
+                            </div>
+                            {detail.data.entries.map((e) => (
+                              <div key={e.id} className="rounded-md border border-border/60 bg-card p-2">
+                                <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                                  <span className="font-medium">
+                                    {e.entry_date} · {e.description || "—"}
+                                  </span>
+                                  <span className="font-mono text-[10px] text-muted-foreground">{e.entry_no}</span>
+                                </div>
+                                <div className="mt-1 grid gap-0.5">
+                                  {e.lines.map((l) => (
+                                    <div
+                                      key={`${e.id}-${l.line_no}`}
+                                      className="flex flex-wrap items-center justify-between gap-2 rounded bg-muted/20 px-1.5 py-0.5 text-[10.5px]"
+                                    >
+                                      <span className="min-w-0">
+                                        {l.account_code} {l.account_name}
+                                        {l.memo ? <span className="text-muted-foreground"> · {l.memo}</span> : null}
+                                      </span>
+                                      <span className="tabular-nums text-muted-foreground">
+                                        {l.debit > 0
+                                          ? `${t("tax.drillDebit")} ${fmtMoney(l.debit)}`
+                                          : `${t("tax.drillCredit")} ${fmtMoney(l.credit)}`}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ) : null}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
           <p className="mt-2 text-[10.5px] leading-relaxed text-muted-foreground">
-            {t("tax.timelineBoundary")}
+            {t("tax.timelineBoundary")} {t("tax.drillHint")}
           </p>
         </Card>
       ) : null}

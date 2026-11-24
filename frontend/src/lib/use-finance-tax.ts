@@ -163,6 +163,37 @@ export interface TimelineResult {
   boundary: string;
 }
 
+export interface TimelineEntryLine {
+  line_no: number;
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  debit: number;
+  credit: number;
+  memo: string;
+}
+
+export interface TimelineEntry {
+  id: number;
+  entry_no: string;
+  entry_date: string;
+  description: string;
+  source: string;
+  posted_at: string;
+  lines: TimelineEntryLine[];
+}
+
+export interface TimelineMonthDetail {
+  month: string;
+  status: "open" | "closed" | "missing";
+  closed_at: string;
+  entries: TimelineEntry[];
+  posted_entries: number;
+  draft_entries: number;
+  totals: { debit: number; credit: number };
+  boundary: string;
+}
+
 export interface AttributionCandidate {
   category: string;
   source: "custom_rule" | "rule" | "history" | "existing" | "fallback";
@@ -204,6 +235,10 @@ export interface AttributionRule {
   category: string;
   direction: "" | "收入" | "支出";
   priority: number;
+  merchant?: string;
+  min_amount_cents?: number;
+  max_amount_cents?: number;
+  member_id?: number | null;
   enabled: number;
   confirmed: number;
   reverted: number;
@@ -312,6 +347,15 @@ export function useFinanceTimeline(months = 12) {
     queryKey: ["/api/finance/timeline", months],
     queryFn: () => api<TimelineResult>(`/api/finance/timeline?months=${months}`),
     staleTime: 60_000,
+  });
+}
+
+export function useFinanceTimelineMonth(month: string | null) {
+  return useQuery({
+    queryKey: ["/api/finance/timeline", "month", month],
+    queryFn: () => api<TimelineMonthDetail>(`/api/finance/timeline/${month}`),
+    enabled: Boolean(month),
+    retry: 0,
   });
 }
 

@@ -71,6 +71,19 @@ Both sides share one engine, so a family ledger and a company ledger obey the sa
   <img src="docs/screenshots/167-consolidation-overview.png" width="100%" alt="Multi-entity consolidation: scope, ownership-adjusted totals, eliminations and consolidated trial balance" />
 </p>
 
+**Enterprise budgets and cash plans that reach execution.** The ledger workspace gains a Budget & Cash tab: budgets by `YYYY-MM`, actuals only from posted GL entries, unbudgeted accounts flagged, drafts counted separately. Cash plans arrange dated inflows and outflows, allow only cash accounts 1001/1002, take the opening balance from you, and output projected ending balance, actual-to-date, daily variance and buffer warnings. Both write planning tables only: no vouchers, no transfers.
+
+<p align="center">
+  <img src="docs/screenshots/171-budget-plan.png" width="49%" alt="Monthly budget: planning, execution variance and unbudgeted accounts" />
+  <img src="docs/screenshots/172-cash-plan.png" width="49%" alt="Cash plan: balance curve, daily plan vs actual and safety buffer" />
+</p>
+
+On the personal side, the dashboard adds an asset tune-up card that turns emergency-buffer gaps, high-interest debt, concentration, target drift and savings rate into candidates with impact and risk. Every candidate needs confirmation; no orders, no repayments. Tax-timeline rows now expand to the month's posted vouchers and account lines, and attribution rules gain merchant, amount range and member dimensions.
+
+<p align="center">
+  <img src="docs/screenshots/175-asset-tune.png" width="100%" alt="Asset tune-up: concentration and savings candidates with impact, risk and confirmation" />
+</p>
+
 **Everything is addressable by your own agent.** The same capabilities are exposed through MCP, so Claude, Codex or any MCP client can drive the books with your permission.
 
 ---

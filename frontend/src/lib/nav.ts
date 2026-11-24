@@ -103,6 +103,7 @@ export const NAV_GROUPS: NavGroup<DataKind>[] = [
 export const WORKSPACE_HOME: Partial<Record<DataKind, DataKind>> = {
   gl: "statements",
   tax: "statements",
+  budget: "statements",
   procurement: "expenses",
   strategy: "research",
 };

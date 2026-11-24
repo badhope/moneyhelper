@@ -81,6 +81,45 @@ async def test_timeline_aggregates_posted_gl_only(client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_timeline_month_drilldown_posted_only(client) -> None:
+    today = date.today()
+    month = today.strftime("%Y-%m")
+    await db.gl_bootstrap(0, ref_date=today.isoformat())
+    accounts = {a["code"]: a for a in await db.gl_list_accounts(0)}
+    sale = await db.gl_create_entry(
+        0, today.isoformat(), "销售收款",
+        [
+            {"account_id": accounts["1001"]["id"], "debit": 1130, "credit": 0},
+            {"account_id": accounts["6001"]["id"], "debit": 0, "credit": 1000},
+            {"account_id": accounts["2203"]["id"], "debit": 0, "credit": 130},
+        ],
+    )
+    await db.gl_post_entry(0, sale["id"])
+    await db.gl_create_entry(
+        0, today.isoformat(), "草稿",
+        [
+            {"account_id": accounts["1001"]["id"], "debit": 9, "credit": 0},
+            {"account_id": accounts["6001"]["id"], "debit": 0, "credit": 9},
+        ],
+    )
+    detail = await db.finance_timeline_month(0, month)
+    assert detail["status"] == "open"
+    assert detail["posted_entries"] == 1
+    assert detail["draft_entries"] == 1
+    assert detail["entries"][0]["entry_no"] == sale["entry_no"]
+    assert detail["entries"][0]["description"] == "销售收款"
+    assert len(detail["entries"][0]["lines"]) == 3
+    assert detail["totals"] == {"debit": 1130.0, "credit": 1130.0}
+    missing = await db.finance_timeline_month(0, "2020-01")
+    assert missing["status"] == "missing" and missing["entries"] == []
+    with pytest.raises(ValueError, match="YYYY-MM"):
+        await db.finance_timeline_month(0, "2026-13")
+    resp = await client.get(f"/api/finance/timeline/{month}")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["entries"][0]["entry_no"] == sale["entry_no"]
+
+
+@pytest.mark.asyncio
 async def test_attribution_candidates_and_confirm(client) -> None:
     today = date.today().isoformat()
     await db.add_transaction(today, "星巴克咖啡", "其他", -32.0)
@@ -140,6 +179,47 @@ async def test_attribution_candidates_and_confirm(client) -> None:
         json={"transaction_id": 999999, "category": "餐饮"},
     )
     assert missing.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_attribution_rule_amount_member_merchant(client) -> None:
+    from app.finance_attribution import _match_custom_rule
+
+    created = await client.post(
+        "/api/finance/attribution/rules",
+        json={
+            "name": "星巴克午间",
+            "keyword": "星巴克",
+            "merchant": "星巴克",
+            "category": "餐饮",
+            "direction": "支出",
+            "min_amount_cents": 3000,
+            "max_amount_cents": 5000,
+            "member_id": 1,
+        },
+    )
+    assert created.status_code == 200, created.text
+    rule = created.json()["rule"]
+    assert rule["merchant"] == "星巴克"
+    assert rule["min_amount_cents"] == 3000
+    assert rule["max_amount_cents"] == 5000
+    assert rule["member_id"] == 1
+
+    hit = _match_custom_rule("星巴克咖啡", "支出", [rule], amount=-32, owner_id=1)
+    assert hit is not None
+    assert _match_custom_rule("星巴克咖啡", "支出", [rule], amount=-12, owner_id=1) is None
+    assert _match_custom_rule("星巴克咖啡", "支出", [rule], amount=-32, owner_id=2) is None
+    assert _match_custom_rule("瑞幸咖啡", "支出", [rule], amount=-32, owner_id=1) is None
+    assert _match_custom_rule("星巴克咖啡", "收入", [rule], amount=32, owner_id=1) is None
+
+    bad = await client.post(
+        "/api/finance/attribution/rules",
+        json={
+            "name": "区间反了", "keyword": "测试", "category": "餐饮",
+            "min_amount_cents": 5000, "max_amount_cents": 3000,
+        },
+    )
+    assert bad.status_code == 400
 
 
 @pytest.mark.asyncio

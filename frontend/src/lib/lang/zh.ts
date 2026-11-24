@@ -12,6 +12,7 @@ import { zh_debts } from "./zh/debts";
 import { zh_connect } from "./zh/connect";
 import { zh_tax } from "./zh/tax";
 import { zh_review } from "./zh/review";
+import { zh_plan } from "./zh/plan";
 
 export const zh: Record<string, string> = {
   ...zh_entry,
@@ -23,4 +24,5 @@ export const zh: Record<string, string> = {
   ...zh_connect,
   ...zh_tax,
   ...zh_review,
+  ...zh_plan,
 };

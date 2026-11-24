@@ -49,6 +49,7 @@ from .routes import (
     members_router,
     org_router,
     paper_router,
+    plan_router,
     procurement_router,
     provenance_router,
     qa_router,
@@ -114,6 +115,7 @@ app.include_router(calculations_router)
 app.include_router(connect_router)
 app.include_router(connect_deep_router)
 app.include_router(consolidation_router)
+app.include_router(plan_router)
 app.include_router(finance_tax_router)
 app.include_router(gl_router)
 app.include_router(execute_router)

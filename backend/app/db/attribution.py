@@ -123,7 +123,8 @@ async def upsert_confirmation(
 
 async def list_rules(tenant_id: int, user_id: int, *, enabled_only: bool = False) -> list[dict[str, Any]]:
     sql = (
-        "SELECT rule_id,name,keyword,category,direction,priority,enabled,created_at,updated_at"
+        "SELECT rule_id,name,keyword,category,direction,priority,merchant,"
+        "min_amount_cents,max_amount_cents,member_id,enabled,created_at,updated_at"
         " FROM attribution_rules WHERE tenant_id=? AND user_id=?"
     )
     if enabled_only:
@@ -142,23 +143,31 @@ async def create_rule(
     category: str,
     direction: str,
     priority: int,
+    merchant: str = "",
+    min_amount_cents: int = 0,
+    max_amount_cents: int = 0,
+    member_id: int | None = None,
 ) -> dict[str, Any]:
     now = now_iso()
     rule_id = new_id("ar_")
     async with write_txn() as conn:
         await conn.execute(
             "INSERT INTO attribution_rules"
-            "(tenant_id,user_id,rule_id,name,keyword,category,direction,priority,enabled,"
-            "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,1,?,?)",
+            "(tenant_id,user_id,rule_id,name,keyword,category,direction,priority,"
+            "merchant,min_amount_cents,max_amount_cents,member_id,enabled,created_at,updated_at)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)",
             (
                 int(tenant_id), int(user_id), rule_id, name, keyword, category,
-                direction, int(priority), now, now,
+                direction, int(priority), merchant, int(min_amount_cents),
+                int(max_amount_cents), member_id, now, now,
             ),
         )
     return {
         "rule_id": rule_id, "name": name, "keyword": keyword, "category": category,
-        "direction": direction, "priority": int(priority), "enabled": 1,
-        "created_at": now, "updated_at": now,
+        "direction": direction, "priority": int(priority), "merchant": merchant,
+        "min_amount_cents": int(min_amount_cents),
+        "max_amount_cents": int(max_amount_cents),
+        "member_id": member_id, "enabled": 1, "created_at": now, "updated_at": now,
     }
 
 
@@ -173,9 +182,14 @@ async def update_rule(
     direction: str | None = None,
     priority: int | None = None,
     enabled: bool | None = None,
+    merchant: str | None = None,
+    min_amount_cents: int | None = None,
+    max_amount_cents: int | None = None,
+    member_id: int | None = None,
 ) -> dict[str, Any] | None:
     current = await fetch_one(
-        "SELECT rule_id,name,keyword,category,direction,priority,enabled,created_at"
+        "SELECT rule_id,name,keyword,category,direction,priority,merchant,"
+        "min_amount_cents,max_amount_cents,member_id,enabled,created_at"
         " FROM attribution_rules WHERE tenant_id=? AND user_id=? AND rule_id=?",
         (int(tenant_id), int(user_id), str(rule_id)),
     )
@@ -188,17 +202,23 @@ async def update_rule(
         "category": row["category"] if category is None else category,
         "direction": row["direction"] if direction is None else direction,
         "priority": int(row["priority"] if priority is None else priority),
+        "merchant": str(row.get("merchant") or "") if merchant is None else merchant,
+        "min_amount_cents": int(row.get("min_amount_cents") or 0) if min_amount_cents is None else int(min_amount_cents),
+        "max_amount_cents": int(row.get("max_amount_cents") or 0) if max_amount_cents is None else int(max_amount_cents),
+        "member_id": row.get("member_id") if member_id is None else (None if int(member_id) == 0 else int(member_id)),
         "enabled": int(row["enabled"] if enabled is None else (1 if enabled else 0)),
         "updated_at": now_iso(),
     }
     async with write_txn() as conn:
         await conn.execute(
             "UPDATE attribution_rules SET name=?,keyword=?,category=?,direction=?,"
-            "priority=?,enabled=?,updated_at=? WHERE tenant_id=? AND user_id=? AND rule_id=?",
+            "priority=?,merchant=?,min_amount_cents=?,max_amount_cents=?,member_id=?,"
+            "enabled=?,updated_at=? WHERE tenant_id=? AND user_id=? AND rule_id=?",
             (
                 merged["name"], merged["keyword"], merged["category"], merged["direction"],
-                merged["priority"], merged["enabled"], merged["updated_at"],
-                int(tenant_id), int(user_id), str(rule_id),
+                merged["priority"], merged["merchant"], merged["min_amount_cents"],
+                merged["max_amount_cents"], merged["member_id"], merged["enabled"],
+                merged["updated_at"], int(tenant_id), int(user_id), str(rule_id),
             ),
         )
     return {**row, **merged}

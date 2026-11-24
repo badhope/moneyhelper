@@ -24,6 +24,10 @@ type Draft = {
   category: string;
   direction: "" | "收入" | "支出";
   priority: string;
+  merchant: string;
+  minAmount: string;
+  maxAmount: string;
+  memberId: string;
 };
 
 const EMPTY_DRAFT: Draft = {
@@ -32,6 +36,10 @@ const EMPTY_DRAFT: Draft = {
   category: "",
   direction: "",
   priority: "0",
+  merchant: "",
+  minAmount: "",
+  maxAmount: "",
+  memberId: "",
 };
 
 export function AttributionRulesPanel({ ruleHits = {} }: { ruleHits?: Record<string, number> }) {
@@ -57,6 +65,10 @@ export function AttributionRulesPanel({ ruleHits = {} }: { ruleHits?: Record<str
       category: rule.category,
       direction: rule.direction,
       priority: String(rule.priority),
+      merchant: rule.merchant ?? "",
+      minAmount: rule.min_amount_cents ? String(rule.min_amount_cents / 100) : "",
+      maxAmount: rule.max_amount_cents ? String(rule.max_amount_cents / 100) : "",
+      memberId: rule.member_id ? String(rule.member_id) : "",
     });
   }, [data, editingId]);
 
@@ -90,6 +102,10 @@ export function AttributionRulesPanel({ ruleHits = {} }: { ruleHits?: Record<str
       category: draft.category,
       direction: draft.direction,
       priority: Number(draft.priority || 0),
+      merchant: draft.merchant.trim(),
+      min_amount_cents: draft.minAmount ? Math.round(Number(draft.minAmount) * 100) : 0,
+      max_amount_cents: draft.maxAmount ? Math.round(Number(draft.maxAmount) * 100) : 0,
+      member_id: draft.memberId ? Number(draft.memberId) : null,
     };
     if (editingId) {
       update.mutate(
@@ -189,6 +205,52 @@ export function AttributionRulesPanel({ ruleHits = {} }: { ruleHits?: Record<str
           />
         </label>
       </div>
+      <label className="text-[10.5px] text-muted-foreground">
+        {t("tax.attrRuleMerchant")}
+        <input
+          value={draft.merchant}
+          onChange={(e) => setDraft((d) => ({ ...d, merchant: e.target.value }))}
+          placeholder={t("tax.attrRuleMerchantHint")}
+          className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-[11.5px]"
+        />
+      </label>
+      <label className="text-[10.5px] text-muted-foreground">
+        {t("tax.attrRuleMember")}
+        <input
+          type="number"
+          min={1}
+          value={draft.memberId}
+          onChange={(e) => setDraft((d) => ({ ...d, memberId: e.target.value }))}
+          placeholder={t("tax.attrRuleAny")}
+          className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-[11.5px]"
+        />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-[10.5px] text-muted-foreground">
+          {t("tax.attrRuleMin")}
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={draft.minAmount}
+            onChange={(e) => setDraft((d) => ({ ...d, minAmount: e.target.value }))}
+            placeholder={t("tax.attrRuleAny")}
+            className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-[11.5px]"
+          />
+        </label>
+        <label className="text-[10.5px] text-muted-foreground">
+          {t("tax.attrRuleMax")}
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={draft.maxAmount}
+            onChange={(e) => setDraft((d) => ({ ...d, maxAmount: e.target.value }))}
+            placeholder={t("tax.attrRuleAny")}
+            className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-[11.5px]"
+          />
+        </label>
+      </div>
       <div className="sm:col-span-2 rounded-md bg-muted/40 p-2">
         <div className="flex flex-wrap items-center gap-1.5">
           <input
@@ -205,13 +267,20 @@ export function AttributionRulesPanel({ ruleHits = {} }: { ruleHits?: Record<str
               test.mutate({
                 item: testItem,
                 direction: draft.direction || "支出",
-                amount: draft.direction === "收入" ? 100 : -100,
+                amount: (() => {
+                  const n = Number(draft.minAmount || draft.maxAmount || 100);
+                  return draft.direction === "收入" ? n : -n;
+                })(),
                 rule: {
                   name: draft.name,
                   keyword: draft.keyword,
                   category: draft.category,
                   direction: draft.direction,
                   priority: Number(draft.priority || 0),
+                  merchant: draft.merchant.trim(),
+                  min_amount_cents: draft.minAmount ? Math.round(Number(draft.minAmount) * 100) : 0,
+                  max_amount_cents: draft.maxAmount ? Math.round(Number(draft.maxAmount) * 100) : 0,
+                  member_id: draft.memberId ? Number(draft.memberId) : null,
                 },
               })
             }
@@ -324,6 +393,16 @@ export function AttributionRulesPanel({ ruleHits = {} }: { ruleHits?: Record<str
                     <span>→ {rule.category}</span>
                     <span>· {rule.direction || t("tax.attrRuleDirectionAny")}</span>
                     <span>· P{rule.priority}</span>
+                    {rule.merchant ? <span>· {t("tax.attrRuleMerchant")} {rule.merchant}</span> : null}
+                    {rule.min_amount_cents || rule.max_amount_cents ? (
+                      <span>
+                        · {t("tax.attrRuleAmount")} {" "}
+                        {rule.min_amount_cents ? `≥${rule.min_amount_cents / 100}` : ""}
+                        {rule.min_amount_cents && rule.max_amount_cents ? "-" : ""}
+                        {rule.max_amount_cents ? `≤${rule.max_amount_cents / 100}` : ""}
+                      </span>
+                    ) : null}
+                    {rule.member_id ? <span>· {t("tax.attrRuleMember")} #{rule.member_id}</span> : null}
                   </div>
                   <p className="mt-1 text-[10px] text-muted-foreground">
                     {t("tax.attrRuleStats", {
