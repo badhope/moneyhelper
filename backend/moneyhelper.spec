@@ -15,12 +15,8 @@
 import re
 from pathlib import Path
 
+import importlib
 import litellm  # 用于定位其数据文件与子模块（打包必须带上）
-import certifi
-import jsonschema_specifications
-import openapi_spec_validator
-import rfc3987_syntax
-import tzdata
 
 
 def _app_version() -> str:
@@ -84,6 +80,15 @@ def _package_data(pkg, package_name: str) -> list[tuple[str, str]]:
     return out
 
 
+def _optional_package_data(module_name: str, package_name: str) -> list[tuple[str, str]]:
+    """可选依赖才带数据；requirements 没装时不能把 spec 直接 import 崩掉。"""
+    try:
+        package = importlib.import_module(module_name)
+    except ImportError:
+        return []
+    return _package_data(package, package_name)
+
+
 def _all_submodules(pkg) -> list[str]:
     """递归收集包内全部子模块（走文件系统，不依赖 pkgutil 的加载器）。
 
@@ -127,11 +132,11 @@ a = Analysis(
         # 收齐数据文件，仍排除 __pycache__ 与 proxy 的 Next.js 快照，避免遍历卡死。
         *_litellm_data_files(),
         # 这些包没有官方 hook，数据文件必须手动带；漏了就是 import 期崩溃。
-        *_package_data(rfc3987_syntax, "rfc3987_syntax"),
-        *_package_data(jsonschema_specifications, "jsonschema_specifications"),
-        *_package_data(openapi_spec_validator, "openapi_spec_validator"),
-        *_package_data(certifi, "certifi"),
-        *_package_data(tzdata, "tzdata"),
+        *_optional_package_data("rfc3987_syntax", "rfc3987_syntax"),
+        *_optional_package_data("jsonschema_specifications", "jsonschema_specifications"),
+        *_optional_package_data("openapi_spec_validator", "openapi_spec_validator"),
+        *_optional_package_data("certifi", "certifi"),
+        *_optional_package_data("tzdata", "tzdata"),
     ],
     hiddenimports=[
         # Web 层
