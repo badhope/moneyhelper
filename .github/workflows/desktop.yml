@@ -194,9 +194,16 @@ jobs:
       - name: 列出桌面包
         shell: bash
         run: |
-          find desktop/src-tauri/target/release/bundle -maxdepth 3 -type f \
-            \( -name '*.deb' -o -name '*.AppImage' -o -name '*.msi' -o -name '*.exe' -o -name '*.dmg' -o -name '*.sig' \) \
-            -printf '%p %k KB\n' | sort
+          # macOS 的 BSD find 没有 -printf，统一用 Python 列出，避免平台差异把构建打成失败。
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("desktop/src-tauri/target/release/bundle")
+          suffixes = {".deb", ".appimage", ".msi", ".exe", ".dmg", ".sig"}
+          for file in sorted(root.rglob("*")):
+              if file.is_file() and file.suffix.lower() in suffixes:
+                  print(f"{file} {file.stat().st_size // 1024} KB")
+          PY
 
       - name: 上传 artifact
         uses: actions/upload-artifact@v7
