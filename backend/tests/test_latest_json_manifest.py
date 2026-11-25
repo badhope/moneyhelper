@@ -21,8 +21,8 @@ def test_manifest_requires_signature_and_maps_platforms(tmp_path: Path) -> None:
         ("Moneyhelper_4.27.0_amd64.AppImage.sig", "linux-signature"),
         ("Moneyhelper_4.27.0_x64-setup.exe", "win-signature"),
         ("Moneyhelper_4.27.0_x64-setup.exe.sig", "win-signature"),
-        ("Moneyhelper_4.27.0_aarch64.dmg", "mac-signature"),
-        ("Moneyhelper_4.27.0_aarch64.dmg.sig", "mac-signature"),
+        ("Moneyhelper_4.27.0_aarch64.app.tar.gz", "mac-signature"),
+        ("Moneyhelper_4.27.0_aarch64.app.tar.gz.sig", "mac-signature"),
     ]:
         (tmp_path / name).write_text(sig, encoding="utf-8")
     # 没签名的包不能进清单
@@ -48,5 +48,5 @@ def test_manifest_requires_signature_and_maps_platforms(tmp_path: Path) -> None:
     assert payload["version"] == "4.27.0"
     assert payload["platforms"]["linux-x86_64"]["signature"] == "linux-signature"
     assert payload["platforms"]["windows-x86_64"]["url"].endswith("-setup.exe")
-    assert payload["platforms"]["darwin-aarch64"]["url"].endswith(".dmg")
+    assert payload["platforms"]["darwin-aarch64"]["url"].endswith(".app.tar.gz")
     assert not any(item["url"].endswith(".deb") for item in payload["platforms"].values())

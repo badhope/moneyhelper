@@ -63,7 +63,7 @@ test.describe("问答流程", () => {
     await field.fill("你好");
     await field.press("Enter");
     // 确定性兜底文案，不是白屏 / JS 崩溃
-    await expect(page.getByText(/没有接入模型|未接入模型/).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/未接入 AI|没有接入模型|未接入模型/).first()).toBeVisible({ timeout: 10_000 });
     expect(errors).toEqual([]);
   });
 });

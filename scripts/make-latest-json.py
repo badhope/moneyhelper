@@ -16,7 +16,8 @@ from pathlib import Path
 PLATFORM_SUFFIX = {
     "linux-x86_64": (".AppImage", ".deb"),
     "windows-x86_64": ("-setup.exe", ".msi"),
-    "darwin-aarch64": (".dmg",),
+    # macOS 的 updater 只认 .app.tar.gz，dmg 只是给人下载安装的。
+    "darwin-aarch64": (".app.tar.gz",),
 }
 
 

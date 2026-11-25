@@ -49,7 +49,7 @@ test.describe("应用启动 & 冒烟", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "设置" }).first().click();
     await expect(page.getByRole("button", { name: "关闭" })).toBeVisible();
-    await expect(page.getByText("AI 回答").first()).toBeVisible();
+    await expect(page.getByText("AGENT 能力").first()).toBeVisible();
     await expect(page.getByText("偏好").first()).toBeVisible();
   });
 

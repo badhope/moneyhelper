@@ -217,10 +217,13 @@ jobs:
             desktop/src-tauri/target/release/bundle/nsis/*.exe
             desktop/src-tauri/target/release/bundle/msi/*.msi
             desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            # macOS 的 updater 产物不是 dmg，而是 .app.tar.gz；少它清单就缺 darwin。
+            desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz
             desktop/src-tauri/target/release/bundle/deb/*.sig
             desktop/src-tauri/target/release/bundle/appimage/*.sig
             desktop/src-tauri/target/release/bundle/nsis/*.sig
             desktop/src-tauri/target/release/bundle/msi/*.sig
+            desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
             desktop/src-tauri/target/release/bundle/dmg/*.sig
           if-no-files-found: error
 
@@ -241,10 +244,13 @@ jobs:
             desktop/src-tauri/target/release/bundle/nsis/*.exe
             desktop/src-tauri/target/release/bundle/msi/*.msi
             desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            # macOS 的 updater 产物不是 dmg，而是 .app.tar.gz；少它清单就缺 darwin。
+            desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz
             desktop/src-tauri/target/release/bundle/deb/*.sig
             desktop/src-tauri/target/release/bundle/appimage/*.sig
             desktop/src-tauri/target/release/bundle/nsis/*.sig
             desktop/src-tauri/target/release/bundle/msi/*.sig
+            desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
             desktop/src-tauri/target/release/bundle/dmg/*.sig
           fail_on_unmatched_files: false
         env:

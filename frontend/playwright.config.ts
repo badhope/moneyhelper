@@ -53,7 +53,9 @@ export default defineConfig({
       cwd: __dirname,
       port: 8788,
       reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
+      // 后端要 import litellm + 建表 + 挂 MCP，CI 冷启动实测可到 20-40s；
+      // 30s 会把「慢」误报成「起不来」。
+      timeout: 90_000,
       stdout: "pipe",
       stderr: "pipe",
       env: {

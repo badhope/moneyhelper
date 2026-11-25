@@ -52,7 +52,7 @@ test("流式回答被中途掐断时，UI 明确提示不完整而不是假装�
     });
   });
 
-  await page.getByRole("textbox").first().fill("测试断流");
+  await page.getByPlaceholder(/问点什么/).fill("测试断流");
   await page.keyboard.press("Enter");
 
   // 应该看到已收到的那段文字
