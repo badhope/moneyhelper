@@ -5,9 +5,11 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use serde::Serialize;
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
+use tauri_plugin_updater::UpdaterExt;
 
 struct Sidecar {
     child: Mutex<Option<CommandChild>>,
@@ -70,10 +72,62 @@ fn stop_sidecar(child: tauri_plugin_shell::process::CommandChild) {
     }
 }
 
+
+/// 返回给前端的更新探测结果。只暴露版本与说明，不把签名/下载地址透出去。
+#[derive(Serialize)]
+struct UpdateInfo {
+    available: bool,
+    current: String,
+    version: Option<String>,
+    notes: Option<String>,
+    date: Option<String>,
+}
+
+#[tauri::command]
+async fn check_update(app: tauri::AppHandle) -> Result<UpdateInfo, String> {
+    let current = app.package_info().version.to_string();
+    let updater = app.updater().map_err(|e| format!("更新器初始化失败: {e}"))?;
+    match updater.check().await {
+        Ok(Some(update)) => Ok(UpdateInfo {
+            available: true,
+            current,
+            version: Some(update.version.clone()),
+            notes: update.body.clone(),
+            date: update.date.map(|d| d.to_string()),
+        }),
+        Ok(None) => Ok(UpdateInfo {
+            available: false,
+            current,
+            version: None,
+            notes: None,
+            date: None,
+        }),
+        Err(e) => Err(format!("检查更新失败: {e}")),
+    }
+}
+
+/// 下载并安装更新，然后重启自身。Linux AppImage 可直接自替换；
+/// `.deb` 由包管理器接管，普通用户权限不足时应引导用户走 apt。
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    let updater = app.updater().map_err(|e| format!("更新器初始化失败: {e}"))?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| format!("检查更新失败: {e}"))?
+        .ok_or_else(|| "当前已是最新版本".to_string())?;
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .map_err(|e| format!("下载或安装更新失败: {e}"))?;
+    app.restart();
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![check_update, install_update])
         .manage(Sidecar { child: Mutex::new(None) })
         .setup(|app| {
             let port = pick_port();

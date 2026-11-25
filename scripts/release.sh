@@ -161,7 +161,31 @@ s = p.read_text(encoding="utf-8")
 s = re.sub(r'"version": "[^"]+"', f'"version": "{nxt}"', s, count=1)
 p.write_text(s, encoding="utf-8")
 
-print(f"version.py / pyproject.toml / package.json → {nxt}")
+# 4) 桌面壳三处版本：Tauri 打包与 Rust 二进制都以这些字段为准
+p = root / "desktop/package.json"
+s = p.read_text(encoding="utf-8")
+s = re.sub(r'"version": "[^"]+"', f'"version": "{nxt}"', s, count=1)
+p.write_text(s, encoding="utf-8")
+
+p = root / "desktop/src-tauri/tauri.conf.json"
+s = p.read_text(encoding="utf-8")
+s = re.sub(r'"version": "[^"]+"', f'"version": "{nxt}"', s, count=1)
+p.write_text(s, encoding="utf-8")
+
+p = root / "desktop/src-tauri/Cargo.toml"
+s = p.read_text(encoding="utf-8")
+s = re.sub(r'^version = "[^"]+"', f'version = "{nxt}"', s, count=1, flags=re.M)
+p.write_text(s, encoding="utf-8")
+
+# 5) Windows 文件属性（PyInstaller 的 version_info）
+p = root / "build/version_info.txt"
+if p.exists():
+    s = p.read_text(encoding="utf-8")
+    s = re.sub(r"FileVersion', '[^']+'", f"FileVersion', '{nxt}'", s)
+    s = re.sub(r"ProductVersion', '[^']+'", f"ProductVersion', '{nxt}'", s)
+    p.write_text(s, encoding="utf-8")
+
+print(f"version.py / pyproject.toml / frontend+desktop package.json / tauri.conf.json / Cargo.toml → {nxt}")
 PY
 
 say "写入 CHANGELOG"

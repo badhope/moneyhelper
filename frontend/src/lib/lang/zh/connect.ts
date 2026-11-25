@@ -356,4 +356,15 @@ export const zh_connect: Record<string, string> = {
   "connect.brokerFundAccountPh": "资金账号",
   "connect.brokerVaultOnly": "只写入 vault",
   "connect.mvUnit": "亿",
-};
+  "settings.updateTitle": "版本更新",
+  "settings.updateCheck": "检查更新",
+  "settings.updateChecking": "正在检查更新…",
+  "settings.updateAvailable": "发现新版本",
+  "settings.updateInstall": "立即升级",
+  "settings.updateInstalling": "正在后台下载并安装，完成后会自动重启",
+  "settings.updateLatest": "已是最新版本",
+  "settings.updateDesktopOnly": "自动升级仅在桌面版可用",
+  "settings.updateHint": "提示",
+  "settings.updateError": "检查更新失败",
+  "settings.updateInstallingShort": "安装中",
+}

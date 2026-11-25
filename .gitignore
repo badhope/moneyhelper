@@ -74,3 +74,12 @@ desktop/src-tauri/gen/
 desktop/src-tauri/binaries/*
 !desktop/src-tauri/binaries/README.md
 desktop/node_modules/
+
+# 桌面安装包：本地保留，二进制不提交（GitHub 单文件 100MB 限制）
+releases/*/*.deb
+releases/*/*.AppImage
+releases/*/*.exe
+releases/*/*.tar.gz
+releases/*/*.msi
+releases/*/*.dmg
+releases/*/*.sig

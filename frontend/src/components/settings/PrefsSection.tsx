@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { inputCls } from "@/components/ui/field";
 import { DATA_KINDS, isDataKind } from "@/lib/views";
 import { Section } from "./shared";
+import { UpdateCard } from "./UpdateCard";
 
 /** 偏好设置（主题 / 主题色 / 语音 / 语言 / 涨跌配色 / 默认首页）；开关类即改即存，配色与首页走底部批量保存 */
 export function PrefsSection({
@@ -189,6 +190,7 @@ export function PrefsSection({
       <div className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
         {t("settings.version")} {__APP_VERSION__}
       </div>
+      <UpdateCard />
     </Section>
   );
 }

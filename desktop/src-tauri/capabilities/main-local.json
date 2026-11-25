@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-local-api",
+  "description": "主窗口加载本地 sidecar 页面，仅允许 127.0.0.1 的本地页面使用基础 IPC。",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*"]
+  },
+  "permissions": ["core:default"]
+}

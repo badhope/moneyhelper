@@ -2,6 +2,19 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.27.1] - 2026-11-25（应用内升级）
+
+### 新增
+
+- 设置 → 偏好新增“版本更新”卡片：可检查 GitHub / GitCode 的 `latest.json`，发现新版本后一键下载、安装并重启。
+- Rust 侧新增 `check_update` / `install_update` 命令，更新包下载后由 Tauri updater 强制校验 minisign 签名，不经过前端转发。
+- 主窗口对本地 sidecar 页面启用最小 IPC capability，只放行 `http://127.0.0.1:*` 的 `core:default`，不向公网页面开放。
+
+### 修正
+
+- 发版脚本补齐 `desktop/package.json`、`tauri.conf.json`、`Cargo.toml` 和 Windows `version_info` 的同步，避免桌面版本号再次漂移。
+- 代码目录新增 `releases/<version>/`：本地保留 `.deb`、AppImage、NSIS、macOS 包与 `latest.json`，附 `SHA256SUMS.txt` 和安装说明。
+
 ## [4.27.0] - 2026-11-25（桌面交付）
 
 ### 新增

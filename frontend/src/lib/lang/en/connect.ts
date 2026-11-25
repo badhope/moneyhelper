@@ -356,4 +356,15 @@ export const en_connect: Record<string, string> = {
   "connect.brokerFundAccountPh": "Fund account",
   "connect.brokerVaultOnly": "Stored in vault only",
   "connect.mvUnit": "100M",
-};
+  "settings.updateTitle": "App updates",
+  "settings.updateCheck": "Check for updates",
+  "settings.updateChecking": "Checking…",
+  "settings.updateAvailable": "Update available",
+  "settings.updateInstall": "Install now",
+  "settings.updateInstalling": "Downloading and installing; the app will restart",
+  "settings.updateLatest": "Up to date",
+  "settings.updateDesktopOnly": "In-app updates are available in the desktop app only",
+  "settings.updateHint": "Tip",
+  "settings.updateError": "Update check failed",
+  "settings.updateInstallingShort": "Installing",
+}
