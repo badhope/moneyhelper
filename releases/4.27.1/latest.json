@@ -1,0 +1,19 @@
+{
+  "version": "4.27.1",
+  "notes": "Moneyhelper 4.27.1 桌面版",
+  "pub_date": "2026-11-25T08:44:13.922558Z",
+  "platforms": {
+    "linux-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTcmtZeXByMFZYQVNhT3BaV2FjbkZVZGhIZGQ5MGdxNndHNFc3WTBBZWg1Ny9RZ2FmeHhwcFQvWkRPbDZlNzVFWWVxK08zNXNFSk54MnN0V3k4UW8vMjVTdXFoQ1BNeEE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTk2MDA0CWZpbGU6TW9uZXloZWxwZXJfNC4yNy4xX2FtZDY0LkFwcEltYWdlCXZlcnNpb246NC4yNy4xCnpJKzNaeDRnVlkzdG9seEYzWWwzTU9pWE5GWWhZSlFCK0o3VVNleEppYkRnY1AwUzZJSzh2Wjl0VmVjdktEamMzakVROTlUQjAzZVdIRlMrUGJuaUR3PT0K",
+      "url": "https://github.com/Morningstar202604/moneyhelper/releases/download/v4.27.1/Moneyhelper_4.27.1_amd64.AppImage"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTcmtZeXByMFZYQVR2VWlaekpJMGhmN3FrSTd4N3ZSNmY4dTlaTS8wTXpodEVuN0RTT25PL2xQZmpKZENIbWRrZno2dGRWNGZxS2lZSFZBYWlBUVBTWnhCTVBVWEsveGdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTk2MjA0CWZpbGU6TW9uZXloZWxwZXJfNC4yNy4xX3g2NC1zZXR1cC5leGUJdmVyc2lvbjo0LjI3LjEKQTNoN3I5Lzd0L3JWTTNPYUxTaEVwQjhSV2dkSjF6Q1AyKzR3MnJwQklZTS9kcTBsT1d0S2V1NXRLaVVibjM5Y0llMUgrekhDS2lxVlZydm0ra05uQWc9PQo=",
+      "url": "https://github.com/Morningstar202604/moneyhelper/releases/download/v4.27.1/Moneyhelper_4.27.1_x64-setup.exe"
+    },
+    "darwin-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTcmtZeXByMFZYQVZEdTllaUlidWVvVHNiY3ZuOWRnUTV2aVlrS0Ywa3kzRHVuOG4wYjZGdnBFM3BEY1FmbWZwZHkzZjA4MzNQWjVvdUkxTXFqQUJCWGREK2FEb2ZnZ2dNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTk1OTQyCWZpbGU6TW9uZXloZWxwZXIuYXBwLnRhci5negl2ZXJzaW9uOjQuMjcuMQpmMTQ0OWFZUDNVd2tZclYzdjN0NXRJWmk0dkFnVVFMUDA5MWZkTExUc00ydFhDcXdnL1ptVU9CZ2x1MFJ5NDFETFlNN1lqcVdhWVNlRzR2VXg5RG5Ddz09Cg==",
+      "url": "https://github.com/Morningstar202604/moneyhelper/releases/download/v4.27.1/Moneyhelper.app.tar.gz"
+    }
+  }
+}
