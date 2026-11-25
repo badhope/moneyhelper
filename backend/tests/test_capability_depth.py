@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from app import db, longtask
 from app.agent import select_task_model
 from app.agent_toolset import build_toolset
@@ -101,7 +100,7 @@ async def test_background_longtask_cancel_really_stops(monkeypatch):
     assert all(s["status"] != "done" for s in final["stages"])
     assert all(s["status"] != "running" for s in final["stages"])
     assert any(s["status"] == "cancelled" for s in final["stages"])
-    cancelled = [s for s in final["stages"] if s["status"] == "cancelled"][0]
+    cancelled = next(s for s in final["stages"] if s["status"] == "cancelled")
     assert cancelled.get("attempts", 0) >= 1
 
 

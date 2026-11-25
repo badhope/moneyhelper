@@ -14,7 +14,7 @@ from typing import Any
 
 from ..timeutil import new_id, now_iso
 from ._core import fetch_all, fetch_one, write_txn
-from .gl_accounts import gl_list_accounts, gl_list_periods
+from .gl_accounts import gl_list_accounts
 from .gl_entries_report import gl_trial_balance
 
 _BUDGET_NAME = "主预算"
@@ -48,7 +48,7 @@ def _cents(value: Any, field: str = "金额") -> int:
         raise ValueError(f"{field}必须是有限数字")
     if amount < 0:
         raise ValueError(f"{field}不能为负")
-    return int(round(amount * 100))
+    return round(amount * 100)
 
 
 def _yuan(cents: int | float | None) -> float:
@@ -98,7 +98,7 @@ async def _plan_row(tenant_id: int, table: str, period: str, name: str) -> dict[
 async def budget_plan_get(
     tenant_id: int, period: str, name: str = _BUDGET_NAME
 ) -> dict[str, Any]:
-    year, month, label = _period_parts(period)
+    _year, _month, label = _period_parts(period)
     plan = await _plan_row(tenant_id, "enterprise_budget_plans", label, _clean(name, 40) or _BUDGET_NAME)
     lines: list[dict[str, Any]] = []
     if plan is not None:
@@ -307,7 +307,7 @@ async def budget_report(
 
 
 async def cash_plan_get(tenant_id: int, period: str, name: str = _CASH_NAME) -> dict[str, Any]:
-    year, month, label = _period_parts(period)
+    _year, _month, label = _period_parts(period)
     plan = await _plan_row(tenant_id, "enterprise_cash_plans", label, _clean(name, 40) or _CASH_NAME)
     lines: list[dict[str, Any]] = []
     if plan is not None:

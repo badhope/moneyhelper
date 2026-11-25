@@ -63,7 +63,7 @@ def _match_custom_rule(
     owner_id: int | None = None,
 ) -> dict[str, Any] | None:
     text = _clean_text(item).lower()
-    amount_cents = abs(int(round(float(amount or 0) * 100)))
+    amount_cents = abs(round(float(amount or 0) * 100))
     ordered = sorted(
         custom_rules,
         key=lambda r: (-int(r.get("priority") or 0), str(r.get("created_at") or "")),

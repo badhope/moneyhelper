@@ -22,7 +22,10 @@ BACKEND = ROOT / "backend" / "app"
 FRONTEND = ROOT / "frontend" / "src"
 BASELINE = ROOT / "scripts" / "api-contract-baseline.json"
 
-ROUTE_RE = re.compile(r'@router\.(?:get|post|put|patch|delete)\(\s*["\']([^"\']+)["\']')
+ROUTE_RE = re.compile(r'@(\w+)\.(get|post|put|patch|delete)\(\s*["\']([^"\']*)["\']')
+# 路由前缀写在 APIRouter(prefix=...) 里，装饰器只写后缀；只看 @router. 会漏掉
+# 所有带前缀的子路由（4.16.45 的项目卡就这么被误报成「后端不存在」）。
+ROUTER_RE = re.compile(r'(\w+)\s*=\s*APIRouter\(\s*prefix\s*=\s*["\']([^"\']*)["\']')
 # 前端：只认真正的请求调用（api(...) / fetch(...)），
 # 不能把 `queryKey: ["/api/xxx"]` 这种缓存键当成路径——那是键名，不是 URL。
 FRONT_PATH_RE = re.compile(
@@ -85,13 +88,10 @@ def backend_routes() -> dict[str, set[str]]:
         if "routes" not in f.parts:
             continue
         text = f.read_text(encoding="utf-8", errors="ignore")
+        prefixes = {m.group(1): m.group(2) for m in ROUTER_RE.finditer(text)}
         for m in ROUTE_RE.finditer(text):
-            raw, method = m.group(1), None
-            # 取最近的方法名：装饰器原文里就带（这里从匹配串无法取，改用行内解析）
-            line = text[m.start(): text.find("\n", m.start())]
-            mm = re.search(r"@router\.(get|post|put|patch|delete)", line)
-            method = mm.group(1).upper() if mm else "GET"
-            out.setdefault(normalize(raw), set()).add(method)
+            router_name, method, raw = m.group(1), m.group(2).upper(), m.group(3)
+            out.setdefault(normalize(prefixes.get(router_name, "") + raw), set()).add(method)
     return out
 
 

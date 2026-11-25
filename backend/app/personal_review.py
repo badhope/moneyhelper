@@ -19,14 +19,16 @@ from typing import Any
 from . import analysis, db
 from .analysis_health import goal_progress
 from .analysis_views import _num
+from .calculations._shared import pick_lang
 from .calculations.cashflow_detect import detect_anomalies
 from .connect import store
 from .connect.catalog import get_connector
 from .timeutil import now_iso as _now
 
 
-def _t(zh: str, en: str, lang: str) -> str:
-    return en if lang != "zh" else zh
+def _label(zh: str, en: str, lang: str) -> str:
+    """旧调用点按 (中, 英, 语言) 传参；真源是 calculations._shared.pick_lang。"""
+    return pick_lang(lang, zh, en)
 
 
 def _fingerprint(payload: dict[str, Any]) -> str:
@@ -131,7 +133,7 @@ async def identity_card(lang: str = "zh", display_name: str = "") -> dict[str, A
     mode = "demo" if demo else ("seed" if seeded else "real")
 
     payload = {
-        "display_name": display_name or _t("本机用户", "Local user", lang),
+        "display_name": display_name or _label("本机用户", "Local user", lang),
         "mode": mode,
         "assets": round(assets, 2),
         "cash": round(cash, 2),
@@ -165,9 +167,9 @@ async def identity_card(lang: str = "zh", display_name: str = "") -> dict[str, A
         "profile": {
             "display_name": payload["display_name"],
             "mode": mode,
-            "mode_label": _t({"real": "真实账本", "demo": "演示账本", "seed": "示例账本"}[mode], {"real": "Real ledger", "demo": "Demo ledger", "seed": "Sample ledger"}[mode], lang),
+            "mode_label": _label({"real": "真实账本", "demo": "演示账本", "seed": "示例账本"}[mode], {"real": "Real ledger", "demo": "Demo ledger", "seed": "Sample ledger"}[mode], lang),
             "base_currency": "CNY",
-            "storage": _t("本机 SQLite；不读取身份证号、卡号、密码", "Local SQLite; no ID, card number or password is read", lang),
+            "storage": _label("本机 SQLite；不读取身份证号、卡号、密码", "Local SQLite; no ID, card number or password is read", lang),
         },
         "financials": {
             "assets": round(assets, 2),
@@ -213,7 +215,7 @@ async def identity_card(lang: str = "zh", display_name: str = "") -> dict[str, A
             "ai_cannot": ai_cannot,
         },
         "provenance": {
-            "ledger": _t("本地账本（SQLite）", "Local ledger (SQLite)", lang),
+            "ledger": _label("本地账本（SQLite）", "Local ledger (SQLite)", lang),
             "quotes": str((dash.get("source") or {}).get("quotes") or ""),
             "last_transaction": last_tx,
             "last_connection_sync": last_sync,
@@ -221,9 +223,9 @@ async def identity_card(lang: str = "zh", display_name: str = "") -> dict[str, A
             "seeded": seeded,
         },
         "boundaries": [
-            _t("身份证号不读取、不保存、不出现在导出。", "No ID number is read, stored or exported.", lang),
-            _t("账号接入不存密码、不模拟登录、不绕过风控。", "Account connections never store passwords, simulate login or bypass risk controls.", lang),
-            _t("模型只能读取、整理、起草；转账与实盘下单由你确认。", "The model may read, organize and draft; transfers and live orders stay with you.", lang),
+            _label("身份证号不读取、不保存、不出现在导出。", "No ID number is read, stored or exported.", lang),
+            _label("账号接入不存密码、不模拟登录、不绕过风控。", "Account connections never store passwords, simulate login or bypass risk controls.", lang),
+            _label("模型只能读取、整理、起草；转账与实盘下单由你确认。", "The model may read, organize and draft; transfers and live orders stay with you.", lang),
         ],
     }
 
@@ -233,7 +235,7 @@ async def monthly_review(month: str, lang: str = "zh") -> dict[str, Any]:
     start, end = _month_bounds(month)
     today = date.today()
     if start > today:
-        raise ValueError(_t("不能复盘未来月份", "Cannot review a future month", lang))
+        raise ValueError(_label("不能复盘未来月份", "Cannot review a future month", lang))
     in_progress = start <= today <= end
     as_of = min(today, end)
     days_in_period = as_of.day
@@ -289,11 +291,11 @@ async def monthly_review(month: str, lang: str = "zh") -> dict[str, Any]:
     top_subs = sorted(subs, key=lambda s: -float(s.get("monthly") or 0))[:3]
 
     checks = [
-        {"id": "ledger", "label": _t("本月有流水", "Transactions recorded", lang), "ok": len(txs) > 0},
-        {"id": "income", "label": _t("收入已记录", "Income recorded", lang), "ok": current["income"] > 0},
-        {"id": "expense", "label": _t("支出已记录", "Expenses recorded", lang), "ok": current["expense"] > 0},
-        {"id": "category", "label": _t("没有未分类流水", "No uncategorized transactions", lang), "ok": current["uncategorized"] == 0 and len(txs) > 0},
-        {"id": "budget", "label": _t("本月预算已设置", "Budget set for this month", lang), "ok": bool(budget.get("total_budget"))},
+        {"id": "ledger", "label": _label("本月有流水", "Transactions recorded", lang), "ok": len(txs) > 0},
+        {"id": "income", "label": _label("收入已记录", "Income recorded", lang), "ok": current["income"] > 0},
+        {"id": "expense", "label": _label("支出已记录", "Expenses recorded", lang), "ok": current["expense"] > 0},
+        {"id": "category", "label": _label("没有未分类流水", "No uncategorized transactions", lang), "ok": current["uncategorized"] == 0 and len(txs) > 0},
+        {"id": "budget", "label": _label("本月预算已设置", "Budget set for this month", lang), "ok": bool(budget.get("total_budget"))},
     ]
     passed = sum(1 for c in checks if c["ok"])
     completeness = round(passed / len(checks) * 100, 1)
@@ -311,22 +313,22 @@ async def monthly_review(month: str, lang: str = "zh") -> dict[str, Any]:
     if not txs:
         add_action(
             "NO_DATA",
-            _t("先补录本月流水", "Record this month's transactions first", lang),
-            _t(f"本月 0 笔流水，任何复盘结论都会失真；先导入账单或手动记几笔收入与支出。",
-               f"0 transactions this month makes any review unreliable; import a statement or add income and expenses first.", lang),
+            _label("先补录本月流水", "Record this month's transactions first", lang),
+            _label("本月 0 笔流水，任何复盘结论都会失真；先导入账单或手动记几笔收入与支出。",
+               "0 transactions this month makes any review unreliable; import a statement or add income and expenses first.", lang),
         )
     if not budget.get("total_budget"):
         add_action(
             "BUDGET_UNSET",
-            _t("先给必要支出设预算", "Set a budget for essential spending", lang),
-            _t("本月预算未设置；先给居住、餐饮、交通等必要支出设一个月度上限，下月复盘才有超支判断。",
+            _label("先给必要支出设预算", "Set a budget for essential spending", lang),
+            _label("本月预算未设置；先给居住、餐饮、交通等必要支出设一个月度上限，下月复盘才有超支判断。",
                "No budget is set; add a monthly cap for essentials such as housing, food and transport so overspending can be judged next month.", lang),
         )
     if current["income"] > 0 and current["net"] < 0:
         add_action(
             "CASHFLOW_DEFICIT",
-            _t("先把支出压回收入以内", "Bring spending back below income", lang),
-            _t(f"本月支出比收入多 {_money_word(-current['net'])} 元；下月先找出一笔可延后的大额支出。",
+            _label("先把支出压回收入以内", "Bring spending back below income", lang),
+            _label(f"本月支出比收入多 {_money_word(-current['net'])} 元；下月先找出一笔可延后的大额支出。",
                f"Spending exceeded income by {_money_word(-current['net'])} CNY; defer one large non-essential item next month.", lang),
             -current["net"],
         )
@@ -334,8 +336,8 @@ async def monthly_review(month: str, lang: str = "zh") -> dict[str, Any]:
         gap = max(0.0, (savings_target - current["savings_rate"]) / 100 * current["income"])
         add_action(
             "SAVINGS_BELOW_TARGET",
-            _t("发薪先锁定结余", "Lock in savings on payday", lang),
-            _t(f"结余率 {current['savings_rate']}% 低于目标 {savings_target:g}%；下月发薪先转 {_money_word(gap)} 元。",
+            _label("发薪先锁定结余", "Lock in savings on payday", lang),
+            _label(f"结余率 {current['savings_rate']}% 低于目标 {savings_target:g}%；下月发薪先转 {_money_word(gap)} 元。",
                f"Savings rate {current['savings_rate']}% is below the {savings_target:g}% target; move {_money_word(gap)} CNY out on payday.", lang),
             gap,
         )
@@ -343,8 +345,8 @@ async def monthly_review(month: str, lang: str = "zh") -> dict[str, Any]:
         over = float(top_over.get("spent") or 0) - float(top_over.get("budget") or 0)
         add_action(
             "BUDGET_OVER",
-            _t(f"把「{top_over['category']}」压回预算", f"Bring {top_over['category']} back under budget", lang),
-            _t(f"该分类超预算 {_money_word(over)} 元；下月先设一个每周上限。",
+            _label(f"把「{top_over['category']}」压回预算", f"Bring {top_over['category']} back under budget", lang),
+            _label(f"该分类超预算 {_money_word(over)} 元；下月先设一个每周上限。",
                f"This category is {_money_word(over)} CNY over budget; set a weekly cap next month.", lang),
             over,
         )
@@ -352,8 +354,8 @@ async def monthly_review(month: str, lang: str = "zh") -> dict[str, Any]:
         total_anom = sum(float(a.get("amount") or 0) for a in anomalies)
         add_action(
             "ANOMALY_REVIEW",
-            _t(f"核对 {len(anomalies)} 笔异常支出", f"Review {len(anomalies)} anomalous transactions", lang),
-            _t(f"合计 {_money_word(total_anom)} 元；先看是否为一次性大额、误扣或重复扣款。",
+            _label(f"核对 {len(anomalies)} 笔异常支出", f"Review {len(anomalies)} anomalous transactions", lang),
+            _label(f"合计 {_money_word(total_anom)} 元；先看是否为一次性大额、误扣或重复扣款。",
                f"Total {_money_word(total_anom)} CNY; check for one-off purchases, mistaken or duplicate charges.", lang),
             total_anom,
         )
@@ -361,16 +363,16 @@ async def monthly_review(month: str, lang: str = "zh") -> dict[str, Any]:
         target_cash = emergency_target * current["essential"]
         add_action(
             "EMERGENCY_GAP",
-            _t("补应急金", "Top up the emergency fund", lang),
-            _t(f"现金覆盖 {emergency_months} 个月，低于目标 {emergency_target:g} 个月；缺口约 {_money_word(max(0.0, target_cash - cash))} 元。",
+            _label("补应急金", "Top up the emergency fund", lang),
+            _label(f"现金覆盖 {emergency_months} 个月，低于目标 {emergency_target:g} 个月；缺口约 {_money_word(max(0.0, target_cash - cash))} 元。",
                f"Cash covers {emergency_months} months vs the {emergency_target:g}-month target; gap about {_money_word(max(0.0, target_cash - cash))} CNY.", lang),
             max(0.0, target_cash - cash),
         )
     if sub_total > 0:
         add_action(
             "SUBSCRIPTION_AUDIT",
-            _t(f"审计 {len(subs)} 项订阅", f"Audit {len(subs)} subscriptions", lang),
-            _t(f"月支出 {_money_word(sub_total)} 元；逐项确认过去 30 天是否真的用过。",
+            _label(f"审计 {len(subs)} 项订阅", f"Audit {len(subs)} subscriptions", lang),
+            _label(f"月支出 {_money_word(sub_total)} 元；逐项确认过去 30 天是否真的用过。",
                f"{_money_word(sub_total)} CNY per month; confirm each was actually used in the last 30 days.", lang),
             sub_total,
         )
@@ -378,39 +380,39 @@ async def monthly_review(month: str, lang: str = "zh") -> dict[str, Any]:
         need = sum(float(g["monthly_suggest"]) for g in goals_behind)
         add_action(
             "GOAL_BEHIND",
-            _t("目标进度需要重排", "Reschedule lagging goals", lang),
-            _t(f"{len(goals_behind)} 个目标按当前结余会落后，合计每月需 {_money_word(need)} 元；延长截止月或降低目标。",
+            _label("目标进度需要重排", "Reschedule lagging goals", lang),
+            _label(f"{len(goals_behind)} 个目标按当前结余会落后，合计每月需 {_money_word(need)} 元；延长截止月或降低目标。",
                f"{len(goals_behind)} goals will lag at the current surplus, needing {_money_word(need)} CNY/month; extend deadlines or lower targets.", lang),
             need,
         )
     if not actions:
         add_action(
             "MAINTAIN",
-            _t("保持，并把结余转走", "Keep it up and move the surplus", lang),
-            _t(f"本月没有硬性异常；把结余 {_money_word(max(0.0, current['net']))} 元转入应急金或目标账户。",
+            _label("保持，并把结余转走", "Keep it up and move the surplus", lang),
+            _label(f"本月没有硬性异常；把结余 {_money_word(max(0.0, current['net']))} 元转入应急金或目标账户。",
                f"No hard exceptions this month; move the {_money_word(max(0.0, current['net']))} CNY surplus to emergency savings or goals.", lang),
             max(0.0, current["net"]),
         )
     actions = actions[:3]
 
-    headline = _t(
+    headline = _label(
         f"{month}{'（截至 ' + as_of.isoformat()[5:] + '）' if in_progress else ''}：收入 {_money_word(current['income'])}，支出 {_money_word(current['expense'])}，结余 {_money_word(current['net'])}；储蓄率 {current['savings_rate']}%。",
         f"{month}{' (to ' + as_of.isoformat()[5:] + ')' if in_progress else ''}: income {_money_word(current['income'])}, expense {_money_word(current['expense'])}, net {_money_word(current['net'])}; savings rate {current['savings_rate']}%.",
         lang,
     )
     verdict_parts = []
     if current["income"] <= 0:
-        verdict_parts.append(_t("本月没有收入记录，复盘只能看支出。", "No income was recorded, so this review only covers spending.", lang))
+        verdict_parts.append(_label("本月没有收入记录，复盘只能看支出。", "No income was recorded, so this review only covers spending.", lang))
     elif current["net"] < 0:
-        verdict_parts.append(_t(f"支出超过收入 {_money_word(-current['net'])} 元。", f"Spending exceeded income by {_money_word(-current['net'])} CNY.", lang))
+        verdict_parts.append(_label(f"支出超过收入 {_money_word(-current['net'])} 元。", f"Spending exceeded income by {_money_word(-current['net'])} CNY.", lang))
     else:
-        verdict_parts.append(_t(f"结余为正，储蓄率 {current['savings_rate']}%。", f"Surplus is positive; savings rate {current['savings_rate']}%.", lang))
+        verdict_parts.append(_label(f"结余为正，储蓄率 {current['savings_rate']}%。", f"Surplus is positive; savings rate {current['savings_rate']}%.", lang))
     if over_categories:
-        verdict_parts.append(_t(f"{len(over_categories)} 个分类超预算。", f"{len(over_categories)} categories are over budget.", lang))
+        verdict_parts.append(_label(f"{len(over_categories)} 个分类超预算。", f"{len(over_categories)} categories are over budget.", lang))
     if anomalies:
-        verdict_parts.append(_t(f"{len(anomalies)} 笔异常支出待核对。", f"{len(anomalies)} anomalous transactions need review.", lang))
+        verdict_parts.append(_label(f"{len(anomalies)} 笔异常支出待核对。", f"{len(anomalies)} anomalous transactions need review.", lang))
     elif len(txs) > 0:
-        verdict_parts.append(_t("没有发现明显异常支出。", "No obvious anomalous spending found.", lang))
+        verdict_parts.append(_label("没有发现明显异常支出。", "No obvious anomalous spending found.", lang))
     verdict = " ".join(verdict_parts)
 
     payload = {
@@ -501,10 +503,10 @@ async def monthly_review(month: str, lang: str = "zh") -> dict[str, Any]:
             "total": len(checks),
             "completeness_pct": completeness,
             "ready": passed >= len(checks) - 1,
-            "note": _t("这是复盘前的数据体检，不是会计锁账；不会冻结流水。", "A pre-review data check, not an accounting lock; transactions are not frozen.", lang),
+            "note": _label("这是复盘前的数据体检，不是会计锁账；不会冻结流水。", "A pre-review data check, not an accounting lock; transactions are not frozen.", lang),
         },
         "actions": actions,
-        "disclaimer": _t(
+        "disclaimer": _label(
             "数字来自本机账本；预算、分类与储蓄目标口径以设置页为准；不构成投资建议。",
             "Figures come from the local ledger; budget, category and savings targets follow Settings; not investment advice.",
             lang,

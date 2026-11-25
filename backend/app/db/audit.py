@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from typing import Any
 
+from ..attachment_text import CONTENT_MAX_CHARS
 from ._core import (
     _clamp_limit,
     _conn,
@@ -14,7 +15,6 @@ from ._core import (
     get_write_lock,
 )
 from .tenant import current_user_id
-from ..attachment_text import CONTENT_MAX_CHARS
 
 # --------------------------------------------------------------------------
 # 审计日志（P2 金融级治理）

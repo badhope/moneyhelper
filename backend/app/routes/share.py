@@ -26,7 +26,6 @@ def _render_share(item: dict[str, Any]) -> str:
         if not isinstance(run, dict):
             continue
         q = _body_text(run.get("question") or "")
-        a = _body_text(run.get("answer") or "")
         srcs = run.get("sources") if isinstance(run.get("sources"), list) else []
         links: list[str] = []
         for src in srcs[:6]:

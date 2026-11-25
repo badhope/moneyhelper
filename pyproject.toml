@@ -131,3 +131,11 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# 这两个 __init__ 是聚合重导出层：名字是给 main.py / 调用方导入的，
+# 在本模块内不会被引用，F401 在这里是误报。
+"app/db/__init__.py" = ["F401"]
+"app/routes/__init__.py" = ["F401"]
+"backend/app/db/__init__.py" = ["F401"]
+"backend/app/routes/__init__.py" = ["F401"]

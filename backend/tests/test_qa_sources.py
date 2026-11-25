@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app import db
 from app.qa_sources import collect_sources, knowledge_sources, web_sources
 

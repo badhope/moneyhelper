@@ -26,8 +26,8 @@ from .main_lifespan import (  # noqa: F401 — 兼容旧引用
 from .middleware import setup as setup_middleware
 from .routes import (
     authz_router,
-    banking_router,
     autopilot_router,
+    banking_router,
     budgets_router,
     calculations_router,
     connect_deep_router,
@@ -40,8 +40,8 @@ from .routes import (
     evaluation_router,
     execute_router,
     expenses_router,
-    family_router,
     external_router,
+    family_router,
     finance_tax_router,
     gl_router,
     goals_router,
@@ -54,19 +54,19 @@ from .routes import (
     paper_router,
     plan_router,
     procurement_router,
+    projects_router,
     provenance_router,
     qa_router,
     remote_router,
     research_router,
-    projects_router,
-    thread_context_router,
-    share_router,
     review_router,
     settings_router,
+    share_router,
     statements_router,
     strategy_router,
     studio_router,
     system_router,
+    thread_context_router,
 )
 from .version import __version__
 

@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.numeric import to_float
 
 

@@ -35,7 +35,7 @@ def _stage_dir(task_id: str, stage_index: int) -> Path:
     return path
 
 
-def _new_id() -> str:
+def _checkpoint_id() -> str:
     # 同一秒内可能连续重跑多次；只用秒级时间会让检查点顺序不确定，
     # 回滚“最新/最旧”就可能选错。ID 带微秒，列表按 ID 排序即可稳定。
     return datetime.now().strftime("%Y%m%dT%H%M%S%f") + "-" + uuid.uuid4().hex[:4]
@@ -58,7 +58,7 @@ def create_checkpoint(
     task_id = str(task["id"])
     stage_index = int(stage["index"])
     stage_dir = _stage_dir(task_id, stage_index)
-    cid = _new_id()
+    cid = _checkpoint_id()
     artifact_name = str(stage.get("file") or f"{stage_index:02d}-stage.md")
     (stage_dir / f"{cid}.md").write_text(text, encoding="utf-8")
     meta = {

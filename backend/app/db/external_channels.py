@@ -12,19 +12,11 @@ from typing import Any
 
 from .. import vault
 from ..timeutil import now_iso as _now
-from ._core import _conn, fetch_all, fetch_one, get_write_lock
+from ._core import _conn, fetch_all, fetch_one, get_write_lock, json_dict
 from .tenant import current_user_id
 
 ALLOWED_CHANNELS = ("smtp", "tax_gateway", "bank_gateway", "audit_gateway")
 _STATUSES = {"pending", "accepted", "failed"}
-
-
-def _json(raw: str) -> dict[str, Any]:
-    try:
-        value = json.loads(raw or "{}")
-        return value if isinstance(value, dict) else {}
-    except (TypeError, ValueError):
-        return {}
 
 
 async def save_channel(
@@ -109,7 +101,7 @@ def _public(row: Any) -> dict[str, Any]:
     return {
         "channel_id": str(row["channel_id"]),
         "label": str(row["label"] or ""),
-        "config": _json(row["config_json"]),
+        "config": json_dict(row["config_json"]),
         "enabled": bool(row["enabled"]),
         "configured": bool(row["secret_enc"]),
         "last_test_at": str(row["last_test_at"] or ""),
@@ -276,8 +268,8 @@ def _delivery(row: Any) -> dict[str, Any]:
         "source_hash": str(row["source_hash"]),
         "status": str(row["status"]),
         "recipient": str(row["recipient"] or ""),
-        "request_summary": _json(row["request_summary"]),
-        "receipt": _json(row["receipt_json"]),
+        "request_summary": json_dict(row["request_summary"]),
+        "receipt": json_dict(row["receipt_json"]),
         "error": str(row["error_text"] or ""),
         "created_at": str(row["created_at"] or ""),
         "updated_at": str(row["updated_at"] or ""),

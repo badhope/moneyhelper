@@ -99,10 +99,10 @@ MONEYHELPER_DATA_DIR=/tmp/mh-appimage-4270 \
 `.github/workflows/desktop.yml` 在 `v*` tag 或手动触发时：
 
 - Windows：`nsis,msi`，另保留原 NSIS 单文件安装包与静默装卸冒烟。
-- macOS：`dmg`，按 arm64 假定。
+- macOS：`app,dmg`，按 arm64 假定；`app` 目标才产出 updater 需要的 `.app.tar.gz`。
 - Linux：`deb,appimage`。
 - 统一先打 PyInstaller sidecar，再 `npx tauri build --bundles`。
-- 三平台成功后 `manifest` job 汇总 `latest.json` 并附加到 Release。
+- 三平台成功后 `manifest` job 汇总 `latest.json` 并附加到 Release；平台键为 `darwin-aarch64` / `windows-x86_64` / `linux-x86_64`。
 
 需要仓库 secret：`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（当前私钥密码为空）。
 
@@ -110,6 +110,7 @@ MONEYHELPER_DATA_DIR=/tmp/mh-appimage-4270 \
 
 - Windows/macOS 未在本机实跑；`macos-latest` 若为 x64，需把 manifest 平台键改为 `darwin-x86_64` 并调整 sidecar triple。
 - PyInstaller 单文件冷启动需解压约 200 MB，机械盘/低配机器可能超过 35 秒，已把窗口等待放宽到 90 秒，但用户仍会感知启动慢。
+- `latest.json` 的 macOS 条目指向 `.app.tar.gz`，不是 DMG；DMG 只用于首次安装。把 DMG 塞进 updater 会被 Tauri 拒绝。
 - `.deb` 未做代码签名（Linux 桌面生态通常不要求）；Windows 未做 Authenticode，SmartScreen 可能提示未知发布者。
 - P2 外部资质项仍未实现：税局直连需乐企/服务商，银行划款需持牌授权，法定合并需审计口径，社区代发布需平台授权。
 
@@ -118,3 +119,11 @@ MONEYHELPER_DATA_DIR=/tmp/mh-appimage-4270 \
 - `docs/screenshots/222-desktop-4270-onboarding.png`：首次启动三步引导。
 - `docs/screenshots/223-desktop-4270-deb.png`：`.deb` 安装版主界面。
 - `docs/screenshots/224-desktop-4270-appimage.png`：`.AppImage` 主界面。
+
+## 九、发布链修补（tag 实测后）
+
+首轮 tag 构建三平台安装包都成功，但 `manifest` job 报「缺少 darwin-aarch64」。原因不是网络或签名，而是 macOS 只构建了 `dmg`：Tauri 的 macOS updater 产物是 `.app.tar.gz`，只有同时构建 `app` 目标才会生成。已做三处修正：
+
+1. macOS 构建目标改为 `app,dmg`，并上传/附加 `.app.tar.gz` 与 `.app.tar.gz.sig`。
+2. `make-latest-json.py` 的 darwin 后缀改为 `.app.tar.gz`，测试同步改断言。
+3. `check-api-contract.py` 现在识别 `APIRouter(prefix=...)`，不再把带前缀的项目卡路由误报成「后端不存在」。

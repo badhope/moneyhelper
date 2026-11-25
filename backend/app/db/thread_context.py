@@ -9,9 +9,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
+from ..timeutil import now_iso
 from ._core import _conn, get_write_lock
 from .audit import get_attachment
 from .tenant import current_user_id
@@ -22,10 +22,6 @@ MAX_MEMORY_CHARS = 200
 MAX_ATTACHMENTS = 10
 MAX_PROJECT_NAME = 60
 _KEEP = object()
-
-
-def _now() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def _clean_text(value: Any, limit: int) -> str:
@@ -205,8 +201,8 @@ async def _write_project(
                     instructions,
                     json.dumps(attachments, ensure_ascii=False),
                     json.dumps(memories, ensure_ascii=False),
-                    _now(),
-                    _now(),
+                    now_iso(),
+                    now_iso(),
                 ),
             )
             project_id = int(cur.lastrowid)
@@ -219,7 +215,7 @@ async def _write_project(
                     instructions,
                     json.dumps(attachments, ensure_ascii=False),
                     json.dumps(memories, ensure_ascii=False),
-                    _now(),
+                    now_iso(),
                     current_user_id(),
                     int(project_id),
                 ),
@@ -232,7 +228,7 @@ async def _write_project(
                 instructions,
                 json.dumps(attachments, ensure_ascii=False),
                 json.dumps(memories, ensure_ascii=False),
-                _now(),
+                now_iso(),
                 current_user_id(),
                 int(project_id),
             ),
@@ -350,7 +346,7 @@ async def save_thread_context(
                 text,
                 json.dumps(atts, ensure_ascii=False),
                 json.dumps(mems, ensure_ascii=False),
-                _now(),
+                now_iso(),
             ),
         )
         await conn.commit()

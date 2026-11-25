@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import weakref as _weakref
 from typing import Any
 
@@ -25,6 +26,16 @@ from .db_paths import (  # noqa: F401,E402 — 对外同名导出
     _resolve_db_path,
     data_dir,
 )
+
+
+def json_dict(raw: str) -> dict[str, Any]:
+    """把 JSON 列解析成 dict；空值/坏值/非对象一律返回 {}，不让脏数据打断列表。"""
+    try:
+        value = json.loads(raw or "{}")
+        return value if isinstance(value, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
 
 _db: aiosqlite.Connection | None = None
 _inited = False

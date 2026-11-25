@@ -456,7 +456,7 @@ M2.3 说明：`mcp` 1.30 的 Tasks 仍在 `mcp.server.experimental`，`fastmcp` 
 | 项 | 状态 |
 |---|---|
 | M4.1 CLI | 完成：argparse（add/ls/report/balance/ask/serve）+ `dept run/list/approve/reject/inquire`，本地与远程双形态；12 项 CLI 测试 |
-| M4.2 Tauri 桌面 | 完成：`scripts/build-desktop.sh` 打 PyInstaller sidecar；Tauri 2 空闲端口、`/api/health` 就绪后再开窗、退出回收 sidecar；Linux deb/AppImage 本机构建，Windows NSIS/MSI 与 macOS DMG 由 `desktop.yml` 三平台矩阵构建；updater 已签名 |
+| M4.2 Tauri 桌面 | 完成：`scripts/build-desktop.sh` 打 PyInstaller sidecar；Tauri 2 空闲端口、`/api/health` 就绪后再开窗、退出回收 sidecar；Linux deb/AppImage 本机构建，Windows NSIS/MSI 与 macOS DMG/`.app.tar.gz` 由 `desktop.yml` 三平台矩阵构建；三平台签名包汇总为 `latest.json` |
 | M4.3 发版自动化 | 完成：`scripts/release.sh` 从提交推导版本 + `release.yml` 自动建 Release |
 
 ## M5 可视化+适老 · 100%

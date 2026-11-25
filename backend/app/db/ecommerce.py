@@ -6,24 +6,16 @@ import json
 from typing import Any
 
 from ..timeutil import now_iso as _now
-from ._core import _conn, fetch_all, fetch_one, get_write_lock
+from ._core import _conn, fetch_all, fetch_one, get_write_lock, json_dict
 from .tenant import current_user_id
-
-
-def _json(raw: str) -> dict[str, Any]:
-    try:
-        value = json.loads(raw or "{}")
-        return value if isinstance(value, dict) else {}
-    except (TypeError, ValueError):
-        return {}
 
 
 def _row(row: Any) -> dict[str, Any]:
     return {
         "id": int(row["id"]),
         "name": str(row["name"]),
-        "input": _json(row["input_json"]),
-        "result": _json(row["result_json"]),
+        "input": json_dict(row["input_json"]),
+        "result": json_dict(row["result_json"]),
         "created_at": str(row["created_at"] or ""),
     }
 

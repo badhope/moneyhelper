@@ -41,6 +41,11 @@ def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+def now_local() -> datetime:
+    """带本地时区的 datetime；需要做时间比较（而不是存字符串）时用。"""
+    return datetime.now().astimezone()
+
+
 def new_id(prefix: str) -> str:
     """生成带前缀的短随机 ID（连接中心 / 深链模块历史各自复制过一份）。"""
     import uuid

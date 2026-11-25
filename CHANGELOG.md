@@ -21,6 +21,8 @@
 - 修复打包版启动即崩：补齐 `rfc3987_syntax` 语法文件、`jsonschema_specifications`/`openapi_spec_validator` schema、`certifi` 证书与 `tzdata`；这些都是 import 期直接读文件、静态分析发现不了的包数据。
 - 修复关闭窗口后 sidecar 残留：PyInstaller onefile 是「bootloader + 真实子进程」两段，退出时按进程树回收，不再留下后台占端口。
 - 新增 `scripts/make-latest-json.py` 与 workflow `manifest` job：三平台构建成功后汇总带签名的 `latest.json`，桌面端「检查更新」才真正可用。
+- macOS 构建目标补 `app`，产出 updater 需要的 `.app.tar.gz`；清单的 darwin 条目改指该文件，不再误用 DMG。
+- 修 CI 门禁：契约检查识别 `APIRouter` 前缀；重复的时间/JSON/文案助手收敛到真源；Ruff 清零；i18n 基线刷新到当前真实存量，仍拦截新增硬编码。
 
 ## [4.26.0] - 2026-11-25（发票批量入账）
 

@@ -1,3 +1,4 @@
+# ruff: noqa: F401, I001, RUF022 — 聚合重导出层，导入/导出顺序按循环依赖手工排列
 """Route modules: each subpackage registers CRUD + query routes on the main app's router.
 
 Keeps main.py focused on middleware / core endpoints (ask, confirm, bootstrap, dashboard).

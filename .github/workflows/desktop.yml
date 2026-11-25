@@ -39,7 +39,8 @@ jobs:
             binary: moneyhelper
             asset: moneyhelper-macos-arm64
             sidecar_ext: ""
-            bundles: "dmg"
+            # dmg 只给人装；updater 的 .app.tar.gz 必须同时构建 app 目标才会产出。
+            bundles: "app,dmg"
           - os: ubuntu-latest
             name: Linux x64
             artifact: moneyhelper-linux-x64

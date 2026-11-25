@@ -1,3 +1,4 @@
+# ruff: noqa: F401, I001, RUF022 — 聚合重导出层，导入/导出顺序按循环依赖手工排列
 """db 门面：保持 `from . import db` / `db.X` 旧用法 100% 兼容（M1 拆分，见 docs/PLAN-DETAILED.md M1.2）。
 
 实际实现按域拆在同包各模块；私有名（_fetch_member/_undo_apply/_record_snapshot 等）

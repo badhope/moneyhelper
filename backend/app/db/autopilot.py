@@ -10,19 +10,11 @@ import json
 from typing import Any
 
 from ..timeutil import now_iso as _now
-from ._core import _conn, fetch_all, fetch_one, get_write_lock
+from ._core import _conn, fetch_all, fetch_one, get_write_lock, json_dict
 from .tenant import current_user_id
 
 ALLOWED_MODES = ("manual", "assist", "auto")
 MAX_DECISIONS = 300
-
-
-def _json(raw: str) -> dict[str, Any]:
-    try:
-        value = json.loads(raw or "{}")
-        return value if isinstance(value, dict) else {}
-    except (TypeError, ValueError):
-        return {}
 
 
 def _policy(row: Any) -> dict[str, Any]:
@@ -30,7 +22,7 @@ def _policy(row: Any) -> dict[str, Any]:
         "action_key": str(row["action_key"]),
         "mode": str(row["mode"] or "manual"),
         "enabled": bool(row["enabled"]),
-        "config": _json(row["config_json"]),
+        "config": json_dict(row["config_json"]),
         "updated_at": str(row["updated_at"] or ""),
     }
 
@@ -41,7 +33,7 @@ def _decision(row: Any) -> dict[str, Any]:
         "action_key": str(row["action_key"]),
         "mode": str(row["mode"] or "manual"),
         "decision": str(row["decision"] or ""),
-        "summary": _json(row["summary_json"]),
+        "summary": json_dict(row["summary_json"]),
         "created_at": str(row["created_at"] or ""),
     }
 

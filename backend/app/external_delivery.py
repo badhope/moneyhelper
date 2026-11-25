@@ -79,10 +79,6 @@ CHANNEL_SPECS: dict[str, dict[str, Any]] = {
 }
 
 
-def _now() -> str:
-    return now_iso()
-
-
 def _local_allowed() -> bool:
     return os.getenv("MH_ALLOW_LOCAL_CHANNELS", "").strip() in ("1", "true", "yes")
 
@@ -478,7 +474,7 @@ async def test_channel(
                 text=(
                     "这是一封通道测试邮件，由 Moneyhelper 本机发起。\n"
                     "收到即说明 SMTP 服务器已受理；不代表任何申报或付款动作。\n"
-                    f"时间：{_now()}\n"
+                    f"时间：{now_iso()}\n"
                 ),
                 attachments=[],
             )
@@ -486,7 +482,7 @@ async def test_channel(
             result = await _http_send(
                 normalize_config(cid, config),
                 secret or {},
-                {"event": "probe", "channel_id": cid, "generated_at": _now()},
+                {"event": "probe", "channel_id": cid, "generated_at": now_iso()},
                 idempotency_key=f"probe-{cid}-{int(time.time())}",
                 channel_id=cid,
             )

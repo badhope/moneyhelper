@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from ..timeutil import now_iso
+from ..timeutil import now_iso, now_local
 from ._core import _conn, fetch_all, fetch_one, get_write_lock
 
 REMOTE_COOKIE = "mh_remote"
@@ -25,15 +25,11 @@ def _hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def _now() -> datetime:
-    return datetime.now().astimezone()
-
-
 def _expired(iso: str) -> bool:
     if not iso:
         return True
     try:
-        return datetime.fromisoformat(iso) <= _now()
+        return datetime.fromisoformat(iso) <= now_local()
     except ValueError:
         return True
 
@@ -88,7 +84,7 @@ async def create_remote_session(
     hours = max(MIN_SESSION_HOURS, min(int(hours or DEFAULT_SESSION_HOURS), MAX_SESSION_HOURS))
     sid = uuid.uuid4().hex[:16]
     pair_token = secrets.token_urlsafe(32)
-    created = _now()
+    created = now_local()
     pair_exp = created + timedelta(minutes=PAIR_TTL_MINUTES)
     expires = created + timedelta(hours=hours)
     conn = await _conn()
@@ -155,7 +151,7 @@ async def pair_remote_session(
         return None
 
     device_token = secrets.token_urlsafe(48)
-    now = _now().isoformat(timespec="seconds")
+    now = now_local().isoformat(timespec="seconds")
     conn = await _conn()
     async with get_write_lock():
         cur = await conn.execute(
@@ -195,7 +191,7 @@ async def validate_remote_cookie(cookie_value: str) -> dict[str, Any] | None:
         return None
 
     last = str(row.get("last_seen_at") or "")
-    now = _now()
+    now = now_local()
     try:
         stale = not last or (now - datetime.fromisoformat(last)).total_seconds() > 60
     except ValueError:
@@ -226,7 +222,7 @@ async def rotate_remote_session(sid: str, user_id: int, *, hours: int = DEFAULT_
     if not row or int(row.get("user_id") or 0) != int(user_id) or row.get("revoked_at"):
         return None
     pair_token = secrets.token_urlsafe(32)
-    now = _now()
+    now = now_local()
     pair_exp = now + timedelta(minutes=PAIR_TTL_MINUTES)
     expires = now + timedelta(hours=hours)
     conn = await _conn()

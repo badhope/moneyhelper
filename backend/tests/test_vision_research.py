@@ -152,7 +152,7 @@ async def test_drop_image_parts_keeps_question_and_adds_fallback_notice() -> Non
 
 
 async def test_general_route_forwards_images_to_agent(monkeypatch, _temp_db) -> None:
-    from app import agent, agent_graph, llm
+    from app import agent, llm
 
     captured: dict = {}
 

@@ -230,7 +230,7 @@ async def run_agent(    question: str,
                 None,
             )
             if web_schema is not None:
-                tool_schemas = tool_schemas + [web_schema]
+                tool_schemas = [*tool_schemas, web_schema]
                 internal_impl["web_search"] = _GENERAL_IMPL["web_search"]
     # 小模型工具面裁剪（默认关闭）：LLM_TOOL_LIMIT>0 时按问题相关度只保留前 N 个。
     # 实测 2B 级模型在 40 个工具的 schema 下一个工具都不调，压到个位数才稳定命中。

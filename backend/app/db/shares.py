@@ -7,14 +7,11 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Any
 
+from ..timeutil import now_local
 from ._core import _conn, get_write_lock
 from .tenant import current_user_id
 
 MAX_DAYS = 30
-
-
-def _now() -> datetime:
-    return datetime.now().astimezone()
 
 
 async def create_share(
@@ -25,7 +22,7 @@ async def create_share(
 ) -> dict[str, Any]:
     days = max(1, min(int(expire_days or 7), MAX_DAYS))
     token = secrets.token_urlsafe(24)
-    created = _now()
+    created = now_local()
     expires = created + timedelta(days=days)
     conn = await _conn()
     async with get_write_lock():
@@ -67,10 +64,10 @@ async def get_share_public(token: str) -> dict[str, Any] | None:
     try:
         exp = datetime.fromisoformat(str(row["expires_at"]))
         if exp.tzinfo is None:
-            exp = exp.replace(tzinfo=_now().tzinfo)
+            exp = exp.replace(tzinfo=now_local().tzinfo)
     except Exception:  # noqa: BLE001 — 时间戳损坏按失效处理
         return None
-    if exp <= _now():
+    if exp <= now_local():
         return None
     try:
         payload = json.loads(row["payload_json"] or "{}")

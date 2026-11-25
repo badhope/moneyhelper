@@ -35,6 +35,7 @@ v4.5 新增（财务部门级深化）：
 参考：FinRobot 设计哲学 — "所有数值计算必须纯代码确定性执行，LLM 只做叙述解读"。
 """
 
+from .asset_tune import build_asset_tune
 from .backtest import (
     backtest_dca,
     backtest_ma_cross,
@@ -86,7 +87,6 @@ from .pretrade import (
 )
 from .returns import calculate_simple_return, calculate_twr, calculate_xirr
 from .sandbox import ScenarioInput, simulate
-from .asset_tune import build_asset_tune
 from .strategy import RebalancePlan, compute_fire, compute_rebalance
 from .tax import (
     PayrollResult,
@@ -123,6 +123,7 @@ __all__ = [
     "backtest_ma_cross",
     "backtest_text",
     "beta_alpha",
+    "build_asset_tune",
     "build_equity_curve",
     "build_snapshot_curve",
     "calculate_goal_progress",
@@ -137,7 +138,6 @@ __all__ = [
     "compute_fire",
     "compute_period_metrics",
     "compute_rebalance",
-    "build_asset_tune",
     "compute_risk_metrics",
     "compute_valuation",
     "corporate_income_tax",
