@@ -135,8 +135,13 @@ MONEYHELPER_DATA_DIR=/tmp/mh-appimage-4270 \
 
 | 资产 | 大小 | SHA256 |
 |---|---|---|
-| `Moneyhelper_4.27.0_amd64.AppImage` | 228.5 MiB | `edbb26bee5a044ad527251133bb13a7aa3413058d01a9ac3792e393e588d2a6c` |
-| `Moneyhelper_4.27.0_x64-setup.exe` | 115.3 MiB | `81bdb8f0e86ff2dc534149c007701644110c78fc03b2218a5abbcbf477c0ffeb` |
-| `Moneyhelper.app.tar.gz` | 106.0 MiB | `8f9d6762a08baa6749ea344c1e47cca6b7856a1b0a2adbe7fbd15f566ffece3e` |
+| `Moneyhelper_4.27.0_amd64.deb` | 149.4 MiB | `54625274806ce22994905ae298fc74549cab9e4b540580fb98653f182a710356` |
+| `Moneyhelper_4.27.0_amd64.AppImage` | 228.5 MiB | `11df7def08be416c7dae1831b8be6afdd242ea09789412871001da9534e0d793` |
+| `Moneyhelper_4.27.0_x64-setup.exe` | 115.3 MiB | `3e69800e457a0ec551b022f7431a1ad9fec84bec195899e52840f0fab5669164` |
+| `Moneyhelper.app.tar.gz` | 106.0 MiB | `04bdd6a68f56dd9d1522b7d8274da49d670fe94682764536b6ecc88cee665dde` |
+
+Linux 运行时需要 `libwebkit2gtk-4.1-0`（Ubuntu 22.04 在 `jammy-updates` 已提供）；全新系统先 `sudo apt update && sudo apt install ./Moneyhelper_4.27.0_amd64.deb`，不要只用 `dpkg -i`。
+
+最终 Linux `.deb` 在本机 Ubuntu 22.04 实测：安装成功、窗口 11s 出、`/api/health` 200、上传 PDF 返回 `text_extracted: true`（pypdf 已进 sidecar）、关窗后桌面与 sidecar 全部退出、无残留端口。
 
 `latest.json` 可从 `https://github.com/Morningstar202604/moneyhelper/releases/latest/download/latest.json` 直接读取，三个平台键齐全；macOS 用 `.app.tar.gz`，Windows 用 NSIS `-setup.exe`，Linux 用 AppImage。

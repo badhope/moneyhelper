@@ -39,6 +39,8 @@ bash scripts/build-desktop.sh deb        # 只打 deb
 `desktop/src-tauri/binaries/moneyhelper-server-<target-triple>`，再调用 `tauri build`。
 Rust、`libwebkit2gtk-4.1-dev`、`patchelf` 等依赖需预装。
 
+Linux 最终用户装 `.deb` 时需要运行时 `libwebkit2gtk-4.1-0`；Ubuntu 22.04 先 `sudo apt update`，再 `sudo apt install ./Moneyhelper_4.27.0_amd64.deb`，让 apt 自动补齐依赖。只用 `dpkg -i` 会在缺依赖时留下未配置状态。
+
 ## 签名与自动更新
 
 - 公钥已写入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
