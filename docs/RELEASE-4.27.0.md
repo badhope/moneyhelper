@@ -100,7 +100,7 @@ MONEYHELPER_DATA_DIR=/tmp/mh-appimage-4270 \
 
 - Windows：`nsis,msi`，另保留原 NSIS 单文件安装包与静默装卸冒烟。
 - macOS：`app,dmg`，按 arm64 假定；`app` 目标才产出 updater 需要的 `.app.tar.gz`。
-- Linux：`deb,appimage`。
+- Linux：`deb,appimage`，固定在 `ubuntu-22.04` 构建，产物最高依赖 GLIBC 2.35；workflow 会在打包后检查，超过基线直接失败。
 - 统一先打 PyInstaller sidecar，再 `npx tauri build --bundles`。
 - 三平台成功后 `manifest` job 汇总 `latest.json` 并附加到 Release；平台键为 `darwin-aarch64` / `windows-x86_64` / `linux-x86_64`。
 
@@ -127,6 +127,7 @@ MONEYHELPER_DATA_DIR=/tmp/mh-appimage-4270 \
 1. macOS 构建目标改为 `app,dmg`，并上传/附加 `.app.tar.gz` 与 `.app.tar.gz.sig`。
 2. `make-latest-json.py` 的 darwin 后缀改为 `.app.tar.gz`，测试同步改断言。
 3. `check-api-contract.py` 现在识别 `APIRouter(prefix=...)`，不再把带前缀的项目卡路由误报成「后端不存在」。
+4. Linux 构建从 `ubuntu-latest`（24.04，GLIBC 2.39）降到 `ubuntu-22.04`（GLIBC 2.35）。本地在 Ubuntu 22.04 上装 Release 的 `.deb` 时实测报 `GLIBC_2.39 not found`，确认 24.04 产物无法在旧发行版启动；现在加了 glibc 上限检查防止回退。
 
 ## 十、GitHub Release 最终资产
 

@@ -41,8 +41,8 @@ jobs:
             sidecar_ext: ""
             # dmg 只给人装；updater 的 .app.tar.gz 必须同时构建 app 目标才会产出。
             bundles: "app,dmg"
-          - os: ubuntu-latest
-            name: Linux x64
+          - os: ubuntu-22.04
+            name: Linux x64 (Ubuntu 22.04)
             artifact: moneyhelper-linux-x64
             binary: moneyhelper
             asset: moneyhelper-linux-x64
@@ -191,6 +191,30 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx tauri build --bundles "${{ matrix.bundles }}"
+
+      - name: 检查 Linux 产物的 glibc 基线（仅 Linux）
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          python3 - <<'PY'
+          import re
+          import subprocess
+          from pathlib import Path
+
+          limit = (2, 35)  # Ubuntu 22.04 的 glibc；超过就会在 Debian 12 / 老发行版上报版本错误
+          targets = [
+              Path("backend/dist/moneyhelper"),
+              Path("desktop/src-tauri/target/release/moneyhelper-desktop"),
+          ]
+          for path in targets:
+              if not path.exists():
+                  continue
+              text = subprocess.check_output(["objdump", "-T", str(path)], text=True, errors="ignore")
+              versions = {tuple(map(int, m.split("."))) for m in re.findall(r"GLIBC_(\d+\.\d+)", text)}
+              newest = max(versions) if versions else (0, 0)
+              print(f"{path}: 最高 GLIBC {newest[0]}.{newest[1]}")
+              if newest > limit:
+                  raise SystemExit(f"{path} 依赖 GLIBC_{newest[0]}.{newest[1]}，高于基线 {limit[0]}.{limit[1]}")
+          PY
 
       - name: 列出桌面包
         shell: bash
