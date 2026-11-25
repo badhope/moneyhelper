@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, Loader2, RefreshCw } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,13 @@ export function UpdateCard() {
       setPhase("error");
     }
   };
+
+  // 打开设置就静默探测一次：用户不必先点按钮才知道有新版本。
+  useEffect(() => {
+    if (desktop) void check();
+    // check 只依赖 desktop；这里只跑一次，避免重渲染反复请求。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktop]);
 
   const install = async () => {
     setPhase("installing");

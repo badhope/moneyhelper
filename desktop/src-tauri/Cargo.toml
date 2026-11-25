@@ -1,6 +1,6 @@
 [package]
 name = "moneyhelper-desktop"
-version = "4.27.1"
+version = "4.27.2"
 edition = "2021"
 description = "Moneyhelper desktop shell"
 authors = ["badhope"]
