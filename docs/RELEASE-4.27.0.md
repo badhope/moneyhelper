@@ -127,3 +127,15 @@ MONEYHELPER_DATA_DIR=/tmp/mh-appimage-4270 \
 1. macOS 构建目标改为 `app,dmg`，并上传/附加 `.app.tar.gz` 与 `.app.tar.gz.sig`。
 2. `make-latest-json.py` 的 darwin 后缀改为 `.app.tar.gz`，测试同步改断言。
 3. `check-api-contract.py` 现在识别 `APIRouter(prefix=...)`，不再把带前缀的项目卡路由误报成「后端不存在」。
+
+## 十、GitHub Release 最终资产
+
+`v4.27.0` 的三平台安装包与 `latest.json` 已全部附加到 Release；以下是 updater 实际指向的三份产物（SHA256 于 2026-11-25 实测）：
+
+| 资产 | 大小 | SHA256 |
+|---|---|---|
+| `Moneyhelper_4.27.0_amd64.AppImage` | 228.5 MiB | `edbb26bee5a044ad527251133bb13a7aa3413058d01a9ac3792e393e588d2a6c` |
+| `Moneyhelper_4.27.0_x64-setup.exe` | 115.3 MiB | `81bdb8f0e86ff2dc534149c007701644110c78fc03b2218a5abbcbf477c0ffeb` |
+| `Moneyhelper.app.tar.gz` | 106.0 MiB | `8f9d6762a08baa6749ea344c1e47cca6b7856a1b0a2adbe7fbd15f566ffece3e` |
+
+`latest.json` 可从 `https://github.com/Morningstar202604/moneyhelper/releases/latest/download/latest.json` 直接读取，三个平台键齐全；macOS 用 `.app.tar.gz`，Windows 用 NSIS `-setup.exe`，Linux 用 AppImage。

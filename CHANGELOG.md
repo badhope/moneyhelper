@@ -23,6 +23,7 @@
 - 新增 `scripts/make-latest-json.py` 与 workflow `manifest` job：三平台构建成功后汇总带签名的 `latest.json`，桌面端「检查更新」才真正可用。
 - macOS 构建目标补 `app`，产出 updater 需要的 `.app.tar.gz`；清单的 darwin 条目改指该文件，不再误用 DMG。
 - 修 CI 门禁：契约检查识别 `APIRouter` 前缀；重复的时间/JSON/文案助手收敛到真源；Ruff 清零；i18n 基线刷新到当前真实存量，仍拦截新增硬编码。
+- 补 `pypdf` 运行时依赖：此前桌面 sidecar 与 CI 都没装，PDF 正文提取会静默为空；现在附件检索与发票 PDF 解析可用。
 
 ## [4.26.0] - 2026-11-25（发票批量入账）
 
