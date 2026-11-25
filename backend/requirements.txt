@@ -10,6 +10,7 @@ python-multipart>=0.0.9,<1      # 附件上传（multipart/form-data）
 # --- 数据层 ---
 aiosqlite>=0.22,<0.23           # 异步 SQLite，不阻塞事件循环
 cryptography>=44,<45            # 本地加密备份（PBKDF2 + Fernet）
+pypdf>=4.0,<6                   # PDF 文本层：附件正文检索与知识库入库
 
 # --- 编排与模型 ---
 langgraph>=1.0,<2               # 多智能体图（supervisor + 专项节点）
