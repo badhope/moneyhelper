@@ -1,6 +1,6 @@
 # Moneyhelper 4.27.2 桌面安装包
 
-本目录是当前版本（4.27.2）的本地成品目录，安装包已放在代码仓库里，下载后可直接安装。
+本目录是当前版本（4.27.2）的本地成品目录，安装包已放在代码目录，可直接取用。
 
 | 文件 | 平台 | 用途 |
 |---|---|---|
@@ -32,5 +32,6 @@ sha256sum -c SHA256SUMS.txt
 - 在设置页检查到 `4.27.2`，点击「Install now」，下载并安装成功。
 - 升级后原文件 SHA256 变为 `0aa3ad0b87f927282b24485c661cca0e627494bb15be0dd9c3eafbecb951dada`，与 Release 的 `4.27.2` AppImage 完全一致。
 - 应用自动重启，设置页显示 `Version 4.27.2`，更新卡片为 `Up to date`，sidecar 正常拉起。
+- `.deb` 用 `sudo apt install` 覆盖安装后，健康检查返回 `ok`，PDF 文本提取成功，关窗后桌面进程与 sidecar 均退出、端口释放。
 
 > 安装包单文件均超过 GitHub 100MB 限制，因此 `.gitignore` 排除了这些二进制；源码、`README.md`、`latest.json` 与校验文件仍随仓库提交。完整资产同时保留在 GitHub Release。
