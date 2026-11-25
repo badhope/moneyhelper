@@ -2,44 +2,53 @@
 
 ## 状态
 
-脚手架已就绪，**未在本仓库 CI 中构建**：桌面产物需要目标平台的系统依赖
-（Windows MSI/WiX、macOS Xcode、Linux webkit2gtk），不适合在通用 CI 里默认跑。
+4.27.0 起，桌面壳不再是“脚手架”：本地 Linux 会真实产出 `.deb` 与 `.AppImage`，
+Windows/macOS 由 `.github/workflows/desktop.yml` 在对应 runner 上产出 NSIS/MSI 与 DMG。
+产物都带签名后的 updater 元数据，升级链路不再留空公钥。
 
 ## 结构
 
 ```
 desktop/
-├── package.json            # @tauri-apps/cli
+├── package.json              # @tauri-apps/cli
 └── src-tauri/
-    ├── Cargo.toml          # tauri 2 + shell + updater
+    ├── Cargo.toml            # tauri 2 + shell + updater
     ├── build.rs
-    ├── tauri.conf.json     # 窗口、bundle 目标、updater 端点
-    └── src/main.rs         # 启动 sidecar（moneyhelper-server）并在退出时回收
+    ├── tauri.conf.json       # 窗口、bundle、externalBin、updater
+    ├── binaries/             # 构建时放入 sidecar（二进制不入库）
+    └── src/main.rs           # 拉起 sidecar、等 /api/health、再开窗口
 ```
+
+## 启动链路
+
+1. 选一个空闲端口（不再硬编码 8788，避免和本地开发服务抢端口）。
+2. 通过 Tauri sidecar 启动 `moneyhelper-server`，注入 `PORT` 与 `MONEYHELPER_NO_BROWSER=1`。
+3. 轮询 `GET /api/health`，只有返回 200 才创建窗口，避免初始化期间白屏。
+4. 窗口直接加载 `http://127.0.0.1:<port>/`，前端与 API 同源，不存在跨域。
+5. 应用退出时先按进程树杀掉 sidecar（PyInstaller onefile 是 bootloader + 子进程两段），不留后台占端口。
+6. PyInstaller 单文件冷启动要解压约 200 MB，实测首次 20–35 秒；窗口在健康检查通过后才出现，不会白屏。
 
 ## 本地构建
 
 ```bash
-# 1. 先产出 sidecar（PyInstaller 单文件）
-python scripts/build_server.py          # 输出 dist/moneyhelper-server(.exe)
-
-# 2. 构建桌面包
-cd desktop && npm install
-cp ../dist/moneyhelper-server* src-tauri/   # 放到 sidecar 同目录
-npm run build                            # 产物在 src-tauri/target/release/bundle/
+bash scripts/build-desktop.sh            # 当前平台，deb + appimage
+bash scripts/build-desktop.sh deb        # 只打 deb
 ```
 
-## 首跑行为
+脚本会先 PyInstaller 打 sidecar，复制成
+`desktop/src-tauri/binaries/moneyhelper-server-<target-triple>`，再调用 `tauri build`。
+Rust、`libwebkit2gtk-4.1-dev`、`patchelf` 等依赖需预装。
 
-- 启动时拉起 `moneyhelper-server serve --host 127.0.0.1 --port 8788`；
-- 窗口加载内嵌前端（`frontend/dist`）；
-- 关闭窗口时结束 sidecar，避免后台残留；
-- 自动更新端点指向 GitCode Releases；`pubkey` 需在首次发布时用 `tauri signer generate` 生成并填入。
+## 签名与自动更新
 
-## 已知阻塞
+- 公钥已写入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
+- 私钥只在构建机 `~/.tauri/moneyhelper.key`，CI 用仓库 secret
+  `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
+- 更新端点优先 GitHub Release 的 `latest.json`，GitCode 作为第二来源。
+- 私钥丢失后旧版本无法验证新包，必须换公钥并让用户重装。
 
-| 项 | 原因 |
-|---|---|
-| 未在本机产出安装包 | 需要 WiX/NSIS 与完整 Tauri 工具链，本机当前内存不足以稳定跑完整 Rust 构建 |
-| updater 公钥为空 | 需发布方生成密钥对后填入 `tauri.conf.json` 的 `plugins.updater.pubkey` |
-| 三平台产物 | 需在对应平台 runner 上分别构建（macOS 必须 macOS，Linux 需 webkit2gtk） |
+## 跨平台边界
+
+PyInstaller 与 Tauri 都不能可靠交叉编译安装包：Windows 需 MSVC/WiX/NSIS，
+macOS 需 Xcode，Linux 需 webkit2gtk。三平台产物必须在对应系统构建，
+因此由 `desktop.yml` 的 matrix 负责；本地 Linux 只验证 Linux 链路。

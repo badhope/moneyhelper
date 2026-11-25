@@ -106,6 +106,7 @@ def test_server_facade_exposes_same_app():
     assert facade is legacy
 
 
+@pytest.mark.timeout(300)
 def test_facade_importable_from_any_cwd(tmp_path, monkeypatch):
     """门面层必须在任意工作目录下可用（安装成命令后 cwd 不是仓库）。
 

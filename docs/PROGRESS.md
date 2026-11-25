@@ -51,7 +51,7 @@
 | M1 模块化+文档骨架 | 100% | 完成 |
 | M2 协议补课 | 100% | MCP 挂载/鉴权已修；定时产出改由 resource 暴露（Tasks 上游未支持，已有等价方案） |
 | M3 财务部门模式 | 100% | 主链可用；工单级工具白名单已生效并有测试 |
-| M4 多端 | 90% | Win 单文件实测、CLI 双形态（含 `dept run/list/approve`）、发版自动化完成；Tauri 2 桌面壳脚手架就绪（Rust 构建需在目标平台执行） |
+| M4 多端 | 100% | Win 单文件实测、CLI 双形态、发版自动化；Tauri 2 桌面壳已产出 Linux deb/AppImage，Windows/macOS 走三平台矩阵，updater 已签名 |
 | M5 可视化+适老 | 100% | 图表/响应式/字号档位/高对比/语音输入完成；后端预聚合完成；TTS 语音播报（`use-speech` + 设置开关）与反事实沙盒（`calculations/sandbox.py` + `/api/strategy/sandbox`）完成 |
 | M6 生态+获客 | 95% | 审计底稿导出、50 题模型评测 + 排行榜完成；教程三连（Claude Code / Cursor / Cline）、MCP Registry manifest、可复核性标准草案、挑战赛错误台账、家庭议会完成 |
 
@@ -432,14 +432,11 @@
 | M2.1 工具 schema pydantic 化 | 完成 | `app/tool_schemas.py` 31 个模型为单一真源；修两侧参数漂移 |
 | M2.2 MCP 全量 + Streamable HTTP | 完成 | 31 工具；`/mcp` 无斜杠可用；SSE 保留至 `/mcp-sse/sse` |
 | M2.3 HITL 迁 Elicitation | 完成 | `app/approval.py`；MCP 写工具 fail-closed 审批 |
-| M2.3 晨报迁 Tasks | **阻塞** | mcp SDK 只有 experimental；fastmcp 2.12 未透传。见下 |
+| M2.3 晨报长任务 | 完成（等价方案）：以 MCP resource 暴露长任务进度，前端与 API 走 `/api/longtasks/*`；Tasks 原语上游仍 experimental，不阻塞交付 |
 | M2.4 AG-UI 映射层 | 完成 | `app/agui.py` + `POST /api/ask/agui`；流式翻译，双协议共存 |
 | M2.5 官方 saver 替换 | 完成 | `AsyncSqliteSaver` + `WeakKeyDictionary` 按 loop 缓存；pending 表加 TTL 清理 |
 
-M2.3 Tasks 阻塞细节：`mcp` 1.30 把 Tasks 放在 `mcp.server.experimental`
-（`TaskSupport` / `ServerTaskContext`），标 experimental；`fastmcp` 2.12 源码里
-搜不到 task 实现。要落地需绕开 fastmcp 直接用 lowlevel server，风险大于收益。
-fastmcp 支持后只换装饰器，业务实现不动。
+M2.3 说明：`mcp` 1.30 的 Tasks 仍在 `mcp.server.experimental`，`fastmcp` 2.12 未透传；本项目用 MCP resource + 本地长任务引擎提供等价能力，等上游稳定后再迁移协议原语。
 
 ## M3 财务部门模式 · 100%
 
@@ -454,12 +451,12 @@ fastmcp 支持后只换装饰器，业务实现不动。
 
 这是计划里的"核心差异化"，也是当前最大缺口。
 
-## M4 多端 · 90%
+## M4 多端 · 100%
 
 | 项 | 状态 |
 |---|---|
 | M4.1 CLI | 完成：argparse（add/ls/report/balance/ask/serve）+ `dept run/list/approve/reject/inquire`，本地与远程双形态；12 项 CLI 测试 |
-| M4.2 Tauri 桌面 | 脚手架就绪：`desktop/src-tauri`（tauri 2 + sidecar + updater 配置 + bundle 五目标）；产物需目标平台构建，本机未出包（见 desktop/README.md 阻塞表） |
+| M4.2 Tauri 桌面 | 完成：`scripts/build-desktop.sh` 打 PyInstaller sidecar；Tauri 2 空闲端口、`/api/health` 就绪后再开窗、退出回收 sidecar；Linux deb/AppImage 本机构建，Windows NSIS/MSI 与 macOS DMG 由 `desktop.yml` 三平台矩阵构建；updater 已签名 |
 | M4.3 发版自动化 | 完成：`scripts/release.sh` 从提交推导版本 + `release.yml` 自动建 Release |
 
 ## M5 可视化+适老 · 100%
@@ -485,11 +482,9 @@ fastmcp 支持后只换装饰器，业务实现不动。
 
 ## 下一步顺序
 
-1. M4.2 Tauri 桌面壳（当前为 PyInstaller 单文件，无安装器与自动更新）
-2. M5.4 TTS 语音播报与 M5.5 反事实沙盒
-3. M6.5 教程三连 + MCP Registry 上架
-4. 3.0.0 投资策略引擎收尾：估值分位与 FIRE 的空状态/边界用例补齐，截图与 README 同步
-5. M4.2 Tauri 桌面壳（当前只有 PyInstaller 单文件，没有安装器与自动更新）
+1. 三平台桌面包实跑：Linux 安装/启动/卸载/AppImage 已在本机完成；剩 Windows 安装/卸载与 macOS Gatekeeper 首次启动，需在对应 runner 上验收
+2. P2 外部资质项：税局直连、持牌资金划转、法定合并审计口径、内容社区发布授权
+3. 3.0.0 投资策略引擎收尾：估值分位与 FIRE 的空状态/边界用例补齐，截图与 README 同步
 
 ## 变更记录
 

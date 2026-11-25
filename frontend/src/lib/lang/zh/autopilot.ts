@@ -1,4 +1,4 @@
-/** 中文词条 · 托管台（4.26.0）。 */
+/** 中文词条 · 托管台（4.27.0）。 */
 
 export const zh_autopilot: Record<string, string> = {
   "autopilot.title": "托管台",

@@ -67,3 +67,10 @@ doc-fetch-resources/
 
 # 本地构建/验证产物（EXE、wheel、临时库）
 out/
+
+# 桌面构建产物（sidecar 单文件与 Tauri target，绝不入库）
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/src-tauri/binaries/*
+!desktop/src-tauri/binaries/README.md
+desktop/node_modules/

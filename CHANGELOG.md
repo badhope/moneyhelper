@@ -2,6 +2,26 @@
 
 项目版本号与发布历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本语义遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [4.27.0] - 2026-11-25（桌面交付）
+
+### 新增
+
+- **Tauri 桌面壳真正可安装**：`scripts/build-desktop.sh` 先打 PyInstaller sidecar，再调用 `tauri build` 产出 Linux `.deb`/`.AppImage`；Windows NSIS/MSI 与 macOS DMG 由 `.github/workflows/desktop.yml` 三平台矩阵构建。
+- **sidecar 生命周期**：桌面启动时选空闲端口、拉起 `moneyhelper-server`、持续消费日志、轮询 `/api/health` 返回 200 后才创建窗口；退出时回收子进程。
+- **同源页面**：窗口加载 sidecar 的 `http://127.0.0.1:<port>/`，前端与 API 同源，不再出现 `tauri://localhost` 请求 `/api` 失败。
+- **updater 签名**：生成并写入 minisign 公钥，CI 用 `TAURI_SIGNING_PRIVATE_KEY` 签更新包；端点优先 GitHub Release，GitCode 作第二来源。
+- **图标集**：生成 Windows ico、macOS icns、Linux png 与 Store 图标，安装包不再只有一张 32px 图。
+- **构建脚本与文档**：`desktop/README.md` 写明启动链路、签名与跨平台边界；workflow 同时保留原 PyInstaller 单文件与 Tauri 安装包。
+
+### 修正
+
+- 修复 `externalBin` 未配置、sidecar 不在产物里的缺口；构建脚本按 `rustc` target triple 复制二进制。
+- 修复桌面 `version` 长期停在 4.16.0、`Cargo.toml` 停在 4.8.0 的漂移，统一到单一真源 4.27.0。
+- 修复 PyInstaller 整目录收集 LiteLLM 数据：改为按扩展名收齐 LiteLLM 运行时数据（价格表、tokenizer、`containers/endpoints.json`），同时排除未使用的 `boto3`/`botocore`/`pandas`，避免在 FUSE 盘上遍历 27MB 服务模型时卡死。
+- 修复打包版启动即崩：补齐 `rfc3987_syntax` 语法文件、`jsonschema_specifications`/`openapi_spec_validator` schema、`certifi` 证书与 `tzdata`；这些都是 import 期直接读文件、静态分析发现不了的包数据。
+- 修复关闭窗口后 sidecar 残留：PyInstaller onefile 是「bootloader + 真实子进程」两段，退出时按进程树回收，不再留下后台占端口。
+- 新增 `scripts/make-latest-json.py` 与 workflow `manifest` job：三平台构建成功后汇总带签名的 `latest.json`，桌面端「检查更新」才真正可用。
+
 ## [4.26.0] - 2026-11-25（发票批量入账）
 
 ### 新增

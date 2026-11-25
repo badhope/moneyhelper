@@ -1,4 +1,4 @@
-/** English copy · Autopilot desk (4.26.0). */
+/** English copy · Autopilot desk (4.27.0). */
 
 export const en_autopilot: Record<string, string> = {
   "autopilot.title": "Autopilot desk",

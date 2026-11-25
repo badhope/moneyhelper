@@ -16,6 +16,11 @@ import re
 from pathlib import Path
 
 import litellm  # 用于定位其数据文件与子模块（打包必须带上）
+import certifi
+import jsonschema_specifications
+import openapi_spec_validator
+import rfc3987_syntax
+import tzdata
 
 
 def _app_version() -> str:
@@ -46,6 +51,37 @@ _VERSION_INFO.write_text(
 )
 
 LITELLM_DIR = Path(litellm.__file__).parent
+
+
+def _litellm_data_files() -> list[tuple[str, str]]:
+    """收集 LiteLLM 运行时读取的数据文件，不碰 __pycache__ 和下载来的代理面板。"""
+    suffixes = {".json", ".yaml", ".yml", ".txt", ".jsonl"}
+    out: list[tuple[str, str]] = []
+    for file in LITELLM_DIR.rglob("*"):
+        if not file.is_file() or file.suffix.lower() not in suffixes:
+            continue
+        rel = file.relative_to(LITELLM_DIR)
+        if "__pycache__" in rel.parts or rel.parts[:2] == ("proxy", "_experimental"):
+            continue
+        out.append((str(file), str(Path("litellm") / rel.parent)))
+    return out
+
+
+def _package_data(pkg, package_name: str) -> list[tuple[str, str]]:
+    """收集没有 PyInstaller hook 的包内数据文件（schema、语法、CA 证书等）。
+
+    这类文件不是 .py，静态分析看不见；源码运行正常，打包后 import 就 FileNotFoundError。
+    """
+    root = Path(pkg.__file__).parent
+    out: list[tuple[str, str]] = []
+    for file in root.rglob("*"):
+        if not file.is_file() or "__pycache__" in file.parts:
+            continue
+        if file.suffix in {".py", ".pyc"}:
+            continue
+        rel = file.relative_to(root)
+        out.append((str(file), str(Path(package_name) / rel.parent)))
+    return out
 
 
 def _all_submodules(pkg) -> list[str]:
@@ -83,9 +119,19 @@ a = Analysis(
         # Studio 默认包（提示词/约束/Hook/内置工具）是运行时读取的 JSON，不是 Python 模块，
         # PyInstaller 静态分析发现不了；漏了它打包版设置页就是空的。
         ("app/studio", "app/studio"),
-        # LiteLLM 运行时读取的模型价格表、tokenizer 等非 Python 资源。
-        # 整目录收集比逐个列文件可靠（版本间文件名会变，漏一个就启动失败）。
-        (str(LITELLM_DIR), "litellm"),
+        # LiteLLM 只读取这个备份价格表（get_model_cost_map.py 用 importlib.resources
+        # 定位它）。旧实现整目录收集，会把 proxy 的 OpenAPI 快照、几十个 YAML 和
+        # __pycache__ 全打进去，还在 FUSE 盘上遍历时卡死。只带运行时真正需要的文件。
+        # LiteLLM 的多个模块在 import 阶段直接 open 包内 JSON（价格表、anthropic
+        # tokenizer、containers/endpoints.json 等），漏一个就是启动即崩。这里按扩展名
+        # 收齐数据文件，仍排除 __pycache__ 与 proxy 的 Next.js 快照，避免遍历卡死。
+        *_litellm_data_files(),
+        # 这些包没有官方 hook，数据文件必须手动带；漏了就是 import 期崩溃。
+        *_package_data(rfc3987_syntax, "rfc3987_syntax"),
+        *_package_data(jsonschema_specifications, "jsonschema_specifications"),
+        *_package_data(openapi_spec_validator, "openapi_spec_validator"),
+        *_package_data(certifi, "certifi"),
+        *_package_data(tzdata, "tzdata"),
     ],
     hiddenimports=[
         # Web 层
@@ -140,6 +186,14 @@ a = Analysis(
         # 运行时只有发票识别会 try-import cv2/PIL，缺失时按「能力不可用」降级，
         # 属于已实现的优雅降级路径，不该让发行包背这 100+ MB。
         "cv2",
+        # litellm 的 Bedrock 适配器会 try-import boto3；本产品从不走 Bedrock，
+        # 但 PyInstaller 会把 27MB botocore 服务模型全收进去，且在某些网络盘上
+        # 遍历 botocore/data 会卡死（本机 hpvs_fs 实测）。明确排除。
+        "boto3",
+        "botocore",
+        "s3transfer",
+        "aiobotocore",
+        "pandas",
         "reportlab",
         "qrcode",
         "pyzbar",
