@@ -82,6 +82,11 @@ from .banking import (
     reconciliation_get,
     reconciliation_list,
 )
+from .invoice_postings import (
+    invoice_numbers_in_payables,
+    invoice_post_batch,
+    invoice_posted_ids,
+)
 from .broker_credentials import (
     delete_credentials as broker_delete_credentials,
 )
@@ -165,6 +170,7 @@ from .connect_deep import (
     list_brokerage_imports,
     list_conditionals,
     list_invoices,
+    list_invoices_for_post,
     record_brokerage_import,
     save_invoice,
     save_risk_settings,
@@ -598,6 +604,9 @@ __all__ = [
     "gl_trial_balance",
     "import_backup",
     "init_db",
+    "invoice_numbers_in_payables",
+    "invoice_post_batch",
+    "invoice_posted_ids",
     "invoice_summary",
     "is_system_thread",
     "list_accounts",
@@ -612,6 +621,7 @@ __all__ = [
     "list_goals",
     "list_indexed_attachments",
     "list_invoices",
+    "list_invoices_for_post",
     "list_loans",
     "list_members",
     "list_memory",

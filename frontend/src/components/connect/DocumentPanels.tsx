@@ -20,7 +20,7 @@ import { Table } from "@/components/ui/table";
 import { useToast } from "@/lib/toast";
 import { fmtMoney, pnlClass } from "@/lib/format";
 import { cn, errMsg } from "@/lib/utils";
-import { useImportHoldings, useInvoices, useDeleteInvoice, useUploadInvoiceText, useVisionStatus, useUploadInvoiceImage, useUploadStatementPdf } from "@/lib/use-connect";
+import { useImportHoldings, useInvoices, useDeleteInvoice, useUpdateInvoiceStatus, useUploadInvoiceText, useVisionStatus, useUploadInvoiceImage, useUploadStatementPdf } from "@/lib/use-connect";
 
 
 /** 发票归档 */
@@ -31,6 +31,7 @@ export function InvoiceCard() {
   const q = useInvoices();
   const upload = useUploadInvoiceText();
   const del = useDeleteInvoice();
+  const status = useUpdateInvoiceStatus();
   const [text, setText] = useState("");
   const submit = async () => {
     if (!text.trim()) {
@@ -93,6 +94,33 @@ export function InvoiceCard() {
               >
                 {inv.confidence}
               </Badge>
+              {inv.posted ? (
+                <Badge variant="default" className="px-1.5 py-0 text-[10px]">
+                  {t("connect.invoicePosted")}
+                </Badge>
+              ) : inv.status === "confirmed" ? (
+                <Badge variant="ok" className="px-1.5 py-0 text-[10px]">
+                  {t("connect.invoiceConfirmed")}
+                </Badge>
+              ) : inv.status === "parsed" ? (
+                <button
+                  type="button"
+                  disabled={status.isPending}
+                  onClick={() =>
+                    void status
+                      .mutateAsync({ id: inv.id, status: "confirmed" })
+                      .then(() => toast(t("connect.invoiceConfirmDone"), "ok"))
+                      .catch((e) => toast(errMsg(e), "error"))
+                  }
+                  className="rounded border border-border px-1.5 py-0 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                >
+                  {t("connect.invoiceConfirm")}
+                </button>
+              ) : (
+                <Badge variant="muted" className="px-1.5 py-0 text-[10px]">
+                  {inv.status}
+                </Badge>
+              )}
               <span className="font-medium">{inv.seller || inv.file_name}</span>
               <span className="text-muted-foreground">{inv.invoice_date}</span>
               <span className="tabular-nums">{inv.total_amount != null ? fmtMoney(inv.total_amount) : "-"}</span>

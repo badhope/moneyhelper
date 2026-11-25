@@ -22,6 +22,7 @@ __all__ = [
     "list_brokerage_imports",
     "list_conditionals",
     "list_invoices",
+    "list_invoices_for_post",
     "record_brokerage_import",
     "save_invoice",
     "save_risk_settings",
@@ -51,6 +52,7 @@ from .connect_invoices import (  # noqa: F401,E402 — 对外同名导出
     get_invoice,
     invoice_summary,
     list_invoices,
+    list_invoices_for_post,
     save_invoice,
     update_invoice_status,
 )

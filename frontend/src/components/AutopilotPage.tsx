@@ -1,8 +1,8 @@
-/** 托管台（4.25.0）。
+/** 托管台（4.26.0）。
  *
  * 一屏三件事：
  *   1. 当前三个模式各有多少动作；
- *   2. 四个动作的规则与一次运行结果；
+ *   2. 五个动作的规则与一次运行结果；
  *   3. 最近决策、边界，以及“我要自己走”的入口。
  *
  * 关键交互：模式切换即保存；“只评估”永远 dry-run；“一键托管”按规则执行，
@@ -18,6 +18,7 @@ import {
   CalendarCheck,
   CheckCircle2,
   Landmark,
+  Receipt,
   Clock3,
   Loader2,
   Mail,
@@ -27,8 +28,9 @@ import {
   Sparkles,
   XCircle,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, type GlAccount } from "@/lib/api";
 import { fmtMoney } from "@/lib/format";
+import { useLedgerRefs } from "@/lib/use-ledger-refs";
 import { useI18n } from "@/lib/i18n";
 import type { DataKind } from "@/lib/views";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +45,9 @@ interface PolicyConfig {
   channel_id?: string;
   max_amount?: number;
   min_confidence?: number;
+  debit_code?: string;
+  tax_code?: string;
+  credit_code?: string;
   [key: string]: unknown;
 }
 
@@ -106,6 +111,7 @@ interface RunResult {
     duplicate?: boolean;
     confirmed?: number;
     matched?: number;
+    posted?: number;
     delivery?: {
       status?: string;
       receipt?: Record<string, unknown>;
@@ -139,6 +145,7 @@ const DECISION_ICON: Record<Decision, typeof CheckCircle2> = {
 };
 
 const ACTION_LABEL: Record<string, string> = {
+  invoice_post: "invoiceName",
   bank_match: "bankName",
   attribution_confirm: "attributionName",
   tax_deliver: "taxName",
@@ -146,6 +153,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 const ACTION_DESC: Record<string, string> = {
+  invoice_post: "invoiceDesc",
   bank_match: "bankDesc",
   attribution_confirm: "attributionDesc",
   tax_deliver: "taxDesc",
@@ -165,6 +173,7 @@ function actionDesc(t: (key: string) => string, key: string): string {
 function ActionCard({
   action,
   channels,
+  accounts,
   result,
   busy,
   onMode,
@@ -174,6 +183,7 @@ function ActionCard({
 }: {
   action: Policy;
   channels: Channel[];
+  accounts: GlAccount[];
   result?: RunResult;
   busy: boolean;
   onMode: (mode: Mode, config: PolicyConfig) => void;
@@ -185,6 +195,7 @@ function ActionCard({
   const isTax = action.action_key === "tax_deliver";
   const isAttribution = action.action_key === "attribution_confirm";
   const isBank = action.action_key === "bank_match";
+  const isInvoice = action.action_key === "invoice_post";
   const defaultMax = isAttribution ? 10000 : 50000;
   const [channel, setChannel] = useState(String(action.config.channel_id ?? ""));
   const [maxAmount, setMaxAmount] = useState(String(action.config.max_amount ?? defaultMax));
@@ -192,6 +203,9 @@ function ActionCard({
     String(action.config.min_confidence ?? 0.7),
   );
   const [windowDays, setWindowDays] = useState(String(action.config.window_days ?? 3));
+  const [debitCode, setDebitCode] = useState(String(action.config.debit_code ?? "6602"));
+  const [taxCode, setTaxCode] = useState(String(action.config.tax_code ?? "2203"));
+  const [creditCode, setCreditCode] = useState(String(action.config.credit_code ?? "2202"));
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -199,8 +213,11 @@ function ActionCard({
     setMaxAmount(String(action.config.max_amount ?? defaultMax));
     setMinConfidence(String(action.config.min_confidence ?? 0.7));
     setWindowDays(String(action.config.window_days ?? 3));
+    setDebitCode(String(action.config.debit_code ?? "6602"));
+    setTaxCode(String(action.config.tax_code ?? "2203"));
+    setCreditCode(String(action.config.credit_code ?? "2202"));
     setDirty(false);
-  }, [action.config.channel_id, action.config.max_amount, action.config.min_confidence, action.config.window_days, defaultMax]);
+  }, [action.config.channel_id, action.config.max_amount, action.config.min_confidence, action.config.window_days, action.config.debit_code, action.config.tax_code, action.config.credit_code, defaultMax]);
 
   const configNow = (): PolicyConfig => {
     if (isTax) {
@@ -224,18 +241,36 @@ function ActionCard({
         window_days: Number(windowDays) || 0,
       };
     }
+    if (isInvoice) {
+      return {
+        ...action.config,
+        debit_code: debitCode,
+        tax_code: taxCode,
+        credit_code: creditCode,
+        max_amount: Number(maxAmount) || 0,
+      };
+    }
     return action.config;
   };
 
-  const ready = isTax ? channels.length > 0 : true;
+  const ready = isTax ? channels.length > 0 : isInvoice ? accounts.length > 0 : true;
   const status = result?.decision;
+  const expenseAccounts = accounts.filter((a) => a.type === "expense" && a.is_active);
+  const taxAccounts = accounts.filter(
+    (a) => ["asset", "liability"].includes(a.type) && a.is_active,
+  );
+  const creditAccounts = accounts.filter(
+    (a) => ["liability", "asset", "equity"].includes(a.type) && a.is_active,
+  );
 
   return (
-    <Card className="relative overflow-hidden border-border/70 p-4">
+    <Card className={cn("relative overflow-hidden border-border/70 p-4", isInvoice && "lg:col-span-2")}>
       <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-primary/10 blur-3xl" />
       <div className="relative flex items-start gap-3">
         <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          {isTax ? (
+          {isInvoice ? (
+            <Receipt className="h-4 w-4" />
+          ) : isTax ? (
             <Mail className="h-4 w-4" />
           ) : isAttribution ? (
             <ListChecks className="h-4 w-4" />
@@ -254,7 +289,7 @@ function ActionCard({
               </Badge>
             ) : (
               <Badge className={cn("border px-1.5 py-0 text-[10px]", ready ? DECISION_STYLE.manual : DECISION_STYLE.blocked)}>
-                {ready ? t("autopilot.ready") : t("autopilot.noReadyChannel")}
+                {ready ? t("autopilot.ready") : t(isInvoice ? "autopilot.noAccounts" : "autopilot.noReadyChannel")}
               </Badge>
             )}
             {!action.enabled ? <Badge variant="muted" className="px-1.5 py-0 text-[10px]">{t("autopilot.disabled")}</Badge> : null}
@@ -417,6 +452,105 @@ function ActionCard({
         </p>
       )}
 
+      {isInvoice && (
+        <div className="mt-3 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+              {t("autopilot.invoiceDebitAccount")}
+              <select
+                className="h-9 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+                value={debitCode}
+                onChange={(e) => {
+                  setDebitCode(e.target.value);
+                  setDirty(true);
+                  onSaveConfig({
+                    ...action.config,
+                    debit_code: e.target.value,
+                    tax_code: taxCode,
+                    credit_code: creditCode,
+                    max_amount: Number(maxAmount) || 0,
+                  });
+                }}
+              >
+                {expenseAccounts.map((a) => (
+                  <option key={a.id} value={a.code}>
+                    {a.code} · {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+              {t("autopilot.invoiceTaxAccount")}
+              <select
+                className="h-9 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+                value={taxCode}
+                onChange={(e) => {
+                  setTaxCode(e.target.value);
+                  setDirty(true);
+                  onSaveConfig({
+                    ...action.config,
+                    debit_code: debitCode,
+                    tax_code: e.target.value,
+                    credit_code: creditCode,
+                    max_amount: Number(maxAmount) || 0,
+                  });
+                }}
+              >
+                {taxAccounts.map((a) => (
+                  <option key={a.id} value={a.code}>
+                    {a.code} · {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+              {t("autopilot.invoiceCreditAccount")}
+              <select
+                className="h-9 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+                value={creditCode}
+                onChange={(e) => {
+                  setCreditCode(e.target.value);
+                  setDirty(true);
+                  onSaveConfig({
+                    ...action.config,
+                    debit_code: debitCode,
+                    tax_code: taxCode,
+                    credit_code: e.target.value,
+                    max_amount: Number(maxAmount) || 0,
+                  });
+                }}
+              >
+                {creditAccounts.map((a) => (
+                  <option key={a.id} value={a.code}>
+                    {a.code} · {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+              {t("autopilot.invoiceMaxAmount")}
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                className="h-9 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+                value={maxAmount}
+                onChange={(e) => {
+                  setMaxAmount(e.target.value);
+                  setDirty(true);
+                }}
+                onBlur={() => onSaveConfig(configNow())}
+              />
+            </label>
+            <p className="self-end text-[10.5px] leading-relaxed text-muted-foreground">
+              {t("autopilot.invoiceHint")}
+            </p>
+          </div>
+        </div>
+      )}
+
       {result && (
         <div className={cn("mt-3 rounded-lg border p-2.5 text-[11.5px]", DECISION_STYLE[result.decision])}>
           <div className="flex items-start gap-1.5">
@@ -441,32 +575,49 @@ function ActionCard({
                         ? t("autopilot.resultExecutedBank", {
                             n: result.outcome?.matched ?? result.count ?? 0,
                           })
-                        : t("autopilot.resultExecuted")}
+                        : isInvoice
+                          ? t("autopilot.resultExecutedInvoice", {
+                              n: result.outcome?.posted ?? result.count ?? 0,
+                            })
+                          : t("autopilot.resultExecuted")}
                 </p>
               ) : (
                 <p>
-                  {isAttribution
-                    ? t("autopilot.resultManualAttribution")
-                    : isBank
-                      ? t("autopilot.resultManualBank")
-                      : t("autopilot.resultManual")}
+                  {result.dry_run
+                    ? isAttribution
+                      ? t("autopilot.resultDryRunAttribution", { n: result.count ?? 0 })
+                      : isBank
+                        ? t("autopilot.resultDryRunBank", { n: result.count ?? 0 })
+                        : isInvoice
+                          ? t("autopilot.resultDryRunInvoice", { n: result.count ?? 0 })
+                          : t("autopilot.resultDryRun")
+                    : isAttribution
+                      ? t("autopilot.resultManualAttribution")
+                      : isBank
+                        ? t("autopilot.resultManualBank")
+                        : isInvoice
+                          ? t("autopilot.resultManualInvoice")
+                          : t("autopilot.resultManual")}
                 </p>
               )}
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10.5px] opacity-90">
                 {typeof result.amount === "number" && result.amount > 0 && (
                   <span>
-                    {t(isAttribution ? "autopilot.attributionAmount" : isBank ? "autopilot.bankAmount" : "autopilot.amount")}{" "}
+                    {t(isAttribution ? "autopilot.attributionAmount" : isBank ? "autopilot.bankAmount" : isInvoice ? "autopilot.invoiceAmount" : "autopilot.amount")}{" "}
                     {fmtMoney(result.amount)}
                   </span>
                 )}
                 {typeof result.count === "number" && result.count > 0 && (
-                  <span>{t("autopilot.candidateCount", { n: result.count })}</span>
+                  <span>{t(isInvoice ? "autopilot.invoiceCount" : "autopilot.candidateCount", { n: result.count })}</span>
                 )}
                 {typeof result.outcome?.confirmed === "number" && result.outcome.confirmed > 0 && (
                   <span>{t("autopilot.confirmedCount", { n: result.outcome.confirmed })}</span>
                 )}
                 {typeof result.outcome?.matched === "number" && result.outcome.matched > 0 && (
                   <span>{t("autopilot.bankMatchedCount", { n: result.outcome.matched })}</span>
+                )}
+                {typeof result.outcome?.posted === "number" && result.outcome.posted > 0 && (
+                  <span>{t("autopilot.invoicePostedCount", { n: result.outcome.posted })}</span>
                 )}
                 {isBank && typeof result.window_days === "number" && (
                   <span>{t("autopilot.bankWindow", { n: result.window_days })}</span>
@@ -494,7 +645,7 @@ function ActionCard({
         <Button size="sm" variant="outline" onClick={() => onRun(true)} disabled={busy}>
           {t("autopilot.evaluate")}
         </Button>
-        {dirty && (isTax || isAttribution || isBank) ? (
+        {dirty && (isTax || isAttribution || isBank || isInvoice) ? (
           <Button
             size="sm"
             variant="ghost"
@@ -513,6 +664,7 @@ function ActionCard({
 export function AutopilotPage({ onGo }: { onGo: (kind: DataKind) => void }) {
   const { t } = useI18n();
   const qc = useQueryClient();
+  const refs = useLedgerRefs();
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [results, setResults] = useState<Record<string, RunResult>>({});
   const [lastAll, setLastAll] = useState<RunResult[] | null>(null);
@@ -687,6 +839,7 @@ export function AutopilotPage({ onGo }: { onGo: (kind: DataKind) => void }) {
                 key={action.action_key}
                 action={action}
                 channels={channels.filter((c) => c.kinds.includes("tax"))}
+                accounts={refs.accounts}
                 result={results[action.action_key]}
                 busy={pending === action.action_key}
                 onMode={(mode, config) => {

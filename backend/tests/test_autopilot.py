@@ -463,3 +463,167 @@ async def test_bank_match_window_must_be_integral_and_in_range(client) -> None:
         )
         assert resp.status_code == 400, resp.text
         assert "日期窗口" in resp.json()["detail"]
+
+
+async def _invoice(total: float, tax: float, suffix: str) -> dict[str, Any]:
+    await db.gl_bootstrap(0, ref_date=date.today().isoformat())
+    raw = f"托管发票-{suffix}-{date.today().isoformat()}".encode()
+    inv = await db.save_invoice(
+        file_name=f"托管发票-{suffix}.pdf",
+        raw=raw,
+        parsed={
+            "source_format": "pdf",
+            "invoice_code": "011002100311",
+            "invoice_number": f"4260{suffix}",
+            "invoice_date": date.today().isoformat(),
+            "buyer": "测试主体",
+            "seller": f"测试供应商 {suffix}",
+            "item": f"测试费用 {suffix}",
+            "total_amount": total,
+            "tax_amount": tax,
+            "tax_rate": "13%" if tax else "0%",
+            "kind": "expense",
+            "confidence": "high",
+        },
+    )
+    await db.update_invoice_status(inv["id"], "confirmed")
+    return await db.get_invoice(inv["id"]) or inv
+
+
+@pytest.mark.asyncio
+async def test_invoice_post_auto_generates_balanced_entry(client) -> None:
+    inv = await _invoice(113.0, 13.0, "A")
+    policy = await client.put(
+        "/api/autopilot/policies/invoice_post",
+        json={
+            "mode": "auto",
+            "enabled": True,
+            "config": {
+                "debit_code": "6602",
+                "tax_code": "2203",
+                "credit_code": "2202",
+                "max_amount": 50000,
+            },
+        },
+    )
+    assert policy.status_code == 200, policy.text
+    period = date.today().strftime("%Y-%m")
+    run = await client.post(
+        "/api/autopilot/actions/invoice_post/run", json={"period": period}
+    )
+    assert run.status_code == 200, run.text
+    body = run.json()
+    assert body["decision"] == "executed", body
+    assert body["outcome"]["posted"] == 1
+    entry = await db.gl_get_entry(0, body["outcome"]["items"][0]["entry_id"])
+    assert entry is not None
+    assert entry["status"] == "posted" and entry["source"] == "invoice"
+    assert entry["debit"] == 113.0 and entry["credit"] == 113.0
+    accounts = {a["id"]: a["code"] for a in await db.gl_list_accounts(0)}
+    codes = sorted(
+        (accounts[line["account_id"]], line["debit_cents"], line["credit_cents"])
+        for line in entry["lines"]
+    )
+    assert codes == [("2202", 0, 11300), ("2203", 1300, 0), ("6602", 10000, 0)]
+    posting = await db.fetch_one(
+        "SELECT invoice_id,entry_id,amount_cents,tax_cents FROM invoice_postings"
+        " WHERE user_id=? AND invoice_id=?",
+        (current_user_id(), inv["id"]),
+    )
+    assert posting and int(posting["entry_id"]) == int(entry["id"])
+    second = await client.post(
+        "/api/autopilot/actions/invoice_post/run", json={"period": period}
+    )
+    assert second.status_code == 200, second.text
+    assert second.json()["decision"] == "blocked"
+
+
+@pytest.mark.asyncio
+async def test_invoice_post_amount_cap_waits_then_confirms(client) -> None:
+    await _invoice(113.0, 13.0, "B")
+    policy = await client.put(
+        "/api/autopilot/policies/invoice_post",
+        json={"mode": "auto", "enabled": True, "config": {"max_amount": 100}},
+    )
+    assert policy.status_code == 200, policy.text
+    period = date.today().strftime("%Y-%m")
+    first = await client.post(
+        "/api/autopilot/actions/invoice_post/run", json={"period": period}
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["decision"] == "awaiting"
+    assert first.json()["amount"] == 113.0
+    again = await client.post(
+        "/api/autopilot/actions/invoice_post/run",
+        json={"period": period, "confirm": True},
+    )
+    assert again.status_code == 200, again.text
+    assert again.json()["decision"] == "executed"
+
+
+@pytest.mark.asyncio
+async def test_invoice_post_stale_plan_rolls_back_whole_batch(client) -> None:
+    first = await _invoice(113.0, 13.0, "C1")
+    second = await _invoice(220.0, 0.0, "C2")
+    period = date.today().strftime("%Y-%m")
+    plan = await autopilot.build_plan(
+        "invoice_post", period=period, config={"max_amount": 50000}
+    )
+    assert plan["decision"] == "ready" and plan["count"] == 2
+    conn = await db._conn()
+    await conn.execute(
+        "UPDATE invoices SET status='parsed' WHERE user_id=? AND id=?",
+        (current_user_id(), second["id"]),
+    )
+    await conn.commit()
+    with pytest.raises(ValueError):
+        await autopilot._execute_invoice_post(plan)
+    rows = await db.fetch_all(
+        "SELECT 1 FROM invoice_postings WHERE user_id=?", (current_user_id(),)
+    )
+    assert rows == []
+    entries = await db.gl_list_entries(0)
+    assert all(e["source"] != "invoice" for e in entries)
+    assert (await db.get_invoice(first["id"]))["status"] == "confirmed"
+
+
+@pytest.mark.asyncio
+async def test_invoice_post_rejects_missing_account_code(client) -> None:
+    await _invoice(113.0, 13.0, "D")
+    period = date.today().strftime("%Y-%m")
+    plan = await autopilot.build_plan(
+        "invoice_post",
+        period=period,
+        config={"debit_code": "9999", "tax_code": "2203", "credit_code": "2202"},
+    )
+    assert plan["decision"] == "blocked"
+    assert "9999" in plan["reason"]
+
+
+@pytest.mark.asyncio
+async def test_invoice_post_skips_same_invoice_in_payables(client) -> None:
+    inv = await _invoice(113.0, 13.0, "E")
+    conn = await db._conn()
+    await conn.execute(
+        "INSERT INTO payables(tenant_id,payable_no,vendor_id,po_id,invoice_no,"
+        "invoice_date,due_date,amount_cents,tax_cents,expense_account_id,"
+        "payable_account_id,status,created_at,updated_at)"
+        " VALUES(0,?,0,NULL,?,?,?,?,?,?,?, 'approved',datetime('now'),datetime('now'))",
+        (
+            "PAY-4260-E",
+            inv["invoice_number"],
+            date.today().isoformat(),
+            date.today().isoformat(),
+            11300,
+            1300,
+            1,
+            2,
+        ),
+    )
+    await conn.commit()
+    period = date.today().strftime("%Y-%m")
+    plan = await autopilot.build_plan(
+        "invoice_post", period=period, config={"max_amount": 50000}
+    )
+    assert plan["decision"] == "blocked"
+    assert "采购应付" in plan["reason"]

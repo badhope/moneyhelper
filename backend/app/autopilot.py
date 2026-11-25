@@ -5,8 +5,8 @@
 - assist：先生成计划，用户看过再点一次确认。
 - auto：规则内直接执行；超过金额阈值、缺通道或数据阻断时回落到待确认/阻断。
 
-当前动作接四个已有、可审计的能力：银行流水批量匹配、收支归因批量确认、企业月结、税务核对包外发。
-不把税局申报、银行划款、审计意见等外部资质动作伪装成自动完成。
+当前动作接五个已有、可审计的能力：发票批量入账、银行流水批量匹配、收支归因批量确认、
+企业月结、税务核对包外发。不把税局申报、银行划款、审计意见等外部资质动作伪装成自动完成。
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from typing import Any
 
 from . import db
 from .automation_runner import run_workflow
+from .calculations.gl import to_cents
 from .db import attribution as attribution_db
 from .db.tenant import current_tenant_id, current_user_id
 from .external_delivery import deliver, list_channels
@@ -25,6 +26,22 @@ from .finance_attribution import suggest_attributions
 from .provenance import record_provenance
 
 ACTION_SPECS: dict[str, dict[str, Any]] = {
+    "invoice_post": {
+        "key": "invoice_post",
+        "name": "发票批量入账",
+        "scope": "books",
+        "description": "把发票夹里本期已确认的费用票，按费用、进项税、应付三科生成已过账凭证。",
+        "defaults": {
+            "debit_code": "6602",
+            "tax_code": "2203",
+            "credit_code": "2202",
+            "max_amount": 50000.0,
+        },
+        "boundary": (
+            "只处理发票夹里已确认的费用票；采购应付已登记同一发票号的会跳过；"
+            "整批一个事务，任一张金额/状态变化就全部回滚，可在总账反冲。"
+        ),
+    },
     "bank_match": {
         "key": "bank_match",
         "name": "银行流水批量匹配",
@@ -60,7 +77,13 @@ ACTION_SPECS: dict[str, dict[str, Any]] = {
 }
 
 MODES = ("manual", "assist", "auto")
-RUN_ORDER = ("bank_match", "attribution_confirm", "month_end_close", "tax_deliver")
+RUN_ORDER = (
+    "invoice_post",
+    "bank_match",
+    "attribution_confirm",
+    "month_end_close",
+    "tax_deliver",
+)
 
 
 def actions_catalog() -> list[dict[str, Any]]:
@@ -98,6 +121,23 @@ def _strict_int(value: Any, default: int, field: str) -> int:
 
 def _normalize_config(action_key: str, config: dict[str, Any] | None) -> dict[str, Any]:
     raw = dict(config or {})
+    if action_key == "invoice_post":
+        max_amount = _strict_float(raw.get("max_amount"), 50000.0, "金额阈值")
+        if max_amount < 0:
+            raise ValueError("金额阈值不能为负")
+
+        def _code(key: str, default: str, label: str) -> str:
+            code = str(raw.get(key, default) or "").strip()
+            if not code or len(code) > 20:
+                raise ValueError(f"{label}不能为空")
+            return code
+
+        return {
+            "debit_code": _code("debit_code", "6602", "费用科目编码"),
+            "tax_code": _code("tax_code", "2203", "进项税科目编码"),
+            "credit_code": _code("credit_code", "2202", "应付科目编码"),
+            "max_amount": max_amount,
+        }
     if action_key == "tax_deliver":
         channel_id = str(raw.get("channel_id") or "").strip().lower()
         max_amount = _as_float(raw.get("max_amount"), 50000.0)
@@ -271,6 +311,158 @@ async def _tax_plan(
     }
 
 
+async def _invoice_accounts(
+    tenant_id: int, config: dict[str, Any]
+) -> dict[str, Any]:
+    accounts = await db.gl_list_accounts(tenant_id)
+    by_code = {
+        str(a["code"]): a
+        for a in accounts
+        if a.get("is_active")
+    }
+    wanted = {
+        "debit": str(config.get("debit_code") or ""),
+        "tax": str(config.get("tax_code") or ""),
+        "credit": str(config.get("credit_code") or ""),
+    }
+    picked: dict[str, Any] = {}
+    for role, code in wanted.items():
+        account = by_code.get(code)
+        if account is None:
+            raise ValueError(f"科目编码 {code or '（空）'} 不存在或已停用")
+        picked[role] = account
+    if picked["debit"]["type"] != "expense":
+        raise ValueError(f"费用科目 {wanted['debit']} 必须是费用类")
+    if picked["tax"]["type"] not in {"asset", "liability"}:
+        raise ValueError(f"进项税科目 {wanted['tax']} 必须是资产或负债类")
+    if picked["credit"]["type"] not in {"liability", "asset", "equity"}:
+        raise ValueError(f"应付科目 {wanted['credit']} 必须是负债、资产或权益类")
+    return picked
+
+
+async def _invoice_post_plan(
+    tenant_id: int, user_id: int, period: str, config: dict[str, Any]
+) -> dict[str, Any]:
+    try:
+        accounts = await _invoice_accounts(tenant_id, config)
+    except ValueError as exc:
+        return {
+            "action_key": "invoice_post",
+            "decision": "blocked",
+            "reason": str(exc),
+            "period": period,
+        }
+    invoices = await db.list_invoices_for_post(period, limit=101)
+    payable_numbers = await db.invoice_numbers_in_payables(
+        tenant_id,
+        [str(i.get("invoice_number") or "").strip() for i in invoices],
+    )
+    max_amount = _as_float(config.get("max_amount"), 50000.0)
+    items: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    for invoice in invoices[:100]:
+        invoice_id = str(invoice.get("id") or "")
+        invoice_no = str(invoice.get("invoice_number") or "").strip()
+        day = str(invoice.get("invoice_date") or "")[:10]
+        if invoice_no and invoice_no in payable_numbers:
+            skipped.append(
+                {
+                    "invoice_id": invoice_id,
+                    "reason": "采购应付已登记同一发票号，跳过避免重复入账",
+                }
+            )
+            continue
+        try:
+            total_cents = to_cents(invoice.get("total_amount"))
+            tax_cents = to_cents(invoice.get("tax_amount") or 0)
+        except ValueError as exc:
+            skipped.append({"invoice_id": invoice_id, "reason": str(exc)[:80]})
+            continue
+        if not day.startswith(period):
+            skipped.append({"invoice_id": invoice_id, "reason": "发票日期不在当前账期"})
+            continue
+        if total_cents <= 0:
+            skipped.append({"invoice_id": invoice_id, "reason": "价税合计必须大于 0"})
+            continue
+        if tax_cents > total_cents:
+            skipped.append({"invoice_id": invoice_id, "reason": "税额大于价税合计"})
+            continue
+        items.append(
+            {
+                "invoice_id": invoice_id,
+                "invoice_number": str(invoice.get("invoice_number") or ""),
+                "invoice_date": day,
+                "seller": str(invoice.get("seller") or "")[:80],
+                "item": str(invoice.get("item") or "")[:120],
+                "total_amount": round(total_cents / 100, 2),
+                "tax_amount": round(tax_cents / 100, 2),
+                "base_amount": round((total_cents - tax_cents) / 100, 2),
+                "debit_account_id": int(accounts["debit"]["id"]),
+                "tax_account_id": int(accounts["tax"]["id"]),
+                "credit_account_id": int(accounts["credit"]["id"]),
+                "debit_code": str(accounts["debit"]["code"]),
+                "tax_code": str(accounts["tax"]["code"]),
+                "credit_code": str(accounts["credit"]["code"]),
+            }
+        )
+
+    if not items:
+        reason = "当期没有待入账的已确认费用发票（可能已入账，或采购应付已登记）"
+        if skipped:
+            reason = "当期已确认发票的金额/日期不完整，全部跳过：" + skipped[0]["reason"]
+        return {
+            "action_key": "invoice_post",
+            "decision": "blocked",
+            "reason": reason,
+            "period": period,
+            "skipped": len(skipped),
+            "skip_reasons": skipped[:5],
+        }
+
+    total_amount = round(
+        sum(_as_float(item.get("total_amount"), 0.0) for item in items), 2
+    )
+    above = max_amount > 0 and total_amount > max_amount
+    return {
+        "action_key": "invoice_post",
+        "decision": "ready",
+        "period": period,
+        "count": len(items),
+        "amount": total_amount,
+        "tax": round(sum(_as_float(i.get("tax_amount"), 0.0) for i in items), 2),
+        "max_amount": max_amount,
+        "pending": max(0, len(invoices) - 100),
+        "skipped": len(skipped),
+        "skip_reasons": skipped[:5],
+        "accounts": {
+            "debit": {
+                "id": accounts["debit"]["id"],
+                "code": accounts["debit"]["code"],
+                "name": accounts["debit"]["name"],
+            },
+            "tax": {
+                "id": accounts["tax"]["id"],
+                "code": accounts["tax"]["code"],
+                "name": accounts["tax"]["name"],
+            },
+            "credit": {
+                "id": accounts["credit"]["id"],
+                "code": accounts["credit"]["code"],
+                "name": accounts["credit"]["name"],
+            },
+        },
+        "items": items,
+        "preview": items[:6],
+        "requires_confirmation": above,
+        "confirm_reason": (
+            f"本批发票价税合计 ¥{total_amount:,.2f} 超过预设阈值 "
+            f"¥{max_amount:,.2f}"
+            if above
+            else ""
+        ),
+    }
+
+
 async def _bank_match_plan(
     tenant_id: int, period: str, config: dict[str, Any]
 ) -> dict[str, Any]:
@@ -420,6 +612,56 @@ async def _attribution_plan(
     }
 
 
+async def _execute_invoice_post(plan: dict[str, Any]) -> dict[str, Any]:
+    tenant, user = current_tenant_id(), current_user_id()
+    items = [
+        {
+            "invoice_id": str(item["invoice_id"]),
+            "invoice_number": str(item.get("invoice_number") or ""),
+            "invoice_date": str(item.get("invoice_date") or ""),
+            "seller": str(item.get("seller") or ""),
+            "total_amount": _as_float(item.get("total_amount"), 0.0),
+            "tax_amount": _as_float(item.get("tax_amount"), 0.0),
+            "debit_account_id": int(item["debit_account_id"]),
+            "tax_account_id": int(item["tax_account_id"]),
+            "credit_account_id": int(item["credit_account_id"]),
+        }
+        for item in (plan.get("items") or [])
+    ]
+    if not items:
+        return {"posted": 0, "items": []}
+    written = await db.invoice_post_batch(
+        tenant,
+        user,
+        items,
+        period=str(plan.get("period") or ""),
+    )
+    for row in written:
+        item = next(
+            (x for x in items if x["invoice_id"] == row["invoice_id"]), {}
+        )
+        await record_provenance(
+            "invoice_post",
+            "invoice",
+            str(row["invoice_id"]),
+            before={"status": "confirmed", "invoice_date": item.get("invoice_date")},
+            after={
+                "status": "posted",
+                "entry_id": row["entry_id"],
+                "amount": row["amount"],
+            },
+            source="autopilot",
+            metadata={
+                "invoice_number": item.get("invoice_number"),
+                "seller": item.get("seller"),
+                "tax": row["tax"],
+                "batch": True,
+                "period": str(plan.get("period") or ""),
+            },
+        )
+    return {"posted": len(written), "items": written[:20]}
+
+
 async def _execute_bank_match(plan: dict[str, Any]) -> dict[str, Any]:
     tenant, user = current_tenant_id(), current_user_id()
     pairs = [
@@ -515,6 +757,10 @@ async def build_plan(
     cfg = {**ACTION_SPECS[action_key]["defaults"], **(config or {})}
     if action_key == "tax_deliver":
         return await _tax_plan(current_tenant_id(), current_user_id(), period, cfg)
+    if action_key == "invoice_post":
+        return await _invoice_post_plan(
+            current_tenant_id(), current_user_id(), period, cfg
+        )
     if action_key == "bank_match":
         return await _bank_match_plan(current_tenant_id(), period, cfg)
     if action_key == "attribution_confirm":
@@ -541,6 +787,8 @@ async def _execute_plan(plan: dict[str, Any]) -> dict[str, Any]:
             trigger="autopilot",
             idempotency_key=f"autopilot:{current_tenant_id()}:{plan.get('period')}",
         )
+    if action_key == "invoice_post":
+        return await _execute_invoice_post(plan)
     if action_key == "bank_match":
         return await _execute_bank_match(plan)
     if action_key == "attribution_confirm":

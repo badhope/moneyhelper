@@ -176,6 +176,23 @@ async def reset_demo_ledger() -> dict[str, Any]:
             await conn.execute(
                 "DELETE FROM payments WHERE tenant_id=?", (DEMO_USER_ID,)
             )
+            # 发票重新种，旧发票凭证也必须一起清；否则重置一次就多一批
+            # 无法再从发票夹追溯的 source='invoice' 凭证。
+            await conn.execute(
+                "DELETE FROM gl_entry_lines WHERE tenant_id=? AND entry_id IN"
+                " (SELECT id FROM gl_entries WHERE tenant_id=? AND source='invoice')",
+                (DEMO_USER_ID, DEMO_USER_ID),
+            )
+            await conn.execute(
+                "DELETE FROM gl_entries WHERE tenant_id=? AND source='invoice'",
+                (DEMO_USER_ID,),
+            )
+            await conn.execute(
+                "DELETE FROM invoice_postings WHERE user_id=?", (DEMO_USER_ID,)
+            )
+            await conn.execute(
+                "DELETE FROM invoices WHERE user_id=?", (DEMO_USER_ID,)
+            )
 
             await conn.executemany(
                 "INSERT INTO positions(user_id,symbol,name,kind,industry,shares,cost,last,buy_date,fee)"
@@ -235,6 +252,7 @@ async def reset_demo_ledger() -> dict[str, Any]:
     await _seed_demo_gl()
     await _seed_plan_demo()
     await _seed_bank_demo()
+    await _seed_invoice_demo()
     return await ledger_counts(DEMO_USER_ID)
 
 
@@ -359,6 +377,75 @@ async def _seed_bank_demo() -> None:
                     memo,
                     ref,
                     now,
+                    now,
+                ),
+            )
+
+
+async def _seed_invoice_demo() -> None:
+    """演示发票夹：两张已确认费用票，可直接跑批量入账。
+
+    金额与银行匹配的付款刻意错开：发票入账走应付，银行匹配走付款，
+    两者不共享同一张发票，避免演示里出现“同一笔钱记两次”的错觉。
+    """
+    from ..timeutil import now_iso
+    from .db_write_txn import write_txn
+
+    now = now_iso()
+    rows = (
+        (
+            "inv_demo_4260_1",
+            "演示-办公耗材.pdf",
+            "pdf",
+            "011002100311",
+            "42600001",
+            "2026-11-05",
+            "潮州云仓商贸有限公司",
+            "办公耗材（打包胶带、标签纸）",
+            113.00,
+            13.00,
+            "13%",
+        ),
+        (
+            "inv_demo_4260_2",
+            "演示-快递月结.pdf",
+            "pdf",
+            "011002100311",
+            "42600002",
+            "2026-11-08",
+            "顺丰速运有限公司",
+            "11 月快递月结服务费",
+            220.00,
+            0.00,
+            "0%",
+        ),
+    )
+    async with write_txn() as conn:
+        for iid, file_name, fmt, code, number, day, seller, item, total, tax, rate in rows:
+            await conn.execute(
+                "INSERT INTO invoices(user_id,id,file_name,file_hash,source_format,"
+                "invoice_code,invoice_number,invoice_date,buyer,seller,item,"
+                "total_amount,tax_amount,tax_rate,kind,confidence,status,note,created_at)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    DEMO_USER_ID,
+                    iid,
+                    file_name,
+                    f"demo4260-{iid}",
+                    fmt,
+                    code,
+                    number,
+                    day,
+                    "演示集团总部",
+                    seller,
+                    item,
+                    total,
+                    tax,
+                    rate,
+                    "expense",
+                    "high",
+                    "confirmed",
+                    "",
                     now,
                 ),
             )

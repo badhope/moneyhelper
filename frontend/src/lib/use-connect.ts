@@ -415,6 +415,7 @@ export interface InvoiceRecord {
   kind: string;
   confidence: string;
   status: string;
+  posted?: number;
   created_at: string;
 }
 
@@ -542,6 +543,18 @@ export function useDeleteInvoice() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api(`/api/connect/invoices/${id}`, { method: "DELETE" }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/connect/invoices"] }),
+  });
+}
+
+export function useUpdateInvoiceStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api<InvoiceRecord>(`/api/connect/invoices/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
     onSettled: () => void qc.invalidateQueries({ queryKey: ["/api/connect/invoices"] }),
   });
 }

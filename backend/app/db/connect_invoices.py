@@ -86,20 +86,56 @@ async def save_invoice(
 
 async def get_invoice(iid: str) -> dict[str, Any] | None:
     row = await fetch_one(
-        "SELECT * FROM invoices WHERE user_id=? AND id=?", (current_user_id(), iid)
+        "SELECT i.*, CASE WHEN p.invoice_id IS NULL THEN 0 ELSE 1 END AS posted"
+        " FROM invoices i LEFT JOIN invoice_postings p"
+        " ON p.user_id=i.user_id AND p.invoice_id=i.id"
+        " WHERE i.user_id=? AND i.id=?",
+        (current_user_id(), iid),
     )
     return dict(row) if row else None
 
 
 async def list_invoices(limit: int = 100, status: str = "") -> list[dict[str, Any]]:
     params: list[Any] = [current_user_id()]
-    sql = "SELECT * FROM invoices WHERE user_id=?"
+    sql = (
+        "SELECT i.*, CASE WHEN p.invoice_id IS NULL THEN 0 ELSE 1 END AS posted"
+        " FROM invoices i LEFT JOIN invoice_postings p"
+        " ON p.user_id=i.user_id AND p.invoice_id=i.id"
+        " WHERE i.user_id=?"
+    )
     if status:
-        sql += " AND status=?"
+        sql += " AND i.status=?"
         params.append(status)
-    sql += " ORDER BY created_at DESC LIMIT ?"
+    sql += " ORDER BY i.created_at DESC LIMIT ?"
     params.append(max(1, min(int(limit), 500)))
     return await fetch_all(sql, tuple(params))
+
+
+async def list_invoices_for_post(period: str, limit: int = 200) -> list[dict[str, Any]]:
+    """当期已确认、尚未入账的支出票候选。
+
+    入账只认 `confirmed`：`parsed` 还可能缺税号/金额，`archived` 是已归档的历史票，
+    都不该被批量写进总账。真正的幂等由 `invoice_postings` 唯一键兜底。
+    """
+    month = str(period or "").strip()
+    if len(month) != 7 or month[4] != "-":
+        raise ValueError("账期需为 YYYY-MM")
+    rows = await fetch_all(
+        "SELECT i.* FROM invoices i"
+        " LEFT JOIN invoice_postings p"
+        "   ON p.user_id=i.user_id AND p.invoice_id=i.id"
+        " WHERE i.user_id=? AND i.status='confirmed'"
+        "   AND i.invoice_date>=? AND i.invoice_date<?"
+        "   AND p.invoice_id IS NULL"
+        " ORDER BY i.invoice_date,i.id LIMIT ?",
+        (
+            current_user_id(),
+            f"{month}-01",
+            f"{month}-32",
+            max(1, min(int(limit), 500)),
+        ),
+    )
+    return rows
 
 
 async def update_invoice_status(iid: str, status: str, note: str = "") -> dict[str, Any]:
